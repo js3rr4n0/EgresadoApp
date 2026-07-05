@@ -11,15 +11,25 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
     let errores: string[] = [];
     let validData: any[] = [];
     
+    // Clean data (trim strings) to avoid whitespace mismatches
+    rawData.forEach(row => {
+      Object.keys(row).forEach(k => {
+        if (typeof row[k] === 'string') {
+          row[k] = row[k].trim();
+        }
+      });
+    });
+
     // Check internal duplicates within the CSV itself
     const checkInternalDuplicates = (key: string, fieldName: string) => {
       const seen = new Set();
       rawData.forEach((row, i) => {
-        if (row[key]) {
-          if (seen.has(row[key])) {
-            errores.push(`Fila ${i + 1}: Duplicado interno: La clave "${row[key]}" ya existe en filas anteriores del archivo.`);
+        const val = typeof row[key] === 'string' ? row[key].trim() : row[key];
+        if (val) {
+          if (seen.has(val)) {
+            errores.push(`Fila ${i + 1}: Duplicado interno: La clave "${val}" ya existe en filas anteriores del archivo.`);
           } else {
-            seen.add(row[key]);
+            seen.add(val);
           }
         }
       });
