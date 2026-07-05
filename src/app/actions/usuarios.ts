@@ -93,11 +93,11 @@ export async function getUsuarios() {
   }
 }
 
-export async function toggleUserStatus(userId: number, currentStatus: boolean) {
+export async function toggleUserStatus(userId: number, newStatus: boolean) {
   try {
     await db
       .update(usuarios)
-      .set({ activo: currentStatus }) // fixed toggle logic based on component
+      .set({ activo: newStatus })
       .where(eq(usuarios.id, userId));
     
     revalidatePath("/admin/usuarios");

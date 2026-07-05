@@ -37,7 +37,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
     }
 
     setTogglingId(user.id);
-    const res = await toggleUserStatus(user.id, user.activo);
+    const res = await toggleUserStatus(user.id, !user.activo);
     if (res.success) {
       setUsuarios(prev => prev.map(u => u.id === user.id ? { ...u, activo: !u.activo } : u));
     } else {
