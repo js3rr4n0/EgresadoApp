@@ -162,3 +162,18 @@ export async function updateUsuario(id: number, formData: FormData) {
     return { success: false, error: "Error al actualizar el usuario" };
   }
 }
+
+export async function eliminarUsuario(userId: number) {
+  try {
+    await db.delete(usuarios).where(eq(usuarios.id, userId));
+    revalidatePath("/admin/usuarios");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error deleting user:", error);
+    // 23503 is postgres foreign key violation code
+    if (error.code === '23503') {
+      return { success: false, error: "No se puede eliminar el usuario porque tiene registros dependientes (ej. propuestas). Se recomienda desactivarlo en su lugar." };
+    }
+    return { success: false, error: "Error al eliminar el usuario" };
+  }
+}
