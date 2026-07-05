@@ -20,11 +20,14 @@ export default function CsvUploader() {
   const [isPending, setIsPending] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const [isValidating, setIsValidating] = useState(false);
+
   const resetState = () => {
     setFileName(null);
     setParsedData(null);
     setErrors([]);
     setIsSuccess(false);
+    setIsValidating(false);
   };
 
   const handleTypeChange = (type: ImportType) => {
@@ -40,14 +43,16 @@ export default function CsvUploader() {
     setIsSuccess(false);
     setErrors([]);
     setParsedData(null);
+    setIsValidating(true);
 
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       transformHeader: (h) => h.trim().toLowerCase(),
-      complete: (results) => {
+      complete: async (results) => {
         if (results.errors.length > 0) {
           setErrors(results.errors.map(err => `Error CSV Fila ${err.row}: ${err.message}`));
+          setIsValidating(false);
           return;
         }
 
@@ -59,13 +64,22 @@ export default function CsvUploader() {
         const missing = expected.filter(h => !actual.includes(h));
         if (missing.length > 0) {
           setErrors([`El archivo no tiene el formato correcto. Faltan las columnas: ${missing.join(", ")}`]);
+          setIsValidating(false);
           return;
         }
 
         setParsedData(data);
+        
+        // Immediate Validation against DB
+        const result = await validateAndInsertCsv(selectedType, data, true); // dryRun = true
+        if (!result.success && result.errors) {
+          setErrors(result.errors);
+        }
+        setIsValidating(false);
       },
       error: (error: any) => {
         setErrors([`Error al leer el archivo: ${error.message}`]);
+        setIsValidating(false);
       }
     });
   };
@@ -251,11 +265,16 @@ export default function CsvUploader() {
               </div>
               <button 
                 onClick={handleConfirmAndUpload} 
-                disabled={errors.length > 0 || isPending}
+                disabled={errors.length > 0 || isPending || isValidating}
                 className="w-full sm:w-auto px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shrink-0 shadow-sm"
               >
                 {isPending ? (
-                  <>Procesando...</>
+                  <>Procesando subida...</>
+                ) : isValidating ? (
+                  <>
+                    <svg className="animate-spin w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                    Validando datos...
+                  </>
                 ) : (
                   <>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>

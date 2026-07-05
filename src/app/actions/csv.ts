@@ -6,7 +6,7 @@ import { inArray, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
-export async function validateAndInsertCsv(entidad: string, rawData: any[]) {
+export async function validateAndInsertCsv(entidad: string, rawData: any[], dryRun: boolean = false) {
   try {
     let errores: string[] = [];
     let validData: any[] = [];
@@ -31,9 +31,6 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[]) {
       checkInternalDuplicates("nombre", "Nombre");
 
       // Check DB duplicates
-      const codigos = rawData.map(r => r.codigo).filter(Boolean);
-      const nombres = rawData.map(r => r.nombre).filter(Boolean);
-      
       const existingF = await db.select({ codigo: facultades.codigo, nombre: facultades.nombre }).from(facultades);
       const existingCodigos = new Set(existingF.map(f => f.codigo));
       const existingNombres = new Set(existingF.map(f => f.nombre));
@@ -52,7 +49,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[]) {
         });
       });
 
-      if (errores.length === 0 && validData.length > 0) {
+      if (errores.length === 0 && validData.length > 0 && !dryRun) {
         await db.insert(facultades).values(validData);
       }
 
@@ -90,7 +87,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[]) {
         });
       });
 
-      if (errores.length === 0 && validData.length > 0) {
+      if (errores.length === 0 && validData.length > 0 && !dryRun) {
         await db.insert(carreras).values(validData);
       }
 
@@ -111,7 +108,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[]) {
       const validRoles = new Set(['admin', 'decanato', 'asesor', 'egresado']);
 
       // Generate a default hash for all inserted users to keep it fast
-      const defaultPasswordHash = await bcrypt.hash("Egresado123!", 10);
+      const defaultPasswordHash = dryRun ? "" : await bcrypt.hash("Egresado123!", 10);
 
       rawData.forEach((row, i) => {
         const fila = i + 1;
@@ -139,7 +136,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[]) {
         validData.push({
           nombreCompleto: row.nombre_completo,
           correo: row.correo,
-          passwordHash: defaultPasswordHash, // Default password for all CSV imports
+          passwordHash: defaultPasswordHash, 
           rol: row.rol,
           carnet: row.carnet || null,
           carreraId: cId,
@@ -149,15 +146,10 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[]) {
         });
       });
 
-      if (errores.length === 0 && validData.length > 0) {
-        // Bulk insert users
-        // Note: PostgreSQL has a parameter limit per query (65535). 
-        // 9 fields per user. Max users per chunk: ~7000.
-        // We will insert in chunks of 1000 just in case.
+      if (errores.length === 0 && validData.length > 0 && !dryRun) {
         const chunkSize = 1000;
         for (let i = 0; i < validData.length; i += chunkSize) {
           const chunk = validData.slice(i, i + chunkSize);
-          // @ts-ignore
           await db.insert(usuarios).values(chunk);
         }
       }
@@ -167,8 +159,10 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[]) {
       return { success: false, errors: errores };
     }
 
-    revalidatePath("/admin/usuarios");
-    revalidatePath("/admin/facultades");
+    if (!dryRun) {
+      revalidatePath("/admin/usuarios");
+      revalidatePath("/admin/facultades");
+    }
     return { success: true };
 
   } catch (error: any) {
