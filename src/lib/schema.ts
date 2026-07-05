@@ -19,6 +19,8 @@ import { sql } from "drizzle-orm";
 export const facultades = pgTable("facultades", {
   id: serial("id").primaryKey(),
   nombre: varchar("nombre", { length: 255 }).notNull(),
+  codigo: varchar("codigo", { length: 50 }),
+  activo: boolean("activo").notNull().default(true),
 });
 
 export const carreras = pgTable("carreras", {
@@ -27,6 +29,8 @@ export const carreras = pgTable("carreras", {
     .notNull()
     .references(() => facultades.id, { onDelete: "cascade" }),
   nombre: varchar("nombre", { length: 255 }).notNull(),
+  codigo: varchar("codigo", { length: 50 }),
+  activo: boolean("activo").notNull().default(true),
 });
 
 // ─────────────────────────── Usuarios ───────────────────────────
