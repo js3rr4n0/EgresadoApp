@@ -134,6 +134,30 @@ export default function LoginPage() {
           </form>
         </div>
 
+        <div className="mt-6 bg-white border border-border rounded-xl p-5 shadow-sm max-w-[440px] w-full">
+          <h3 className="font-bold text-card-dark text-sm mb-3 border-b border-border pb-2">
+            Credenciales de Acceso (Demo):
+          </h3>
+          <div className="grid grid-cols-2 gap-4 text-xs">
+            <div>
+              <p className="font-bold text-brand-red mb-0.5">Admin: <span className="text-muted font-normal">admin@uni.test</span></p>
+              <p className="text-muted">Pass: Test123!</p>
+            </div>
+            <div>
+              <p className="font-bold text-brand-red mb-0.5">Coord: <span className="text-muted font-normal">decanato@uni.test</span></p>
+              <p className="text-muted">Pass: Test123!</p>
+            </div>
+            <div>
+              <p className="font-bold text-brand-red mb-0.5">Asesor: <span className="text-muted font-normal">asesor@uni.test</span></p>
+              <p className="text-muted">Pass: Test123!</p>
+            </div>
+            <div>
+              <p className="font-bold text-brand-red mb-0.5">Egresado: <span className="text-muted font-normal">egresado@uni.test</span></p>
+              <p className="text-muted">Pass: Test123!</p>
+            </div>
+          </div>
+        </div>
+
         <p className="text-center text-muted text-xs mt-8">
           © {new Date().getFullYear()} Universidad — Sistema de Procesos de
           Graduación

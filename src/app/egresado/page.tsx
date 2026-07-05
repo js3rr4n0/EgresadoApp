@@ -1,7 +1,15 @@
 import { getActivePropuesta } from "@/app/actions/propuestas";
+import { getCartaAceptacion } from "@/app/actions/carta";
 import PortadaForm from "@/components/PortadaForm";
+import CartaForm from "@/components/CartaForm";
 
-export default async function EgresadoPage() {
+export default async function EgresadoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ step?: string }>;
+}) {
+  const params = await searchParams;
+  const currentStep = parseInt(params.step || "1");
   const data = await getActivePropuesta();
 
   if (!data) {
@@ -19,6 +27,10 @@ export default async function EgresadoPage() {
   }
 
   const { propuesta, userDetails, mesEnvio } = data;
+  let cartaData = null;
+  if (currentStep === 2) {
+    cartaData = await getCartaAceptacion(propuesta.id);
+  }
 
   // Mapa de estados para etiquetas visuales
   const estadosLabel: Record<string, string> = {
@@ -27,6 +39,15 @@ export default async function EgresadoPage() {
     rechazada: "Propuesta Rechazada",
     aprobada: "Propuesta Aprobada",
   };
+
+  const steps = [
+    { num: 1, title: "Portada", desc: "Información general del trabajo" },
+    { num: 2, title: "Carta de Aceptación", desc: "Documento de aceptación" },
+    { num: 3, title: "Datos empresariales", desc: "Información de la institución" },
+    { num: 4, title: "Descripción de actividades", desc: "Actividades que realizarás" },
+    { num: 5, title: "Justificación del proceso", desc: "Justificación y objetivos" },
+    { num: 6, title: "Documentación del estudiante", desc: "Documentos requeridos" },
+  ];
 
   return (
     <div>
@@ -48,28 +69,25 @@ export default async function EgresadoPage() {
           <h2 className="font-bold text-foreground mb-6">Progreso de la Propuesta</h2>
           
           <div className="space-y-0 relative before:absolute before:inset-y-0 before:left-4 before:-ml-px before:w-0.5 before:bg-border">
-            {[
-              { num: 1, title: "Portada", desc: "Información general del trabajo", active: true },
-              { num: 2, title: "Carta de Aceptación", desc: "Documento de aceptación", active: false },
-              { num: 3, title: "Datos empresariales", desc: "Información de la institución", active: false },
-              { num: 4, title: "Descripción de actividades", desc: "Actividades que realizarás", active: false },
-              { num: 5, title: "Justificación del proceso", desc: "Justificación y objetivos", active: false },
-              { num: 6, title: "Documentación del estudiante", desc: "Documentos requeridos", active: false },
-            ].map((step, idx) => (
-              <div key={idx} className={`relative flex items-start gap-4 p-3 rounded-lg ${step.active ? "bg-red-50" : ""}`}>
-                <div className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow-sm ${
-                  step.active ? "bg-brand-red text-white" : "bg-muted-bg text-muted border border-border"
-                }`}>
-                  {step.num}
+            {steps.map((step) => {
+              const active = step.num === currentStep;
+              const completed = step.num < currentStep;
+              return (
+                <div key={step.num} className={`relative flex items-start gap-4 p-3 rounded-lg ${active ? "bg-red-50" : ""}`}>
+                  <div className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow-sm transition-colors ${
+                    active ? "bg-brand-red text-white" : completed ? "bg-emerald-500 text-white" : "bg-muted-bg text-muted border border-border"
+                  }`}>
+                    {completed ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : step.num}
+                  </div>
+                  <div>
+                    <h3 className={`text-sm font-bold ${active ? "text-brand-red" : completed ? "text-emerald-700" : "text-foreground"}`}>
+                      {step.title}
+                    </h3>
+                    <p className="text-xs text-muted mt-0.5">{step.desc}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className={`text-sm font-bold ${step.active ? "text-brand-red" : "text-foreground"}`}>
-                    {step.title}
-                  </h3>
-                  <p className="text-xs text-muted mt-0.5">{step.desc}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <button className="mt-8 w-full flex items-center justify-center gap-2 bg-white border border-border hover:bg-muted-bg text-foreground font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors">
@@ -82,18 +100,38 @@ export default async function EgresadoPage() {
         </div>
 
         {/* Middle Column - Form */}
-        <div className="flex-1 bg-white border border-border rounded-xl p-8">
-          <h2 className="text-xl font-bold text-foreground mb-2">1. Portada</h2>
-          <p className="text-sm text-muted mb-8">Verifica tus datos personales para pasar a la siguiente etapa.</p>
+        <div className="flex-1 bg-white border border-border rounded-xl p-8 shadow-sm">
+          {currentStep === 1 && (
+            <>
+              <h2 className="text-xl font-bold text-foreground mb-2">1. Portada</h2>
+              <p className="text-sm text-muted mb-8">Verifica tus datos personales para pasar a la siguiente etapa.</p>
+              <PortadaForm 
+                initialData={{
+                  nombreCompleto: userDetails.nombreCompleto,
+                  carnet: userDetails.carnet,
+                  carrera: userDetails.carrera,
+                  mesEnvio,
+                }}
+              />
+            </>
+          )}
 
-          <PortadaForm 
-            initialData={{
-              nombreCompleto: userDetails.nombreCompleto,
-              carnet: userDetails.carnet,
-              carrera: userDetails.carrera,
-              mesEnvio,
-            }}
-          />
+          {currentStep === 2 && (
+            <>
+              <h2 className="text-xl font-bold text-foreground mb-2">2. Carta de Aceptación</h2>
+              <p className="text-sm text-muted mb-8">Digita los datos de la carta emitida por la empresa para validar tu pasantía.</p>
+              <CartaForm 
+                propuestaId={propuesta.id}
+                initialData={cartaData}
+              />
+            </>
+          )}
+
+          {currentStep > 2 && (
+            <div className="text-center py-16">
+              <h3 className="text-lg font-bold text-card-dark">Paso en construcción (Fase 5.3+)</h3>
+            </div>
+          )}
         </div>
 
         {/* Right Column - Status & Cards */}
