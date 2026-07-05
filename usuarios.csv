@@ -1,0 +1,6 @@
+nombre_completo,correo,rol,carnet,carrera_codigo,facultad_codigo,activo,carreras_asignadas
+Admin Principal,admin.test@ues.edu.sv,admin,,,,true,
+Decanato Arquitectura,decanato.arq@ues.edu.sv,decanato,,,ARQ,true,
+Asesor General,asesor.test@ues.edu.sv,asesor,,,,true,
+Ana Gomez,ana.gomez@ues.edu.sv,egresado,AG99001,LDG-01,,true,
+Carlos Miron,carlos.miron@ues.edu.sv,egresado,CM99002,DOC-01,,true,

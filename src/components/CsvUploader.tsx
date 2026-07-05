@@ -129,7 +129,7 @@ export default function CsvUploader() {
       </div>
 
       {/* Main Area: Upload / Preview */}
-      <div className="flex-1 w-full bg-white border border-border rounded-xl p-6 shadow-sm min-h-[400px]">
+      <div className="flex-1 w-full min-w-0 bg-white border border-border rounded-xl p-6 shadow-sm min-h-[400px]">
         {/* State 1: Upload (No data, no success) */}
         {!parsedData && !isSuccess && (
           <div>

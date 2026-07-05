@@ -29,25 +29,30 @@ export default function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-[280px] shrink-0 bg-[#CC292B] min-h-screen text-white flex flex-col fixed left-0 top-0 bottom-0 z-50">
-      <div className="p-8 flex items-center gap-4">
-        <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shrink-0">
-          <span className="text-[#CC292B] text-xl font-serif italic font-bold">U</span>
+    <aside className="w-full lg:w-[280px] shrink-0 bg-[#CC292B] lg:min-h-screen text-white flex flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 z-50">
+      <div className="p-4 lg:p-8 flex items-center justify-between lg:justify-start gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white rounded-full flex items-center justify-center shrink-0">
+            <span className="text-[#CC292B] text-lg lg:text-xl font-serif italic font-bold">U</span>
+          </div>
+          <div>
+            <h1 className="font-bold text-base lg:text-lg leading-tight tracking-wide">Gestión TG</h1>
+            <p className="text-[10px] uppercase tracking-widest text-white/70 font-bold">UNICAES</p>
+          </div>
         </div>
-        <div>
-          <h1 className="font-bold text-lg leading-tight tracking-wide">Gestión TG</h1>
-          <p className="text-[10px] uppercase tracking-widest text-white/70 font-bold">UNICAES</p>
+        <div className="lg:hidden">
+          {/* Optional hamburger or just let it scroll */}
         </div>
       </div>
 
-      <nav className="flex-1 px-4 py-4 space-y-2">
+      <nav className="flex-1 px-4 pb-2 lg:py-4 lg:space-y-2 flex lg:flex-col overflow-x-auto gap-2 lg:gap-0 no-scrollbar">
         {navItems.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href));
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-medium text-sm ${
+              className={`flex items-center gap-2 lg:gap-3 px-3 py-2.5 lg:px-4 lg:py-3 rounded-xl transition-all font-medium text-xs lg:text-sm whitespace-nowrap shrink-0 ${
                 isActive 
                   ? "bg-white/10 text-white font-bold" 
                   : "text-white/80 hover:bg-white/5 hover:text-white"
@@ -60,7 +65,7 @@ export default function AdminSidebar() {
         })}
       </nav>
 
-      <div className="p-4 mt-auto mb-4">
+      <div className="p-4 mt-auto mb-2 lg:mb-4 hidden lg:block">
         <button 
           onClick={() => logout()}
           className="flex items-center gap-3 px-4 py-3 w-full text-left text-white/80 hover:bg-white/5 hover:text-white rounded-xl transition-all font-medium text-sm"

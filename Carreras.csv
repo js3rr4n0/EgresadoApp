@@ -1,0 +1,6 @@
+nombre,codigo,facultad_codigo,activa
+Licenciatura en Diseño Gráfico,LDG-01,ARQ,true
+Arquitectura,ARQ-01,ARQ,true
+Doctorado en Medicina,DOC-01,MED,true
+Licenciatura en Psicología,LPS-01,FCH,true
+Licenciatura en Administración,LAD-01,ECO,true
