@@ -29,6 +29,7 @@ export default function FacultadesManager({
   const [facultades, setFacultades] = useState(initialFacultades);
   const [carreras, setCarreras] = useState(initialCarreras);
   const [pending, setPending] = useState(false);
+  const [editingFacultadId, setEditingFacultadId] = useState<number | null>(null);
 
   const handleCreateFacultad = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -36,11 +37,24 @@ export default function FacultadesManager({
     const formData = new FormData(e.currentTarget);
     const res = await createFacultad(formData);
     if (res.success) {
-      window.location.reload(); // simple reload to get new data
+      window.location.reload(); 
     } else {
       alert(res.error);
     }
     setPending(false);
+  };
+
+  const handleEditFacultad = async (e: React.FormEvent<HTMLFormElement>, id: number) => {
+    e.preventDefault();
+    setPending(true);
+    const formData = new FormData(e.currentTarget);
+    const res = await updateFacultad(id, formData);
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert(res.error);
+      setPending(false);
+    }
   };
 
   const handleDeleteFacultad = async (id: number, nombre: string) => {
@@ -66,6 +80,21 @@ export default function FacultadesManager({
       alert(res.error);
     }
     setPending(false);
+  };
+
+  const [editingCarreraId, setEditingCarreraId] = useState<number | null>(null);
+
+  const handleEditCarrera = async (e: React.FormEvent<HTMLFormElement>, id: number) => {
+    e.preventDefault();
+    setPending(true);
+    const formData = new FormData(e.currentTarget);
+    const res = await updateCarrera(id, formData);
+    if (res.success) {
+      window.location.reload();
+    } else {
+      alert(res.error);
+      setPending(false);
+    }
   };
 
   const handleDeleteCarrera = async (id: number, nombre: string) => {
@@ -120,19 +149,35 @@ export default function FacultadesManager({
             <tbody className="divide-y divide-border">
               {facultades.map(f => (
                 <tr key={f.id} className="hover:bg-slate-50">
-                  <td className="py-3 font-bold text-card-dark">{f.codigo || "-"}</td>
-                  <td className="py-3 text-muted">{f.nombre}</td>
-                  <td className="py-3 text-center">
-                    <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold tracking-widest uppercase">
-                      {f.activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td className="py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button className="text-slate-300 hover:text-slate-500" title="Editar (En construcción)"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                      <button onClick={() => handleDeleteFacultad(f.id, f.nombre)} disabled={pending} className="text-slate-300 hover:text-brand-red"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                    </div>
-                  </td>
+                  {editingFacultadId === f.id ? (
+                    <td colSpan={4} className="py-2">
+                      <form onSubmit={(e) => handleEditFacultad(e, f.id)} className="flex items-center gap-2">
+                        <input name="codigo" defaultValue={f.codigo || ""} className="w-20 px-2 py-1 border border-border rounded text-sm uppercase outline-none focus:ring-2 focus:ring-brand-red/20" />
+                        <input name="nombre" required defaultValue={f.nombre} className="flex-1 px-2 py-1 border border-border rounded text-sm outline-none focus:ring-2 focus:ring-brand-red/20" />
+                        <label className="flex items-center gap-1 text-xs">
+                          <input type="checkbox" name="activo" defaultChecked={f.activo} className="rounded" /> Activo
+                        </label>
+                        <button type="submit" disabled={pending} className="p-1.5 text-white bg-emerald-500 rounded hover:bg-emerald-600 disabled:opacity-50"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg></button>
+                        <button type="button" onClick={() => setEditingFacultadId(null)} className="p-1.5 text-white bg-slate-400 rounded hover:bg-slate-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                      </form>
+                    </td>
+                  ) : (
+                    <>
+                      <td className="py-3 font-bold text-card-dark">{f.codigo || "-"}</td>
+                      <td className="py-3 text-muted">{f.nombre}</td>
+                      <td className="py-3 text-center">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase ${f.activo ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {f.activo ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => setEditingFacultadId(f.id)} className="text-slate-300 hover:text-slate-500" title="Editar"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                          <button onClick={() => handleDeleteFacultad(f.id, f.nombre)} disabled={pending} className="text-slate-300 hover:text-brand-red"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                        </div>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -191,22 +236,49 @@ export default function FacultadesManager({
             <tbody className="divide-y divide-border">
               {carreras.map(c => (
                 <tr key={c.id} className="hover:bg-slate-50">
-                  <td className="py-3 font-bold text-card-dark">{c.codigo || "-"}</td>
-                  <td className="py-3">
-                    <div className="text-muted text-sm">{c.nombre}</div>
-                    <div className="text-[10px] text-brand-red font-bold mt-0.5">{c.facultadNombre}</div>
-                  </td>
-                  <td className="py-3 text-center">
-                    <span className="px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold tracking-widest uppercase">
-                      {c.activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                  </td>
-                  <td className="py-3 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button className="text-slate-300 hover:text-slate-500" title="Editar (En construcción)"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
-                      <button onClick={() => handleDeleteCarrera(c.id, c.nombre)} disabled={pending} className="text-slate-300 hover:text-brand-red"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
-                    </div>
-                  </td>
+                  {editingCarreraId === c.id ? (
+                    <td colSpan={4} className="py-2">
+                      <form onSubmit={(e) => handleEditCarrera(e, c.id)} className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2">
+                          <input name="codigo" defaultValue={c.codigo || ""} className="w-20 px-2 py-1 border border-border rounded text-sm uppercase outline-none focus:ring-2 focus:ring-blue-600/20" />
+                          <input name="nombre" required defaultValue={c.nombre} className="flex-1 px-2 py-1 border border-border rounded text-sm outline-none focus:ring-2 focus:ring-blue-600/20" />
+                          <select name="facultadId" defaultValue={c.facultadId} required className="w-32 px-2 py-1 border border-border rounded text-sm outline-none focus:ring-2 focus:ring-blue-600/20 bg-white">
+                            {facultades.map(f => (
+                              <option key={f.id} value={f.id}>{f.codigo || f.nombre}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-1 text-xs">
+                            <input type="checkbox" name="activo" defaultChecked={c.activo} className="rounded" /> Activo
+                          </label>
+                          <div className="flex gap-2">
+                            <button type="submit" disabled={pending} className="p-1.5 text-white bg-emerald-500 rounded hover:bg-emerald-600 disabled:opacity-50"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg></button>
+                            <button type="button" onClick={() => setEditingCarreraId(null)} className="p-1.5 text-white bg-slate-400 rounded hover:bg-slate-500"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button>
+                          </div>
+                        </div>
+                      </form>
+                    </td>
+                  ) : (
+                    <>
+                      <td className="py-3 font-bold text-card-dark">{c.codigo || "-"}</td>
+                      <td className="py-3">
+                        <div className="text-muted text-sm">{c.nombre}</div>
+                        <div className="text-[10px] text-brand-red font-bold mt-0.5">{c.facultadNombre}</div>
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase ${c.activo ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>
+                          {c.activo ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                      <td className="py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => setEditingCarreraId(c.id)} className="text-slate-300 hover:text-slate-500" title="Editar"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg></button>
+                          <button onClick={() => handleDeleteCarrera(c.id, c.nombre)} disabled={pending} className="text-slate-300 hover:text-brand-red"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                        </div>
+                      </td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -46,6 +46,21 @@ export async function deleteFacultad(id: number) {
   }
 }
 
+export async function updateFacultad(id: number, formData: FormData) {
+  try {
+    const nombre = formData.get("nombre") as string;
+    const codigo = formData.get("codigo") as string;
+    const activo = formData.get("activo") === "on";
+    if (!nombre) return { success: false, error: "El nombre es requerido" };
+
+    await db.update(facultades).set({ nombre, codigo, activo }).where(eq(facultades.id, id));
+    revalidatePath("/admin/facultades");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: "Error al actualizar la facultad" };
+  }
+}
+
 // --- Carreras ---
 
 export async function getCarreras() {
@@ -82,6 +97,23 @@ export async function createCarrera(formData: FormData) {
     return { success: true };
   } catch (error) {
     return { success: false, error: "Error al crear la carrera" };
+  }
+}
+
+export async function updateCarrera(id: number, formData: FormData) {
+  try {
+    const nombre = formData.get("nombre") as string;
+    const codigo = formData.get("codigo") as string;
+    const facultadId = Number(formData.get("facultadId"));
+    const activo = formData.get("activo") === "on";
+    
+    if (!nombre || !facultadId) return { success: false, error: "Nombre y Facultad son requeridos" };
+
+    await db.update(carreras).set({ nombre, codigo, facultadId, activo }).where(eq(carreras.id, id));
+    revalidatePath("/admin/facultades");
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: "Error al actualizar la carrera" };
   }
 }
 
