@@ -97,12 +97,68 @@ export async function toggleUserStatus(userId: number, currentStatus: boolean) {
   try {
     await db
       .update(usuarios)
-      .set({ activo: !currentStatus })
+      .set({ activo: currentStatus }) // fixed toggle logic based on component
       .where(eq(usuarios.id, userId));
     
     revalidatePath("/admin/usuarios");
     return { success: true };
   } catch (error) {
     return { success: false, error: "No se pudo actualizar el estado" };
+  }
+}
+
+export async function getUsuario(id: number) {
+  try {
+    const data = await db
+      .select()
+      .from(usuarios)
+      .where(eq(usuarios.id, id))
+      .limit(1);
+
+    return { success: true, data: data[0] };
+  } catch (error) {
+    return { success: false, error: "Error al cargar el usuario" };
+  }
+}
+
+export async function updateUsuario(id: number, formData: FormData) {
+  try {
+    const nombreCompleto = formData.get("nombreCompleto") as string;
+    const correo = formData.get("correo") as string;
+    const rol = formData.get("rol") as string;
+    const carnet = formData.get("carnet") as string | null;
+    const carreraId = formData.get("carreraId") ? Number(formData.get("carreraId")) : null;
+    const activo = formData.get("activo") === "on";
+
+    if (!nombreCompleto || !correo || !rol) {
+      return { success: false, error: "Faltan campos obligatorios" };
+    }
+
+    let facultadId: number | null = null;
+    if (carreraId) {
+      const carrera = await db.select().from(carreras).where(eq(carreras.id, carreraId)).limit(1);
+      if (carrera.length > 0) {
+        facultadId = carrera[0].facultadId;
+      }
+    }
+
+    await db.update(usuarios).set({
+      nombreCompleto,
+      correo,
+      rol,
+      carnet: rol === "egresado" ? carnet : null,
+      carreraId: rol === "egresado" ? carreraId : null,
+      facultadId: rol === "egresado" ? facultadId : null,
+      activo,
+    }).where(eq(usuarios.id, id));
+
+    revalidatePath("/admin/usuarios");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error updating user:", error);
+    if (error.code === '23505') { 
+      return { success: false, error: "Ya existe un usuario con este correo" };
+    }
+    return { success: false, error: "Error al actualizar el usuario" };
   }
 }
