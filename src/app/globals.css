@@ -3,61 +3,35 @@
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --primary-light: #dbeafe;
-  --accent: #7c3aed;
-  --accent-light: #ede9fe;
-  --success: #059669;
-  --success-light: #d1fae5;
-  --warning: #d97706;
-  --warning-light: #fef3c7;
-  --danger: #dc2626;
-  --danger-light: #fee2e2;
+  
+  --brand-red: #c1121f;
+  --brand-red-hover: #780000;
+  
+  --card-bg: #ffffff;
+  --card-dark: #1e293b;
+  --card-yellow: #fffdeb;
+  
   --border: #e2e8f0;
   --muted: #64748b;
-  --card: #ffffff;
-  --sidebar-bg: #0f172a;
-  --sidebar-text: #cbd5e1;
-  --sidebar-active: #2563eb;
-  --sidebar-hover: #1e293b;
+  --muted-bg: #f1f5f9;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-primary: var(--primary);
-  --color-primary-hover: var(--primary-hover);
-  --color-primary-light: var(--primary-light);
-  --color-accent: var(--accent);
-  --color-accent-light: var(--accent-light);
-  --color-success: var(--success);
-  --color-success-light: var(--success-light);
-  --color-warning: var(--warning);
-  --color-warning-light: var(--warning-light);
-  --color-danger: var(--danger);
-  --color-danger-light: var(--danger-light);
+  --color-brand-red: var(--brand-red);
+  --color-brand-red-hover: var(--brand-red-hover);
+  
+  --color-card-bg: var(--card-bg);
+  --color-card-dark: var(--card-dark);
+  --color-card-yellow: var(--card-yellow);
+  
   --color-border: var(--border);
   --color-muted: var(--muted);
-  --color-card: var(--card);
-  --color-sidebar-bg: var(--sidebar-bg);
-  --color-sidebar-text: var(--sidebar-text);
-  --color-sidebar-active: var(--sidebar-active);
-  --color-sidebar-hover: var(--sidebar-hover);
+  --color-muted-bg: var(--muted-bg);
+  
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #020617;
-    --foreground: #f1f5f9;
-    --border: #1e293b;
-    --muted: #94a3b8;
-    --card: #0f172a;
-    --sidebar-bg: #020617;
-    --sidebar-hover: #0f172a;
-  }
 }
 
 body {
@@ -66,9 +40,9 @@ body {
   font-family: var(--font-sans, Arial, Helvetica, sans-serif);
 }
 
-/* Smooth transitions for all interactive elements */
+/* Base styles for focus and transitions */
 *, *::before, *::after {
-  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-property: color, background-color, border-color, box-shadow, opacity;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
 }

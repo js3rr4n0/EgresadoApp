@@ -1,12 +1,11 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import DashboardSidebar, { type NavItem } from "@/components/DashboardSidebar";
-import { IconDashboard, IconCheckCircle, IconBuilding } from "@/components/icons";
+import DashboardHeader, { type NavItem } from "@/components/DashboardHeader";
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/decanato", icon: <IconDashboard /> },
-  { label: "Propuestas", href: "/decanato/propuestas", icon: <IconCheckCircle /> },
-  { label: "Empresas", href: "/decanato/empresas", icon: <IconBuilding /> },
+  { label: "Dashboard", href: "/decanato" },
+  { label: "Propuestas", href: "/decanato/propuestas" },
+  { label: "Empresas", href: "/decanato/empresas" },
 ];
 
 export default async function DecanatoLayout({
@@ -20,15 +19,15 @@ export default async function DecanatoLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
-      <DashboardSidebar
-        role="decanato"
+    <div className="flex flex-col min-h-screen bg-muted-bg">
+      <DashboardHeader
         roleName="Decanato"
         userName={session.nombreCompleto}
         navItems={navItems}
-        accentColor="bg-emerald-600"
       />
-      <main className="flex-1 ml-64 p-8">{children}</main>
+      <main className="flex-1 w-full max-w-[1400px] mx-auto px-6 py-8">
+        {children}
+      </main>
     </div>
   );
 }

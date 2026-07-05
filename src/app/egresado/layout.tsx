@@ -1,13 +1,10 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import DashboardSidebar, { type NavItem } from "@/components/DashboardSidebar";
-import { IconDashboard, IconUpload, IconDocument, IconBookOpen } from "@/components/icons";
+import DashboardHeader, { type NavItem } from "@/components/DashboardHeader";
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/egresado", icon: <IconDashboard /> },
-  { label: "Mis Documentos", href: "/egresado/documentos", icon: <IconUpload /> },
-  { label: "Mis Propuestas", href: "/egresado/propuestas", icon: <IconDocument /> },
-  { label: "Plan de Trabajo", href: "/egresado/plan", icon: <IconBookOpen /> },
+  { label: "Envío de Propuestas", href: "/egresado" },
+  { label: "Foro y Comentarios", href: "/egresado/foro" },
 ];
 
 export default async function EgresadoLayout({
@@ -20,16 +17,20 @@ export default async function EgresadoLayout({
     redirect("/login");
   }
 
+  // Formatting role string as seen in mockup: Egresado + Carnet
+  // In the real DB, the carnet is stored, but let's mock it if not in session, or add it later.
+  const roleDisplay = `Egresado 2020PM605`; // TODO: Fetch from DB later
+
   return (
-    <div className="flex min-h-screen">
-      <DashboardSidebar
-        role="egresado"
-        roleName="Egresado"
+    <div className="flex flex-col min-h-screen bg-muted-bg">
+      <DashboardHeader
+        roleName={roleDisplay}
         userName={session.nombreCompleto}
         navItems={navItems}
-        accentColor="bg-amber-600"
       />
-      <main className="flex-1 ml-64 p-8">{children}</main>
+      <main className="flex-1 w-full max-w-[1400px] mx-auto px-6 py-8">
+        {children}
+      </main>
     </div>
   );
 }
