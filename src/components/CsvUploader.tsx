@@ -8,8 +8,8 @@ type ImportType = "facultades" | "carreras" | "usuarios";
 
 const EXPECTED_HEADERS = {
   facultades: ["nombre", "codigo", "activa"],
-  carreras: ["nombre", "codigo", "facultad_id", "activa"],
-  usuarios: ["nombre_completo", "correo", "rol", "carnet", "carrera_id", "facultad_id", "activo", "carreras_asignadas"],
+  carreras: ["nombre", "codigo", "facultad_codigo", "activa"],
+  usuarios: ["nombre_completo", "correo", "rol", "carnet", "carrera_codigo", "facultad_codigo", "activo", "carreras_asignadas"],
 };
 
 export default function CsvUploader() {

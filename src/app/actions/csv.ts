@@ -64,7 +64,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
       }
 
     } else if (entidad === "carreras") {
-      // Expected: nombre, codigo, facultad_id, activa
+      // Expected: nombre, codigo, facultad_codigo, activa
       checkInternalDuplicates("codigo", "Código");
       checkInternalDuplicates("nombre", "Nombre");
 
@@ -72,18 +72,21 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
       const existingCodigos = new Set(existingC.map(c => c.codigo));
       const existingNombres = new Set(existingC.map(c => c.nombre));
       
-      const allFacultades = await db.select({ id: facultades.id }).from(facultades);
-      const validFacultadIds = new Set(allFacultades.map(f => f.id));
+      const allFacultades = await db.select({ id: facultades.id, codigo: facultades.codigo }).from(facultades);
+      const facMap = new Map();
+      allFacultades.forEach(f => {
+        if (f.codigo) facMap.set(f.codigo.toLowerCase(), f.id);
+      });
 
       rawData.forEach((row, i) => {
         const fila = i + 1;
         if (!row.nombre) errores.push(`Fila ${fila}: 'nombre' es requerido.`);
         if (!row.codigo) errores.push(`Fila ${fila}: 'codigo' es requerido.`);
-        if (!row.facultad_id) errores.push(`Fila ${fila}: 'facultad_id' es requerido.`);
+        if (!row.facultad_codigo) errores.push(`Fila ${fila}: 'facultad_codigo' es requerido.`);
         
-        const fId = parseInt(row.facultad_id);
-        if (isNaN(fId) || !validFacultadIds.has(fId)) {
-          errores.push(`Fila ${fila}: 'facultad_id' "${row.facultad_id}" no existe en la BD.`);
+        const fId = row.facultad_codigo ? facMap.get(row.facultad_codigo.toLowerCase()) : undefined;
+        if (!fId) {
+          errores.push(`Fila ${fila}: No existe ninguna Facultad con el código "${row.facultad_codigo}".`);
         }
 
         if (existingCodigos.has(row.codigo)) errores.push(`Fila ${fila}: Duplicado DB: El código "${row.codigo}" ya existe en la base de datos.`);
@@ -102,7 +105,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
       }
 
     } else if (entidad === "usuarios") {
-      // Expected: nombre_completo, correo, rol, carnet, carrera_id, facultad_id, activo
+      // Expected: nombre_completo, correo, rol, carnet, carrera_codigo, facultad_codigo, activo, carreras_asignadas
       checkInternalDuplicates("correo", "Correo");
       checkInternalDuplicates("carnet", "Carnet");
 
@@ -110,10 +113,17 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
       const existingCorreos = new Set(existingU.map(u => u.correo));
       const existingCarnets = new Set(existingU.map(u => u.carnet).filter(Boolean));
 
-      const allFacultades = await db.select({ id: facultades.id }).from(facultades);
-      const validFacultadIds = new Set(allFacultades.map(f => f.id));
-      const allCarreras = await db.select({ id: carreras.id }).from(carreras);
-      const validCarreraIds = new Set(allCarreras.map(c => c.id));
+      const allFacultades = await db.select({ id: facultades.id, codigo: facultades.codigo }).from(facultades);
+      const facMap = new Map();
+      allFacultades.forEach(f => {
+        if (f.codigo) facMap.set(f.codigo.toLowerCase(), f.id);
+      });
+
+      const allCarreras = await db.select({ id: carreras.id, codigo: carreras.codigo }).from(carreras);
+      const carMap = new Map();
+      allCarreras.forEach(c => {
+        if (c.codigo) carMap.set(c.codigo.toLowerCase(), c.id);
+      });
 
       const validRoles = new Set(['admin', 'decanato', 'asesor', 'egresado']);
 
@@ -126,7 +136,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
         if (!row.correo) errores.push(`Fila ${fila}: 'correo' es requerido.`);
         if (!row.rol) errores.push(`Fila ${fila}: 'rol' es requerido.`);
         
-        if (row.rol && !validRoles.has(row.rol)) {
+        if (row.rol && !validRoles.has(row.rol.toLowerCase())) {
           errores.push(`Fila ${fila}: 'rol' "${row.rol}" es inválido. Opciones: admin, decanato, asesor, egresado.`);
         }
 
@@ -137,17 +147,17 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
           errores.push(`Fila ${fila}: Duplicado DB: El carnet "${row.carnet}" ya existe en la base de datos.`);
         }
 
-        let fId = row.facultad_id ? parseInt(row.facultad_id) : null;
-        let cId = row.carrera_id ? parseInt(row.carrera_id) : null;
+        let fId = row.facultad_codigo ? facMap.get(row.facultad_codigo.toLowerCase()) : null;
+        let cId = row.carrera_codigo ? carMap.get(row.carrera_codigo.toLowerCase()) : null;
 
-        if (fId && !validFacultadIds.has(fId)) errores.push(`Fila ${fila}: 'facultad_id' "${row.facultad_id}" no existe.`);
-        if (cId && !validCarreraIds.has(cId)) errores.push(`Fila ${fila}: 'carrera_id' "${row.carrera_id}" no existe.`);
+        if (row.facultad_codigo && !fId) errores.push(`Fila ${fila}: No existe Facultad con código "${row.facultad_codigo}".`);
+        if (row.carrera_codigo && !cId) errores.push(`Fila ${fila}: No existe Carrera con código "${row.carrera_codigo}".`);
 
         validData.push({
           nombreCompleto: row.nombre_completo,
           correo: row.correo,
           passwordHash: defaultPasswordHash, 
-          rol: row.rol,
+          rol: row.rol ? row.rol.toLowerCase() : null,
           carnet: row.carnet || null,
           carreraId: cId,
           facultadId: fId,
