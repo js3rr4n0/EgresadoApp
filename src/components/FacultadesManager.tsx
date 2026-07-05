@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createFacultad, deleteFacultad, createCarrera, deleteCarrera } from "@/app/actions/facultades";
+import { createFacultad, deleteFacultad, updateFacultad, createCarrera, deleteCarrera, updateCarrera } from "@/app/actions/facultades";
 
 type Facultad = {
   id: number;
