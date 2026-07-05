@@ -1,160 +1,178 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { usuarios, carreras, facultades, empresas, supervisores } from "@/lib/schema";
-import { eq } from "drizzle-orm";
-import Papa from "papaparse";
+import { usuarios, carreras, facultades } from "@/lib/schema";
+import { inArray, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 
-export async function processCsvImport(formData: FormData) {
+export async function validateAndInsertCsv(entidad: string, rawData: any[]) {
   try {
-    const file = formData.get("file-upload") as File;
-    const entidad = formData.get("entidad") as string;
-
-    if (!file || !entidad) {
-      return { success: false, error: "Faltan datos obligatorios." };
-    }
-
-    const text = await file.text();
+    let errores: string[] = [];
+    let validData: any[] = [];
     
-    // Configuración de PapaParse para CSVs
-    const parseResult = Papa.parse(text, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h) => h.trim(),
-    });
+    // Check internal duplicates within the CSV itself
+    const checkInternalDuplicates = (key: string, fieldName: string) => {
+      const seen = new Set();
+      rawData.forEach((row, i) => {
+        if (row[key]) {
+          if (seen.has(row[key])) {
+            errores.push(`Fila ${i + 1}: Duplicado interno: La clave "${row[key]}" ya existe en filas anteriores del archivo.`);
+          } else {
+            seen.add(row[key]);
+          }
+        }
+      });
+    };
 
-    if (parseResult.errors.length > 0) {
-      return { success: false, error: "El formato del archivo CSV es inválido." };
+    if (entidad === "facultades") {
+      // Expected: nombre, codigo, activa
+      checkInternalDuplicates("codigo", "Código");
+      checkInternalDuplicates("nombre", "Nombre");
+
+      // Check DB duplicates
+      const codigos = rawData.map(r => r.codigo).filter(Boolean);
+      const nombres = rawData.map(r => r.nombre).filter(Boolean);
+      
+      const existingF = await db.select({ codigo: facultades.codigo, nombre: facultades.nombre }).from(facultades);
+      const existingCodigos = new Set(existingF.map(f => f.codigo));
+      const existingNombres = new Set(existingF.map(f => f.nombre));
+
+      rawData.forEach((row, i) => {
+        const fila = i + 1;
+        if (!row.nombre) errores.push(`Fila ${fila}: 'nombre' es requerido.`);
+        if (!row.codigo) errores.push(`Fila ${fila}: 'codigo' es requerido.`);
+        if (existingCodigos.has(row.codigo)) errores.push(`Fila ${fila}: Duplicado DB: El código "${row.codigo}" ya existe en la base de datos.`);
+        if (existingNombres.has(row.nombre)) errores.push(`Fila ${fila}: Duplicado DB: El nombre "${row.nombre}" ya existe en la base de datos.`);
+        
+        validData.push({
+          nombre: row.nombre,
+          codigo: row.codigo,
+          activo: row.activa === "true" || row.activa === "1" || row.activa === true,
+        });
+      });
+
+      if (errores.length === 0 && validData.length > 0) {
+        await db.insert(facultades).values(validData);
+      }
+
+    } else if (entidad === "carreras") {
+      // Expected: nombre, codigo, facultad_id, activa
+      checkInternalDuplicates("codigo", "Código");
+      checkInternalDuplicates("nombre", "Nombre");
+
+      const existingC = await db.select({ codigo: carreras.codigo, nombre: carreras.nombre }).from(carreras);
+      const existingCodigos = new Set(existingC.map(c => c.codigo));
+      const existingNombres = new Set(existingC.map(c => c.nombre));
+      
+      const allFacultades = await db.select({ id: facultades.id }).from(facultades);
+      const validFacultadIds = new Set(allFacultades.map(f => f.id));
+
+      rawData.forEach((row, i) => {
+        const fila = i + 1;
+        if (!row.nombre) errores.push(`Fila ${fila}: 'nombre' es requerido.`);
+        if (!row.codigo) errores.push(`Fila ${fila}: 'codigo' es requerido.`);
+        if (!row.facultad_id) errores.push(`Fila ${fila}: 'facultad_id' es requerido.`);
+        
+        const fId = parseInt(row.facultad_id);
+        if (isNaN(fId) || !validFacultadIds.has(fId)) {
+          errores.push(`Fila ${fila}: 'facultad_id' "${row.facultad_id}" no existe en la BD.`);
+        }
+
+        if (existingCodigos.has(row.codigo)) errores.push(`Fila ${fila}: Duplicado DB: El código "${row.codigo}" ya existe en la base de datos.`);
+        if (existingNombres.has(row.nombre)) errores.push(`Fila ${fila}: Duplicado DB: El nombre "${row.nombre}" ya existe en la base de datos.`);
+        
+        validData.push({
+          nombre: row.nombre,
+          codigo: row.codigo,
+          facultadId: fId,
+          activo: row.activa === "true" || row.activa === "1" || row.activa === true,
+        });
+      });
+
+      if (errores.length === 0 && validData.length > 0) {
+        await db.insert(carreras).values(validData);
+      }
+
+    } else if (entidad === "usuarios") {
+      // Expected: nombre_completo, correo, rol, carnet, carrera_id, facultad_id, activo
+      checkInternalDuplicates("correo", "Correo");
+      checkInternalDuplicates("carnet", "Carnet");
+
+      const existingU = await db.select({ correo: usuarios.correo, carnet: usuarios.carnet }).from(usuarios);
+      const existingCorreos = new Set(existingU.map(u => u.correo));
+      const existingCarnets = new Set(existingU.map(u => u.carnet).filter(Boolean));
+
+      const allFacultades = await db.select({ id: facultades.id }).from(facultades);
+      const validFacultadIds = new Set(allFacultades.map(f => f.id));
+      const allCarreras = await db.select({ id: carreras.id }).from(carreras);
+      const validCarreraIds = new Set(allCarreras.map(c => c.id));
+
+      const validRoles = new Set(['admin', 'decanato', 'asesor', 'egresado']);
+
+      // Generate a default hash for all inserted users to keep it fast
+      const defaultPasswordHash = await bcrypt.hash("Egresado123!", 10);
+
+      rawData.forEach((row, i) => {
+        const fila = i + 1;
+        if (!row.nombre_completo) errores.push(`Fila ${fila}: 'nombre_completo' es requerido.`);
+        if (!row.correo) errores.push(`Fila ${fila}: 'correo' es requerido.`);
+        if (!row.rol) errores.push(`Fila ${fila}: 'rol' es requerido.`);
+        
+        if (row.rol && !validRoles.has(row.rol)) {
+          errores.push(`Fila ${fila}: 'rol' "${row.rol}" es inválido. Opciones: admin, decanato, asesor, egresado.`);
+        }
+
+        if (existingCorreos.has(row.correo)) {
+          errores.push(`Fila ${fila}: Duplicado DB: El correo "${row.correo}" ya existe en la base de datos.`);
+        }
+        if (row.carnet && existingCarnets.has(row.carnet)) {
+          errores.push(`Fila ${fila}: Duplicado DB: El carnet "${row.carnet}" ya existe en la base de datos.`);
+        }
+
+        let fId = row.facultad_id ? parseInt(row.facultad_id) : null;
+        let cId = row.carrera_id ? parseInt(row.carrera_id) : null;
+
+        if (fId && !validFacultadIds.has(fId)) errores.push(`Fila ${fila}: 'facultad_id' "${row.facultad_id}" no existe.`);
+        if (cId && !validCarreraIds.has(cId)) errores.push(`Fila ${fila}: 'carrera_id' "${row.carrera_id}" no existe.`);
+
+        validData.push({
+          nombreCompleto: row.nombre_completo,
+          correo: row.correo,
+          passwordHash: defaultPasswordHash, // Default password for all CSV imports
+          rol: row.rol,
+          carnet: row.carnet || null,
+          carreraId: cId,
+          facultadId: fId,
+          activo: row.activo !== "false" && row.activo !== "0" && row.activo !== false,
+          carrerasAsignadas: row.carreras_asignadas ? JSON.parse(row.carreras_asignadas) : null,
+        });
+      });
+
+      if (errores.length === 0 && validData.length > 0) {
+        // Bulk insert users
+        // Note: PostgreSQL has a parameter limit per query (65535). 
+        // 9 fields per user. Max users per chunk: ~7000.
+        // We will insert in chunks of 1000 just in case.
+        const chunkSize = 1000;
+        for (let i = 0; i < validData.length; i += chunkSize) {
+          const chunk = validData.slice(i, i + chunkSize);
+          // @ts-ignore
+          await db.insert(usuarios).values(chunk);
+        }
+      }
     }
 
-    const data = parseResult.data as any[];
-    const errores: { linea: number; motivo: string }[] = [];
-    let procesadosExitosos = 0;
-
-    // Procesamiento según la entidad
-    switch (entidad) {
-      case "facultades":
-        // Formato esperado: facultad_nombre, carrera_nombre
-        for (let i = 0; i < data.length; i++) {
-          const row = data[i];
-          const linea = i + 2; // +1 por base 0, +1 por el header
-
-          if (!row.facultad_nombre || !row.carrera_nombre) {
-            errores.push({ linea, motivo: "Faltan columnas requeridas (facultad_nombre, carrera_nombre)." });
-            continue;
-          }
-
-          try {
-            // Buscar o crear facultad
-            let facResult = await db.select().from(facultades).where(eq(facultades.nombre, row.facultad_nombre)).limit(1);
-            let facultadId;
-            
-            if (facResult.length > 0) {
-              facultadId = facResult[0].id;
-            } else {
-              const insertFac = await db.insert(facultades).values({ nombre: row.facultad_nombre }).returning({ id: facultades.id });
-              facultadId = insertFac[0].id;
-            }
-
-            // Crear carrera si no existe
-            const carResult = await db.select().from(carreras).where(eq(carreras.nombre, row.carrera_nombre)).limit(1);
-            if (carResult.length === 0) {
-              await db.insert(carreras).values({
-                nombre: row.carrera_nombre,
-                facultadId: facultadId
-              });
-              procesadosExitosos++;
-            } else {
-              errores.push({ linea, motivo: "La carrera ya existe en el sistema." });
-            }
-          } catch (e: any) {
-            errores.push({ linea, motivo: `Error de base de datos: ${e.message}` });
-          }
-        }
-        break;
-
-      case "usuarios":
-        // Formato esperado: nombreCompleto, correo, rol, password, carnet, carrera_nombre
-        for (let i = 0; i < data.length; i++) {
-          const row = data[i];
-          const linea = i + 2;
-
-          if (!row.nombreCompleto || !row.correo || !row.rol || !row.password) {
-            errores.push({ linea, motivo: "Faltan datos requeridos (nombreCompleto, correo, rol, password)." });
-            continue;
-          }
-
-          const rolLower = row.rol.toLowerCase().trim();
-          if (!['admin', 'decanato', 'asesor', 'egresado'].includes(rolLower)) {
-            errores.push({ linea, motivo: "Rol inválido. Debe ser: admin, decanato, asesor o egresado." });
-            continue;
-          }
-
-          if (rolLower === "egresado" && (!row.carnet || !row.carrera_nombre)) {
-            errores.push({ linea, motivo: "Los egresados requieren carnet y carrera_nombre." });
-            continue;
-          }
-
-          try {
-            // Verificar si el correo ya existe
-            const userExist = await db.select().from(usuarios).where(eq(usuarios.correo, row.correo)).limit(1);
-            if (userExist.length > 0) {
-              errores.push({ linea, motivo: "El correo electrónico ya está registrado." });
-              continue;
-            }
-
-            let carreraId = null;
-            let facultadId = null;
-
-            if (rolLower === "egresado") {
-              const carResult = await db.select().from(carreras).where(eq(carreras.nombre, row.carrera_nombre)).limit(1);
-              if (carResult.length === 0) {
-                errores.push({ linea, motivo: `No se encontró la carrera: ${row.carrera_nombre}` });
-                continue;
-              }
-              carreraId = carResult[0].id;
-              facultadId = carResult[0].facultadId;
-            }
-
-            const passwordHash = await bcrypt.hash(row.password, 10);
-
-            await db.insert(usuarios).values({
-              nombreCompleto: row.nombreCompleto,
-              correo: row.correo,
-              passwordHash,
-              rol: rolLower,
-              carnet: rolLower === "egresado" ? row.carnet : null,
-              carreraId,
-              facultadId,
-              activo: true
-            });
-            procesadosExitosos++;
-
-          } catch (e: any) {
-            errores.push({ linea, motivo: `Error de inserción: ${e.message}` });
-          }
-        }
-        break;
-
-      default:
-        return { success: false, error: "Entidad no implementada todavía para importación." };
+    if (errores.length > 0) {
+      return { success: false, errors: errores };
     }
 
     revalidatePath("/admin/usuarios");
-    revalidatePath("/admin/empresas");
-    
-    return {
-      success: true,
-      resultados: {
-        exitosos: procesadosExitosos,
-        errores: errores
-      }
-    };
+    revalidatePath("/admin/facultades");
+    return { success: true };
 
   } catch (error: any) {
-    console.error("CSV Import error:", error);
-    return { success: false, error: "Error procesando el archivo CSV. Verifique el formato." };
+    console.error("CSV Validation Error:", error);
+    return { success: false, errors: ["Ocurrió un error inesperado al procesar la información: " + error.message] };
   }
 }
