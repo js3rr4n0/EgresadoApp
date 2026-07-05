@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CsvForm from "@/components/CsvForm";
 
 export default function CsvImportPage() {
   return (
@@ -15,44 +16,7 @@ export default function CsvImportPage() {
         <div className="lg:col-span-2 space-y-6">
           <div className="bg-white border border-border rounded-xl p-6 shadow-sm">
             <h3 className="text-lg font-bold text-card-dark mb-4">Zona de Importación</h3>
-            
-            <form className="space-y-6">
-              <div>
-                <label className="block text-sm font-bold text-foreground mb-1.5">Tipo de Entidad a Importar</label>
-                <select name="entidad" className="w-full px-4 py-2.5 rounded-lg border border-border bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red">
-                  <option value="usuarios">Usuarios del Sistema</option>
-                  <option value="facultades">Facultades y Carreras</option>
-                  <option value="empresas">Empresas y Supervisores</option>
-                  <option value="temas">Temas Históricos</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-bold text-foreground mb-1.5">Archivo CSV</label>
-                <div className="mt-2 flex justify-center rounded-lg border border-dashed border-gray-300 px-6 py-10 hover:bg-slate-50 transition-colors cursor-pointer relative">
-                  <div className="text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M11.47 2.47a.75.75 0 011.06 0l4.5 4.5a.75.75 0 01-1.06 1.06l-3.22-3.22V16.5a.75.75 0 01-1.5 0V4.81L8.03 8.03a.75.75 0 01-1.06-1.06l4.5-4.5zM3 15.75a.75.75 0 01.75.75v2.25a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5V16.5a.75.75 0 011.5 0v2.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V16.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-                    </svg>
-                    <div className="mt-4 flex text-sm leading-6 text-gray-600 justify-center">
-                      <label htmlFor="file-upload" className="relative cursor-pointer rounded-md bg-white font-semibold text-brand-red focus-within:outline-none focus-within:ring-2 focus-within:ring-brand-red focus-within:ring-offset-2 hover:text-brand-red-hover">
-                        <span>Sube un archivo</span>
-                        <input id="file-upload" name="file-upload" type="file" accept=".csv" className="sr-only" />
-                      </label>
-                      <p className="pl-1">o arrastra y suelta aquí</p>
-                    </div>
-                    <p className="text-xs leading-5 text-gray-500">Solo archivos .CSV hasta 10MB</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-4 border-t border-border">
-                <button type="button" className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-card-dark hover:bg-slate-700 text-white font-semibold text-sm transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                  Procesar Importación
-                </button>
-              </div>
-            </form>
+            <CsvForm />
           </div>
         </div>
 
