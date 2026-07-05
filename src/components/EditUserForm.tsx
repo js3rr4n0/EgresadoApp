@@ -99,10 +99,10 @@ export default function EditUserForm({ user, carreras }: { user: UsuarioData; ca
               onChange={(e) => setRol(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all"
             >
-              <option value="egresado">Egresado</option>
-              <option value="asesor">Asesor</option>
-              <option value="decanato">Coordinador</option>
-              <option value="admin">Administrador</option>
+              <option value="admin">admin</option>
+              <option value="decanato">decanato</option>
+              <option value="asesor">asesor</option>
+              <option value="egresado">egresado</option>
             </select>
           </div>
 

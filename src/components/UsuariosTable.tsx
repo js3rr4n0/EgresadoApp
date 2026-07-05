@@ -102,10 +102,10 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
             className="px-4 py-2 rounded-full border border-border text-sm text-foreground focus:outline-none bg-white min-w-[140px]"
           >
             <option>Todos los Roles</option>
-            <option value="egresado">Egresado</option>
-            <option value="asesor">Asesor</option>
-            <option value="decanato">Coordinador</option>
-            <option value="admin">Administrador</option>
+            <option value="admin">admin</option>
+            <option value="decanato">decanato</option>
+            <option value="asesor">asesor</option>
+            <option value="egresado">egresado</option>
           </select>
           <select 
             value={statusFilter}
@@ -156,7 +156,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                   </td>
                   <td className="px-6 py-4">
                     <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-muted-bg text-muted border border-border uppercase tracking-widest">
-                      {user.rol === "decanato" ? "Coordinador" : user.rol}
+                      {user.rol}
                     </span>
                   </td>
                   <td className="px-6 py-4">
