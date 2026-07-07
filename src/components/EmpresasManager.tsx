@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { createEmpresa, updateEmpresa, deleteEmpresa, toggleEmpresaStatus, EmpresaData, SupervisorData } from "@/app/actions/empresas";
+
+const MapSelector = dynamic(() => import("./MapSelector"), { ssr: false });
 
 export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: any[] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -90,6 +93,23 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      alert("El archivo es muy pesado. El límite es 2MB.");
+      e.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      handleChange("organigramaUrl", event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Supervisor Form Handlers
   const addSupervisor = () => {
     setFormData(prev => ({
@@ -156,6 +176,22 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
 
             <div className="mt-4 space-y-2 z-10 relative flex-1">
               <p className="text-sm text-gray-600 line-clamp-2">{emp.descripcion}</p>
+              
+              <div className="flex gap-2 pt-2">
+                {emp.mapaUrl && (
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${emp.mapaUrl}`} target="_blank" rel="noreferrer" className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 flex items-center gap-1 hover:bg-blue-100 transition">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    Ver Mapa
+                  </a>
+                )}
+                {emp.organigramaUrl && (
+                  <a href={emp.organigramaUrl} target="_blank" rel="noreferrer" className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100 flex items-center gap-1 hover:bg-purple-100 transition">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Organigrama
+                  </a>
+                )}
+              </div>
+
               <div className="pt-2 border-t border-gray-100 flex items-center gap-2 text-sm mt-auto">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
                 <span className="font-semibold text-gray-700">{emp.supervisores?.length || 0} Supervisores</span>
@@ -231,19 +267,27 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                     </div>
 
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Dirección Física (Ubicación)</label>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Dirección Física (Texto)</label>
                       <input type="text" placeholder="Dirección completa..." className="w-full border-gray-300 border p-2.5 rounded-lg focus:ring-brand-red text-sm" value={formData.direccion} onChange={(e) => handleChange("direccion", e.target.value)} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">URL Mapa (Google Maps)</label>
-                        <input type="url" placeholder="https://..." className="w-full border-gray-300 border p-2.5 rounded-lg focus:ring-brand-red text-sm" value={formData.mapaUrl} onChange={(e) => handleChange("mapaUrl", e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-1">URL Organigrama (Drive/PDF)</label>
-                        <input type="url" placeholder="https://..." className="w-full border-gray-300 border p-2.5 rounded-lg focus:ring-brand-red text-sm" value={formData.organigramaUrl} onChange={(e) => handleChange("organigramaUrl", e.target.value)} />
-                      </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Ubicación GPS (Mapa)</label>
+                      <MapSelector value={formData.mapaUrl || ""} onChange={(val) => handleChange("mapaUrl", val)} />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1 flex justify-between">
+                        <span>Organigrama de la Empresa (Imagen o PDF)</span>
+                        {formData.organigramaUrl && <span className="text-emerald-600 text-xs flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Archivo Subido</span>}
+                      </label>
+                      <input 
+                        type="file" 
+                        accept="image/*,application/pdf"
+                        className="w-full border-gray-300 border p-2.5 rounded-lg focus:ring-brand-red text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-brand-red hover:file:bg-red-100" 
+                        onChange={handleFileUpload} 
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Límite: 2MB. Selecciona un archivo para reemplazar el existente.</p>
                     </div>
                   </div>
 
