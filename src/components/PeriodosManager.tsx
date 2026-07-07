@@ -3,34 +3,83 @@
 import { useState } from "react";
 import { createPeriodo, updatePeriodo, deletePeriodo, togglePeriodoActivo, PeriodoData } from "@/app/actions/periodos";
 
+export function addDays(dateStr: string, days: number): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split("T")[0]; // YYYY-MM-DD
+}
+
+export function calculateDates(finRecepcion: string) {
+  const maxAprobacionPropuesta = addDays(finRecepcion, 21); // 3 semanas
+  const maxInicioProceso = maxAprobacionPropuesta; // 3 semanas exactas
+  const maxPrimerInforme = addDays(maxInicioProceso, 30);
+  const maxSegundoInforme = addDays(maxInicioProceso, 60);
+  const maxTercerInforme = addDays(maxInicioProceso, 90);
+  const maxCuartoInforme = addDays(maxInicioProceso, 120);
+  const visitaAsesorInicio = addDays(maxInicioProceso, 90);
+  const visitaAsesorFin = addDays(maxInicioProceso, 100);
+  const maxInformeFinal = addDays(maxInicioProceso, 150);
+  const maxAprobacionFinal = addDays(maxInformeFinal, 15);
+
+  return {
+    maxAprobacionPropuesta,
+    maxInicioProceso,
+    maxPrimerInforme,
+    maxSegundoInforme,
+    maxTercerInforme,
+    maxCuartoInforme,
+    visitaAsesorInicio,
+    visitaAsesorFin,
+    maxInformeFinal,
+    maxAprobacionFinal,
+  };
+}
+
 export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: any[] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   
-  const [formData, setFormData] = useState<PeriodoData>({
+  const getEmptyForm = (): PeriodoData => ({
     nombre: "",
     inicioRecepcion: "",
     finRecepcion: "",
+    maxAprobacionPropuesta: "",
+    maxInicioProceso: "",
+    maxPrimerInforme: "",
+    maxSegundoInforme: "",
+    maxTercerInforme: "",
+    maxCuartoInforme: "",
+    visitaAsesorInicio: "",
+    visitaAsesorFin: "",
+    maxInformeFinal: "",
+    maxAprobacionFinal: "",
   });
 
+  const [formData, setFormData] = useState<PeriodoData>(getEmptyForm());
   const [error, setError] = useState<string | null>(null);
 
   const resetForm = () => {
-    setFormData({ nombre: "", inicioRecepcion: "", finRecepcion: "" });
+    setFormData(getEmptyForm());
     setEditingId(null);
     setError(null);
     setIsModalOpen(false);
   };
 
   const handleEdit = (p: any) => {
-    setFormData({
-      nombre: p.nombre,
-      inicioRecepcion: p.inicioRecepcion,
-      finRecepcion: p.finRecepcion,
-    });
+    setFormData({ ...p });
     setEditingId(p.id);
     setIsModalOpen(true);
+  };
+
+  const handleAutoFill = () => {
+    if (!formData.finRecepcion) {
+      alert("Debes definir primero la Fecha de Fin de Recepción");
+      return;
+    }
+    const dates = calculateDates(formData.finRecepcion);
+    setFormData((prev) => ({ ...prev, ...dates }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -77,12 +126,8 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
     }
   };
 
-  // Preview calculator in UI
-  const addDaysUI = (dateStr: string, days: number) => {
-    if (!dateStr) return "";
-    const date = new Date(dateStr);
-    date.setDate(date.getDate() + days);
-    return date.toLocaleDateString("es-ES", { day: '2-digit', month: 'short', year: 'numeric' });
+  const handleDateChange = (field: keyof PeriodoData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   return (
@@ -91,7 +136,7 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Ciclos y Periodos Académicos</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Define las fechas de recepción. El sistema calculará automáticamente los tiempos máximos (regla de los 150 días).
+            Define y edita manualmente todas las fechas límite para el ciclo.
           </p>
         </div>
         <button
@@ -162,7 +207,7 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
       {/* Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden my-8 relative">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden my-8 relative">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <h3 className="font-bold text-xl text-gray-800">
                 {editingId ? "Editar Ciclo Académico" : "Crear Nuevo Ciclo Académico"}
@@ -180,77 +225,100 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                 </div>
               )}
 
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Nombre del Ciclo</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej. C2-2025"
-                    className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900"
-                    value={formData.nombre}
-                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Asigna un nombre descriptivo para la cohorte.</p>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* Fechas Base */}
+                <div className="space-y-6">
+                  <h4 className="font-bold text-brand-red border-b pb-2">1. Fechas de Recepción</h4>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Fecha de Inicio de Recepción</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Nombre del Ciclo</label>
                     <input
-                      type="date"
+                      type="text"
                       required
+                      placeholder="Ej. C2-2025"
                       className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900"
-                      value={formData.inicioRecepcion}
-                      onChange={(e) => setFormData({ ...formData, inicioRecepcion: e.target.value })}
+                      value={formData.nombre}
+                      onChange={(e) => handleDateChange("nombre", e.target.value)}
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Fecha de Fin de Recepción</label>
-                    <input
-                      type="date"
-                      required
-                      className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900"
-                      value={formData.finRecepcion}
-                      onChange={(e) => setFormData({ ...formData, finRecepcion: e.target.value })}
-                    />
-                  </div>
-                </div>
 
-                {formData.finRecepcion && (
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
-                      <svg className="w-4 h-4 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                      Cálculo Automático de Tiempos Máximos
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-600">
-                      <div className="flex justify-between border-b border-slate-200 pb-1">
-                        <span>Aprobación de Propuesta:</span>
-                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 21)}</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-200 pb-1">
-                        <span>Inicio Oficial (No antes):</span>
-                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 21)}</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-200 pb-1">
-                        <span>1er Informe Mensual:</span>
-                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 51)}</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-200 pb-1">
-                        <span>Visita de Asesor:</span>
-                        <span className="font-bold">Hasta {addDaysUI(formData.finRecepcion, 121)}</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-200 pb-1">
-                        <span>Límite Informe Final (150d):</span>
-                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 171)}</span>
-                      </div>
-                      <div className="flex justify-between border-b border-slate-200 pb-1 text-brand-red">
-                        <span>Fecha Cierre Absoluto:</span>
-                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 186)}</span>
-                      </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Inicio de Recepción</label>
+                      <input
+                        type="date"
+                        required
+                        className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900 text-sm"
+                        value={formData.inicioRecepcion}
+                        onChange={(e) => handleDateChange("inicioRecepcion", e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-1">Fin de Recepción</label>
+                      <input
+                        type="date"
+                        required
+                        className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900 text-sm"
+                        value={formData.finRecepcion}
+                        onChange={(e) => handleDateChange("finRecepcion", e.target.value)}
+                      />
                     </div>
                   </div>
-                )}
+
+                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 mt-4">
+                    <p className="text-sm text-emerald-800 mb-3">Puedes autocompletar todas las demás fechas basándote en la fecha de <b>Fin de Recepción</b> (reglas de los 150 días).</p>
+                    <button type="button" onClick={handleAutoFill} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-sm transition-colors shadow-sm">
+                      ✨ Calcular Fechas Automáticamente
+                    </button>
+                  </div>
+                </div>
+
+                {/* Fechas Límites Editables */}
+                <div className="space-y-4">
+                  <h4 className="font-bold text-brand-red border-b pb-2">2. Fechas Límite (Editables)</h4>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Aprobación Propuesta</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxAprobacionPropuesta} onChange={(e) => handleDateChange("maxAprobacionPropuesta", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Inicio Proceso Oficial</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxInicioProceso} onChange={(e) => handleDateChange("maxInicioProceso", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Primer Informe</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxPrimerInforme} onChange={(e) => handleDateChange("maxPrimerInforme", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Segundo Informe</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxSegundoInforme} onChange={(e) => handleDateChange("maxSegundoInforme", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Tercer Informe</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxTercerInforme} onChange={(e) => handleDateChange("maxTercerInforme", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Cuarto Informe</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxCuartoInforme} onChange={(e) => handleDateChange("maxCuartoInforme", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Inicio Visita Asesor</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.visitaAsesorInicio} onChange={(e) => handleDateChange("visitaAsesorInicio", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Fin Visita Asesor</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.visitaAsesorFin} onChange={(e) => handleDateChange("visitaAsesorFin", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Informe Final (Consolidado)</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxInformeFinal} onChange={(e) => handleDateChange("maxInformeFinal", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Aprobación Final (Absoluta)</label>
+                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxAprobacionFinal} onChange={(e) => handleDateChange("maxAprobacionFinal", e.target.value)} />
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="mt-8 pt-4 border-t border-gray-100 flex justify-end gap-3">
@@ -265,9 +333,9 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+                  className="bg-brand-red hover:bg-red-800 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
                 >
-                  {isSaving ? "Guardando..." : "Guardar Ciclo"}
+                  {isSaving ? "Guardando..." : "Guardar Ciclo y Fechas"}
                 </button>
               </div>
             </form>

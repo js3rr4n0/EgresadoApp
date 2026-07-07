@@ -7,52 +7,24 @@ import { revalidatePath } from "next/cache";
 
 export type PeriodoData = {
   nombre: string;
-  inicioRecepcion: string; // YYYY-MM-DD
+  inicioRecepcion: string;
   finRecepcion: string;
+  maxAprobacionPropuesta: string;
+  maxInicioProceso: string;
+  maxPrimerInforme: string;
+  maxSegundoInforme: string;
+  maxTercerInforme: string;
+  maxCuartoInforme: string;
+  visitaAsesorInicio: string;
+  visitaAsesorFin: string;
+  maxInformeFinal: string;
+  maxAprobacionFinal: string;
 };
-
-// Utilidad para sumar días a una fecha
-function addDays(dateStr: string, days: number): string {
-  const date = new Date(dateStr);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().split("T")[0]; // YYYY-MM-DD
-}
-
-function calculateDates(finRecepcion: string) {
-  const maxAprobacionPropuesta = addDays(finRecepcion, 21); // 3 semanas
-  const maxInicioProceso = maxAprobacionPropuesta; // 3 semanas exactas
-  const maxPrimerInforme = addDays(maxInicioProceso, 30);
-  const maxSegundoInforme = addDays(maxInicioProceso, 60);
-  const maxTercerInforme = addDays(maxInicioProceso, 90);
-  const maxCuartoInforme = addDays(maxInicioProceso, 120);
-  const visitaAsesorInicio = addDays(maxInicioProceso, 90);
-  const visitaAsesorFin = addDays(maxInicioProceso, 100);
-  const maxInformeFinal = addDays(maxInicioProceso, 150);
-  const maxAprobacionFinal = addDays(maxInformeFinal, 15);
-
-  return {
-    maxAprobacionPropuesta,
-    maxInicioProceso,
-    maxPrimerInforme,
-    maxSegundoInforme,
-    maxTercerInforme,
-    maxCuartoInforme,
-    visitaAsesorInicio,
-    visitaAsesorFin,
-    maxInformeFinal,
-    maxAprobacionFinal,
-  };
-}
 
 export async function createPeriodo(data: PeriodoData) {
   try {
-    const dates = calculateDates(data.finRecepcion);
-
     await db.insert(periodos).values({
-      nombre: data.nombre,
-      inicioRecepcion: data.inicioRecepcion,
-      finRecepcion: data.finRecepcion,
-      ...dates,
+      ...data,
       activo: true,
     });
     revalidatePath("/admin/periodos");
@@ -65,14 +37,9 @@ export async function createPeriodo(data: PeriodoData) {
 
 export async function updatePeriodo(id: number, data: PeriodoData) {
   try {
-    const dates = calculateDates(data.finRecepcion);
-
     await db.update(periodos)
       .set({
-        nombre: data.nombre,
-        inicioRecepcion: data.inicioRecepcion,
-        finRecepcion: data.finRecepcion,
-        ...dates,
+        ...data,
       })
       .where(eq(periodos.id, id));
     
