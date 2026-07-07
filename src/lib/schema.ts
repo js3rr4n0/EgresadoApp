@@ -88,6 +88,7 @@ export const empresas = pgTable("empresas", {
   area: varchar("area", { length: 255 }),
   descripcion: text("descripcion"),
   antecedentes: text("antecedentes"),
+  direccion: text("direccion"),
   organigramaUrl: text("organigrama_url"),
   mapaUrl: text("mapa_url"),
   habilitada: boolean("habilitada").notNull().default(true),
