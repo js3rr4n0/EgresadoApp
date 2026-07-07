@@ -110,6 +110,31 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     reader.readAsDataURL(file);
   };
 
+  const handleOpenOrganigrama = (base64Data: string) => {
+    if (!base64Data.startsWith('data:')) {
+      window.open(base64Data, '_blank');
+      return;
+    }
+
+    try {
+      const arr = base64Data.split(',');
+      const mime = arr[0].match(/:(.*?);/)?.[1] || 'application/pdf';
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while(n--){
+          u8arr[n] = bstr.charCodeAt(n);
+      }
+      const blob = new Blob([u8arr], {type: mime});
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      alert("Error al abrir el archivo.");
+    }
+  };
+
   // Supervisor Form Handlers
   const addSupervisor = () => {
     setFormData(prev => ({
@@ -185,10 +210,10 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                   </a>
                 )}
                 {emp.organigramaUrl && (
-                  <a href={emp.organigramaUrl} target="_blank" rel="noreferrer" className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100 flex items-center gap-1 hover:bg-purple-100 transition">
+                  <button onClick={() => handleOpenOrganigrama(emp.organigramaUrl!)} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100 flex items-center gap-1 hover:bg-purple-100 transition">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                     Organigrama
-                  </a>
+                  </button>
                 )}
               </div>
 
