@@ -180,18 +180,35 @@ async function seed() {
   );
 
   // ── Periodo activo ──
+  // Utilidad simple para calcular las otras fechas en el seeder
+  const addDays = (d: string, days: number) => {
+    const date = new Date(d);
+    date.setDate(date.getDate() + days);
+    return date.toISOString().split("T")[0];
+  };
+
+  const finRec = "2026-12-31";
   const [periodo] = await db
     .insert(schema.periodos)
     .values({
+      nombre: "Ciclo Seed 2026",
       inicioRecepcion: "2026-07-01",
-      finRecepcion: "2026-12-31",
-      fechaPrimerInforme: "2026-09-15",
-      fechaInformeFinal: "2026-12-15",
+      finRecepcion: finRec,
+      maxAprobacionPropuesta: addDays(finRec, 21),
+      maxInicioProceso: addDays(finRec, 21),
+      maxPrimerInforme: addDays(addDays(finRec, 21), 30),
+      maxSegundoInforme: addDays(addDays(finRec, 21), 60),
+      maxTercerInforme: addDays(addDays(finRec, 21), 90),
+      maxCuartoInforme: addDays(addDays(finRec, 21), 120),
+      visitaAsesorInicio: addDays(addDays(finRec, 21), 90),
+      visitaAsesorFin: addDays(addDays(finRec, 21), 100),
+      maxInformeFinal: addDays(addDays(finRec, 21), 150),
+      maxAprobacionFinal: addDays(addDays(finRec, 21), 165),
       activo: true,
     })
     .returning();
 
-  console.log(`  ✓ Periodo activo: ${periodo.inicioRecepcion} → ${periodo.finRecepcion}`);
+  console.log(`  ✓ Periodo activo: ${periodo.nombre} (${periodo.inicioRecepcion} → ${periodo.finRecepcion})`);
 
   console.log("\n✅ Seed completo.");
 }

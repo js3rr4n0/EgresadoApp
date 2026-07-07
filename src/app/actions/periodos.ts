@@ -2,63 +2,110 @@
 
 import { db } from "@/lib/db";
 import { periodos } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-export async function getPeriodos() {
-  try {
-    const data = await db
-      .select()
-      .from(periodos)
-      .orderBy(desc(periodos.id));
+export type PeriodoData = {
+  nombre: string;
+  inicioRecepcion: string; // YYYY-MM-DD
+  finRecepcion: string;
+};
 
-    return { success: true, data };
-  } catch (error) {
-    return { success: false, error: "Error al cargar los periodos" };
-  }
+// Utilidad para sumar días a una fecha
+function addDays(dateStr: string, days: number): string {
+  const date = new Date(dateStr);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().split("T")[0]; // YYYY-MM-DD
 }
 
-export async function crearPeriodo(formData: FormData) {
+function calculateDates(finRecepcion: string) {
+  const maxAprobacionPropuesta = addDays(finRecepcion, 21); // 3 semanas
+  const maxInicioProceso = maxAprobacionPropuesta; // 3 semanas exactas
+  const maxPrimerInforme = addDays(maxInicioProceso, 30);
+  const maxSegundoInforme = addDays(maxInicioProceso, 60);
+  const maxTercerInforme = addDays(maxInicioProceso, 90);
+  const maxCuartoInforme = addDays(maxInicioProceso, 120);
+  const visitaAsesorInicio = addDays(maxInicioProceso, 90);
+  const visitaAsesorFin = addDays(maxInicioProceso, 100);
+  const maxInformeFinal = addDays(maxInicioProceso, 150);
+  const maxAprobacionFinal = addDays(maxInformeFinal, 15);
+
+  return {
+    maxAprobacionPropuesta,
+    maxInicioProceso,
+    maxPrimerInforme,
+    maxSegundoInforme,
+    maxTercerInforme,
+    maxCuartoInforme,
+    visitaAsesorInicio,
+    visitaAsesorFin,
+    maxInformeFinal,
+    maxAprobacionFinal,
+  };
+}
+
+export async function createPeriodo(data: PeriodoData) {
   try {
-    const inicioRecepcion = formData.get("inicioRecepcion") as string;
-    const finRecepcion = formData.get("finRecepcion") as string;
-    const fechaPrimerInforme = formData.get("fechaPrimerInforme") as string;
-    const fechaInformeFinal = formData.get("fechaInformeFinal") as string;
+    const dates = calculateDates(data.finRecepcion);
 
-    if (!inicioRecepcion || !finRecepcion || !fechaPrimerInforme || !fechaInformeFinal) {
-      return { success: false, error: "Faltan fechas obligatorias" };
-    }
-
-    // Desactivar todos los periodos anteriores
-    await db.update(periodos).set({ activo: false });
-
-    // Crear el nuevo periodo
     await db.insert(periodos).values({
-      inicioRecepcion,
-      finRecepcion,
-      fechaPrimerInforme,
-      fechaInformeFinal,
-      activo: true, // El nuevo siempre es el activo
+      nombre: data.nombre,
+      inicioRecepcion: data.inicioRecepcion,
+      finRecepcion: data.finRecepcion,
+      ...dates,
+      activo: true,
     });
-
     revalidatePath("/admin/periodos");
     return { success: true };
   } catch (error: any) {
     console.error("Error creating periodo:", error);
-    return { success: false, error: "Error al crear el periodo" };
+    return { success: false, error: error.message };
   }
 }
 
-export async function activarPeriodo(id: number) {
+export async function updatePeriodo(id: number, data: PeriodoData) {
   try {
-    // Desactivar todos
-    await db.update(periodos).set({ activo: false });
-    // Activar el seleccionado
-    await db.update(periodos).set({ activo: true }).where(eq(periodos.id, id));
+    const dates = calculateDates(data.finRecepcion);
+
+    await db.update(periodos)
+      .set({
+        nombre: data.nombre,
+        inicioRecepcion: data.inicioRecepcion,
+        finRecepcion: data.finRecepcion,
+        ...dates,
+      })
+      .where(eq(periodos.id, id));
     
     revalidatePath("/admin/periodos");
     return { success: true };
-  } catch (error) {
-    return { success: false, error: "Error al cambiar el periodo activo" };
+  } catch (error: any) {
+    console.error("Error updating periodo:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+export async function togglePeriodoActivo(id: number, current: boolean) {
+  try {
+    await db.update(periodos)
+      .set({ activo: !current })
+      .where(eq(periodos.id, id));
+    revalidatePath("/admin/periodos");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+export async function deletePeriodo(id: number) {
+  try {
+    await db.delete(periodos).where(eq(periodos.id, id));
+    revalidatePath("/admin/periodos");
+    return { success: true };
+  } catch (error: any) {
+    // Podría fallar por llaves foráneas en propuestas
+    if (error.code === '23503') {
+      return { success: false, error: "No se puede eliminar porque ya existen propuestas de egresados vinculadas a este ciclo." };
+    }
+    return { success: false, error: error.message };
   }
 }

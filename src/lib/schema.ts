@@ -61,10 +61,22 @@ export const usuarios = pgTable(
 
 export const periodos = pgTable("periodos", {
   id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 50 }).notNull(), // Ej: C2-2025
   inicioRecepcion: date("inicio_recepcion").notNull(),
   finRecepcion: date("fin_recepcion").notNull(),
-  fechaPrimerInforme: date("fecha_primer_informe"),
-  fechaInformeFinal: date("fecha_informe_final"),
+  
+  // Fechas máximas calculadas para la cohorte
+  maxAprobacionPropuesta: date("max_aprobacion_propuesta").notNull(),
+  maxInicioProceso: date("max_inicio_proceso").notNull(),
+  maxPrimerInforme: date("max_primer_informe").notNull(),
+  maxSegundoInforme: date("max_segundo_informe").notNull(),
+  maxTercerInforme: date("max_tercer_informe").notNull(),
+  maxCuartoInforme: date("max_cuarto_informe").notNull(),
+  visitaAsesorInicio: date("visita_asesor_inicio").notNull(),
+  visitaAsesorFin: date("visita_asesor_fin").notNull(),
+  maxInformeFinal: date("max_informe_final").notNull(),
+  maxAprobacionFinal: date("max_aprobacion_final").notNull(),
+
   activo: boolean("activo").notNull().default(true),
 });
 

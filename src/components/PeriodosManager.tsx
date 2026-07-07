@@ -1,0 +1,279 @@
+"use client";
+
+import { useState } from "react";
+import { createPeriodo, updatePeriodo, deletePeriodo, togglePeriodoActivo, PeriodoData } from "@/app/actions/periodos";
+
+export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: any[] }) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  
+  const [formData, setFormData] = useState<PeriodoData>({
+    nombre: "",
+    inicioRecepcion: "",
+    finRecepcion: "",
+  });
+
+  const [error, setError] = useState<string | null>(null);
+
+  const resetForm = () => {
+    setFormData({ nombre: "", inicioRecepcion: "", finRecepcion: "" });
+    setEditingId(null);
+    setError(null);
+    setIsModalOpen(false);
+  };
+
+  const handleEdit = (p: any) => {
+    setFormData({
+      nombre: p.nombre,
+      inicioRecepcion: p.inicioRecepcion,
+      finRecepcion: p.finRecepcion,
+    });
+    setEditingId(p.id);
+    setIsModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setError(null);
+
+    const start = new Date(formData.inicioRecepcion);
+    const end = new Date(formData.finRecepcion);
+
+    if (end <= start) {
+      setError("La fecha de fin de recepción debe ser posterior a la de inicio.");
+      setIsSaving(false);
+      return;
+    }
+
+    let res;
+    if (editingId) {
+      res = await updatePeriodo(editingId, formData);
+    } else {
+      res = await createPeriodo(formData);
+    }
+
+    setIsSaving(false);
+    if (res.success) {
+      resetForm();
+    } else {
+      setError(res.error || "Ocurrió un error.");
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (confirm("¿Estás seguro de eliminar este ciclo académico? Esto no se puede deshacer.")) {
+      const res = await deletePeriodo(id);
+      if (!res.success) {
+        alert(res.error);
+      }
+    }
+  };
+
+  const handleToggle = async (id: number, current: boolean) => {
+    if (confirm(`¿Estás seguro de ${current ? "cerrar" : "activar"} este ciclo académico?`)) {
+      await togglePeriodoActivo(id, current);
+    }
+  };
+
+  // Preview calculator in UI
+  const addDaysUI = (dateStr: string, days: number) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    date.setDate(date.getDate() + days);
+    return date.toLocaleDateString("es-ES", { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">Ciclos y Periodos Académicos</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Define las fechas de recepción. El sistema calculará automáticamente los tiempos máximos (regla de los 150 días).
+          </p>
+        </div>
+        <button
+          onClick={() => { resetForm(); setIsModalOpen(true); }}
+          className="bg-brand-red hover:bg-red-800 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          Nuevo Ciclo
+        </button>
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {initialPeriodos.map((p) => (
+          <div key={p.id} className={`border rounded-xl p-5 shadow-sm bg-white flex flex-col relative overflow-hidden transition-all ${p.activo ? "border-emerald-200 ring-1 ring-emerald-100" : "border-gray-200 opacity-80"}`}>
+            {p.activo && <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-bl-full -z-0"></div>}
+            
+            <div className="flex justify-between items-start z-10 relative">
+              <h3 className="font-bold text-lg text-gray-800">{p.nombre}</h3>
+              <div className="flex gap-1">
+                <button onClick={() => handleEdit(p)} className="p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                </button>
+                <button onClick={() => handleDelete(p.id)} className="p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3 z-10 relative flex-1">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                <span className="text-gray-500 font-medium">Recepción:</span>
+                <span className="font-bold text-gray-700">{p.inicioRecepcion} a {p.finRecepcion}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+                <span className="text-gray-500 font-medium">Límite Informe Final:</span>
+                <span className="font-bold text-gray-700">{p.maxInformeFinal}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+                <span className="text-gray-500 font-medium">Cierre Absoluto:</span>
+                <span className="font-bold text-gray-700">{p.maxAprobacionFinal}</span>
+              </div>
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between z-10 relative">
+              <span className={`px-2.5 py-1 text-xs font-bold rounded-md ${p.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                {p.activo ? 'Recepción Abierta' : 'Ciclo Cerrado'}
+              </span>
+              <button
+                onClick={() => handleToggle(p.id, p.activo)}
+                className={`text-sm font-bold underline ${p.activo ? 'text-gray-500 hover:text-red-600' : 'text-emerald-600 hover:text-emerald-800'}`}
+              >
+                {p.activo ? 'Cerrar Ciclo' : 'Abrir Ciclo'}
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {initialPeriodos.length === 0 && (
+          <div className="col-span-full py-12 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300">
+            <p className="text-gray-500">No hay ciclos académicos creados aún.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden my-8 relative">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-xl text-gray-800">
+                {editingId ? "Editar Ciclo Académico" : "Crear Nuevo Ciclo Académico"}
+              </h3>
+              <button onClick={resetForm} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6">
+              {error && (
+                <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg text-sm font-medium border border-red-200 flex gap-2">
+                  <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-1">Nombre del Ciclo</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej. C2-2025"
+                    className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900"
+                    value={formData.nombre}
+                    onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Asigna un nombre descriptivo para la cohorte.</p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Fecha de Inicio de Recepción</label>
+                    <input
+                      type="date"
+                      required
+                      className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900"
+                      value={formData.inicioRecepcion}
+                      onChange={(e) => setFormData({ ...formData, inicioRecepcion: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Fecha de Fin de Recepción</label>
+                    <input
+                      type="date"
+                      required
+                      className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900"
+                      value={formData.finRecepcion}
+                      onChange={(e) => setFormData({ ...formData, finRecepcion: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {formData.finRecepcion && (
+                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <h4 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      Cálculo Automático de Tiempos Máximos
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-xs text-slate-600">
+                      <div className="flex justify-between border-b border-slate-200 pb-1">
+                        <span>Aprobación de Propuesta:</span>
+                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 21)}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-200 pb-1">
+                        <span>Inicio Oficial (No antes):</span>
+                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 21)}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-200 pb-1">
+                        <span>1er Informe Mensual:</span>
+                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 51)}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-200 pb-1">
+                        <span>Visita de Asesor:</span>
+                        <span className="font-bold">Hasta {addDaysUI(formData.finRecepcion, 121)}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-200 pb-1">
+                        <span>Límite Informe Final (150d):</span>
+                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 171)}</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-200 pb-1 text-brand-red">
+                        <span>Fecha Cierre Absoluto:</span>
+                        <span className="font-bold">{addDaysUI(formData.finRecepcion, 186)}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-8 pt-4 border-t border-gray-100 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  disabled={isSaving}
+                  className="px-5 py-2.5 rounded-xl font-bold text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isSaving ? "Guardando..." : "Guardar Ciclo"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
