@@ -158,7 +158,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
       ...prev,
       supervisores: [
         ...prev.supervisores,
-        { titulo: "", nombres: "", apellidos: "", cargo: "", especialidad: "", telefono: "", correo: "" }
+        { titulo: "", nombres: "", apellidos: "", cargo: "", especialidad: "", telefono: "", correo: "", sucursalId: null }
       ]
     }));
   };
@@ -185,7 +185,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
       ...prev,
       firmantes: [
         ...prev.firmantes,
-        { titulo: "", nombres: "", apellidos: "", cargo: "", telefono: "", correo: "", firmaUrl: "" }
+        { titulo: "", nombres: "", apellidos: "", cargo: "", telefono: "", correo: "", firmaUrl: "", sucursalId: null }
       ]
     }));
   };
@@ -469,13 +469,26 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                               <button type="button" onClick={() => removeSupervisor(index)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-1 shadow-sm">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
-                              
-                              <div className="grid grid-cols-3 gap-3 mb-3">
+                                   <div className="grid grid-cols-2 gap-3 mb-3">
                                 <div className="col-span-1">
                                   <label className="block text-xs font-bold text-gray-600 mb-1">Título</label>
-                                  <input type="text" placeholder="Ej. Ing, Lic..." className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.titulo} onChange={(e) => updateSupervisor(index, "titulo", e.target.value)} />
+                                  <input type="text" placeholder="Ej. Ing..." className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.titulo || ""} onChange={(e) => updateSupervisor(index, "titulo", e.target.value)} />
                                 </div>
-                                <div className="col-span-2">
+                                <div className="col-span-1">
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Sucursal (Opcional)</label>
+                                  <select 
+                                    className="w-full border-gray-300 border p-2 rounded text-sm bg-white" 
+                                    value={sup.sucursalId || ""} 
+                                    onChange={(e) => updateSupervisor(index, "sucursalId", e.target.value ? Number(e.target.value) : null as any)}
+                                  >
+                                    <option value="">Sede Central</option>
+                                    {formData.sucursales.filter(s => s.id).map(s => (
+                                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-2 gap-3 mb-3">  <div className="col-span-2">
                                   <label className="block text-xs font-bold text-gray-600 mb-1">Especialidad</label>
                                   <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.especialidad} onChange={(e) => updateSupervisor(index, "especialidad", e.target.value)} />
                                 </div>
@@ -540,6 +553,22 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                                   <input type="text" placeholder="Ej. Lic..." className="w-full border-gray-300 border p-2 rounded text-sm" value={firm.titulo || ""} onChange={(e) => updateFirmante(index, "titulo", e.target.value)} />
                                 </div>
                                 <div className="col-span-2">
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Sucursal (Opcional)</label>
+                                  <select 
+                                    className="w-full border-gray-300 border p-2 rounded text-sm bg-white" 
+                                    value={firm.sucursalId || ""} 
+                                    onChange={(e) => updateFirmante(index, "sucursalId", e.target.value ? Number(e.target.value) : null as any)}
+                                  >
+                                    <option value="">Sede Central</option>
+                                    {formData.sucursales.filter(s => s.id).map(s => (
+                                      <option key={s.id} value={s.id}>{s.nombre}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 gap-3 mb-3">
+                                <div>
                                   <label className="block text-xs font-bold text-gray-600 mb-1">Cargo *</label>
                                   <input type="text" required placeholder="Gerente General, HR..." className="w-full border-gray-300 border p-2 rounded text-sm" value={firm.cargo || ""} onChange={(e) => updateFirmante(index, "cargo", e.target.value)} />
                                 </div>

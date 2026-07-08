@@ -103,6 +103,7 @@ export const supervisores = pgTable("supervisores", {
   empresaId: integer("empresa_id")
     .notNull()
     .references(() => empresas.id, { onDelete: "cascade" }),
+  sucursalId: integer("sucursal_id"), // Reference to sucursales.id
   titulo: varchar("titulo", { length: 50 }),
   especialidad: varchar("especialidad", { length: 255 }),
   nombres: varchar("nombres", { length: 255 }).notNull(),
@@ -119,6 +120,7 @@ export const firmantes = pgTable("firmantes", {
   empresaId: integer("empresa_id")
     .notNull()
     .references(() => empresas.id, { onDelete: "cascade" }),
+  sucursalId: integer("sucursal_id"), // Reference to sucursales.id
   titulo: varchar("titulo", { length: 50 }),
   nombres: varchar("nombres", { length: 255 }).notNull(),
   apellidos: varchar("apellidos", { length: 255 }).notNull(),

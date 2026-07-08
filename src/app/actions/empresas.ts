@@ -7,6 +7,7 @@ import { revalidatePath } from "next/cache";
 
 export type SupervisorData = {
   id?: number;
+  sucursalId?: number | null;
   titulo?: string;
   especialidad?: string;
   nombres: string;
@@ -26,6 +27,7 @@ export type SucursalData = {
 
 export type FirmanteData = {
   id?: number;
+  sucursalId?: number | null;
   titulo?: string;
   nombres: string;
   apellidos: string;

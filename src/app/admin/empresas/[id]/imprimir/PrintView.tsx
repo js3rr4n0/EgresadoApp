@@ -5,70 +5,43 @@ import { EmpresaData } from "@/app/actions/empresas";
 
 const getStaticMapUrl = (coords: string) => {
   if (!coords || !coords.includes(',')) return null;
-  const [lat, lng] = coords.split(',');
-  return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=16&size=800x400&markers=${lat},${lng},red-pushpin`;
+  return `/api/map?coords=${coords}`;
 };
 
 export default function PrintView({ empresa }: { empresa: EmpresaData }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState("Preparando documento...");
 
+  const getSucursalNombre = (sucursalId: number | null | undefined) => {
+    if (!sucursalId) return "Sede Central";
+    const sucursal = empresa.sucursales?.find((s: any) => s.id === sucursalId);
+    return sucursal ? sucursal.nombre : "Sede Central";
+  };
+
   useEffect(() => {
     const generatePDF = async () => {
       try {
         if (typeof window === "undefined" || !contentRef.current) return;
         
-        setStatus("Generando PDF (Motor Nativo)...");
+        setStatus("Generando PDF (Motor de Impresión Profesional)...");
         
-        // Dynamic imports
-        const domtoimage = (await import("dom-to-image-more")).default;
-        const { jsPDF } = await import("jspdf");
+        // Dynamic import
+        const html2pdf = (await import("html2pdf.js")).default;
 
         // Wait a bit for images and maps to load
         await new Promise(r => setTimeout(r, 2500));
         
-        // Use dom-to-image-more which relies on browser's native engine (avoids CSS parser crash)
-        const imgData = await domtoimage.toJpeg(contentRef.current, {
-          quality: 0.98,
-          bgcolor: '#ffffff',
-          style: {
-            transform: 'scale(2)',
-            transformOrigin: 'top left',
-            width: contentRef.current.offsetWidth + 'px',
-            height: contentRef.current.offsetHeight + 'px'
-          },
-          width: contentRef.current.offsetWidth * 2,
-          height: contentRef.current.offsetHeight * 2,
-        });
-        
-        // Create PDF (Letter size is 8.5 x 11 inches)
-        const pdf = new jsPDF({
-          orientation: 'portrait',
-          unit: 'in',
-          format: 'letter'
-        });
-
-        // 8.5 inches wide, calculate scaled height
-        const pdfWidth = 8.5;
-        // height in inches = (pixel height / pixel width) * 8.5
-        const pdfHeight = (contentRef.current.offsetHeight / contentRef.current.offsetWidth) * pdfWidth;
-        
-        let position = 0;
-        let pageHeight = 11; // letter height in inches
-        let heightLeft = pdfHeight;
-
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pageHeight;
-
-        while (heightLeft >= 0) {
-          position = heightLeft - pdfHeight;
-          pdf.addPage();
-          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-          heightLeft -= pageHeight;
-        }
+        const opt: any = {
+          margin:       0.5,
+          filename:     `Empresa_${empresa.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`,
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+          jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' },
+          pagebreak:    { mode: ['css', 'legacy'] }
+        };
 
         setStatus("Descargando...");
-        pdf.save(`Empresa_${empresa.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
+        await html2pdf().set(opt).from(contentRef.current).save();
         
         setStatus("¡Descarga completada! Puedes cerrar esta pestaña.");
         
@@ -191,7 +164,7 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
                 </h2>
                 <div className="space-y-8">
                   {empresa.sucursales.map((suc, idx) => (
-                    <div key={idx} className="border border-gray-300 p-6 rounded-lg bg-white shadow-sm">
+                    <div key={idx} className="border border-gray-300 p-6 rounded-lg bg-white shadow-sm break-inside-avoid">
                       <h3 className="font-bold text-xl mb-4 text-[#992222] uppercase">{suc.nombre}</h3>
                       <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                         <p><span className="font-semibold">Dirección:</span> {suc.direccion || "N/A"}</p>
@@ -227,8 +200,11 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
             {empresa.supervisores && empresa.supervisores.length > 0 ? (
               <div className="space-y-6">
                 {empresa.supervisores.map((sup, idx) => (
-                  <div key={idx} className="border border-gray-300 p-4 rounded-lg bg-gray-50">
-                    <p className="font-bold text-lg mb-2">{sup.titulo} {sup.nombres} {sup.apellidos}</p>
+                  <div key={idx} className="border border-gray-300 p-4 rounded-lg bg-gray-50 break-inside-avoid">
+                    <div className="flex justify-between items-start mb-2">
+                      <p className="font-bold text-lg">{sup.titulo} {sup.nombres} {sup.apellidos}</p>
+                      <span className="text-xs font-bold px-2 py-1 bg-brand-red/10 text-brand-red rounded-full">{getSucursalNombre(sup.sucursalId)}</span>
+                    </div>
                     <div className="grid grid-cols-2 gap-2 text-sm">
                       <p><span className="font-semibold">Cargo:</span> {sup.cargo || "N/A"}</p>
                       <p><span className="font-semibold">Especialidad:</span> {sup.especialidad || "N/A"}</p>
@@ -250,10 +226,13 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
             {empresa.firmantes && empresa.firmantes.length > 0 ? (
               <div className="space-y-8">
                 {empresa.firmantes.map((firm, idx) => (
-                  <div key={idx} className="border border-gray-300 p-6 rounded-lg bg-white relative">
+                  <div key={idx} className="border border-gray-300 p-6 rounded-lg bg-white relative break-inside-avoid">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="font-bold text-xl mb-1">{firm.titulo} {firm.nombres} {firm.apellidos}</p>
+                        <div className="flex flex-col items-start mb-1">
+                          <p className="font-bold text-xl">{firm.titulo} {firm.nombres} {firm.apellidos}</p>
+                          <span className="text-[10px] font-bold px-2 py-0.5 mt-1 bg-brand-red/10 text-brand-red rounded-full">{getSucursalNombre(firm.sucursalId)}</span>
+                        </div>
                         <p className="font-bold text-[#992222] mb-4">{firm.cargo}</p>
                         <div className="text-sm space-y-1">
                           <p><span className="font-semibold">Teléfono:</span> {firm.telefono || "N/A"}</p>
