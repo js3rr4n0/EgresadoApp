@@ -168,6 +168,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
           facultadId: fId,
           activo: row.activo !== "false" && row.activo !== "0" && row.activo !== false,
           carrerasAsignadas: row.carreras_asignadas ? JSON.parse(row.carreras_asignadas) : null,
+          cohortesAsignadas: row.cohortes_asignadas ? JSON.parse(row.cohortes_asignadas) : null,
         });
       });
 
