@@ -32,8 +32,9 @@ export default function AdminSidebar() {
     <aside className="w-full lg:w-[280px] shrink-0 bg-[#CC292B] lg:min-h-screen text-white flex flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 z-50 print:hidden">
       <div className="p-4 lg:p-8 flex items-center justify-between lg:justify-start gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white rounded-full flex items-center justify-center shrink-0">
-            <span className="text-[#CC292B] text-lg lg:text-xl font-serif italic font-bold">U</span>
+          <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white rounded-full flex items-center justify-center p-1 shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/unicaes-logo.png" alt="UNICAES Logo" className="w-full h-full object-contain" />
           </div>
           <div>
             <h1 className="font-bold text-base lg:text-lg leading-tight tracking-wide">Gestión TG</h1>
