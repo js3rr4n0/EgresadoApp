@@ -27,7 +27,16 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
   const [roleFilter, setRoleFilter] = useState("Todos los Roles");
   const [statusFilter, setStatusFilter] = useState("Estado");
   const [facultyFilter, setFacultyFilter] = useState("Facultad");
+  const [carreraFilter, setCarreraFilter] = useState("Carrera");
   const [cohorteFilter, setCohorteFilter] = useState("Cohorte");
+
+  const availableCarreras = useMemo(() => {
+    const carrerasSet = new Set<string>();
+    initialUsuarios.forEach(u => {
+      if (u.carrera) carrerasSet.add(u.carrera);
+    });
+    return Array.from(carrerasSet).sort();
+  }, [initialUsuarios]);
 
   const availableCohortes = useMemo(() => {
     const cohortes = new Set<string>();
@@ -95,11 +104,12 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
       if (statusFilter === "Inactivos") matchesStatus = !user.activo;
 
       const matchesFaculty = facultyFilter === "Facultad" || user.facultad === facultyFilter;
+      const matchesCarrera = carreraFilter === "Carrera" || user.carrera === carreraFilter;
       const matchesCohorte = cohorteFilter === "Cohorte" || user.cohorte === cohorteFilter;
 
-      return matchesSearch && matchesRole && matchesStatus && matchesFaculty && matchesCohorte;
+      return matchesSearch && matchesRole && matchesStatus && matchesFaculty && matchesCarrera && matchesCohorte;
     });
-  }, [usuarios, search, roleFilter, statusFilter, facultyFilter, cohorteFilter]);
+  }, [usuarios, search, roleFilter, statusFilter, facultyFilter, carreraFilter, cohorteFilter]);
 
   return (
     <div className="space-y-6">
@@ -148,12 +158,25 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
           </select>
           <select 
             value={facultyFilter}
-            onChange={(e) => setFacultyFilter(e.target.value)}
+            onChange={(e) => {
+              setFacultyFilter(e.target.value);
+              setCarreraFilter("Carrera"); // Reset carrera when changing facultad
+            }}
             className="px-4 py-2 rounded-full border border-border text-sm text-foreground focus:outline-none bg-white min-w-[140px]"
           >
             <option>Facultad</option>
             {facultades.map(f => (
               <option key={f.id} value={f.nombre}>{f.nombre}</option>
+            ))}
+          </select>
+          <select 
+            value={carreraFilter}
+            onChange={(e) => setCarreraFilter(e.target.value)}
+            className="px-4 py-2 rounded-full border border-border text-sm text-foreground focus:outline-none bg-white min-w-[140px] max-w-[200px]"
+          >
+            <option>Carrera</option>
+            {availableCarreras.map(c => (
+              <option key={c} value={c} className="truncate">{c}</option>
             ))}
           </select>
         </div>
@@ -168,7 +191,8 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Nombre Completo</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Correo</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Rol</th>
-                <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Facultad / Carrera</th>
+                <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Facultad</th>
+                <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Carrera</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase text-center">Estado</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase text-center">Cohorte</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase text-right">Acciones</th>
@@ -191,15 +215,16 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                   </td>
                   <td className="px-6 py-4">
                     {user.facultad ? (
-                      <div>
-                        <span className="block font-bold text-brand-red">{user.facultad}</span>
-                        <span className="block text-muted text-xs whitespace-normal line-clamp-1 min-w-[200px]">{user.carrera}</span>
-                      </div>
+                      <span className="block font-bold text-brand-red truncate max-w-[200px]" title={user.facultad}>{user.facultad}</span>
                     ) : (
-                      <div>
-                        <span className="block font-bold text-slate-400">Sin Asignar</span>
-                        <span className="block text-slate-400 text-xs">N/A</span>
-                      </div>
+                      <span className="block font-bold text-slate-400">Sin Asignar</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {user.carrera ? (
+                      <span className="block text-muted text-xs whitespace-normal line-clamp-2 min-w-[200px]" title={user.carrera}>{user.carrera}</span>
+                    ) : (
+                      <span className="block text-slate-400 text-xs">N/A</span>
                     )}
                   </td>
                   <td className="px-6 py-4 text-center">
@@ -242,7 +267,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
               ))}
               {filteredUsuarios.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-muted">
+                  <td colSpan={8} className="px-6 py-12 text-center text-muted">
                     No se encontraron usuarios que coincidan con la búsqueda.
                   </td>
                 </tr>
