@@ -49,6 +49,7 @@ export const usuarios = pgTable(
     activo: boolean("activo").notNull().default(true),
     cohorte: varchar("cohorte", { length: 20 }),
     carrerasAsignadas: jsonb("carreras_asignadas"), // para asesor/decanato
+    cohortesAsignadas: jsonb("cohortes_asignadas"), // para historial de cohortes de asesor/decanato [{cohorte: "C12026", activa: true}]
   },
   (table) => [
     check(

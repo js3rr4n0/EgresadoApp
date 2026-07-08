@@ -40,7 +40,7 @@ export default async function EditarUsuarioPage({
         <h1 className="text-2xl font-bold text-card-dark">Editar Usuario</h1>
       </div>
 
-      <EditUserForm user={userRes.data} carreras={carreras} />
+      <EditUserForm user={userRes.data as any} carreras={carreras} />
     </div>
   );
 }

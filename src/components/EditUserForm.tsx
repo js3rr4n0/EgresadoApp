@@ -17,6 +17,7 @@ interface UsuarioData {
   rol: string;
   carnet: string | null;
   cohorte: string | null;
+  cohortesAsignadas?: { cohorte: string, activa: boolean }[] | null;
   carreraId: number | null;
   activo: boolean;
 }
@@ -26,6 +27,8 @@ export default function EditUserForm({ user, carreras }: { user: UsuarioData; ca
   const [rol, setRol] = useState(user.rol);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cohortesList, setCohortesList] = useState<{ cohorte: string, activa: boolean }[]>(user.cohortesAsignadas || []);
+  const [newCohorte, setNewCohorte] = useState("");
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -33,6 +36,7 @@ export default function EditUserForm({ user, carreras }: { user: UsuarioData; ca
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    formData.append("cohortesAsignadas", JSON.stringify(cohortesList));
     const result = await updateUsuario(user.id, formData);
 
     if (result.success) {
@@ -124,6 +128,76 @@ export default function EditUserForm({ user, carreras }: { user: UsuarioData; ca
             </select>
           </div>
         </div>
+
+        {/* Cohortes Asignadas (Historial) - Solo para Asesor o Decanato */}
+        {(rol === "asesor" || rol === "decanato") && (
+          <div className="mt-6 pt-6 border-t border-border">
+            <label className="block text-sm font-bold text-foreground mb-3">
+              Historial de Cohortes Asignadas
+            </label>
+            <div className="flex gap-2 mb-4">
+              <input 
+                type="text" 
+                value={newCohorte}
+                onChange={e => setNewCohorte(e.target.value)}
+                placeholder="Ej: C12026"
+                pattern="^C[12]\d{4}$"
+                title="Debe ser C1 o C2 seguido del año (Ej: C12026)"
+                className="flex-1 px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all"
+              />
+              <button 
+                type="button"
+                onClick={() => {
+                  if (newCohorte && !cohortesList.find(c => c.cohorte === newCohorte)) {
+                    setCohortesList([...cohortesList, { cohorte: newCohorte, activa: true }]);
+                    setNewCohorte("");
+                  }
+                }}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-card-dark rounded-lg font-semibold transition-colors border border-border"
+              >
+                Añadir
+              </button>
+            </div>
+            
+            {cohortesList.length > 0 ? (
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {cohortesList.map((item, index) => (
+                  <div key={index} className="flex items-center justify-between bg-muted-bg border border-border p-3 rounded-lg">
+                    <span className="font-bold text-card-dark text-sm">{item.cohorte}</span>
+                    <div className="flex items-center gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer text-sm">
+                        <input 
+                          type="checkbox" 
+                          checked={item.activa}
+                          onChange={(e) => {
+                            const updated = [...cohortesList];
+                            updated[index].activa = e.target.checked;
+                            setCohortesList(updated);
+                          }}
+                          className="w-4 h-4 rounded border-gray-300 text-brand-red focus:ring-brand-red"
+                        />
+                        <span className={item.activa ? "text-emerald-600 font-bold" : "text-muted"}>
+                          {item.activa ? "Activa" : "Cerrada"}
+                        </span>
+                      </label>
+                      <button 
+                        type="button" 
+                        onClick={() => setCohortesList(cohortesList.filter((_, i) => i !== index))}
+                        className="text-muted hover:text-brand-red transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-muted italic text-center p-4 border border-dashed border-border rounded-lg bg-slate-50">
+                Aún no hay cohortes asignadas
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Footer Actions */}

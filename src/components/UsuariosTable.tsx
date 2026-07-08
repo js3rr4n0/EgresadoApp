@@ -11,6 +11,7 @@ type Usuario = {
   rol: string;
   carnet: string | null;
   cohorte: string | null;
+  cohortesAsignadas: { cohorte: string, activa: boolean }[] | null;
   carrera: string | null;
   facultad: string | null;
   activo: boolean;
@@ -42,6 +43,9 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
     const cohortes = new Set<string>();
     initialUsuarios.forEach(u => {
       if (u.cohorte) cohortes.add(u.cohorte);
+      if (u.cohortesAsignadas) {
+        u.cohortesAsignadas.forEach(c => cohortes.add(c.cohorte));
+      }
     });
     return Array.from(cohortes).sort().reverse(); // Show newest first
   }, [initialUsuarios]);
@@ -105,7 +109,9 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
 
       const matchesFaculty = facultyFilter === "Facultad" || user.facultad === facultyFilter;
       const matchesCarrera = carreraFilter === "Carrera" || user.carrera === carreraFilter;
-      const matchesCohorte = cohorteFilter === "Cohorte" || user.cohorte === cohorteFilter;
+      const matchesCohorte = cohorteFilter === "Cohorte" || 
+                             user.cohorte === cohorteFilter || 
+                             (user.cohortesAsignadas && user.cohortesAsignadas.some(c => c.cohorte === cohorteFilter));
 
       return matchesSearch && matchesRole && matchesStatus && matchesFaculty && matchesCarrera && matchesCohorte;
     });
@@ -244,6 +250,19 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                       <span className="px-3 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
                         {formatCohorte(user.cohorte)}
                       </span>
+                    ) : user.cohortesAsignadas && user.cohortesAsignadas.length > 0 ? (
+                      <div className="flex flex-col gap-1 items-center">
+                        {user.cohortesAsignadas.filter(c => c.activa).map(c => (
+                          <span key={c.cohorte} className="px-3 py-1 rounded-md text-xs font-bold bg-teal-50 text-teal-700 border border-teal-100 inline-block w-max">
+                            {formatCohorte(c.cohorte)} (Activa)
+                          </span>
+                        ))}
+                        {user.cohortesAsignadas.filter(c => !c.activa).length > 0 && (
+                          <span className="text-xs text-muted" title={user.cohortesAsignadas.filter(c => !c.activa).map(c => c.cohorte).join(', ')}>
+                            +{user.cohortesAsignadas.filter(c => !c.activa).length} cerradas
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <span className="text-slate-300 text-xs italic">-</span>
                     )}

@@ -29,6 +29,7 @@ export async function crearUsuario(formData: FormData) {
     const rol = formData.get("rol") as string;
     const carnet = formData.get("carnet") as string | null;
     const cohorte = formData.get("cohorte") as string | null;
+    const cohortesAsignadasRaw = formData.get("cohortesAsignadas") as string | null;
     const carreraId = formData.get("carreraId") ? Number(formData.get("carreraId")) : null;
     const activo = formData.get("activo") === "on";
 
@@ -56,6 +57,7 @@ export async function crearUsuario(formData: FormData) {
       cohorte: rol === "egresado" ? cohorte : null,
       carreraId: rol === "egresado" ? carreraId : null,
       facultadId: rol === "egresado" ? facultadId : null,
+      cohortesAsignadas: (rol === "asesor" || rol === "decanato") && cohortesAsignadasRaw ? JSON.parse(cohortesAsignadasRaw) : null,
       activo,
     });
 
@@ -80,6 +82,7 @@ export async function getUsuarios() {
         rol: usuarios.rol,
         carnet: usuarios.carnet,
         cohorte: usuarios.cohorte,
+        cohortesAsignadas: usuarios.cohortesAsignadas,
         activo: usuarios.activo,
         carrera: carreras.nombre,
         facultad: facultades.nombre,
@@ -131,6 +134,7 @@ export async function updateUsuario(id: number, formData: FormData) {
     const rol = formData.get("rol") as string;
     const carnet = formData.get("carnet") as string | null;
     const cohorte = formData.get("cohorte") as string | null;
+    const cohortesAsignadasRaw = formData.get("cohortesAsignadas") as string | null;
     const carreraId = formData.get("carreraId") ? Number(formData.get("carreraId")) : null;
     const activo = formData.get("activo") === "on";
 
@@ -154,6 +158,7 @@ export async function updateUsuario(id: number, formData: FormData) {
       cohorte: rol === "egresado" ? cohorte : null,
       carreraId: rol === "egresado" ? carreraId : null,
       facultadId: rol === "egresado" ? facultadId : null,
+      cohortesAsignadas: (rol === "asesor" || rol === "decanato") && cohortesAsignadasRaw ? JSON.parse(cohortesAsignadasRaw) : null,
       activo,
     }).where(eq(usuarios.id, id));
 

@@ -27,7 +27,7 @@ export default async function UsuariosPage() {
         </Link>
       </div>
 
-      <UsuariosTable initialUsuarios={usuarios} facultades={facultiesList} />
+      <UsuariosTable initialUsuarios={usuarios as any} facultades={facultiesList} />
     </div>
   );
 }
