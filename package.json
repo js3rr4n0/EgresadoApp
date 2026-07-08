@@ -17,7 +17,6 @@
     "dom-to-image-more": "^3.10.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
-    "html2pdf.js": "^0.14.0",
     "jose": "^6.2.3",
     "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",

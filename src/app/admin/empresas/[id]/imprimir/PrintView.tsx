@@ -23,25 +23,49 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
       try {
         if (typeof window === "undefined" || !contentRef.current) return;
         
-        setStatus("Generando PDF (Motor de Impresión Profesional)...");
+        setStatus("Generando PDF (Motor de Páginas Aisladas)...");
         
-        // Dynamic import
-        const html2pdf = (await import("html2pdf.js")).default;
+        // Dynamic imports
+        const domtoimage = (await import("dom-to-image-more")).default;
+        const { jsPDF } = await import("jspdf");
 
         // Wait a bit for images and maps to load
         await new Promise(r => setTimeout(r, 2500));
         
-        const opt: any = {
-          margin:       0.5,
-          filename:     `Empresa_${empresa.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`,
-          image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
-          jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' },
-          pagebreak:    { mode: ['css', 'legacy'] }
-        };
+        // Find all pages
+        const pages = Array.from(contentRef.current.querySelectorAll('.pdf-page')) as HTMLElement[];
+        
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'in',
+          format: 'letter'
+        });
+
+        for (let i = 0; i < pages.length; i++) {
+          const page = pages[i];
+          
+          const imgData = await domtoimage.toJpeg(page, {
+            quality: 0.98,
+            bgcolor: '#ffffff',
+            style: {
+              transform: 'scale(2)',
+              transformOrigin: 'top left',
+              width: page.offsetWidth + 'px',
+              height: page.offsetHeight + 'px'
+            },
+            width: page.offsetWidth * 2,
+            height: page.offsetHeight * 2,
+          });
+
+          if (i > 0) {
+            pdf.addPage();
+          }
+          
+          pdf.addImage(imgData, 'JPEG', 0, 0, 8.5, 11);
+        }
 
         setStatus("Descargando...");
-        await html2pdf().set(opt).from(contentRef.current).save();
+        pdf.save(`Empresa_${empresa.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
         
         setStatus("¡Descarga completada! Puedes cerrar esta pestaña.");
         
@@ -80,14 +104,13 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
 
       {/* Hidden Content for PDF */}
       <div className="absolute left-[-9999px] top-[-9999px]">
-        <div ref={contentRef} className="bg-white font-sans text-black w-[8.5in]">
+        <div ref={contentRef} className="font-sans text-black">
           {/* Portada */}
-          <div className="flex flex-col items-center justify-center text-center p-12 min-h-[11in] page-break-after">
+          <div className="pdf-page bg-white w-[8.5in] h-[11in] overflow-hidden p-12 flex flex-col items-center justify-center text-center">
             <h1 className="text-3xl font-bold mt-12 mb-16 tracking-wide uppercase">
               UNIVERSIDAD CATÓLICA DE EL SALVADOR
             </h1>
 
-            {/* UNICAES Logo */}
             <div className="mb-16">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
@@ -112,7 +135,7 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
           </div>
 
           {/* Contenido (Info de Empresa) */}
-          <div className="p-12 space-y-8 min-h-[11in]">
+          <div className="pdf-page bg-white w-[8.5in] h-[11in] overflow-hidden p-12">
             <h2 className="text-2xl font-bold text-center border-b-2 border-[#992222] pb-4 mb-8">
               DATOS DE LA INSTITUCIÓN
             </h2>
@@ -150,57 +173,54 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
                 <span className="font-bold block mb-1">Descripción:</span>
                 <p className="text-justify text-gray-700">{empresa.descripcion || "No especificada"}</p>
               </div>
-              <div className="pt-2">
-                <span className="font-bold block mb-1">Antecedentes:</span>
-                <p className="text-justify text-gray-700">{empresa.antecedentes || "No especificados"}</p>
+            </div>
+          </div>
+
+          {/* Sucursales - Chunks of 2 per page */}
+          {empresa.sucursales && empresa.sucursales.length > 0 && Array.from({ length: Math.ceil(empresa.sucursales.length / 2) }).map((_, pageIdx) => (
+            <div key={`suc-page-${pageIdx}`} className="pdf-page bg-white w-[8.5in] h-[11in] overflow-hidden p-12">
+              <h2 className="text-2xl font-bold text-center border-b-2 border-[#992222] pb-4 mb-8">
+                SUCURSALES {pageIdx > 0 ? `(Cont.)` : ''}
+              </h2>
+              <div className="space-y-8">
+                {empresa.sucursales!.slice(pageIdx * 2, pageIdx * 2 + 2).map((suc, idx) => (
+                  <div key={idx} className="border border-gray-300 p-6 rounded-lg bg-white shadow-sm">
+                    <h3 className="font-bold text-xl mb-4 text-[#992222] uppercase">{suc.nombre}</h3>
+                    <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                      <p><span className="font-semibold">Dirección:</span> {suc.direccion || "N/A"}</p>
+                      <p><span className="font-semibold">Teléfono:</span> {suc.telefono || "N/A"}</p>
+                    </div>
+                    
+                    {suc.mapaUrl && (
+                      <div className="border-t border-gray-200 pt-4 mt-2">
+                        <span className="font-bold block mb-2 text-sm">Mapa de Sucursal:</span>
+                        <div className="border border-gray-300 p-1 rounded bg-gray-50 h-[250px] flex items-center justify-center overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img 
+                            src={getStaticMapUrl(suc.mapaUrl) || ""} 
+                            alt={`Mapa Sucursal ${suc.nombre}`} 
+                            className="w-full h-full object-cover rounded"
+                            crossOrigin="anonymous"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 text-center">Coordenadas: {suc.mapaUrl}</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
+          ))}
 
-            {/* Sucursales */}
-            {empresa.sucursales && empresa.sucursales.length > 0 && (
-              <>
-                <h2 className="text-2xl font-bold text-center border-b-2 border-[#992222] pb-4 mt-12 mb-8 page-break-before">
-                  SUCURSALES
-                </h2>
-                <div className="space-y-8">
-                  {empresa.sucursales.map((suc, idx) => (
-                    <div key={idx} className="border border-gray-300 p-6 rounded-lg bg-white shadow-sm break-inside-avoid">
-                      <h3 className="font-bold text-xl mb-4 text-[#992222] uppercase">{suc.nombre}</h3>
-                      <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                        <p><span className="font-semibold">Dirección:</span> {suc.direccion || "N/A"}</p>
-                        <p><span className="font-semibold">Teléfono:</span> {suc.telefono || "N/A"}</p>
-                      </div>
-                      
-                      {suc.mapaUrl && (
-                        <div className="border-t border-gray-200 pt-4 mt-2">
-                          <span className="font-bold block mb-2 text-sm">Mapa de Sucursal:</span>
-                          <div className="border border-gray-300 p-1 rounded bg-gray-50 h-[250px] flex items-center justify-center overflow-hidden">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img 
-                              src={getStaticMapUrl(suc.mapaUrl) || ""} 
-                              alt={`Mapa Sucursal ${suc.nombre}`} 
-                              className="w-full h-full object-cover rounded"
-                              crossOrigin="anonymous"
-                            />
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1 text-center">Coordenadas: {suc.mapaUrl}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-
-            {/* Supervisores */}
-            <h2 className="text-2xl font-bold text-center border-b-2 border-[#992222] pb-4 mt-12 mb-8">
-              SUPERVISORES / CONTACTOS
-            </h2>
-            
-            {empresa.supervisores && empresa.supervisores.length > 0 ? (
+          {/* Supervisores - Chunks of 6 per page */}
+          {empresa.supervisores && empresa.supervisores.length > 0 && Array.from({ length: Math.ceil(empresa.supervisores.length / 6) }).map((_, pageIdx) => (
+            <div key={`sup-page-${pageIdx}`} className="pdf-page bg-white w-[8.5in] h-[11in] overflow-hidden p-12">
+              <h2 className="text-2xl font-bold text-center border-b-2 border-[#992222] pb-4 mb-8">
+                SUPERVISORES / CONTACTOS {pageIdx > 0 ? `(Cont.)` : ''}
+              </h2>
               <div className="space-y-6">
-                {empresa.supervisores.map((sup, idx) => (
-                  <div key={idx} className="border border-gray-300 p-4 rounded-lg bg-gray-50 break-inside-avoid">
+                {empresa.supervisores!.slice(pageIdx * 6, pageIdx * 6 + 6).map((sup, idx) => (
+                  <div key={idx} className="border border-gray-300 p-4 rounded-lg bg-gray-50">
                     <div className="flex justify-between items-start mb-2">
                       <p className="font-bold text-lg">{sup.titulo} {sup.nombres} {sup.apellidos}</p>
                       <span className="text-xs font-bold px-2 py-1 bg-brand-red/10 text-brand-red rounded-full">{getSucursalNombre(sup.sucursalId)}</span>
@@ -214,19 +234,18 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-center italic text-gray-500">No hay supervisores registrados.</p>
-            )}
+            </div>
+          ))}
 
-            {/* Firmantes */}
-            <h2 className="text-2xl font-bold text-center border-b-2 border-[#992222] pb-4 mt-12 mb-8 page-break-before">
-              FIRMANTES LEGALES
-            </h2>
-            
-            {empresa.firmantes && empresa.firmantes.length > 0 ? (
+          {/* Firmantes - Chunks of 4 per page */}
+          {empresa.firmantes && empresa.firmantes.length > 0 && Array.from({ length: Math.ceil(empresa.firmantes.length / 4) }).map((_, pageIdx) => (
+            <div key={`firm-page-${pageIdx}`} className="pdf-page bg-white w-[8.5in] h-[11in] overflow-hidden p-12">
+              <h2 className="text-2xl font-bold text-center border-b-2 border-[#992222] pb-4 mb-8">
+                FIRMANTES LEGALES {pageIdx > 0 ? `(Cont.)` : ''}
+              </h2>
               <div className="space-y-8">
-                {empresa.firmantes.map((firm, idx) => (
-                  <div key={idx} className="border border-gray-300 p-6 rounded-lg bg-white relative break-inside-avoid">
+                {empresa.firmantes!.slice(pageIdx * 4, pageIdx * 4 + 4).map((firm, idx) => (
+                  <div key={idx} className="border border-gray-300 p-6 rounded-lg bg-white relative">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <div className="flex flex-col items-start mb-1">
@@ -254,10 +273,8 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-center italic text-gray-500">No hay firmantes registrados.</p>
-            )}
-          </div>
+            </div>
+          ))}
         </div>
       </div>
 
