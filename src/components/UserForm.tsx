@@ -60,12 +60,20 @@ export default function UserForm({ carreras }: { carreras: Carrera[] }) {
           
           {/* Solo para egresados */}
           {rol === "egresado" && (
-            <div>
-              <label className="block text-sm font-bold text-foreground mb-1.5">
-                Carnet <span className="text-brand-red">*</span>
-              </label>
-              <input name="carnet" type="text" required placeholder="EJ: 20240101" className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all" />
-            </div>
+            <>
+              <div>
+                <label className="block text-sm font-bold text-foreground mb-1.5">
+                  Carnet <span className="text-brand-red">*</span>
+                </label>
+                <input name="carnet" type="text" required placeholder="EJ: 20240101" className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all" />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-foreground mb-1.5">
+                  Cohorte <span className="text-brand-red">*</span>
+                </label>
+                <input name="cohorte" type="text" required pattern="^C[12]\d{4}$" title="Debe ser C1 o C2 seguido del año (Ej: C12026)" placeholder="Ej: C12026" className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all" />
+              </div>
+            </>
           )}
 
           <div>

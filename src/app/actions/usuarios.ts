@@ -28,6 +28,7 @@ export async function crearUsuario(formData: FormData) {
     const password = formData.get("password") as string;
     const rol = formData.get("rol") as string;
     const carnet = formData.get("carnet") as string | null;
+    const cohorte = formData.get("cohorte") as string | null;
     const carreraId = formData.get("carreraId") ? Number(formData.get("carreraId")) : null;
     const activo = formData.get("activo") === "on";
 
@@ -52,6 +53,7 @@ export async function crearUsuario(formData: FormData) {
       passwordHash,
       rol,
       carnet: rol === "egresado" ? carnet : null,
+      cohorte: rol === "egresado" ? cohorte : null,
       carreraId: rol === "egresado" ? carreraId : null,
       facultadId: rol === "egresado" ? facultadId : null,
       activo,
@@ -77,6 +79,7 @@ export async function getUsuarios() {
         correo: usuarios.correo,
         rol: usuarios.rol,
         carnet: usuarios.carnet,
+        cohorte: usuarios.cohorte,
         activo: usuarios.activo,
         carrera: carreras.nombre,
         facultad: facultades.nombre,
@@ -127,6 +130,7 @@ export async function updateUsuario(id: number, formData: FormData) {
     const correo = formData.get("correo") as string;
     const rol = formData.get("rol") as string;
     const carnet = formData.get("carnet") as string | null;
+    const cohorte = formData.get("cohorte") as string | null;
     const carreraId = formData.get("carreraId") ? Number(formData.get("carreraId")) : null;
     const activo = formData.get("activo") === "on";
 
@@ -147,6 +151,7 @@ export async function updateUsuario(id: number, formData: FormData) {
       correo,
       rol,
       carnet: rol === "egresado" ? carnet : null,
+      cohorte: rol === "egresado" ? cohorte : null,
       carreraId: rol === "egresado" ? carreraId : null,
       facultadId: rol === "egresado" ? facultadId : null,
       activo,

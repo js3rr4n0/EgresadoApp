@@ -16,6 +16,7 @@ interface UsuarioData {
   correo: string;
   rol: string;
   carnet: string | null;
+  cohorte: string | null;
   carreraId: number | null;
   activo: boolean;
 }
@@ -73,6 +74,13 @@ export default function EditUserForm({ user, carreras }: { user: UsuarioData; ca
               Carnet (Opcional)
             </label>
             <input name="carnet" type="text" defaultValue={user.carnet || ""} className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-bold text-foreground mb-1.5">
+              Cohorte (Solo egresados, ej: C12026)
+            </label>
+            <input name="cohorte" type="text" pattern="^C[12]\d{4}$" title="Debe ser C1 o C2 seguido del año (Ej: C12026)" defaultValue={user.cohorte || ""} placeholder="Ej: C12026" className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all" />
           </div>
 
           <div>

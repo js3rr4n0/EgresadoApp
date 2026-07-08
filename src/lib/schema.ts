@@ -47,6 +47,7 @@ export const usuarios = pgTable(
     carreraId: integer("carrera_id").references(() => carreras.id),
     facultadId: integer("facultad_id").references(() => facultades.id),
     activo: boolean("activo").notNull().default(true),
+    cohorte: varchar("cohorte", { length: 20 }),
     carrerasAsignadas: jsonb("carreras_asignadas"), // para asesor/decanato
   },
   (table) => [

@@ -153,12 +153,17 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
         if (row.facultad_codigo && !fId) errores.push(`Fila ${fila}: No existe Facultad con código "${row.facultad_codigo}".`);
         if (row.carrera_codigo && !cId) errores.push(`Fila ${fila}: No existe Carrera con código "${row.carrera_codigo}".`);
 
+        if (row.cohorte && !/^C[12]\d{4}$/.test(row.cohorte)) {
+          errores.push(`Fila ${fila}: El formato de 'cohorte' debe ser C1 o C2 seguido del año (Ej: C12026).`);
+        }
+
         validData.push({
           nombreCompleto: row.nombre_completo,
           correo: row.correo,
           passwordHash: defaultPasswordHash, 
           rol: row.rol ? row.rol.toLowerCase() : null,
           carnet: row.carnet || null,
+          cohorte: row.cohorte || null,
           carreraId: cId,
           facultadId: fId,
           activo: row.activo !== "false" && row.activo !== "0" && row.activo !== false,

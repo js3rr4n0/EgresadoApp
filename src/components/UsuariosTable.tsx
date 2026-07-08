@@ -10,6 +10,7 @@ type Usuario = {
   correo: string;
   rol: string;
   carnet: string | null;
+  cohorte: string | null;
   carrera: string | null;
   facultad: string | null;
   activo: boolean;
@@ -26,6 +27,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
   const [roleFilter, setRoleFilter] = useState("Todos los Roles");
   const [statusFilter, setStatusFilter] = useState("Estado");
   const [facultyFilter, setFacultyFilter] = useState("Facultad");
+  const [cohorteFilter, setCohorteFilter] = useState("");
 
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -76,10 +78,11 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
       if (statusFilter === "Inactivos") matchesStatus = !user.activo;
 
       const matchesFaculty = facultyFilter === "Facultad" || user.facultad === facultyFilter;
+      const matchesCohorte = !cohorteFilter || (user.cohorte && user.cohorte.toLowerCase().includes(cohorteFilter.toLowerCase()));
 
-      return matchesSearch && matchesRole && matchesStatus && matchesFaculty;
+      return matchesSearch && matchesRole && matchesStatus && matchesFaculty && matchesCohorte;
     });
-  }, [usuarios, search, roleFilter, statusFilter, facultyFilter]);
+  }, [usuarios, search, roleFilter, statusFilter, facultyFilter, cohorteFilter]);
 
   return (
     <div className="space-y-6">
@@ -93,6 +96,16 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 rounded-full border border-border bg-muted-bg text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red" 
+          />
+        </div>
+        <div className="relative w-full lg:w-48">
+          <svg className="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          <input 
+            type="text" 
+            placeholder="Cohorte..." 
+            value={cohorteFilter}
+            onChange={(e) => setCohorteFilter(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-full border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red" 
           />
         </div>
         <div className="flex gap-4 overflow-x-auto pb-1 lg:pb-0">
@@ -136,7 +149,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
             <thead className="border-b border-border bg-slate-50">
               <tr>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Nombre Completo</th>
-                <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Correo</th>
+                <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Correo / Cohorte</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Rol</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Facultad / Carrera</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase text-center">Estado</th>
@@ -151,8 +164,9 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                     <div className="font-bold text-brand-red">{user.nombreCompleto}</div>
                     {user.carnet && <div className="text-muted text-xs mt-0.5">{user.carnet}</div>}
                   </td>
-                  <td className="px-6 py-4 text-card-dark">
-                    {user.correo}
+                  <td className="px-6 py-4">
+                    <div className="text-card-dark">{user.correo}</div>
+                    {user.cohorte && <div className="text-muted text-xs mt-0.5 font-semibold">Cohorte: {user.cohorte}</div>}
                   </td>
                   <td className="px-6 py-4">
                     <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-muted-bg text-muted border border-border uppercase tracking-widest">
