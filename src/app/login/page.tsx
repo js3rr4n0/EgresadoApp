@@ -16,26 +16,9 @@ export default function LoginPage() {
         <div className="bg-card-bg border border-border rounded-xl p-8 shadow-sm">
           {/* Logo / Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-brand-red mb-4">
-              <svg
-                className="w-7 h-7 text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2.5}
-                  d="M12 14l9-5-9-5-9 5 9 5z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2.5}
-                  d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"
-                />
-              </svg>
+            <div className="inline-flex items-center justify-center w-32 h-32 mb-4 bg-white rounded-full shadow-sm p-4 border border-gray-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/unicaes-logo.png" alt="UNICAES Logo" className="w-full h-full object-contain" />
             </div>
             <h1 className="text-2xl font-bold text-foreground tracking-tight">
               TRABGRAD
