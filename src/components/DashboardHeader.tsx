@@ -28,14 +28,14 @@ export default function DashboardHeader({
       <header className="bg-brand-red text-white">
         <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Simple logo icon mimicking the cap */}
-            <div className="w-8 h-8 border-2 border-white rounded-full flex items-center justify-center">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 14l9-5-9-5-9 5 9 5z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-              </svg>
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center p-1 shadow-sm shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/unicaes-logo.png" alt="UNICAES Logo" className="w-full h-full object-contain" />
             </div>
-            <span className="font-bold text-lg tracking-wide">TRABGRAD</span>
+            <div className="flex flex-col">
+              <span className="font-bold text-lg tracking-wide leading-tight">Gestión TG</span>
+              <span className="text-[10px] font-bold tracking-widest text-white/80 uppercase">UNICAES</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 sm:gap-6">
