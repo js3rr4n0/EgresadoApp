@@ -29,7 +29,7 @@ export default function AdminSidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-full lg:w-[280px] shrink-0 bg-[#CC292B] lg:min-h-screen text-white flex flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 z-50">
+    <aside className="w-full lg:w-[280px] shrink-0 bg-[#CC292B] lg:min-h-screen text-white flex flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 z-50 print:hidden">
       <div className="p-4 lg:p-8 flex items-center justify-between lg:justify-start gap-4">
         <div className="flex items-center gap-4">
           <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white rounded-full flex items-center justify-center shrink-0">

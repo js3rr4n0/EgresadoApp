@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { empresas, supervisores, firmantes } from "@/lib/schema";
+import { empresas, supervisores, firmantes, organigramasEmpresa } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -27,6 +27,12 @@ export type FirmanteData = {
   firmaUrl?: string;
 };
 
+export type OrganigramaData = {
+  id?: number;
+  url: string;
+  subidoEn?: Date | string | null;
+};
+
 export type EmpresaData = {
   nombre: string;
   area?: string;
@@ -37,6 +43,7 @@ export type EmpresaData = {
   mapaUrl?: string;
   supervisores: SupervisorData[];
   firmantes: FirmanteData[];
+  organigramas: OrganigramaData[];
 };
 
 export async function getEmpresas() {
@@ -44,11 +51,13 @@ export async function getEmpresas() {
     const data = await db.select().from(empresas).orderBy(desc(empresas.id));
     const sups = await db.select().from(supervisores);
     const firms = await db.select().from(firmantes);
+    const orgs = await db.select().from(organigramasEmpresa).orderBy(desc(organigramasEmpresa.id));
     
     const nestedData = data.map(emp => ({
       ...emp,
       supervisores: sups.filter(s => s.empresaId === emp.id),
-      firmantes: firms.filter(f => f.empresaId === emp.id)
+      firmantes: firms.filter(f => f.empresaId === emp.id),
+      organigramas: orgs.filter(o => o.empresaId === emp.id)
     }));
 
     return { success: true, data: nestedData };
@@ -59,7 +68,7 @@ export async function getEmpresas() {
 
 export async function createEmpresa(data: EmpresaData) {
   try {
-    const { supervisores: sups, firmantes: firms, ...empresaFields } = data;
+    const { supervisores: sups, firmantes: firms, organigramas: orgs, ...empresaFields } = data;
     
     // 1. Insert Empresa
     const [nuevaEmpresa] = await db.insert(empresas).values({
@@ -86,6 +95,15 @@ export async function createEmpresa(data: EmpresaData) {
       await db.insert(firmantes).values(firmsToInsert);
     }
 
+    // 4. Insert Organigramas
+    if (orgs && orgs.length > 0) {
+      const orgsToInsert = orgs.map(o => ({
+        url: o.url,
+        empresaId: nuevaEmpresa.id,
+      }));
+      await db.insert(organigramasEmpresa).values(orgsToInsert);
+    }
+
     revalidatePath("/admin/empresas");
     return { success: true };
   } catch (error: any) {
@@ -95,7 +113,7 @@ export async function createEmpresa(data: EmpresaData) {
 
 export async function updateEmpresa(id: number, data: EmpresaData) {
   try {
-    const { supervisores: sups, firmantes: firms, ...empresaFields } = data;
+    const { supervisores: sups, firmantes: firms, organigramas: orgs, ...empresaFields } = data;
 
     // 1. Update Empresa
     await db.update(empresas).set({
@@ -151,6 +169,17 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
       }
     } else {
       await db.delete(firmantes).where(eq(firmantes.empresaId, id));
+    }
+
+    // 4. Insert New Organigramas (We keep history, so only insert ones without ID)
+    if (orgs && orgs.length > 0) {
+      const newOrgs = orgs.filter(o => !o.id).map(o => ({
+        url: o.url,
+        empresaId: id,
+      }));
+      if (newOrgs.length > 0) {
+        await db.insert(organigramasEmpresa).values(newOrgs);
+      }
     }
 
     revalidatePath("/admin/empresas");

@@ -127,6 +127,15 @@ export const firmantes = pgTable("firmantes", {
   actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
 });
 
+export const organigramasEmpresa = pgTable("organigramas_empresa", {
+  id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id")
+    .notNull()
+    .references(() => empresas.id, { onDelete: "cascade" }),
+  url: text("url").notNull(),
+  subidoEn: timestamp("subido_en", { withTimezone: true }).defaultNow(),
+});
+
 // ─────────────────────────── Gate de documentos del egresado ───────────────────────────
 
 export const documentosEgresado = pgTable(

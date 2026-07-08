@@ -21,6 +21,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     mapaUrl: "",
     supervisores: [],
     firmantes: [],
+    organigramas: [],
   });
 
   const [formData, setFormData] = useState<EmpresaData>(getEmptyForm());
@@ -44,6 +45,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
       mapaUrl: emp.mapaUrl || "",
       supervisores: emp.supervisores || [],
       firmantes: emp.firmantes || [],
+      organigramas: emp.organigramas || [],
     });
     setEditingId(emp.id);
     setIsModalOpen(true);
@@ -107,9 +109,20 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      handleChange("organigramaUrl", event.target?.result as string);
+      setFormData(prev => ({
+        ...prev,
+        organigramas: [{ url: event.target?.result as string }, ...prev.organigramas]
+      }));
     };
     reader.readAsDataURL(file);
+  };
+
+  const removeOrganigrama = (index: number) => {
+    setFormData(prev => {
+      const orgs = [...prev.organigramas];
+      orgs.splice(index, 1);
+      return { ...prev, organigramas: orgs };
+    });
   };
 
   const handleOpenOrganigrama = (base64Data: string) => {
@@ -236,6 +249,9 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                 <p className="text-xs text-gray-500 mt-0.5">{emp.area || "Sin área especificada"}</p>
               </div>
               <div className="flex gap-1 shrink-0">
+                <a href={`/admin/empresas/${emp.id}/imprimir`} target="_blank" rel="noreferrer" className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors bg-gray-50 hover:bg-blue-50 rounded-lg" title="Descargar PDF">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                </a>
                 <button onClick={() => handleEdit(emp)} className="p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                 </button>
@@ -255,10 +271,15 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                     Ver Mapa
                   </a>
                 )}
-                {emp.organigramaUrl && (
+                {(emp.organigramas && emp.organigramas.length > 0) ? (
+                  <button onClick={() => handleOpenOrganigrama(emp.organigramas[0].url)} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100 flex items-center gap-1 hover:bg-purple-100 transition">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    Organigrama Reciente
+                  </button>
+                ) : emp.organigramaUrl && (
                   <button onClick={() => handleOpenOrganigrama(emp.organigramaUrl!)} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100 flex items-center gap-1 hover:bg-purple-100 transition">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    Organigrama
+                    Organigrama (Antiguo)
                   </button>
                 )}
               </div>
@@ -356,7 +377,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                     <div>
                       <label className="block text-sm font-bold text-gray-700 mb-1 flex justify-between">
                         <span>Organigrama de la Empresa (Imagen o PDF)</span>
-                        {formData.organigramaUrl && <span className="text-emerald-600 text-xs flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Archivo Subido</span>}
+                        {formData.organigramas.length > 0 && <span className="text-emerald-600 text-xs flex items-center gap-1"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> {formData.organigramas.length} en historial</span>}
                       </label>
                       <input 
                         type="file" 
@@ -364,7 +385,32 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                         className="w-full border-gray-300 border p-2.5 rounded-lg focus:ring-brand-red text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-brand-red hover:file:bg-red-100" 
                         onChange={handleFileUpload} 
                       />
-                      <p className="text-xs text-gray-500 mt-1">Límite: 2MB. Selecciona un archivo para reemplazar el existente.</p>
+                      <p className="text-xs text-gray-500 mt-1 mb-2">Límite: 2MB. Sube uno nuevo para agregarlo al historial.</p>
+                      
+                      {/* Historial de Organigramas */}
+                      {formData.organigramas.length > 0 && (
+                        <div className="space-y-2 mt-2">
+                          <p className="text-xs font-bold text-gray-600 uppercase tracking-wide">Historial (Más reciente primero):</p>
+                          {formData.organigramas.map((org, index) => (
+                            <div key={index} className="flex justify-between items-center bg-gray-50 border border-gray-200 p-2 rounded-lg text-sm">
+                              <div className="flex items-center gap-2 overflow-hidden">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${index === 0 ? "bg-emerald-500" : "bg-gray-400"}`}></span>
+                                <span className="truncate text-gray-600">
+                                  {org.subidoEn ? new Date(org.subidoEn).toLocaleDateString() : "Recién Subido"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button type="button" onClick={() => handleOpenOrganigrama(org.url)} className="text-blue-600 hover:underline text-xs">Ver</button>
+                                {!org.id && (
+                                  <button type="button" onClick={() => removeOrganigrama(index)} className="text-red-500 hover:text-red-700">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
 
