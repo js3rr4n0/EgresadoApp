@@ -4,8 +4,9 @@ import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import PrintView from "./PrintView";
 
-export default async function ImprimirEmpresaPage({ params }: { params: { id: string } }) {
-  const id = parseInt(params.id, 10);
+export default async function ImprimirEmpresaPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: idStr } = await params;
+  const id = parseInt(idStr, 10);
   if (isNaN(id)) return notFound();
 
   // Fetch data
