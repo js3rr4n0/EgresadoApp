@@ -27,7 +27,24 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
   const [roleFilter, setRoleFilter] = useState("Todos los Roles");
   const [statusFilter, setStatusFilter] = useState("Estado");
   const [facultyFilter, setFacultyFilter] = useState("Facultad");
-  const [cohorteFilter, setCohorteFilter] = useState("");
+  const [cohorteFilter, setCohorteFilter] = useState("Cohorte");
+
+  const availableCohortes = useMemo(() => {
+    const cohortes = new Set<string>();
+    initialUsuarios.forEach(u => {
+      if (u.cohorte) cohortes.add(u.cohorte);
+    });
+    return Array.from(cohortes).sort().reverse(); // Show newest first
+  }, [initialUsuarios]);
+
+  const formatCohorte = (cohorte: string | null) => {
+    if (!cohorte) return "";
+    const match = cohorte.match(/^C([12])(\d{4})$/);
+    if (match) {
+      return `Ciclo ${match[1]}, ${match[2]}`;
+    }
+    return cohorte;
+  };
 
   const [togglingId, setTogglingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
@@ -78,7 +95,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
       if (statusFilter === "Inactivos") matchesStatus = !user.activo;
 
       const matchesFaculty = facultyFilter === "Facultad" || user.facultad === facultyFilter;
-      const matchesCohorte = !cohorteFilter || (user.cohorte && user.cohorte.toLowerCase().includes(cohorteFilter.toLowerCase()));
+      const matchesCohorte = cohorteFilter === "Cohorte" || user.cohorte === cohorteFilter;
 
       return matchesSearch && matchesRole && matchesStatus && matchesFaculty && matchesCohorte;
     });
@@ -98,17 +115,17 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
             className="w-full pl-10 pr-4 py-2 rounded-full border border-border bg-muted-bg text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red" 
           />
         </div>
-        <div className="relative w-full lg:w-48">
-          <svg className="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-          <input 
-            type="text" 
-            placeholder="Cohorte..." 
+        <div className="flex gap-4 overflow-x-auto pb-1 lg:pb-0">
+          <select 
             value={cohorteFilter}
             onChange={(e) => setCohorteFilter(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-full border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red" 
-          />
-        </div>
-        <div className="flex gap-4 overflow-x-auto pb-1 lg:pb-0">
+            className="px-4 py-2 rounded-full border border-border text-sm text-foreground focus:outline-none bg-white min-w-[140px]"
+          >
+            <option>Cohorte</option>
+            {availableCohortes.map(c => (
+              <option key={c} value={c}>{formatCohorte(c)}</option>
+            ))}
+          </select>
           <select 
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
@@ -149,11 +166,11 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
             <thead className="border-b border-border bg-slate-50">
               <tr>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Nombre Completo</th>
-                <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Correo / Cohorte</th>
+                <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Correo</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Rol</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase">Facultad / Carrera</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase text-center">Estado</th>
-                <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase text-center">Último Acceso</th>
+                <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase text-center">Cohorte</th>
                 <th className="px-6 py-4 font-bold text-card-dark text-xs tracking-wider uppercase text-right">Acciones</th>
               </tr>
             </thead>
@@ -166,7 +183,6 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-card-dark">{user.correo}</div>
-                    {user.cohorte && <div className="text-muted text-xs mt-0.5 font-semibold">Cohorte: {user.cohorte}</div>}
                   </td>
                   <td className="px-6 py-4">
                     <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-muted-bg text-muted border border-border uppercase tracking-widest">
@@ -199,7 +215,13 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                     </button>
                   </td>
                   <td className="px-6 py-4 text-center">
-                    <span className="text-muted italic text-xs">No ha accedido</span>
+                    {user.cohorte ? (
+                      <span className="px-3 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                        {formatCohorte(user.cohorte)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-300 text-xs italic">-</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end gap-3">
