@@ -5,22 +5,32 @@ import { createPeriodo, updatePeriodo, deletePeriodo, togglePeriodoActivo, Perio
 
 export function addDays(dateStr: string, days: number): string {
   if (!dateStr) return "";
-  const date = new Date(dateStr);
-  date.setDate(date.getDate() + days);
-  return date.toISOString().split("T")[0]; // YYYY-MM-DD
+  const date = new Date(dateStr + "T00:00:00Z"); // Force UTC to avoid timezone shift
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().split("T")[0];
+}
+
+export function addMonths(dateStr: string, months: number): string {
+  if (!dateStr) return "";
+  const date = new Date(dateStr + "T00:00:00Z");
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return date.toISOString().split("T")[0];
 }
 
 export function calculateDates(finRecepcion: string) {
-  const maxAprobacionPropuesta = addDays(finRecepcion, 21); // 3 semanas
-  const maxInicioProceso = maxAprobacionPropuesta; // 3 semanas exactas
-  const maxPrimerInforme = addDays(maxInicioProceso, 30);
-  const maxSegundoInforme = addDays(maxInicioProceso, 60);
-  const maxTercerInforme = addDays(maxInicioProceso, 90);
-  const maxCuartoInforme = addDays(maxInicioProceso, 120);
-  const visitaAsesorInicio = addDays(maxInicioProceso, 90);
-  const visitaAsesorFin = addDays(maxInicioProceso, 100);
-  const maxInformeFinal = addDays(maxInicioProceso, 150);
-  const maxAprobacionFinal = addDays(maxInformeFinal, 15);
+  const maxAprobacionPropuesta = addDays(finRecepcion, 21); // 3 semanas base
+  const maxInicioProceso = maxAprobacionPropuesta; // Inicio de Ejecución
+  
+  const maxPrimerInforme = addMonths(maxInicioProceso, 1);
+  const maxSegundoInforme = addMonths(maxInicioProceso, 2);
+  const maxTercerInforme = addMonths(maxInicioProceso, 3);
+  const maxCuartoInforme = addMonths(maxInicioProceso, 4);
+  
+  const visitaAsesorInicio = maxSegundoInforme;
+  const visitaAsesorFin = maxTercerInforme;
+  
+  const maxInformeFinal = addMonths(maxInicioProceso, 5);
+  const maxAprobacionFinal = addMonths(maxInicioProceso, 6);
 
   return {
     maxAprobacionPropuesta,
@@ -178,7 +188,7 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
               </div>
               <div className="flex items-center gap-2 text-sm">
                 <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
-                <span className="text-gray-500 font-medium">Cierre Absoluto:</span>
+                <span className="text-gray-500 font-medium">Fin Periodo Técnico:</span>
                 <span className="font-bold text-gray-700">{p.maxAprobacionFinal}</span>
               </div>
             </div>
@@ -282,7 +292,7 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                       <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxAprobacionPropuesta} onChange={(e) => handleDateChange("maxAprobacionPropuesta", e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Inicio Proceso Oficial</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Inicio de Ejecución</label>
                       <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxInicioProceso} onChange={(e) => handleDateChange("maxInicioProceso", e.target.value)} />
                     </div>
                     <div>
@@ -314,7 +324,7 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                       <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxInformeFinal} onChange={(e) => handleDateChange("maxInformeFinal", e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Aprobación Final (Absoluta)</label>
+                      <label className="block text-xs font-bold text-gray-700 mb-1">Fecha Finalización Periodo Técnico</label>
                       <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxAprobacionFinal} onChange={(e) => handleDateChange("maxAprobacionFinal", e.target.value)} />
                     </div>
                   </div>
