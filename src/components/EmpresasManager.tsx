@@ -625,14 +625,18 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-3 mb-3">
+                              <div className="grid grid-cols-1 gap-3 mb-3">
                                 <div>
                                   <label className="block text-xs font-bold text-gray-600 mb-1">Teléfono</label>
                                   <input type="tel" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.telefono || ""} onChange={(e) => updateSucursal(index, "telefono", e.target.value)} />
                                 </div>
+                              </div>
+                              <div className="grid grid-cols-1 gap-3 mb-3">
                                 <div>
-                                  <label className="block text-xs font-bold text-gray-600 mb-1">Mapa (URL/Coordinates)</label>
-                                  <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.mapaUrl || ""} onChange={(e) => updateSucursal(index, "mapaUrl", e.target.value)} />
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Ubicación GPS</label>
+                                  <div className="h-[200px]">
+                                    <MapSelector value={suc.mapaUrl || ""} onChange={(val) => updateSucursal(index, "mapaUrl", val)} />
+                                  </div>
                                 </div>
                               </div>
                             </div>

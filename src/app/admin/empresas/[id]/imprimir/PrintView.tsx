@@ -3,6 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import { EmpresaData } from "@/app/actions/empresas";
 
+const getStaticMapUrl = (coords: string) => {
+  if (!coords || !coords.includes(',')) return null;
+  const [lat, lng] = coords.split(',');
+  return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=16&size=800x400&markers=${lat},${lng},red-pushpin`;
+};
+
 export default function PrintView({ empresa }: { empresa: EmpresaData }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState("Preparando documento...");
@@ -18,8 +24,8 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
         const domtoimage = (await import("dom-to-image-more")).default;
         const { jsPDF } = await import("jspdf");
 
-        // Wait a bit for images to load
-        await new Promise(r => setTimeout(r, 1000));
+        // Wait a bit for images and maps to load
+        await new Promise(r => setTimeout(r, 2500));
         
         // Use dom-to-image-more which relies on browser's native engine (avoids CSS parser crash)
         const imgData = await domtoimage.toJpeg(contentRef.current, {
@@ -152,11 +158,21 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
                 <span className="col-span-3">{empresa.direccion || "No especificada"}</span>
               </div>
               {empresa.mapaUrl && (
-                <div className="grid grid-cols-4 border-b border-gray-200 pb-2">
-                  <span className="font-bold col-span-1">Mapa/GPS:</span>
-                  <span className="col-span-3 text-blue-600">{empresa.mapaUrl}</span>
+                <div className="pt-4 border-t border-gray-200 mt-4">
+                  <span className="font-bold block mb-2">Ubicación (Sede Central):</span>
+                  <div className="border border-gray-300 p-1 rounded bg-gray-50 h-[300px] flex items-center justify-center overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img 
+                      src={getStaticMapUrl(empresa.mapaUrl) || ""} 
+                      alt="Mapa Sede Central" 
+                      className="w-full h-full object-cover rounded"
+                      crossOrigin="anonymous"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1 text-center">Coordenadas: {empresa.mapaUrl}</p>
                 </div>
               )}
+              
               <div className="pt-2">
                 <span className="font-bold block mb-1">Descripción:</span>
                 <p className="text-justify text-gray-700">{empresa.descripcion || "No especificada"}</p>
@@ -166,6 +182,42 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
                 <p className="text-justify text-gray-700">{empresa.antecedentes || "No especificados"}</p>
               </div>
             </div>
+
+            {/* Sucursales */}
+            {empresa.sucursales && empresa.sucursales.length > 0 && (
+              <>
+                <h2 className="text-2xl font-bold text-center border-b-2 border-[#992222] pb-4 mt-12 mb-8 page-break-before">
+                  SUCURSALES
+                </h2>
+                <div className="space-y-8">
+                  {empresa.sucursales.map((suc, idx) => (
+                    <div key={idx} className="border border-gray-300 p-6 rounded-lg bg-white shadow-sm">
+                      <h3 className="font-bold text-xl mb-4 text-[#992222] uppercase">{suc.nombre}</h3>
+                      <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                        <p><span className="font-semibold">Dirección:</span> {suc.direccion || "N/A"}</p>
+                        <p><span className="font-semibold">Teléfono:</span> {suc.telefono || "N/A"}</p>
+                      </div>
+                      
+                      {suc.mapaUrl && (
+                        <div className="border-t border-gray-200 pt-4 mt-2">
+                          <span className="font-bold block mb-2 text-sm">Mapa de Sucursal:</span>
+                          <div className="border border-gray-300 p-1 rounded bg-gray-50 h-[250px] flex items-center justify-center overflow-hidden">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                              src={getStaticMapUrl(suc.mapaUrl) || ""} 
+                              alt={`Mapa Sucursal ${suc.nombre}`} 
+                              className="w-full h-full object-cover rounded"
+                              crossOrigin="anonymous"
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1 text-center">Coordenadas: {suc.mapaUrl}</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             {/* Supervisores */}
             <h2 className="text-2xl font-bold text-center border-b-2 border-[#992222] pb-4 mt-12 mb-8">
