@@ -31,6 +31,11 @@ export async function getActivePropuesta() {
 
   // 3. Auto-create if none exists
   if (!propuesta) {
+    const isRecepcionAbierta = new Date() <= new Date(periodo.finRecepcion + 'T23:59:59');
+    if (!isRecepcionAbierta) {
+      return { error: `La recepción de nuevas propuestas para el ciclo ${periodo.nombre} ha finalizado.` };
+    }
+
     const insertResult = await db.insert(propuestas).values({
       egresadoId: session.userId,
       periodoId: periodo.id,

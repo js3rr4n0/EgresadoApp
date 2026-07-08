@@ -159,53 +159,63 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {initialPeriodos.map((p) => (
-          <div key={p.id} className={`border rounded-xl p-5 shadow-sm bg-white flex flex-col relative overflow-hidden transition-all ${p.activo ? "border-emerald-200 ring-1 ring-emerald-100" : "border-gray-200 opacity-80"}`}>
-            {p.activo && <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-500/10 rounded-bl-full -z-0"></div>}
-            
-            <div className="flex justify-between items-start z-10 relative">
-              <h3 className="font-bold text-lg text-gray-800">{p.nombre}</h3>
-              <div className="flex gap-1">
-                <button onClick={() => handleEdit(p)} className="p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                </button>
-                <button onClick={() => handleDelete(p.id)} className="p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                </button>
-              </div>
-            </div>
+        {initialPeriodos.map((p) => {
+          const isRecepcionAbierta = p.activo && new Date() <= new Date(p.finRecepcion + 'T23:59:59');
+          const badgeText = !p.activo ? 'Ciclo Cerrado' : (isRecepcionAbierta ? 'Recepción Abierta' : 'Recepción Cerrada');
+          const badgeClass = !p.activo ? 'bg-gray-100 text-gray-600' : (isRecepcionAbierta ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800');
+          const cardClass = !p.activo 
+            ? "border-gray-200 opacity-80" 
+            : (isRecepcionAbierta ? "border-emerald-200 ring-1 ring-emerald-100" : "border-amber-200 ring-1 ring-amber-100");
+          const ribbonClass = isRecepcionAbierta ? "bg-emerald-500/10" : "bg-amber-500/10";
 
-            <div className="mt-4 space-y-3 z-10 relative flex-1">
-              <div className="flex items-center gap-2 text-sm">
-                <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
-                <span className="text-gray-500 font-medium">Recepción:</span>
-                <span className="font-bold text-gray-700">{p.inicioRecepcion} a {p.finRecepcion}</span>
+          return (
+            <div key={p.id} className={`border rounded-xl p-5 shadow-sm bg-white flex flex-col relative overflow-hidden transition-all ${cardClass}`}>
+              {p.activo && <div className={`absolute top-0 right-0 w-16 h-16 rounded-bl-full -z-0 ${ribbonClass}`}></div>}
+              
+              <div className="flex justify-between items-start z-10 relative">
+                <h3 className="font-bold text-lg text-gray-800">{p.nombre}</h3>
+                <div className="flex gap-1">
+                  <button onClick={() => handleEdit(p)} className="p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  </button>
+                  <button onClick={() => handleDelete(p.id)} className="p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
-                <span className="text-gray-500 font-medium">Límite Informe Final:</span>
-                <span className="font-bold text-gray-700">{p.maxInformeFinal}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
-                <span className="text-gray-500 font-medium">Fin Periodo Técnico:</span>
-                <span className="font-bold text-gray-700">{p.maxAprobacionFinal}</span>
-              </div>
-            </div>
 
-            <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between z-10 relative">
-              <span className={`px-2.5 py-1 text-xs font-bold rounded-md ${p.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                {p.activo ? 'Recepción Abierta' : 'Ciclo Cerrado'}
-              </span>
-              <button
-                onClick={() => handleToggle(p.id, p.activo)}
-                className={`text-sm font-bold underline ${p.activo ? 'text-gray-500 hover:text-red-600' : 'text-emerald-600 hover:text-emerald-800'}`}
-              >
-                {p.activo ? 'Cerrar Ciclo' : 'Abrir Ciclo'}
-              </button>
+              <div className="mt-4 space-y-3 z-10 relative flex-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0"></span>
+                  <span className="text-gray-500 font-medium">Recepción:</span>
+                  <span className={`font-bold ${isRecepcionAbierta ? "text-gray-700" : "text-amber-600"}`}>{p.inicioRecepcion} a {p.finRecepcion}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+                  <span className="text-gray-500 font-medium">Límite Informe Final:</span>
+                  <span className="font-bold text-gray-700">{p.maxInformeFinal}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="w-2 h-2 rounded-full bg-red-500 shrink-0"></span>
+                  <span className="text-gray-500 font-medium">Fin Periodo Técnico:</span>
+                  <span className="font-bold text-gray-700">{p.maxAprobacionFinal}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between z-10 relative">
+                <span className={`px-2.5 py-1 text-xs font-bold rounded-md ${badgeClass}`}>
+                  {badgeText}
+                </span>
+                <button
+                  onClick={() => handleToggle(p.id, p.activo)}
+                  className={`text-sm font-bold underline ${p.activo ? 'text-gray-500 hover:text-red-600' : 'text-emerald-600 hover:text-emerald-800'}`}
+                >
+                  {p.activo ? 'Cerrar Ciclo' : 'Abrir Ciclo'}
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {initialPeriodos.length === 0 && (
           <div className="col-span-full py-12 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300">
