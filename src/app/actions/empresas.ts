@@ -1,8 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { empresas, supervisores } from "@/lib/schema";
-import { eq, desc, notInArray } from "drizzle-orm";
+import { empresas, supervisores, firmantes } from "@/lib/schema";
+import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 export type SupervisorData = {
@@ -16,6 +16,17 @@ export type SupervisorData = {
   correo?: string;
 };
 
+export type FirmanteData = {
+  id?: number;
+  titulo?: string;
+  nombres: string;
+  apellidos: string;
+  cargo?: string;
+  telefono?: string;
+  correo?: string;
+  firmaUrl?: string;
+};
+
 export type EmpresaData = {
   nombre: string;
   area?: string;
@@ -25,17 +36,19 @@ export type EmpresaData = {
   organigramaUrl?: string;
   mapaUrl?: string;
   supervisores: SupervisorData[];
+  firmantes: FirmanteData[];
 };
 
 export async function getEmpresas() {
   try {
     const data = await db.select().from(empresas).orderBy(desc(empresas.id));
-    // Fetch all supervisors to group them on the client, or group here
     const sups = await db.select().from(supervisores);
+    const firms = await db.select().from(firmantes);
     
     const nestedData = data.map(emp => ({
       ...emp,
-      supervisores: sups.filter(s => s.empresaId === emp.id)
+      supervisores: sups.filter(s => s.empresaId === emp.id),
+      firmantes: firms.filter(f => f.empresaId === emp.id)
     }));
 
     return { success: true, data: nestedData };
@@ -46,7 +59,7 @@ export async function getEmpresas() {
 
 export async function createEmpresa(data: EmpresaData) {
   try {
-    const { supervisores: sups, ...empresaFields } = data;
+    const { supervisores: sups, firmantes: firms, ...empresaFields } = data;
     
     // 1. Insert Empresa
     const [nuevaEmpresa] = await db.insert(empresas).values({
@@ -64,6 +77,15 @@ export async function createEmpresa(data: EmpresaData) {
       await db.insert(supervisores).values(supsToInsert);
     }
 
+    // 3. Insert Firmantes
+    if (firms && firms.length > 0) {
+      const firmsToInsert = firms.map(f => ({
+        ...f,
+        empresaId: nuevaEmpresa.id,
+      }));
+      await db.insert(firmantes).values(firmsToInsert);
+    }
+
     revalidatePath("/admin/empresas");
     return { success: true };
   } catch (error: any) {
@@ -73,7 +95,7 @@ export async function createEmpresa(data: EmpresaData) {
 
 export async function updateEmpresa(id: number, data: EmpresaData) {
   try {
-    const { supervisores: sups, ...empresaFields } = data;
+    const { supervisores: sups, firmantes: firms, ...empresaFields } = data;
 
     // 1. Update Empresa
     await db.update(empresas).set({
@@ -85,7 +107,6 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
     if (sups && sups.length > 0) {
       const keepIds = sups.filter(s => s.id).map(s => s.id as number);
       
-      // Safe approach: Fetch existing
       const existingSups = await db.select({ id: supervisores.id }).from(supervisores).where(eq(supervisores.empresaId, id));
       const existingIds = existingSups.map(s => s.id);
       
@@ -96,7 +117,6 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
         }
       }
 
-      // Update or Insert
       for (const s of sups) {
         if (s.id) {
           await db.update(supervisores).set({ ...s, actualizadoEn: new Date() }).where(eq(supervisores.id, s.id));
@@ -105,8 +125,32 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
         }
       }
     } else {
-      // If no supervisors, delete all (if safe)
       await db.delete(supervisores).where(eq(supervisores.empresaId, id));
+    }
+
+    // 3. Upsert Firmantes
+    if (firms && firms.length > 0) {
+      const keepIds = firms.filter(f => f.id).map(f => f.id as number);
+      
+      const existingFirms = await db.select({ id: firmantes.id }).from(firmantes).where(eq(firmantes.empresaId, id));
+      const existingIds = existingFirms.map(f => f.id);
+      
+      const toDelete = existingIds.filter(eid => !keepIds.includes(eid));
+      if (toDelete.length > 0) {
+        for (const delId of toDelete) {
+          await db.delete(firmantes).where(eq(firmantes.id, delId));
+        }
+      }
+
+      for (const f of firms) {
+        if (f.id) {
+          await db.update(firmantes).set({ ...f, actualizadoEn: new Date() }).where(eq(firmantes.id, f.id));
+        } else {
+          await db.insert(firmantes).values({ ...f, empresaId: id });
+        }
+      }
+    } else {
+      await db.delete(firmantes).where(eq(firmantes.empresaId, id));
     }
 
     revalidatePath("/admin/empresas");

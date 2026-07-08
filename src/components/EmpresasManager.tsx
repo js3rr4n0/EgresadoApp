@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { createEmpresa, updateEmpresa, deleteEmpresa, toggleEmpresaStatus, EmpresaData, SupervisorData } from "@/app/actions/empresas";
+import { createEmpresa, updateEmpresa, deleteEmpresa, toggleEmpresaStatus, EmpresaData, SupervisorData, FirmanteData } from "@/app/actions/empresas";
 
 const MapSelector = dynamic(() => import("./MapSelector"), { ssr: false });
 
@@ -20,6 +20,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     organigramaUrl: "",
     mapaUrl: "",
     supervisores: [],
+    firmantes: [],
   });
 
   const [formData, setFormData] = useState<EmpresaData>(getEmptyForm());
@@ -42,6 +43,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
       organigramaUrl: emp.organigramaUrl || "",
       mapaUrl: emp.mapaUrl || "",
       supervisores: emp.supervisores || [],
+      firmantes: emp.firmantes || [],
     });
     setEditingId(emp.id);
     setIsModalOpen(true);
@@ -162,6 +164,50 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     });
   };
 
+  // Firmantes Form Handlers
+  const addFirmante = () => {
+    setFormData(prev => ({
+      ...prev,
+      firmantes: [
+        ...prev.firmantes,
+        { titulo: "", nombres: "", apellidos: "", cargo: "", telefono: "", correo: "", firmaUrl: "" }
+      ]
+    }));
+  };
+
+  const updateFirmante = (index: number, field: keyof FirmanteData, value: string) => {
+    setFormData(prev => {
+      const firms = [...prev.firmantes];
+      firms[index] = { ...firms[index], [field]: value };
+      return { ...prev, firmantes: firms };
+    });
+  };
+
+  const removeFirmante = (index: number) => {
+    setFormData(prev => {
+      const firms = [...prev.firmantes];
+      firms.splice(index, 1);
+      return { ...prev, firmantes: firms };
+    });
+  };
+
+  const handleFirmaUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 1 * 1024 * 1024) {
+      alert("La firma es muy pesada. El límite es 1MB.");
+      e.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      updateFirmante(index, "firmaUrl", event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -217,9 +263,15 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                 )}
               </div>
 
-              <div className="pt-2 border-t border-gray-100 flex items-center gap-2 text-sm mt-auto">
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                <span className="font-semibold text-gray-700">{emp.supervisores?.length || 0} Supervisores</span>
+              <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-sm mt-auto">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                  <span className="font-semibold text-gray-700">{emp.supervisores?.length || 0} Sups.</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                  <span className="font-semibold text-gray-700">{emp.firmantes?.length || 0} Firmantes</span>
+                </div>
               </div>
             </div>
 
@@ -316,67 +368,148 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                     </div>
                   </div>
 
-                  {/* Supervisores */}
-                  <div className="space-y-4 flex flex-col">
-                    <div className="flex justify-between items-center border-b pb-2">
-                      <h4 className="font-bold text-brand-red">2. Supervisores / Contactos</h4>
-                      <button type="button" onClick={addSupervisor} className="text-xs bg-brand-red/10 text-brand-red hover:bg-brand-red hover:text-white px-3 py-1.5 rounded-lg font-bold transition-colors">
-                        + Agregar Supervisor
-                      </button>
+                  {/* Supervisores y Firmantes Column */}
+                  <div className="space-y-8 flex flex-col">
+                    {/* Supervisores */}
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center border-b pb-2">
+                        <h4 className="font-bold text-brand-red">2. Supervisores / Contactos</h4>
+                        <button type="button" onClick={addSupervisor} className="text-xs bg-brand-red/10 text-brand-red hover:bg-brand-red hover:text-white px-3 py-1.5 rounded-lg font-bold transition-colors">
+                          + Agregar Supervisor
+                        </button>
+                      </div>
+
+                      <div className="max-h-[300px] overflow-y-auto space-y-4 pr-2">
+                        {formData.supervisores.length === 0 ? (
+                          <div className="text-center p-6 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
+                            Debes agregar al menos un supervisor como contacto para la empresa.
+                          </div>
+                        ) : (
+                          formData.supervisores.map((sup, index) => (
+                            <div key={index} className="bg-slate-50 border border-slate-200 p-4 rounded-xl relative group">
+                              <button type="button" onClick={() => removeSupervisor(index)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-1 shadow-sm">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                              
+                              <div className="grid grid-cols-3 gap-3 mb-3">
+                                <div className="col-span-1">
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Título</label>
+                                  <input type="text" placeholder="Ej. Ing, Lic..." className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.titulo} onChange={(e) => updateSupervisor(index, "titulo", e.target.value)} />
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Especialidad</label>
+                                  <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.especialidad} onChange={(e) => updateSupervisor(index, "especialidad", e.target.value)} />
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Nombres *</label>
+                                  <input type="text" required className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.nombres} onChange={(e) => updateSupervisor(index, "nombres", e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Apellidos *</label>
+                                  <input type="text" required className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.apellidos} onChange={(e) => updateSupervisor(index, "apellidos", e.target.value)} />
+                                </div>
+                              </div>
+
+                              <div className="mb-3">
+                                <label className="block text-xs font-bold text-gray-600 mb-1">Cargo</label>
+                                <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.cargo} onChange={(e) => updateSupervisor(index, "cargo", e.target.value)} />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Teléfono</label>
+                                  <input type="tel" className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.telefono} onChange={(e) => updateSupervisor(index, "telefono", e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Correo Electrónico</label>
+                                  <input type="email" className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.correo} onChange={(e) => updateSupervisor(index, "correo", e.target.value)} />
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-                      {formData.supervisores.length === 0 ? (
-                        <div className="text-center p-6 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm">
-                          Debes agregar al menos un supervisor como contacto para la empresa.
-                        </div>
-                      ) : (
-                        formData.supervisores.map((sup, index) => (
-                          <div key={index} className="bg-slate-50 border border-slate-200 p-4 rounded-xl relative group">
-                            <button type="button" onClick={() => removeSupervisor(index)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-1 shadow-sm">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                            </button>
-                            
-                            <div className="grid grid-cols-3 gap-3 mb-3">
-                              <div className="col-span-1">
-                                <label className="block text-xs font-bold text-gray-600 mb-1">Título</label>
-                                <input type="text" placeholder="Ej. Ing, Lic..." className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.titulo} onChange={(e) => updateSupervisor(index, "titulo", e.target.value)} />
-                              </div>
-                              <div className="col-span-2">
-                                <label className="block text-xs font-bold text-gray-600 mb-1">Especialidad</label>
-                                <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.especialidad} onChange={(e) => updateSupervisor(index, "especialidad", e.target.value)} />
-                              </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-3 mb-3">
-                              <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1">Nombres *</label>
-                                <input type="text" required className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.nombres} onChange={(e) => updateSupervisor(index, "nombres", e.target.value)} />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1">Apellidos *</label>
-                                <input type="text" required className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.apellidos} onChange={(e) => updateSupervisor(index, "apellidos", e.target.value)} />
-                              </div>
-                            </div>
+                    {/* Firmantes */}
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center border-b pb-2">
+                        <h4 className="font-bold text-brand-red">3. Firmantes y Firmas</h4>
+                        <button type="button" onClick={addFirmante} className="text-xs bg-brand-red/10 text-brand-red hover:bg-brand-red hover:text-white px-3 py-1.5 rounded-lg font-bold transition-colors">
+                          + Agregar Firmante
+                        </button>
+                      </div>
 
-                            <div className="mb-3">
-                              <label className="block text-xs font-bold text-gray-600 mb-1">Cargo</label>
-                              <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.cargo} onChange={(e) => updateSupervisor(index, "cargo", e.target.value)} />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1">Teléfono</label>
-                                <input type="tel" className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.telefono} onChange={(e) => updateSupervisor(index, "telefono", e.target.value)} />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-bold text-gray-600 mb-1">Correo Electrónico</label>
-                                <input type="email" className="w-full border-gray-300 border p-2 rounded text-sm" value={sup.correo} onChange={(e) => updateSupervisor(index, "correo", e.target.value)} />
-                              </div>
-                            </div>
+                      <div className="max-h-[300px] overflow-y-auto space-y-4 pr-2">
+                        {formData.firmantes.length === 0 ? (
+                          <div className="text-center p-6 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 text-sm">
+                            Puedes agregar firmantes legales y sus firmas escaneadas aquí.
                           </div>
-                        ))
-                      )}
+                        ) : (
+                          formData.firmantes.map((firm, index) => (
+                            <div key={index} className="bg-slate-50 border border-slate-200 p-4 rounded-xl relative group">
+                              <button type="button" onClick={() => removeFirmante(index)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-1 shadow-sm">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                              
+                              <div className="grid grid-cols-3 gap-3 mb-3">
+                                <div className="col-span-1">
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Título</label>
+                                  <input type="text" placeholder="Ej. Lic..." className="w-full border-gray-300 border p-2 rounded text-sm" value={firm.titulo || ""} onChange={(e) => updateFirmante(index, "titulo", e.target.value)} />
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Cargo *</label>
+                                  <input type="text" required placeholder="Gerente General, HR..." className="w-full border-gray-300 border p-2 rounded text-sm" value={firm.cargo || ""} onChange={(e) => updateFirmante(index, "cargo", e.target.value)} />
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Nombres *</label>
+                                  <input type="text" required className="w-full border-gray-300 border p-2 rounded text-sm" value={firm.nombres} onChange={(e) => updateFirmante(index, "nombres", e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Apellidos *</label>
+                                  <input type="text" required className="w-full border-gray-300 border p-2 rounded text-sm" value={firm.apellidos} onChange={(e) => updateFirmante(index, "apellidos", e.target.value)} />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Teléfono</label>
+                                  <input type="tel" className="w-full border-gray-300 border p-2 rounded text-sm" value={firm.telefono || ""} onChange={(e) => updateFirmante(index, "telefono", e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Correo Electrónico</label>
+                                  <input type="email" className="w-full border-gray-300 border p-2 rounded text-sm" value={firm.correo || ""} onChange={(e) => updateFirmante(index, "correo", e.target.value)} />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-bold text-gray-600 mb-1 flex justify-between">
+                                  <span>Firma Escaneada (Imagen)</span>
+                                  {firm.firmaUrl && <span className="text-emerald-600 text-[10px] flex items-center gap-1"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Subida</span>}
+                                </label>
+                                <input 
+                                  type="file" 
+                                  accept="image/*"
+                                  className="w-full border-gray-300 border p-1.5 rounded text-xs file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100" 
+                                  onChange={(e) => handleFirmaUpload(index, e)} 
+                                />
+                                {firm.firmaUrl && (
+                                  <div className="mt-2 bg-white border border-gray-200 rounded p-2 flex justify-center">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={firm.firmaUrl} alt="Firma" className="max-h-12 object-contain" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

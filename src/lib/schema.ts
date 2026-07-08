@@ -112,6 +112,21 @@ export const supervisores = pgTable("supervisores", {
   actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
 });
 
+export const firmantes = pgTable("firmantes", {
+  id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id")
+    .notNull()
+    .references(() => empresas.id, { onDelete: "cascade" }),
+  titulo: varchar("titulo", { length: 50 }),
+  nombres: varchar("nombres", { length: 255 }).notNull(),
+  apellidos: varchar("apellidos", { length: 255 }).notNull(),
+  cargo: varchar("cargo", { length: 255 }),
+  telefono: varchar("telefono", { length: 50 }),
+  correo: varchar("correo", { length: 255 }),
+  firmaUrl: text("firma_url"),
+  actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
+});
+
 // ─────────────────────────── Gate de documentos del egresado ───────────────────────────
 
 export const documentosEgresado = pgTable(
