@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { createEmpresa, updateEmpresa, deleteEmpresa, toggleEmpresaStatus, EmpresaData, SupervisorData, FirmanteData } from "@/app/actions/empresas";
+import { createEmpresa, updateEmpresa, deleteEmpresa, toggleEmpresaStatus, EmpresaData, SupervisorData, FirmanteData, SucursalData } from "@/app/actions/empresas";
 
 const MapSelector = dynamic(() => import("./MapSelector"), { ssr: false });
 
@@ -22,6 +22,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     supervisores: [],
     firmantes: [],
     organigramas: [],
+    sucursales: [],
   });
 
   const [formData, setFormData] = useState<EmpresaData>(getEmptyForm());
@@ -46,6 +47,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
       supervisores: emp.supervisores || [],
       firmantes: emp.firmantes || [],
       organigramas: emp.organigramas || [],
+      sucursales: emp.sucursales || [],
     });
     setEditingId(emp.id);
     setIsModalOpen(true);
@@ -204,6 +206,33 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     });
   };
 
+  // Sucursales Form Handlers
+  const addSucursal = () => {
+    setFormData(prev => ({
+      ...prev,
+      sucursales: [
+        ...prev.sucursales,
+        { nombre: "", direccion: "", telefono: "", mapaUrl: "" }
+      ]
+    }));
+  };
+
+  const updateSucursal = (index: number, field: keyof SucursalData, value: string) => {
+    setFormData(prev => {
+      const sucs = [...prev.sucursales];
+      sucs[index] = { ...sucs[index], [field]: value };
+      return { ...prev, sucursales: sucs };
+    });
+  };
+
+  const removeSucursal = (index: number) => {
+    setFormData(prev => {
+      const sucs = [...prev.sucursales];
+      sucs.splice(index, 1);
+      return { ...prev, sucursales: sucs };
+    });
+  };
+
   const handleFirmaUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -292,6 +321,10 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                 <div className="flex items-center gap-2">
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                   <span className="font-semibold text-gray-700">{emp.firmantes?.length || 0} Firmantes</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                  <span className="font-semibold text-gray-700">{emp.sucursales?.length || 0} Sucursales</span>
                 </div>
               </div>
             </div>
@@ -551,6 +584,56 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                                     <img src={firm.firmaUrl} alt="Firma" className="max-h-12 object-contain" />
                                   </div>
                                 )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                    {/* Sucursales */}
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center border-b pb-2">
+                        <h4 className="font-bold text-brand-red">4. Sucursales</h4>
+                        <button type="button" onClick={addSucursal} className="text-xs bg-brand-red/10 text-brand-red hover:bg-brand-red hover:text-white px-3 py-1.5 rounded-lg font-bold transition-colors">
+                          + Agregar Sucursal
+                        </button>
+                      </div>
+
+                      <div className="max-h-[300px] overflow-y-auto space-y-4 pr-2">
+                        {formData.sucursales.length === 0 ? (
+                          <div className="text-center p-6 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 text-sm">
+                            La empresa principal es la sede central. Si tiene sucursales (ej. en otros municipios), agrégalas aquí.
+                          </div>
+                        ) : (
+                          formData.sucursales.map((suc, index) => (
+                            <div key={index} className="bg-slate-50 border border-slate-200 p-4 rounded-xl relative group">
+                              <button type="button" onClick={() => removeSucursal(index)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-1 shadow-sm">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                              
+                              <div className="grid grid-cols-1 gap-3 mb-3">
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Nombre de Sucursal *</label>
+                                  <input type="text" required placeholder="Ej. Impresa Repuestos - Metapán" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.nombre} onChange={(e) => updateSucursal(index, "nombre", e.target.value)} />
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 gap-3 mb-3">
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Dirección</label>
+                                  <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.direccion || ""} onChange={(e) => updateSucursal(index, "direccion", e.target.value)} />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3 mb-3">
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Teléfono</label>
+                                  <input type="tel" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.telefono || ""} onChange={(e) => updateSucursal(index, "telefono", e.target.value)} />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Mapa (URL/Coordinates)</label>
+                                  <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.mapaUrl || ""} onChange={(e) => updateSucursal(index, "mapaUrl", e.target.value)} />
+                                </div>
                               </div>
                             </div>
                           ))

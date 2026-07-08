@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { empresas, supervisores, firmantes, organigramasEmpresa } from "@/lib/schema";
+import { empresas, supervisores, firmantes, organigramasEmpresa, sucursales } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -14,6 +14,14 @@ export type SupervisorData = {
   cargo?: string;
   telefono?: string;
   correo?: string;
+};
+
+export type SucursalData = {
+  id?: number;
+  nombre: string;
+  direccion?: string;
+  telefono?: string;
+  mapaUrl?: string;
 };
 
 export type FirmanteData = {
@@ -44,6 +52,7 @@ export type EmpresaData = {
   supervisores: SupervisorData[];
   firmantes: FirmanteData[];
   organigramas: OrganigramaData[];
+  sucursales: SucursalData[];
 };
 
 export async function getEmpresas() {
@@ -52,12 +61,14 @@ export async function getEmpresas() {
     const sups = await db.select().from(supervisores);
     const firms = await db.select().from(firmantes);
     const orgs = await db.select().from(organigramasEmpresa).orderBy(desc(organigramasEmpresa.id));
+    const sucs = await db.select().from(sucursales).orderBy(desc(sucursales.id));
     
     const nestedData = data.map(emp => ({
       ...emp,
       supervisores: sups.filter(s => s.empresaId === emp.id),
       firmantes: firms.filter(f => f.empresaId === emp.id),
-      organigramas: orgs.filter(o => o.empresaId === emp.id)
+      organigramas: orgs.filter(o => o.empresaId === emp.id),
+      sucursales: sucs.filter(s => s.empresaId === emp.id)
     }));
 
     return { success: true, data: nestedData };
@@ -68,7 +79,7 @@ export async function getEmpresas() {
 
 export async function createEmpresa(data: EmpresaData) {
   try {
-    const { supervisores: sups, firmantes: firms, organigramas: orgs, ...empresaFields } = data;
+    const { supervisores: sups, firmantes: firms, organigramas: orgs, sucursales: sucs, ...empresaFields } = data;
     
     // 1. Insert Empresa
     const [nuevaEmpresa] = await db.insert(empresas).values({
@@ -104,6 +115,15 @@ export async function createEmpresa(data: EmpresaData) {
       await db.insert(organigramasEmpresa).values(orgsToInsert);
     }
 
+    // 5. Insert Sucursales
+    if (sucs && sucs.length > 0) {
+      const sucsToInsert = sucs.map(s => ({
+        ...s,
+        empresaId: nuevaEmpresa.id,
+      }));
+      await db.insert(sucursales).values(sucsToInsert);
+    }
+
     revalidatePath("/admin/empresas");
     return { success: true };
   } catch (error: any) {
@@ -113,7 +133,7 @@ export async function createEmpresa(data: EmpresaData) {
 
 export async function updateEmpresa(id: number, data: EmpresaData) {
   try {
-    const { supervisores: sups, firmantes: firms, organigramas: orgs, ...empresaFields } = data;
+    const { supervisores: sups, firmantes: firms, organigramas: orgs, sucursales: sucs, ...empresaFields } = data;
 
     // 1. Update Empresa
     await db.update(empresas).set({
@@ -180,6 +200,31 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
       if (newOrgs.length > 0) {
         await db.insert(organigramasEmpresa).values(newOrgs);
       }
+    }
+
+    // 5. Upsert Sucursales
+    if (sucs && sucs.length > 0) {
+      const keepIds = sucs.filter(s => s.id).map(s => s.id as number);
+      
+      const existingSucs = await db.select({ id: sucursales.id }).from(sucursales).where(eq(sucursales.empresaId, id));
+      const existingIds = existingSucs.map(s => s.id);
+      
+      const toDelete = existingIds.filter(eid => !keepIds.includes(eid));
+      if (toDelete.length > 0) {
+        for (const delId of toDelete) {
+          await db.delete(sucursales).where(eq(sucursales.id, delId));
+        }
+      }
+
+      for (const s of sucs) {
+        if (s.id) {
+          await db.update(sucursales).set({ ...s }).where(eq(sucursales.id, s.id));
+        } else {
+          await db.insert(sucursales).values({ ...s, empresaId: id });
+        }
+      }
+    } else {
+      await db.delete(sucursales).where(eq(sucursales.empresaId, id));
     }
 
     revalidatePath("/admin/empresas");

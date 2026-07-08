@@ -138,6 +138,18 @@ export const organigramasEmpresa = pgTable("organigramas_empresa", {
   subidoEn: timestamp("subido_en", { withTimezone: true }).defaultNow(),
 });
 
+export const sucursales = pgTable("sucursales", {
+  id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id")
+    .notNull()
+    .references(() => empresas.id, { onDelete: "cascade" }),
+  nombre: varchar("nombre", { length: 255 }).notNull(), // Ej: "Santa Ana Bypass"
+  direccion: text("direccion"),
+  telefono: varchar("telefono", { length: 50 }),
+  mapaUrl: text("mapa_url"),
+  creadaEn: timestamp("creada_en", { withTimezone: true }).defaultNow(),
+});
+
 // ─────────────────────────── Gate de documentos del egresado ───────────────────────────
 
 export const documentosEgresado = pgTable(
