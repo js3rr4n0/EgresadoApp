@@ -12,34 +12,63 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
       try {
         if (typeof window === "undefined" || !contentRef.current) return;
         
-        // Dynamic import to avoid SSR issues
-        const html2pdf = (await import("html2pdf.js")).default;
-        
         setStatus("Generando PDF...");
         
-        const opt = {
-          margin:       0,
-          filename:     `Empresa_${empresa.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`,
-          image:        { type: 'jpeg' as const, quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
-          jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
-        };
+        // Dynamic imports
+        const html2canvas = (await import("html2canvas")).default;
+        const { jsPDF } = await import("jspdf");
 
-        // Ensure images load before printing
+        // Wait a bit for everything to render
         await new Promise(r => setTimeout(r, 1000));
         
+        // Generate canvas
+        const canvas = await html2canvas(contentRef.current, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        
+        // Create PDF (Letter size is 8.5 x 11 inches)
+        const pdf = new jsPDF({
+          orientation: 'portrait',
+          unit: 'in',
+          format: 'letter'
+        });
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        
+        // If content is longer than one page, we could split it, but for simplicity, we add it as one long image scaled down
+        // Or better, html2pdf handles pagination. To simulate it manually:
+        let position = 0;
+        let pageHeight = pdf.internal.pageSize.getHeight();
+        let heightLeft = pdfHeight;
+
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft >= 0) {
+          position = heightLeft - pdfHeight;
+          pdf.addPage();
+          pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+          heightLeft -= pageHeight;
+        }
+
         setStatus("Descargando...");
-        await html2pdf().from(contentRef.current).set(opt as any).save();
+        pdf.save(`Empresa_${empresa.nombre.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`);
         
         setStatus("¡Descarga completada! Puedes cerrar esta pestaña.");
         
-        // Attempt to close window automatically after a short delay
+        // Close window after short delay
         setTimeout(() => {
           window.close();
         }, 3000);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error generating PDF:", error);
-        setStatus("Error al generar el PDF. Cierra la pestaña e intenta de nuevo.");
+        setStatus(`Error: ${error?.message || 'Error desconocido'}`);
       }
     };
 
@@ -79,10 +108,9 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
             <div className="mb-16">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
-                src="https://upload.wikimedia.org/wikipedia/commons/e/ec/UNICAES_Logo.png" 
+                src="/unicaes-logo.png" 
                 alt="UNICAES Logo" 
                 className="w-64 h-64 object-contain"
-                crossOrigin="anonymous"
               />
             </div>
             
