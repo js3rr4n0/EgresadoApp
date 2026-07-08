@@ -12,24 +12,28 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
       try {
         if (typeof window === "undefined" || !contentRef.current) return;
         
-        setStatus("Generando PDF...");
+        setStatus("Generando PDF (Motor Nativo)...");
         
         // Dynamic imports
-        const html2canvas = (await import("html2canvas")).default;
+        const domtoimage = (await import("dom-to-image-more")).default;
         const { jsPDF } = await import("jspdf");
 
-        // Wait a bit for everything to render
+        // Wait a bit for images to load
         await new Promise(r => setTimeout(r, 1000));
         
-        // Generate canvas
-        const canvas = await html2canvas(contentRef.current, {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          logging: false,
+        // Use dom-to-image-more which relies on browser's native engine (avoids CSS parser crash)
+        const imgData = await domtoimage.toJpeg(contentRef.current, {
+          quality: 0.98,
+          bgcolor: '#ffffff',
+          style: {
+            transform: 'scale(2)',
+            transformOrigin: 'top left',
+            width: contentRef.current.offsetWidth + 'px',
+            height: contentRef.current.offsetHeight + 'px'
+          },
+          width: contentRef.current.offsetWidth * 2,
+          height: contentRef.current.offsetHeight * 2,
         });
-
-        const imgData = canvas.toDataURL('image/jpeg', 0.98);
         
         // Create PDF (Letter size is 8.5 x 11 inches)
         const pdf = new jsPDF({
@@ -38,13 +42,13 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
           format: 'letter'
         });
 
-        const pdfWidth = pdf.internal.pageSize.getWidth();
-        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        // 8.5 inches wide, calculate scaled height
+        const pdfWidth = 8.5;
+        // height in inches = (pixel height / pixel width) * 8.5
+        const pdfHeight = (contentRef.current.offsetHeight / contentRef.current.offsetWidth) * pdfWidth;
         
-        // If content is longer than one page, we could split it, but for simplicity, we add it as one long image scaled down
-        // Or better, html2pdf handles pagination. To simulate it manually:
         let position = 0;
-        let pageHeight = pdf.internal.pageSize.getHeight();
+        let pageHeight = 11; // letter height in inches
         let heightLeft = pdfHeight;
 
         pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
