@@ -14,9 +14,9 @@ export default async function EgresadoLandingPage() {
 
   // 1. Fetch documents
   const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, session.userId));
-  const hasServicio = docs.some((d) => d.tipo === "servicio_social");
-  const hasNotas = docs.some((d) => d.tipo === "certificacion_notas");
-  const hasPago = docs.some((d) => d.tipo === "pago_tg");
+  const docServicio = docs.find((d) => d.tipo === "servicio_social");
+  const docNotas = docs.find((d) => d.tipo === "certificacion_notas");
+  const docPago = docs.find((d) => d.tipo === "pago_tg");
 
   // 2. Fetch user proposals
   const userPropuestas = await db
@@ -37,9 +37,12 @@ export default async function EgresadoLandingPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
           <DocumentGate
-            hasServicio={hasServicio}
-            hasNotas={hasNotas}
-            hasPago={hasPago}
+            hasServicio={!!docServicio}
+            hasNotas={!!docNotas}
+            hasPago={!!docPago}
+            urlServicio={docServicio?.archivoUrl}
+            urlNotas={docNotas?.archivoUrl}
+            urlPago={docPago?.archivoUrl}
           />
         </div>
 
