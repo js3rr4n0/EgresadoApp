@@ -151,6 +151,59 @@ export async function updateEmpresa(propuestaId: number, empresaId: number | nul
   return { success: true };
 }
 
+export async function solicitarRevisionEmpresa(propuestaId: number, data: any, mode: "edit_existing" | "create_new") {
+  const session = await getSession();
+  if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
+
+  try {
+    const { empresas, supervisores } = await import("@/lib/schema");
+
+    // 1. Insert new unverified company
+    const newEmpresas = await db.insert(empresas).values({
+      nombre: data.empresa.nombre,
+      area: data.empresa.area,
+      descripcion: data.empresa.descripcion,
+      antecedentes: data.empresa.antecedentes,
+      direccion: data.empresa.direccion,
+      mapaUrl: data.empresa.mapaUrl || null,
+      organigramaUrl: data.empresa.organigramaUrl || null,
+      habilitada: false, // Locked until admin approves
+      verificada: false,
+    }).returning({ id: empresas.id });
+    
+    const newEmpresaId = newEmpresas[0].id;
+
+    // 2. Insert supervisor linked to the new company
+    const newSupervisores = await db.insert(supervisores).values({
+      empresaId: newEmpresaId,
+      nombres: data.supervisor.nombres,
+      apellidos: data.supervisor.apellidos,
+      cargo: data.supervisor.cargo,
+      especialidad: data.supervisor.especialidad,
+      telefono: data.supervisor.telefono,
+      correo: data.supervisor.correo,
+    }).returning({ id: supervisores.id });
+    
+    const newSupervisorId = newSupervisores[0].id;
+
+    // 3. Update propuesta state and IDs
+    await db.update(propuestas)
+      .set({
+        empresaId: newEmpresaId,
+        supervisorId: newSupervisorId,
+        estado: mode === "edit_existing" ? "pend_revision_datos" : "pend_empresa_nueva",
+        bloqueada: true
+      })
+      .where(and(eq(propuestas.id, propuestaId), eq(propuestas.egresadoId, session.userId)));
+
+    revalidatePath("/egresado/redactar");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error soliciting revision:", error);
+    return { success: false, error: error.message || "Error interno del servidor" };
+  }
+}
+
 export async function enviarPropuesta(id: number) {
   const session = await getSession();
   if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
