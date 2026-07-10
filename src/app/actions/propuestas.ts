@@ -86,3 +86,29 @@ export async function updatePortada(formData: FormData) {
   revalidatePath("/egresado");
   return { success: true };
 }
+
+export async function enviarPropuesta(id: number) {
+  const session = await getSession();
+  if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
+
+  // Verify documents
+  const { documentosEgresado } = await import("@/lib/schema");
+  const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, session.userId));
+  
+  const hasServicio = docs.some(d => d.tipo === "servicio_social");
+  const hasNotas = docs.some(d => d.tipo === "certificacion_notas");
+  const hasPago = docs.some(d => d.tipo === "pago_tg");
+
+  if (!hasServicio || !hasNotas || !hasPago) {
+    return { success: false, error: "Debes subir OBLIGATORIAMENTE los tres archivos (Servicio, Notas, Pago) para enviar la propuesta." };
+  }
+
+  // Update proposal status
+  await db.update(propuestas)
+    .set({ estado: "enviada", enviadaEn: new Date() })
+    .where(and(eq(propuestas.id, id), eq(propuestas.egresadoId, session.userId)));
+
+  revalidatePath("/egresado");
+  revalidatePath("/egresado/redactar");
+  return { success: true };
+}

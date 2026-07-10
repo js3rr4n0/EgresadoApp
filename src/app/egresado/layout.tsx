@@ -41,11 +41,7 @@ export default async function EgresadoLayout({
         navItems={hasAllDocs ? navItems : []}
       />
       <main className="flex-1 w-full max-w-[1400px] mx-auto px-6 py-8">
-        {!hasAllDocs ? (
-          <DocumentGate hasServicio={hasServicio} hasNotas={hasNotas} hasPago={hasPago} />
-        ) : (
-          children
-        )}
+        {children}
       </main>
     </div>
   );

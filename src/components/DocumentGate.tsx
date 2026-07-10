@@ -56,28 +56,12 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago }: Documen
   const totalDone = [hasServicio, hasNotas, hasPago].filter(Boolean).length;
 
   return (
-    <div className="max-w-3xl mx-auto mt-10">
-      <div className="text-center mb-10">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-brand-red/10 mb-6">
-          <svg className="w-8 h-8 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-        </div>
-        <h1 className="text-3xl font-bold text-card-dark">Expediente de Graduación</h1>
-        <p className="text-muted mt-3 text-lg">
-          Para habilitar el envío de tu propuesta de pasantía, es obligatorio que subas los siguientes documentos de pre-requisito.
-        </p>
+    <div className="w-full">
+      <div className="mb-6">
+        <h2 className="font-bold text-card-dark text-xl">Documentos Obligatorios</h2>
+        <p className="text-sm text-muted mt-1">Debes subir los siguientes documentos para habilitar el envío de tu propuesta.</p>
       </div>
-
-      <div className="bg-white border border-border rounded-xl p-8 shadow-sm">
-        <div className="flex items-center justify-between mb-8 pb-6 border-b border-border">
-          <div>
-            <h2 className="font-bold text-card-dark text-lg">Progreso de Expediente</h2>
-            <p className="text-sm text-muted">Archivos subidos y verificados</p>
-          </div>
-          <div className="text-right">
-            <span className="text-3xl font-black text-brand-red">{totalDone}</span>
-            <span className="text-lg font-bold text-muted">/3</span>
-          </div>
-        </div>
+      <div className="bg-white border border-border rounded-xl p-6 lg:p-8 shadow-sm">
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm font-medium">
@@ -136,6 +120,33 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago }: Documen
               </div>
             </div>
           ))}
+
+          {/* New block for Crear Propuesta inside Documentos Obligatorios */}
+          <div className={`mt-6 flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-lg border transition-all ${totalDone === 3 ? 'bg-emerald-50 border-emerald-200' : 'bg-slate-50 border-border'}`}>
+            <div className="flex gap-4">
+              <div className={`mt-0.5 shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${totalDone === 3 ? 'bg-emerald-500 text-white' : 'bg-slate-300 text-slate-500'}`}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+              </div>
+              <div>
+                <h3 className={`font-bold ${totalDone === 3 ? 'text-emerald-900' : 'text-card-dark'}`}>Crea tu Propuesta</h3>
+                <p className={`text-sm mt-1 ${totalDone === 3 ? 'text-emerald-700/80' : 'text-muted'}`}>
+                  {totalDone === 3 
+                    ? "Ya has completado la subida de los tres documentos obligatorios." 
+                    : "Puedes crear tu propuesta ahora, pero deberás subir los tres archivos para poder enviarla a revisión."}
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-4 sm:mt-0 sm:ml-6 shrink-0">
+              <a 
+                href="/egresado/redactar"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white shadow-sm transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Crear Propuesta
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
