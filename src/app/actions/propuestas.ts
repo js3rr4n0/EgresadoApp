@@ -29,21 +29,9 @@ export async function getActivePropuesta() {
 
   let propuesta = props.length > 0 ? props[0] : null;
 
-  // 3. Auto-create if none exists
+  // 3. Return null if no proposal exists yet, let the user create it via modal
   if (!propuesta) {
-    const isRecepcionAbierta = new Date() <= new Date(periodo.finRecepcion + 'T23:59:59');
-    if (!isRecepcionAbierta) {
-      return { error: `La recepción de nuevas propuestas para el ciclo ${periodo.nombre} ha finalizado.` };
-    }
-
-    const insertResult = await db.insert(propuestas).values({
-      egresadoId: session.userId,
-      periodoId: periodo.id,
-      tipo: "pasantia", // default
-      numero: 1,
-      estado: "redactando"
-    }).returning();
-    propuesta = insertResult[0];
+    return { error: "No has creado ninguna propuesta aún." };
   }
 
   // 4. Fetch User details for Portada
@@ -62,8 +50,8 @@ export async function getActivePropuesta() {
 
   const userDetails = userRows[0];
 
-  // 5. Month of sending (from period)
-  const mesEnvio = new Intl.DateTimeFormat('es-SV', { month: 'long' }).format(new Date(periodo.inicioRecepcion));
+  // 5. Month of sending (from current date as it is being drafted)
+  const mesEnvio = new Intl.DateTimeFormat('es-SV', { month: 'long' }).format(new Date());
 
   return { propuesta, userDetails, mesEnvio, periodo };
 }
@@ -85,6 +73,70 @@ export async function updatePortada(formData: FormData) {
 
   revalidatePath("/egresado");
   return { success: true };
+}
+
+export async function initPropuesta(tipo: string) {
+  try {
+    const session = await getSession();
+    if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
+
+    const activePeriodRows = await db.select().from(periodos).where(eq(periodos.activo, true)).limit(1);
+    if (activePeriodRows.length === 0) return { success: false, error: "No hay periodo activo actualmente." };
+    const periodo = activePeriodRows[0];
+
+    const isRecepcionAbierta = new Date() <= new Date(periodo.finRecepcion + 'T23:59:59');
+    if (!isRecepcionAbierta) {
+      return { success: false, error: `La recepción de nuevas propuestas para el ciclo ${periodo.nombre} ha finalizado.` };
+    }
+
+    const props = await db
+      .select()
+      .from(propuestas)
+      .where(
+        and(
+          eq(propuestas.egresadoId, session.userId),
+          eq(propuestas.periodoId, periodo.id)
+        )
+      )
+      .orderBy(desc(propuestas.numero));
+
+    let propuesta = props.length > 0 ? props[0] : null;
+
+    if (propuesta) {
+      if (propuesta.estado === "redactando") {
+        await db.update(propuestas).set({ tipo }).where(eq(propuestas.id, propuesta.id));
+        revalidatePath("/egresado");
+        return { success: true };
+      }
+      
+      if (propuesta.estado === "rechazada") {
+        await db.insert(propuestas).values({
+          egresadoId: session.userId,
+          periodoId: periodo.id,
+          tipo,
+          numero: propuesta.numero + 1,
+          estado: "redactando"
+        });
+        revalidatePath("/egresado");
+        return { success: true };
+      }
+
+      return { success: false, error: "Ya existe una propuesta activa enviada o aprobada." };
+    } else {
+      await db.insert(propuestas).values({
+        egresadoId: session.userId,
+        periodoId: periodo.id,
+        tipo,
+        numero: 1,
+        estado: "redactando"
+      });
+      revalidatePath("/egresado");
+      return { success: true };
+    }
+  } catch (error: any) {
+    console.error("Error initPropuesta:", error);
+    return { success: false, error: "Error interno del servidor al crear la propuesta: " + error.message };
+  }
 }
 
 export async function enviarPropuesta(id: number) {

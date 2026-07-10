@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { uploadDocumento } from "@/app/actions/documentos";
+import { initPropuesta } from "@/app/actions/propuestas";
+import { useRouter } from "next/navigation";
 
 interface DocumentGateProps {
   hasServicio: boolean;
@@ -13,10 +15,12 @@ interface DocumentGateProps {
 }
 
 export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServicio, urlNotas, urlPago }: DocumentGateProps) {
+  const router = useRouter();
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProcess, setSelectedProcess] = useState<string | null>(null);
+  const [isInitializing, setIsInitializing] = useState(false);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>, tipo: string) => {
     const file = e.target.files?.[0];
@@ -264,14 +268,35 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
             </div>
             <div className="p-6 border-t border-border flex justify-end">
               <button
-                disabled={!selectedProcess}
-                onClick={() => {
-                  // Do nothing for now as requested
+                type="button"
+                disabled={!selectedProcess || isInitializing}
+                onClick={async () => {
+                  try {
+                    if (!selectedProcess) return;
+                    setIsInitializing(true);
+                    const res = await initPropuesta(selectedProcess);
+                    if (res?.success) {
+                      router.push('/egresado/redactar');
+                    } else {
+                      alert(res?.error || "Ocurrió un error al iniciar la propuesta.");
+                      setIsInitializing(false);
+                    }
+                  } catch (err: any) {
+                    console.error("Client Error:", err);
+                    alert("Ocurrió un error de conexión: " + err.message);
+                    setIsInitializing(false);
+                  }
                 }}
                 className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                Elegir y Rellenar propuesta
+                {isInitializing ? (
+                  "Cargando..."
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    Elegir y Rellenar propuesta
+                  </>
+                )}
               </button>
             </div>
           </div>

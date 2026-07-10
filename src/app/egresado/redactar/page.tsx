@@ -28,7 +28,7 @@ export default async function EgresadoPage({
 
   const { propuesta, userDetails, mesEnvio } = data;
   let cartaData = null;
-  if (currentStep === 2) {
+  if (currentStep === 4) {
     cartaData = await getCartaAceptacion(propuesta.id);
   }
 
@@ -42,11 +42,13 @@ export default async function EgresadoPage({
 
   const steps = [
     { num: 1, title: "Portada", desc: "Información general del trabajo" },
-    { num: 2, title: "Carta de Aceptación", desc: "Documento de aceptación" },
-    { num: 3, title: "Datos empresariales", desc: "Información de la institución" },
-    { num: 4, title: "Descripción de actividades", desc: "Actividades que realizarás" },
-    { num: 5, title: "Justificación del proceso", desc: "Justificación y objetivos" },
-    { num: 6, title: "Documentación del estudiante", desc: "Documentos requeridos" },
+    { num: 2, title: "Datos empresariales", desc: "Información de la institución" },
+    { num: 3, title: "Datos de supervisor", desc: "Información del supervisor" },
+    { num: 4, title: "Carta de Aceptación", desc: "Documento de aceptación" },
+    { num: 5, title: "Datos de emisor", desc: "Datos de quien emite" },
+    { num: 6, title: "Descripción de actividades", desc: "Actividades que realizarás" },
+    { num: 7, title: "Justificación del proceso", desc: "Justificación y objetivos" },
+    { num: 8, title: "Documentos del estudiante", desc: "Documentos requeridos" },
   ];
 
   return (
@@ -99,7 +101,6 @@ export default async function EgresadoPage({
           </button>
         </div>
 
-        {/* Middle Column - Form */}
         <div className="flex-1 bg-white border border-border rounded-xl p-8 shadow-sm">
           {currentStep === 1 && (
             <>
@@ -116,9 +117,9 @@ export default async function EgresadoPage({
             </>
           )}
 
-          {currentStep === 2 && (
+          {currentStep === 4 && (
             <>
-              <h2 className="text-xl font-bold text-foreground mb-2">2. Carta de Aceptación</h2>
+              <h2 className="text-xl font-bold text-foreground mb-2">4. Carta de Aceptación</h2>
               <p className="text-sm text-muted mb-8">Digita los datos de la carta emitida por la empresa para validar tu pasantía.</p>
               <CartaForm 
                 propuestaId={propuesta.id}
@@ -127,7 +128,7 @@ export default async function EgresadoPage({
             </>
           )}
 
-          {currentStep > 2 && (
+          {currentStep !== 1 && currentStep !== 4 && (
             <div className="text-center py-16">
               <h3 className="text-lg font-bold text-card-dark">Paso en construcción (Fase 5.3+)</h3>
             </div>
