@@ -35,6 +35,30 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
     setUploading(null);
   };
 
+  const openBase64Pdf = (base64Url: string) => {
+    try {
+      if (!base64Url.startsWith('data:')) {
+        window.open(base64Url, '_blank');
+        return;
+      }
+      const parts = base64Url.split(',');
+      const contentType = parts[0].split(':')[1].split(';')[0];
+      const raw = window.atob(parts[1]);
+      const rawLength = raw.length;
+      const uInt8Array = new Uint8Array(rawLength);
+      
+      for (let i = 0; i < rawLength; ++i) {
+        uInt8Array[i] = raw.charCodeAt(i);
+      }
+      
+      const blob = new Blob([uInt8Array], { type: contentType });
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank');
+    } catch(e) {
+      window.open(base64Url, '_blank');
+    }
+  };
+
   const docs = [
     {
       id: "servicio_social",
@@ -100,10 +124,9 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
                       Completado
                     </span>
                     {doc.url && (
-                      <a 
-                        href={doc.url} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
+                      <button 
+                        onClick={() => openBase64Pdf(doc.url!)}
+                        type="button"
                         className="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors shadow-sm"
                         title="Ver Archivo"
                       >
@@ -111,7 +134,7 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
-                      </a>
+                      </button>
                     )}
                   </>
                 ) : (
