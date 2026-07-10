@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getActivePropuesta } from "@/app/actions/propuestas";
 import { getCartaAceptacion } from "@/app/actions/carta";
 import PortadaForm from "@/components/PortadaForm";
@@ -86,7 +87,11 @@ export default async function EgresadoPage({
               const active = step.num === currentStep;
               const completed = step.num < currentStep;
               return (
-                <div key={step.num} className={`relative flex items-start gap-4 p-3 rounded-lg ${active ? "bg-red-50" : ""}`}>
+                <Link 
+                  href={`?step=${step.num}`}
+                  key={step.num} 
+                  className={`relative flex items-start gap-4 p-3 rounded-lg hover:bg-slate-50 transition-colors ${active ? "bg-red-50 hover:bg-red-50" : ""}`}
+                >
                   <div className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow-sm transition-colors ${
                     active ? "bg-brand-red text-white" : completed ? "bg-emerald-500 text-white" : "bg-muted-bg text-muted border border-border"
                   }`}>
@@ -98,7 +103,7 @@ export default async function EgresadoPage({
                     </h3>
                     <p className="text-xs text-muted mt-0.5">{step.desc}</p>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>
