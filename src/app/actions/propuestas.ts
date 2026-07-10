@@ -139,6 +139,18 @@ export async function initPropuesta(tipo: string) {
   }
 }
 
+export async function updateEmpresa(propuestaId: number, empresaId: number | null) {
+  const session = await getSession();
+  if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
+
+  await db.update(propuestas)
+    .set({ empresaId })
+    .where(and(eq(propuestas.id, propuestaId), eq(propuestas.egresadoId, session.userId)));
+    
+  revalidatePath("/egresado/redactar");
+  return { success: true };
+}
+
 export async function enviarPropuesta(id: number) {
   const session = await getSession();
   if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };

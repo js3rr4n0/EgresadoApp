@@ -2,6 +2,10 @@ import { getActivePropuesta } from "@/app/actions/propuestas";
 import { getCartaAceptacion } from "@/app/actions/carta";
 import PortadaForm from "@/components/PortadaForm";
 import CartaForm from "@/components/CartaForm";
+import DatosEmpresarialesForm from "@/components/DatosEmpresarialesForm";
+import { db } from "@/lib/db";
+import { empresas } from "@/lib/schema";
+import { asc } from "drizzle-orm";
 
 export default async function EgresadoPage({
   searchParams,
@@ -28,8 +32,15 @@ export default async function EgresadoPage({
 
   const { propuesta, userDetails, mesEnvio } = data;
   let cartaData = null;
+  let empresasList: any[] = [];
+  
   if (currentStep === 4) {
     cartaData = await getCartaAceptacion(propuesta.id);
+  }
+  
+  if (currentStep === 2) {
+    // Order alphabetically
+    empresasList = await db.select().from(empresas).orderBy(asc(empresas.nombre));
   }
 
   // Mapa de estados para etiquetas visuales
@@ -117,6 +128,18 @@ export default async function EgresadoPage({
             </>
           )}
 
+          {currentStep === 2 && (
+            <>
+              <h2 className="text-xl font-bold text-foreground mb-2">2. Datos empresariales</h2>
+              <p className="text-sm text-muted mb-8">Selecciona la empresa o institución donde realizarás tu pasantía. Al seleccionarla, se cargarán automáticamente los datos correspondientes.</p>
+              <DatosEmpresarialesForm 
+                propuestaId={propuesta.id}
+                initialEmpresaId={propuesta.empresaId}
+                empresas={empresasList}
+              />
+            </>
+          )}
+
           {currentStep === 4 && (
             <>
               <h2 className="text-xl font-bold text-foreground mb-2">4. Carta de Aceptación</h2>
@@ -128,9 +151,9 @@ export default async function EgresadoPage({
             </>
           )}
 
-          {currentStep !== 1 && currentStep !== 4 && (
+          {currentStep !== 1 && currentStep !== 2 && currentStep !== 4 && (
             <div className="text-center py-16">
-              <h3 className="text-lg font-bold text-card-dark">Paso en construcción (Fase 5.3+)</h3>
+              <h3 className="text-lg font-bold text-card-dark">Paso en construcción (Fase 3, 5-8)</h3>
             </div>
           )}
         </div>
