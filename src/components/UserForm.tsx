@@ -10,7 +10,13 @@ interface Carrera {
   nombre: string;
 }
 
-export default function UserForm({ carreras }: { carreras: Carrera[] }) {
+interface Periodo {
+  id: number;
+  nombre: string;
+  activo: boolean;
+}
+
+export default function UserForm({ carreras, periodos = [] }: { carreras: Carrera[], periodos?: Periodo[] }) {
   const router = useRouter();
   const [rol, setRol] = useState("egresado");
   const [pending, setPending] = useState(false);
@@ -74,7 +80,12 @@ export default function UserForm({ carreras }: { carreras: Carrera[] }) {
                 <label className="block text-sm font-bold text-foreground mb-1.5">
                   Cohorte <span className="text-brand-red">*</span>
                 </label>
-                <input name="cohorte" type="text" required pattern="^C[12]\d{4}$" title="Debe ser C1 o C2 seguido del año (Ej: C12026)" placeholder="Ej: C12026" className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all" />
+                <select name="cohorte" required className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all bg-white">
+                  <option value="">Seleccionar cohorte...</option>
+                  {periodos.map(p => (
+                    <option key={p.id} value={p.nombre}>{p.nombre} {p.activo ? "(Activo)" : ""}</option>
+                  ))}
+                </select>
               </div>
             </>
           )}

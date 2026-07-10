@@ -10,6 +10,12 @@ interface Carrera {
   nombre: string;
 }
 
+interface Periodo {
+  id: number;
+  nombre: string;
+  activo: boolean;
+}
+
 interface UsuarioData {
   id: number;
   nombreCompleto: string;
@@ -22,7 +28,7 @@ interface UsuarioData {
   activo: boolean;
 }
 
-export default function EditUserForm({ user, carreras }: { user: UsuarioData; carreras: Carrera[] }) {
+export default function EditUserForm({ user, carreras, periodos = [] }: { user: UsuarioData; carreras: Carrera[], periodos?: Periodo[] }) {
   const router = useRouter();
   const [rol, setRol] = useState(user.rol);
   const [pending, setPending] = useState(false);
@@ -82,9 +88,14 @@ export default function EditUserForm({ user, carreras }: { user: UsuarioData; ca
 
           <div>
             <label className="block text-sm font-bold text-foreground mb-1.5">
-              Cohorte (Solo egresados, ej: C12026)
+              Cohorte (Solo egresados)
             </label>
-            <input name="cohorte" type="text" pattern="^C[12]\d{4}$" title="Debe ser C1 o C2 seguido del año (Ej: C12026)" defaultValue={user.cohorte || ""} placeholder="Ej: C12026" className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all" />
+            <select name="cohorte" defaultValue={user.cohorte || ""} className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all bg-white">
+              <option value="">Seleccionar cohorte (Opcional si no es egresado)...</option>
+              {periodos.map(p => (
+                <option key={p.id} value={p.nombre}>{p.nombre} {p.activo ? "(Activo)" : ""}</option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -136,15 +147,16 @@ export default function EditUserForm({ user, carreras }: { user: UsuarioData; ca
               Historial de Cohortes Asignadas
             </label>
             <div className="flex gap-2 mb-4">
-              <input 
-                type="text" 
+              <select
                 value={newCohorte}
                 onChange={e => setNewCohorte(e.target.value)}
-                placeholder="Ej: C12026"
-                pattern="^C[12]\d{4}$"
-                title="Debe ser C1 o C2 seguido del año (Ej: C12026)"
-                className="flex-1 px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all"
-              />
+                className="flex-1 px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all bg-white"
+              >
+                <option value="">Seleccionar cohorte para añadir...</option>
+                {periodos.map(p => (
+                  <option key={p.id} value={p.nombre}>{p.nombre} {p.activo ? "(Activo)" : ""}</option>
+                ))}
+              </select>
               <button 
                 type="button"
                 onClick={() => {

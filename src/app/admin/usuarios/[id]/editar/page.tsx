@@ -1,4 +1,7 @@
 import { getUsuario, getCarreras } from "@/app/actions/usuarios";
+import { db } from "@/lib/db";
+import { periodos } from "@/lib/schema";
+import { desc } from "drizzle-orm";
 import EditUserForm from "@/components/EditUserForm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,9 +18,12 @@ export default async function EditarUsuarioPage({
     notFound();
   }
 
-  const [userRes, carrerasRes] = await Promise.all([
+  const [userRes, carrerasRes, periodosData] = await Promise.all([
     getUsuario(userId),
-    getCarreras()
+    getCarreras(),
+    db.select({ id: periodos.id, nombre: periodos.nombre, activo: periodos.activo })
+      .from(periodos)
+      .orderBy(desc(periodos.id))
   ]);
 
   if (!userRes.success || !userRes.data) {
@@ -40,7 +46,7 @@ export default async function EditarUsuarioPage({
         <h1 className="text-2xl font-bold text-card-dark">Editar Usuario</h1>
       </div>
 
-      <EditUserForm user={userRes.data as any} carreras={carreras} />
+      <EditUserForm user={userRes.data as any} carreras={carreras} periodos={periodosData} />
     </div>
   );
 }
