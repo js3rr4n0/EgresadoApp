@@ -23,15 +23,18 @@ export async function uploadDocumento(formData: FormData) {
       return { success: false, error: "Tipo de documento inválido." };
     }
 
-    // SIMULAR SUBIDA A VERCEL BLOB / AWS S3
-    // En producción aquí se enviaría el File al storage.
-    const mockUrl = `https://storage.dummy/${session.userId}/${tipo}_${Date.now()}.pdf`;
+    // Convert file to Base64 to store directly in DB
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const base64String = buffer.toString("base64");
+    
+    // We append the mime type so it can be easily opened in the browser as a data URI
+    const dataUrl = `data:${file.type};base64,${base64String}`;
 
     // Guardar en base de datos
     await db.insert(documentosEgresado).values({
       egresadoId: session.userId,
       tipo,
-      archivoUrl: mockUrl,
+      archivoUrl: dataUrl,
     });
 
     revalidatePath("/egresado");
