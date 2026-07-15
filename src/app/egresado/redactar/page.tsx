@@ -189,7 +189,6 @@ export default async function EgresadoPage({
               <li className="flex gap-2"><span className="text-brand-red font-bold mt-0.5">•</span> Completar todos los campos obligatorios.</li>
               <li className="flex gap-2"><span className="text-brand-red font-bold mt-0.5">•</span> Adjuntar todos los documentos requeridos.</li>
               <li className="flex gap-2"><span className="text-brand-red font-bold mt-0.5">•</span> Información clara, coherente y verificable.</li>
-              <li className="flex gap-2"><span className="text-brand-red font-bold mt-0.5">•</span> Aprobación del asesor metodológico.</li>
             </ul>
           </div>
 
