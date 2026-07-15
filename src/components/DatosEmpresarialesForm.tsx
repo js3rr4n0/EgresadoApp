@@ -99,9 +99,9 @@ export default function DatosEmpresarialesForm({
   };
 
   const options: any[] = [];
-  empresas.filter(e => e.habilitada).forEach(emp => {
+  empresas.forEach(emp => {
     const searchMatriz = removeAccents(emp.nombre.toLowerCase());
-    options.push({ type: 'matriz', id: emp.id, empresaId: emp.id, nombre: emp.nombre, label: `${emp.nombre} (Matriz)`, search: searchMatriz });
+    options.push({ type: 'matriz', id: emp.id, empresaId: emp.id, nombre: emp.nombre, label: `${emp.nombre} (Matriz)`, search: searchMatriz, habilitada: emp.habilitada });
     const empSucursales = sucursales.filter(s => s.empresaId === emp.id);
     empSucursales.forEach(suc => {
       const searchSuc = removeAccents(`${suc.nombre.toLowerCase()} ${emp.nombre.toLowerCase()}`);
@@ -111,7 +111,8 @@ export default function DatosEmpresarialesForm({
         empresaId: emp.id,
         nombre: suc.nombre,
         label: `${suc.nombre} (Sucursal - ${emp.nombre})`,
-        search: searchSuc
+        search: searchSuc,
+        habilitada: emp.habilitada
       });
     });
   });
@@ -253,15 +254,21 @@ export default function DatosEmpresarialesForm({
                   filteredOptions.map((opt, idx) => (
                     <div
                       key={idx}
-                      onMouseDown={() => handleSelectOption(opt)}
-                      className={`px-4 py-2 cursor-pointer hover:bg-red-50 hover:text-brand-red transition-colors ${
-                        (opt.type === 'matriz' && opt.id === selectedEmpresaId && !selectedSucursalId) ||
-                        (opt.type === 'sucursal' && opt.id === selectedSucursalId)
+                      onMouseDown={(e) => {
+                        if (!opt.habilitada) {
+                          e.preventDefault();
+                          return;
+                        }
+                        handleSelectOption(opt);
+                      }}
+                      className={`px-4 py-2 ${opt.habilitada ? 'cursor-pointer hover:bg-red-50 hover:text-brand-red transition-colors' : 'cursor-not-allowed opacity-50 line-through bg-gray-50 text-gray-500'} ${
+                        opt.habilitada && ((opt.type === 'matriz' && opt.id === selectedEmpresaId && !selectedSucursalId) ||
+                        (opt.type === 'sucursal' && opt.id === selectedSucursalId))
                           ? "bg-red-50 text-brand-red font-bold"
-                          : "text-slate-700"
+                          : (!opt.habilitada ? "" : "text-slate-700")
                       }`}
                     >
-                      {opt.label}
+                      {opt.label} {!opt.habilitada && <span className="text-xs ml-2 font-normal">(Deshabilitada)</span>}
                     </div>
                   ))
                 ) : (

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { createEmpresa, updateEmpresa, deleteEmpresa, toggleEmpresaStatus, EmpresaData, SupervisorData, FirmanteData, SucursalData } from "@/app/actions/empresas";
+import { createEmpresa, updateEmpresa, deleteEmpresa, toggleEmpresaStatus, updateSucursalesSolo, EmpresaData, SupervisorData, FirmanteData, SucursalData } from "@/app/actions/empresas";
 
 const MapSelector = dynamic(() => import("./MapSelector"), { ssr: false });
 
@@ -10,6 +10,11 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
+  
+  const [sucursalesModalOpen, setSucursalesModalOpen] = useState(false);
+  const [currentEmpresaForSucs, setCurrentEmpresaForSucs] = useState<any>(null);
+  const [tempSucs, setTempSucs] = useState<SucursalData[]>([]);
+  const [isSavingSucs, setIsSavingSucs] = useState(false);
 
   const getEmptyForm = (): EmpresaData => ({
     nombre: "",
@@ -206,31 +211,44 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     });
   };
 
-  // Sucursales Form Handlers
-  const addSucursal = () => {
-    setFormData(prev => ({
-      ...prev,
-      sucursales: [
-        ...prev.sucursales,
-        { nombre: "", direccion: "", telefono: "", mapaUrl: "" }
-      ]
-    }));
+  // Sucursales Form Handlers (Standalone Modal)
+  const openSucursalesModal = (emp: any) => {
+    setCurrentEmpresaForSucs(emp);
+    setTempSucs(emp.sucursales || []);
+    setSucursalesModalOpen(true);
   };
 
-  const updateSucursal = (index: number, field: keyof SucursalData, value: string) => {
-    setFormData(prev => {
-      const sucs = [...prev.sucursales];
+  const addTempSucursal = () => {
+    setTempSucs(prev => [...prev, { nombre: "", direccion: "", telefono: "", mapaUrl: "", descripcion: "", antecedentes: "" }]);
+  };
+
+  const updateTempSucursal = (index: number, field: keyof SucursalData, value: string) => {
+    setTempSucs(prev => {
+      const sucs = [...prev];
       sucs[index] = { ...sucs[index], [field]: value };
-      return { ...prev, sucursales: sucs };
+      return sucs;
     });
   };
 
-  const removeSucursal = (index: number) => {
-    setFormData(prev => {
-      const sucs = [...prev.sucursales];
+  const removeTempSucursal = (index: number) => {
+    setTempSucs(prev => {
+      const sucs = [...prev];
       sucs.splice(index, 1);
-      return { ...prev, sucursales: sucs };
+      return sucs;
     });
+  };
+
+  const handleSaveSucursales = async () => {
+    if (!currentEmpresaForSucs) return;
+    setIsSavingSucs(true);
+    const res = await updateSucursalesSolo(currentEmpresaForSucs.id, tempSucs);
+    setIsSavingSucs(false);
+    if (res.success) {
+      setSucursalesModalOpen(false);
+      setCurrentEmpresaForSucs(null);
+    } else {
+      alert(res.error || "Ocurrió un error al guardar las sucursales.");
+    }
   };
 
   const handleFirmaUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -322,10 +340,10 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                   <span className="font-semibold text-gray-700">{emp.firmantes?.length || 0} Firmantes</span>
                 </div>
-                <div className="flex items-center gap-2">
+                <button type="button" onClick={() => openSucursalesModal(emp)} className="flex items-center gap-2 hover:bg-gray-200 px-2 py-1 rounded transition-colors">
                   <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                   <span className="font-semibold text-gray-700">{emp.sucursales?.length || 0} Sucursales</span>
-                </div>
+                </button>
               </div>
             </div>
 
@@ -619,74 +637,6 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                         )}
                       </div>
                     </div>
-                    {/* Sucursales */}
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center border-b pb-2">
-                        <h4 className="font-bold text-brand-red">4. Sucursales</h4>
-                        <button type="button" onClick={addSucursal} className="text-xs bg-brand-red/10 text-brand-red hover:bg-brand-red hover:text-white px-3 py-1.5 rounded-lg font-bold transition-colors">
-                          + Agregar Sucursal
-                        </button>
-                      </div>
-
-                      <div className="max-h-[300px] overflow-y-auto space-y-4 pr-2">
-                        {formData.sucursales.length === 0 ? (
-                          <div className="text-center p-6 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 text-sm">
-                            La empresa principal es la sede central. Si tiene sucursales (ej. en otros municipios), agrégalas aquí.
-                          </div>
-                        ) : (
-                          formData.sucursales.map((suc, index) => (
-                            <div key={index} className="bg-slate-50 border border-slate-200 p-4 rounded-xl relative group">
-                              <button type="button" onClick={() => removeSucursal(index)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity bg-white rounded-full p-1 shadow-sm">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                              </button>
-                              
-                              <div className="grid grid-cols-1 gap-3 mb-3">
-                                <div>
-                                  <label className="block text-xs font-bold text-gray-600 mb-1">Nombre de Sucursal *</label>
-                                  <input type="text" required placeholder="Ej. Impresa Repuestos - Metapán" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.nombre} onChange={(e) => updateSucursal(index, "nombre", e.target.value)} />
-                                </div>
-                              </div>
-                              
-                              <div className="grid grid-cols-1 gap-3 mb-3">
-                                <div>
-                                  <label className="block text-xs font-bold text-gray-600 mb-1">Dirección</label>
-                                  <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.direccion || ""} onChange={(e) => updateSucursal(index, "direccion", e.target.value)} />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 gap-3 mb-3">
-                                <div>
-                                  <label className="block text-xs font-bold text-gray-600 mb-1">Descripción</label>
-                                  <textarea rows={3} className="w-full border-gray-300 border p-2 rounded text-sm resize-y" value={suc.descripcion || ""} onChange={(e) => updateSucursal(index, "descripcion", e.target.value)} />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 gap-3 mb-3">
-                                <div>
-                                  <label className="block text-xs font-bold text-gray-600 mb-1">Antecedentes</label>
-                                  <textarea rows={3} className="w-full border-gray-300 border p-2 rounded text-sm resize-y" value={suc.antecedentes || ""} onChange={(e) => updateSucursal(index, "antecedentes", e.target.value)} />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 gap-3 mb-3">
-                                <div>
-                                  <label className="block text-xs font-bold text-gray-600 mb-1">Teléfono</label>
-                                  <input type="tel" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.telefono || ""} onChange={(e) => updateSucursal(index, "telefono", e.target.value)} />
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-1 gap-3 mb-3">
-                                <div>
-                                  <label className="block text-xs font-bold text-gray-600 mb-1">Ubicación GPS</label>
-                                  <div className="h-[200px]">
-                                    <MapSelector value={suc.mapaUrl || ""} onChange={(val) => updateSucursal(index, "mapaUrl", val)} />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -709,6 +659,98 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Sucursales Modal */}
+      {sucursalesModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden my-8 relative flex flex-col max-h-[90vh]">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+              <h3 className="font-bold text-xl text-gray-800">
+                Sucursales de {currentEmpresaForSucs?.nombre}
+              </h3>
+              <button onClick={() => setSucursalesModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="flex justify-between items-center border-b pb-2 mb-4">
+                <h4 className="font-bold text-brand-red">Lista de Sucursales</h4>
+                <button type="button" onClick={addTempSucursal} className="text-xs bg-brand-red/10 text-brand-red hover:bg-brand-red hover:text-white px-3 py-1.5 rounded-lg font-bold transition-colors">
+                  + Agregar Sucursal
+                </button>
+              </div>
+
+              <div className="space-y-4 pr-2">
+                {tempSucs.length === 0 ? (
+                  <div className="text-center p-6 bg-gray-50 border border-gray-200 rounded-xl text-gray-500 text-sm">
+                    Esta empresa no tiene sucursales registradas.
+                  </div>
+                ) : (
+                  tempSucs.map((suc, index) => (
+                    <div key={index} className="bg-slate-50 border border-slate-200 p-4 rounded-xl relative group">
+                      <button type="button" onClick={() => removeTempSucursal(index)} className="absolute top-3 right-3 text-gray-400 hover:text-red-500 transition-colors bg-white rounded-full p-1 shadow-sm">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1">Nombre de Sucursal *</label>
+                            <input type="text" required placeholder="Ej. Impresa Repuestos - Metapán" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.nombre} onChange={(e) => updateTempSucursal(index, "nombre", e.target.value)} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1">Dirección</label>
+                            <input type="text" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.direccion || ""} onChange={(e) => updateTempSucursal(index, "direccion", e.target.value)} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1">Teléfono</label>
+                            <input type="tel" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.telefono || ""} onChange={(e) => updateTempSucursal(index, "telefono", e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1">Descripción</label>
+                            <textarea rows={3} className="w-full border-gray-300 border p-2 rounded text-sm resize-y" value={suc.descripcion || ""} onChange={(e) => updateTempSucursal(index, "descripcion", e.target.value)} />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-600 mb-1">Antecedentes</label>
+                            <textarea rows={3} className="w-full border-gray-300 border p-2 rounded text-sm resize-y" value={suc.antecedentes || ""} onChange={(e) => updateTempSucursal(index, "antecedentes", e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="col-span-1 md:col-span-2">
+                          <label className="block text-xs font-bold text-gray-600 mb-1">Ubicación GPS</label>
+                          <div className="h-[200px]">
+                            <MapSelector value={suc.mapaUrl || ""} onChange={(val) => updateTempSucursal(index, "mapaUrl", val)} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-100 flex justify-end gap-3 shrink-0 bg-gray-50">
+              <button
+                type="button"
+                onClick={() => setSucursalesModalOpen(false)}
+                disabled={isSavingSucs}
+                className="px-5 py-2.5 rounded-xl font-bold text-sm text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSucursales}
+                disabled={isSavingSucs}
+                className="bg-brand-red hover:bg-red-800 text-white px-6 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                {isSavingSucs ? "Guardando..." : "Guardar Sucursales"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -251,6 +251,38 @@ export async function toggleEmpresaStatus(id: number, currentStatus: boolean) {
   }
 }
 
+export async function updateSucursalesSolo(empresaId: number, sucs: SucursalData[]) {
+  try {
+    if (sucs && sucs.length > 0) {
+      const keepIds = sucs.filter(s => s.id).map(s => s.id as number);
+      
+      const existingSucs = await db.select({ id: sucursales.id }).from(sucursales).where(eq(sucursales.empresaId, empresaId));
+      const existingIds = existingSucs.map(s => s.id);
+      
+      const toDelete = existingIds.filter(eid => !keepIds.includes(eid));
+      if (toDelete.length > 0) {
+        for (const delId of toDelete) {
+          await db.delete(sucursales).where(eq(sucursales.id, delId));
+        }
+      }
+
+      for (const s of sucs) {
+        if (s.id) {
+          await db.update(sucursales).set({ ...s }).where(eq(sucursales.id, s.id));
+        } else {
+          await db.insert(sucursales).values({ ...s, empresaId });
+        }
+      }
+    } else {
+      await db.delete(sucursales).where(eq(sucursales.empresaId, empresaId));
+    }
+    revalidatePath("/admin/empresas");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function deleteEmpresa(id: number) {
   try {
     await db.delete(empresas).where(eq(empresas.id, id));
