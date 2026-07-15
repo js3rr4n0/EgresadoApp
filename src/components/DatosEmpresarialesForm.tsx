@@ -92,23 +92,30 @@ export default function DatosEmpresarialesForm({
     }
   });
 
+  const removeAccents = (str: string) => {
+    return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  };
+
   const options: any[] = [];
   empresas.filter(e => e.habilitada).forEach(emp => {
-    options.push({ type: 'matriz', id: emp.id, empresaId: emp.id, nombre: emp.nombre, label: `${emp.nombre} (Matriz)`, search: emp.nombre.toLowerCase() });
+    const searchMatriz = removeAccents(emp.nombre.toLowerCase());
+    options.push({ type: 'matriz', id: emp.id, empresaId: emp.id, nombre: emp.nombre, label: `${emp.nombre} (Matriz)`, search: searchMatriz });
     const empSucursales = sucursales.filter(s => s.empresaId === emp.id);
     empSucursales.forEach(suc => {
+      const searchSuc = removeAccents(`${suc.nombre.toLowerCase()} ${emp.nombre.toLowerCase()}`);
       options.push({
         type: 'sucursal',
         id: suc.id,
         empresaId: emp.id,
         nombre: suc.nombre,
         label: `${suc.nombre} (Sucursal - ${emp.nombre})`,
-        search: `${suc.nombre.toLowerCase()} ${emp.nombre.toLowerCase()}`
+        search: searchSuc
       });
     });
   });
 
-  const filteredOptions = options.filter(opt => opt.search.includes(searchQuery.toLowerCase()));
+  const normalizedQuery = removeAccents(searchQuery.toLowerCase());
+  const filteredOptions = options.filter(opt => opt.search.includes(normalizedQuery));
 
   const handleSelectOption = (opt: any) => {
     setSelectedEmpresaId(opt.empresaId);
