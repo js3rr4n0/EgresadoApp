@@ -121,43 +121,57 @@ export default async function EgresadoPage({
         </div>
 
         <div className="flex-1 bg-white border border-border rounded-xl p-8 shadow-sm">
-          {currentStep === 1 && (
+          {propuesta.bloqueada ? (
+            <div className="text-center py-12 space-y-4">
+              <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-600">
+                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              </div>
+              <h2 className="text-2xl font-bold text-card-dark">En espera de aprobación de empresa</h2>
+              <p className="text-muted max-w-md mx-auto">
+                Has enviado una solicitud para registrar o actualizar una empresa. No puedes avanzar en la redacción de tu propuesta hasta que la administración apruebe los datos.
+              </p>
+            </div>
+          ) : (
             <>
-              <h2 className="text-xl font-bold text-foreground mb-2">1. Portada</h2>
-              <p className="text-sm text-muted mb-8">Verifica tus datos personales para pasar a la siguiente etapa.</p>
-              <PortadaForm 
-                initialData={{
-                  nombreCompleto: userDetails.nombreCompleto,
-                  carnet: userDetails.carnet,
-                  carrera: userDetails.carrera,
-                  mesEnvio,
-                }}
-              />
-            </>
-          )}
+              {currentStep === 1 && (
+                <>
+                  <h2 className="text-xl font-bold text-foreground mb-2">1. Portada</h2>
+                  <p className="text-sm text-muted mb-8">Verifica tus datos personales para pasar a la siguiente etapa.</p>
+                  <PortadaForm 
+                    initialData={{
+                      nombreCompleto: userDetails.nombreCompleto,
+                      carnet: userDetails.carnet,
+                      carrera: userDetails.carrera,
+                      mesEnvio,
+                    }}
+                  />
+                </>
+              )}
 
-          {currentStep === 2 && (
-            <>
-              <h2 className="text-xl font-bold text-foreground mb-2">2. Datos empresariales</h2>
-              <p className="text-sm text-muted mb-8">Selecciona la empresa o institución donde realizarás tu pasantía. Al seleccionarla, se cargarán automáticamente los datos correspondientes.</p>
-              <DatosEmpresarialesForm 
-                propuestaId={propuesta.id}
-                initialEmpresaId={propuesta.empresaId}
-                initialSucursalId={propuesta.sucursalId}
-                empresas={empresasList}
-                sucursales={sucursalesList}
-              />
-            </>
-          )}
+              {currentStep === 2 && (
+                <>
+                  <h2 className="text-xl font-bold text-foreground mb-2">2. Datos empresariales</h2>
+                  <p className="text-sm text-muted mb-8">Selecciona la empresa o institución donde realizarás tu pasantía. Al seleccionarla, se cargarán automáticamente los datos correspondientes.</p>
+                  <DatosEmpresarialesForm 
+                    propuestaId={propuesta.id}
+                    initialEmpresaId={propuesta.empresaId}
+                    initialSucursalId={propuesta.sucursalId}
+                    empresas={empresasList}
+                    sucursales={sucursalesList}
+                  />
+                </>
+              )}
 
-          {currentStep === 4 && (
-            <>
-              <h2 className="text-xl font-bold text-foreground mb-2">4. Carta de Aceptación</h2>
-              <p className="text-sm text-muted mb-8">Digita los datos de la carta emitida por la empresa para validar tu pasantía.</p>
-              <CartaForm 
-                propuestaId={propuesta.id}
-                initialData={cartaData}
-              />
+              {currentStep === 4 && (
+                <>
+                  <h2 className="text-xl font-bold text-foreground mb-2">4. Carta de Aceptación</h2>
+                  <p className="text-sm text-muted mb-8">Digita los datos de la carta emitida por la empresa para validar tu pasantía.</p>
+                  <CartaForm 
+                    propuestaId={propuesta.id}
+                    initialData={cartaData}
+                  />
+                </>
+              )}
             </>
           )}
 

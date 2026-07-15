@@ -140,6 +140,16 @@ export const organigramasEmpresa = pgTable("organigramas_empresa", {
   subidoEn: timestamp("subido_en", { withTimezone: true }).defaultNow(),
 });
 
+export const historialEmpresas = pgTable("historial_empresas", {
+  id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id")
+    .notNull()
+    .references(() => empresas.id, { onDelete: "cascade" }),
+  adminId: integer("admin_id").references(() => usuarios.id),
+  cambios: jsonb("cambios").notNull(), // { before: {...}, after: {...} } or text
+  fecha: timestamp("fecha", { withTimezone: true }).defaultNow(),
+});
+
 export const sucursales = pgTable("sucursales", {
   id: serial("id").primaryKey(),
   empresaId: integer("empresa_id")
@@ -301,11 +311,12 @@ export const solicitudesEmpresa = pgTable(
     justificacionRechazo: text("justificacion_rechazo"),
     revisadoPor: integer("revisado_por").references(() => usuarios.id),
     revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).defaultNow(),
   },
   (table) => [
     check(
       "tipo_solicitud_check",
-      sql`${table.tipo} IN ('nueva', 'modificacion')`
+      sql`${table.tipo} IN ('nueva', 'actualizacion', 'modificacion')`
     ),
     check(
       "estado_solicitud_check",

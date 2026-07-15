@@ -156,41 +156,19 @@ export async function solicitarRevisionEmpresa(propuestaId: number, data: any, m
   if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
 
   try {
-    const { empresas, supervisores } = await import("@/lib/schema");
+    const { solicitudesEmpresa } = await import("@/lib/schema");
 
-    // 1. Insert new unverified company
-    const newEmpresas = await db.insert(empresas).values({
-      nombre: data.empresa.nombre,
-      area: data.empresa.area,
-      descripcion: data.empresa.descripcion,
-      antecedentes: data.empresa.antecedentes,
-      direccion: data.empresa.direccion,
-      mapaUrl: data.empresa.mapaUrl || null,
-      organigramaUrl: data.empresa.organigramaUrl || null,
-      habilitada: false, // Locked until admin approves
-      verificada: false,
-    }).returning({ id: empresas.id });
-    
-    const newEmpresaId = newEmpresas[0].id;
+    // 1. Insert request into solicitudes_empresa
+    await db.insert(solicitudesEmpresa).values({
+      propuestaId,
+      tipo: mode === "edit_existing" ? "actualizacion" : "nueva",
+      datos: data,
+      estado: "pendiente"
+    });
 
-    // 2. Insert supervisor linked to the new company
-    const newSupervisores = await db.insert(supervisores).values({
-      empresaId: newEmpresaId,
-      nombres: data.supervisor.nombres,
-      apellidos: data.supervisor.apellidos,
-      cargo: data.supervisor.cargo,
-      especialidad: data.supervisor.especialidad,
-      telefono: data.supervisor.telefono,
-      correo: data.supervisor.correo,
-    }).returning({ id: supervisores.id });
-    
-    const newSupervisorId = newSupervisores[0].id;
-
-    // 3. Update propuesta state and IDs
+    // 2. Update propuesta state and block it
     await db.update(propuestas)
       .set({
-        empresaId: newEmpresaId,
-        supervisorId: newSupervisorId,
         estado: mode === "edit_existing" ? "pend_revision_datos" : "pend_empresa_nueva",
         bloqueada: true
       })
