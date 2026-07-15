@@ -30,20 +30,49 @@ export async function uploadDocumento(formData: FormData) {
     // We append the mime type so it can be easily opened in the browser as a data URI
     const dataUrl = `data:${file.type};base64,${base64String}`;
 
-    // Guardar en base de datos
-    await db.insert(documentosEgresado).values({
-      egresadoId: session.userId,
-      tipo,
-      archivoUrl: dataUrl,
-    });
+    // Guardar en base de datos (UPSERT)
+    await db.insert(documentosEgresado)
+      .values({
+        egresadoId: session.userId,
+        tipo,
+        archivoUrl: dataUrl,
+      })
+      .onConflictDoUpdate({
+        target: [documentosEgresado.egresadoId, documentosEgresado.tipo],
+        set: { archivoUrl: dataUrl, subidoEn: new Date() }
+      });
 
     revalidatePath("/egresado");
     return { success: true };
   } catch (error: any) {
     console.error("Error al subir documento:", error);
-    if (error.code === '23505') {
-      return { success: false, error: "Ya subiste este documento anteriormente." };
+    return { success: false, error: "Ocurrió un error en el servidor." };
+  }
+}
+
+export async function deleteDocumento(tipo: string) {
+  try {
+    const session = await getSession();
+    if (!session || session.rol !== "egresado") {
+      return { success: false, error: "No autorizado." };
     }
+
+    if (!["servicio_social", "certificacion_notas", "pago_tg"].includes(tipo)) {
+      return { success: false, error: "Tipo de documento inválido." };
+    }
+
+    const { and, eq } = await import("drizzle-orm");
+    await db.delete(documentosEgresado).where(
+      and(
+        eq(documentosEgresado.egresadoId, session.userId),
+        eq(documentosEgresado.tipo, tipo)
+      )
+    );
+
+    revalidatePath("/egresado");
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error al eliminar documento:", error);
     return { success: false, error: "Ocurrió un error en el servidor." };
   }
 }
