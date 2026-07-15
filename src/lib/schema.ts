@@ -190,6 +190,7 @@ export const propuestas = pgTable(
     numero: smallint("numero").notNull(),
     estado: varchar("estado", { length: 30 }).notNull().default("redactando"),
     empresaId: integer("empresa_id").references(() => empresas.id),
+    sucursalId: integer("sucursal_id").references(() => sucursales.id),
     supervisorId: integer("supervisor_id").references(() => supervisores.id),
     justificacionProceso: text("justificacion_proceso"),
     enviadaEn: timestamp("enviada_en", { withTimezone: true }),

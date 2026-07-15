@@ -16,21 +16,38 @@ interface Empresa {
   habilitada: boolean;
 }
 
+interface Sucursal {
+  id: number;
+  empresaId: number;
+  nombre: string;
+  direccion: string | null;
+  telefono: string | null;
+  mapaUrl: string | null;
+}
+
 interface DatosEmpresarialesFormProps {
   propuestaId: number;
   initialEmpresaId: number | null;
+  initialSucursalId?: number | null;
   empresas: Empresa[];
+  sucursales?: Sucursal[];
 }
 
 export default function DatosEmpresarialesForm({
   propuestaId,
   initialEmpresaId,
+  initialSucursalId,
   empresas,
+  sucursales = [],
 }: DatosEmpresarialesFormProps) {
   const router = useRouter();
-  const [selectedEmpresaId, setSelectedEmpresaId] = useState<number | "">(
-    initialEmpresaId || ""
-  );
+  
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState<number | null>(initialEmpresaId || null);
+  const [selectedSucursalId, setSelectedSucursalId] = useState<number | null>(initialSucursalId || null);
+  
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  
   const [isSaving, setIsSaving] = useState(false);
 
   // Modals state
@@ -61,17 +78,58 @@ export default function DatosEmpresarialesForm({
     }
   });
 
-  const selectedEmpresa = empresas.find((e) => e.id === Number(selectedEmpresaId));
+  const selectedEmpresa = empresas.find((e) => e.id === selectedEmpresaId);
+  const selectedSucursal = sucursales.find((s) => s.id === selectedSucursalId);
+
+  // Initialize search query if there's a selection
+  useState(() => {
+    if (selectedEmpresa) {
+      if (selectedSucursal) {
+        setSearchQuery(`${selectedSucursal.nombre} (Sucursal - ${selectedEmpresa.nombre})`);
+      } else {
+        setSearchQuery(`${selectedEmpresa.nombre} (Matriz)`);
+      }
+    }
+  });
+
+  const options: any[] = [];
+  empresas.filter(e => e.habilitada).forEach(emp => {
+    options.push({ type: 'matriz', id: emp.id, empresaId: emp.id, nombre: emp.nombre, label: `${emp.nombre} (Matriz)`, search: emp.nombre.toLowerCase() });
+    const empSucursales = sucursales.filter(s => s.empresaId === emp.id);
+    empSucursales.forEach(suc => {
+      options.push({
+        type: 'sucursal',
+        id: suc.id,
+        empresaId: emp.id,
+        nombre: suc.nombre,
+        label: `${suc.nombre} (Sucursal - ${emp.nombre})`,
+        search: `${suc.nombre.toLowerCase()} ${emp.nombre.toLowerCase()}`
+      });
+    });
+  });
+
+  const filteredOptions = options.filter(opt => opt.search.includes(searchQuery.toLowerCase()));
+
+  const handleSelectOption = (opt: any) => {
+    setSelectedEmpresaId(opt.empresaId);
+    if (opt.type === 'sucursal') {
+      setSelectedSucursalId(opt.id);
+      setSearchQuery(opt.label);
+    } else {
+      setSelectedSucursalId(null);
+      setSearchQuery(opt.label);
+    }
+    setIsDropdownOpen(false);
+  };
 
   const handleSave = async (isContinue: boolean = false) => {
     setIsSaving(true);
-    const empresaId = selectedEmpresaId !== "" ? Number(selectedEmpresaId) : null;
-    const res = await updateEmpresa(propuestaId, empresaId);
+    const res = await updateEmpresa(propuestaId, selectedEmpresaId, selectedSucursalId);
     setIsSaving(false);
 
     if (res.success) {
       if (isContinue) {
-        if (!empresaId) {
+        if (!selectedEmpresaId) {
           alert("Por favor selecciona una empresa antes de continuar.");
           return;
         }
@@ -150,22 +208,46 @@ export default function DatosEmpresarialesForm({
             Nombre de la empresa o institución <span className="text-brand-red">*</span>
           </label>
           <div className="relative">
-            <select
-              value={selectedEmpresaId}
-              onChange={(e) => setSelectedEmpresaId(e.target.value === "" ? "" : Number(e.target.value))}
-              className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-colors appearance-none"
-            >
-              <option value="">Selecciona una empresa...</option>
-              {empresas.map((empresa) => (
-                <option key={empresa.id} value={empresa.id} disabled={!empresa.habilitada}>
-                  {empresa.nombre} {empresa.habilitada ? "(Habilitada)" : "(Deshabilitada)"}
-                </option>
-              ))}
-            </select>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsDropdownOpen(true);
+                if (e.target.value === "") {
+                  setSelectedEmpresaId(null);
+                  setSelectedSucursalId(null);
+                }
+              }}
+              onFocus={() => setIsDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
+              placeholder="Escribe para buscar empresa o sucursal..."
+              className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-colors"
+            />
+            {isDropdownOpen && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                {filteredOptions.length > 0 ? (
+                  filteredOptions.map((opt, idx) => (
+                    <div
+                      key={idx}
+                      onMouseDown={() => handleSelectOption(opt)}
+                      className={`px-4 py-2 cursor-pointer hover:bg-red-50 hover:text-brand-red transition-colors ${
+                        (opt.type === 'matriz' && opt.id === selectedEmpresaId && !selectedSucursalId) ||
+                        (opt.type === 'sucursal' && opt.id === selectedSucursalId)
+                          ? "bg-red-50 text-brand-red font-bold"
+                          : "text-slate-700"
+                      }`}
+                    >
+                      {opt.label}
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-4 py-3 text-sm text-muted">No se encontraron empresas ni sucursales.</div>
+                )}
+              </div>
+            )}
             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
           </div>
         </div>
@@ -221,13 +303,13 @@ export default function DatosEmpresarialesForm({
 
             <div>
               <label className="block text-sm font-bold text-foreground mb-1.5">
-                Dirección de la empresa <span className="text-brand-red">*</span>
+                Dirección de la empresa o sucursal <span className="text-brand-red">*</span>
               </label>
               <div className="relative">
                 <input
                   type="text"
                   readOnly
-                  value={selectedEmpresa.direccion || "Sin dirección"}
+                  value={selectedSucursal ? (selectedSucursal.direccion || "Sin dirección") : (selectedEmpresa.direccion || "Sin dirección")}
                   className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none"
                 />
                 <InputLock />
@@ -256,11 +338,11 @@ export default function DatosEmpresarialesForm({
 
               <div>
                 <label className="block text-sm font-bold text-foreground mb-1.5">
-                  Mapa de ubicación de la empresa <span className="text-brand-red">*</span>
+                  Mapa de ubicación <span className="text-brand-red">*</span>
                 </label>
-                {selectedEmpresa.mapaUrl ? (
+                {(selectedSucursal?.mapaUrl || selectedEmpresa.mapaUrl) ? (
                   <a
-                    href={selectedEmpresa.mapaUrl}
+                    href={selectedSucursal?.mapaUrl || selectedEmpresa.mapaUrl!}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg border-2 border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold text-sm transition-colors"

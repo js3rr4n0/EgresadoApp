@@ -34,6 +34,7 @@ export default async function EgresadoPage({
   const { propuesta, userDetails, mesEnvio } = data;
   let cartaData = null;
   let empresasList: any[] = [];
+  let sucursalesList: any[] = [];
   
   if (currentStep === 4) {
     cartaData = await getCartaAceptacion(propuesta.id);
@@ -41,7 +42,9 @@ export default async function EgresadoPage({
   
   if (currentStep === 2) {
     // Order alphabetically
+    const { sucursales } = await import("@/lib/schema");
     empresasList = await db.select().from(empresas).orderBy(asc(empresas.nombre));
+    sucursalesList = await db.select().from(sucursales).orderBy(asc(sucursales.nombre));
   }
 
   // Mapa de estados para etiquetas visuales
@@ -140,7 +143,9 @@ export default async function EgresadoPage({
               <DatosEmpresarialesForm 
                 propuestaId={propuesta.id}
                 initialEmpresaId={propuesta.empresaId}
+                initialSucursalId={propuesta.sucursalId}
                 empresas={empresasList}
+                sucursales={sucursalesList}
               />
             </>
           )}
