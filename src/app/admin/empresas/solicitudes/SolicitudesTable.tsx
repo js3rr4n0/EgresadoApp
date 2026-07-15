@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { aprobarSolicitudEmpresa, rechazarSolicitudEmpresa } from "@/app/actions/solicitudes";
 
-export default function SolicitudesTable({ solicitudes }: { solicitudes: any[] }) {
+export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSucursales = [] }: { solicitudes: any[], allEmpresas?: any[], allSucursales?: any[] }) {
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -160,24 +160,76 @@ export default function SolicitudesTable({ solicitudes }: { solicitudes: any[] }
           </div>
           <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm text-slate-700">
             <div>
-              <h4 className="font-bold text-brand-red border-b border-border pb-1 mb-2">Datos de la Empresa</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa.nombre}</div>
-                <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa.area}</div>
-                <div className="col-span-2"><span className="font-bold">Dirección:</span> {viewDetails.datos.empresa.direccion}</div>
-                <div className="col-span-2">
-                  <span className="font-bold block mb-1">Descripción:</span>
-                  <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
-                    {viewDetails.datos.empresa.descripcion}
+              <h4 className="font-bold text-brand-red border-b border-border pb-1 mb-4">Datos de la Empresa</h4>
+              
+              {viewDetails.tipo === "actualizacion" ? (
+                (() => {
+                  const targetEmpresa = allEmpresas?.find(e => e.id === viewDetails.datos.empresa.targetEmpresaId);
+                  const targetSucursal = allSucursales?.find(s => s.id === viewDetails.datos.empresa.targetSucursalId);
+                  
+                  return (
+                    <div className="grid grid-cols-2 gap-6">
+                      {/* BEFORE */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                        <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Datos Actuales (Antes)</h5>
+                        <div><span className="font-bold">Nombre:</span> {targetSucursal ? `${targetSucursal.nombre} (Sucursal)` : targetEmpresa?.nombre}</div>
+                        <div><span className="font-bold">Área:</span> {targetEmpresa?.area}</div>
+                        <div><span className="font-bold block mb-1">Dirección:</span> <div className="text-xs">{targetSucursal ? targetSucursal.direccion : targetEmpresa?.direccion}</div></div>
+                        <div>
+                          <span className="font-bold block mb-1">Descripción:</span>
+                          <div className="bg-white p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
+                            {targetSucursal?.descripcion || targetEmpresa?.descripcion || "Sin descripción"}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="font-bold block mb-1">Antecedentes:</span>
+                          <div className="bg-white p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
+                            {targetSucursal?.antecedentes || targetEmpresa?.antecedentes || "Sin antecedentes"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* AFTER */}
+                      <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-4 space-y-3">
+                        <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-600 mb-2">Cambios Propuestos (Después)</h5>
+                        <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa.nombre}</div>
+                        <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa.area}</div>
+                        <div><span className="font-bold block mb-1">Dirección:</span> <div className="text-xs">{viewDetails.datos.empresa.direccion}</div></div>
+                        <div>
+                          <span className="font-bold block mb-1">Descripción:</span>
+                          <div className="bg-white p-2 rounded border border-emerald-50 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
+                            {viewDetails.datos.empresa.descripcion || "Sin descripción"}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="font-bold block mb-1">Antecedentes:</span>
+                          <div className="bg-white p-2 rounded border border-emerald-50 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
+                            {viewDetails.datos.empresa.antecedentes || "Sin antecedentes"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa.nombre}</div>
+                  <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa.area}</div>
+                  <div className="col-span-2"><span className="font-bold">Dirección:</span> {viewDetails.datos.empresa.direccion}</div>
+                  <div className="col-span-2">
+                    <span className="font-bold block mb-1">Descripción:</span>
+                    <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                      {viewDetails.datos.empresa.descripcion}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="font-bold block mb-1">Antecedentes:</span>
+                    <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                      {viewDetails.datos.empresa.antecedentes}
+                    </div>
                   </div>
                 </div>
-                <div className="col-span-2">
-                  <span className="font-bold block mb-1">Antecedentes:</span>
-                  <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
-                    {viewDetails.datos.empresa.antecedentes}
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
             
             <div>

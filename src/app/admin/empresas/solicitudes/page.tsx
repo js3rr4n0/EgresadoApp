@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { solicitudesEmpresa, empresas, propuestas, usuarios } from "@/lib/schema";
+import { solicitudesEmpresa, empresas, propuestas, usuarios, sucursales } from "@/lib/schema";
 import { desc, eq } from "drizzle-orm";
 import SolicitudesTable from "./SolicitudesTable";
 
@@ -30,7 +30,11 @@ export default async function SolicitudesEmpresaPage() {
       </div>
 
       <div className="bg-white border border-border rounded-xl shadow-sm p-1">
-        <SolicitudesTable solicitudes={solicitudes} />
+        <SolicitudesTable 
+          solicitudes={solicitudes} 
+          allEmpresas={await db.select().from(empresas)} 
+          allSucursales={await db.select().from(sucursales)}
+        />
       </div>
     </div>
   );
