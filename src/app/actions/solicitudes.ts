@@ -62,19 +62,35 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       
       const existingEmpresa = await db.query.empresas.findFirst({ where: eq(empresas.id, targetEmpresaId) });
       
-      await db.update(empresas).set({
+      const targetSucursalId = data.empresa.targetSucursalId;
+      
+      const updateData: any = {
         area: data.empresa.area,
         descripcion: data.empresa.descripcion,
         antecedentes: data.empresa.antecedentes,
-        direccion: data.empresa.direccion,
-        mapaUrl: data.empresa.mapaUrl || null,
         organigramaUrl: data.empresa.organigramaUrl || null,
         verificada: true,
         habilitada: true
-      }).where(eq(empresas.id, targetEmpresaId));
+      };
+      
+      if (!targetSucursalId) {
+        updateData.direccion = data.empresa.direccion;
+        updateData.mapaUrl = data.empresa.mapaUrl || null;
+      }
+      
+      await db.update(empresas).set(updateData).where(eq(empresas.id, targetEmpresaId));
+
+      if (targetSucursalId) {
+        const { sucursales } = await import("@/lib/schema");
+        await db.update(sucursales).set({
+          direccion: data.empresa.direccion,
+          mapaUrl: data.empresa.mapaUrl || null,
+        }).where(eq(sucursales.id, targetSucursalId));
+      }
 
       const newSupervisores = await db.insert(supervisores).values({
         empresaId: targetEmpresaId,
+        sucursalId: targetSucursalId || null,
         nombres: data.supervisor.nombres,
         apellidos: data.supervisor.apellidos,
         cargo: data.supervisor.cargo,
@@ -87,7 +103,7 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       await db.insert(historialEmpresas).values({
         empresaId: targetEmpresaId,
         adminId: session.userId,
-        cambios: { type: "update", before: existingEmpresa, after: data }
+        cambios: { type: "update", before: existingEmpresa, after: data, targetSucursalId }
       });
     }
 
@@ -98,8 +114,10 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
 
     // Update propuesta to unlock it
     if (solicitud.propuestaId) {
+      const targetSucursalId = data.empresa.targetSucursalId;
       await db.update(propuestas).set({
         empresaId: targetEmpresaId,
+        sucursalId: targetSucursalId || null,
         supervisorId: targetSupervisorId,
         bloqueada: false,
         estado: "redactando"

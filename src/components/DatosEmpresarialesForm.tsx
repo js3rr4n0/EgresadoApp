@@ -164,23 +164,37 @@ export default function DatosEmpresarialesForm({
   };
 
   const handleExistingCompanySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const id = Number(e.target.value);
-    const emp = empresas.find(x => x.id === id);
-    if (emp) {
+    const val = e.target.value;
+    if (!val) {
+      setRevData(prev => ({ 
+        ...prev, 
+        empresa: { ...prev.empresa, nombre: "", targetEmpresaId: undefined, targetSucursalId: undefined }
+      }));
+      return;
+    }
+    
+    const [type, idStr] = val.split('-');
+    const id = Number(idStr);
+    const opt = options.find(o => o.type === type && o.id === id);
+    
+    if (opt) {
+      const emp = empresas.find(x => x.id === opt.empresaId);
+      const suc = type === 'sucursal' ? sucursales.find(x => x.id === id) : null;
+      
       setRevData(prev => ({
         ...prev,
         empresa: {
-          nombre: emp.nombre,
-          area: emp.area || "",
-          descripcion: emp.descripcion || "",
-          antecedentes: emp.antecedentes || "",
-          direccion: emp.direccion || "",
-          organigramaUrl: emp.organigramaUrl || "",
-          mapaUrl: emp.mapaUrl || "",
+          nombre: opt.label,
+          area: emp?.area || "",
+          descripcion: emp?.descripcion || "",
+          antecedentes: emp?.antecedentes || "",
+          direccion: suc?.direccion || emp?.direccion || "",
+          organigramaUrl: emp?.organigramaUrl || "",
+          mapaUrl: suc?.mapaUrl || emp?.mapaUrl || "",
+          targetEmpresaId: opt.empresaId,
+          targetSucursalId: type === 'sucursal' ? id : undefined,
         }
       }));
-    } else {
-      setRevData(prev => ({ ...prev, empresa: { ...prev.empresa, nombre: "" }}));
     }
   };
 
@@ -480,10 +494,20 @@ export default function DatosEmpresarialesForm({
                       onChange={handleExistingCompanySelect}
                       className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
                     >
-                      <option value="">Selecciona la empresa a corregir...</option>
-                      {empresas.filter(e => e.habilitada).map(e => (
-                        <option key={e.id} value={e.id}>{e.nombre}</option>
-                      ))}
+                      <option value="">Selecciona la empresa o sucursal a corregir...</option>
+                      {empresas.filter(e => e.habilitada).map(emp => {
+                        const empSucursales = sucursales.filter(s => s.empresaId === emp.id);
+                        return (
+                          <optgroup key={emp.id} label={emp.nombre}>
+                            <option value={`matriz-${emp.id}`}>{emp.nombre} (Matriz)</option>
+                            {empSucursales.map(suc => (
+                              <option key={suc.id} value={`sucursal-${suc.id}`}>
+                                {suc.nombre} (Sucursal)
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
                     </select>
                   </div>
                 ) : (

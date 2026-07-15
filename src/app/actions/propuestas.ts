@@ -161,6 +161,7 @@ export async function solicitarRevisionEmpresa(propuestaId: number, data: any, m
     // 1. Insert request into solicitudes_empresa
     await db.insert(solicitudesEmpresa).values({
       propuestaId,
+      empresaId: data.empresa.targetEmpresaId || null,
       tipo: mode === "edit_existing" ? "actualizacion" : "nueva",
       datos: data,
       estado: "pendiente"
