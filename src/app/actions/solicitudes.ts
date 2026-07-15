@@ -51,10 +51,11 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       targetSupervisorId = newSupervisores[0].id;
 
       // 3. Create historial
+      const cambiosPayload = JSON.parse(JSON.stringify({ type: "create", data }));
       await db.insert(historialEmpresas).values({
         empresaId: targetEmpresaId,
         adminId: session.userId,
-        cambios: { type: "create", data }
+        cambios: cambiosPayload
       });
     } else {
       // It's an update
@@ -100,10 +101,11 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       }).returning({ id: supervisores.id });
       targetSupervisorId = newSupervisores[0].id;
 
+      const cambiosPayload = JSON.parse(JSON.stringify({ type: "update", before: existingEmpresa, after: data, targetSucursalId }));
       await db.insert(historialEmpresas).values({
         empresaId: targetEmpresaId,
         adminId: session.userId,
-        cambios: { type: "update", before: existingEmpresa, after: data, targetSucursalId }
+        cambios: cambiosPayload
       });
     }
 
@@ -130,3 +132,43 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
     return { success: false, error: e.message };
   }
 }
+
+export async function rechazarSolicitudEmpresa(solicitudId: number, justificacion: string) {
+  const session = await getSession();
+  if (!session || session.rol !== "admin") return { success: false, error: "No autorizado" };
+
+  try {
+    const solicitud = await db.query.solicitudesEmpresa.findFirst({
+      where: eq(solicitudesEmpresa.id, solicitudId)
+    });
+    
+    if (!solicitud) return { success: false, error: "Solicitud no encontrada" };
+    if (solicitud.estado !== "pendiente") return { success: false, error: "La solicitud ya fue procesada" };
+
+    // Update solicitud to rejected
+    await db.update(solicitudesEmpresa)
+      .set({ 
+        estado: "rechazada", 
+        justificacionRechazo: justificacion,
+        revisadoPor: session.userId, 
+        revisadoEn: new Date() 
+      })
+      .where(eq(solicitudesEmpresa.id, solicitudId));
+
+    // Unlock propuesta so user can fix and try again
+    if (solicitud.propuestaId) {
+      // Return state to redactando, but we might want to alert them.
+      // Since it's returned to redactando, the UI will just let them edit the form again.
+      await db.update(propuestas).set({
+        bloqueada: false,
+        estado: "redactando"
+      }).where(eq(propuestas.id, solicitud.propuestaId));
+    }
+
+    revalidatePath("/admin/empresas/solicitudes");
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+

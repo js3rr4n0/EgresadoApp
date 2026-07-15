@@ -536,12 +536,12 @@ export default function DatosEmpresarialesForm({
 
                 <div>
                   <label className="block text-sm font-bold text-card-dark mb-1.5">Descripción <span className="text-brand-red">*</span></label>
-                  <textarea rows={2} value={revData.empresa.descripcion} onChange={e => setRevData(p => ({...p, empresa: {...p.empresa, descripcion: e.target.value}}))} className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red resize-none" />
+                  <textarea rows={10} value={revData.empresa.descripcion} onChange={e => setRevData(p => ({...p, empresa: {...p.empresa, descripcion: e.target.value}}))} className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red resize-y min-h-[150px]" />
                 </div>
 
                 <div>
                   <label className="block text-sm font-bold text-card-dark mb-1.5">Antecedentes <span className="text-brand-red">*</span></label>
-                  <textarea rows={2} value={revData.empresa.antecedentes} onChange={e => setRevData(p => ({...p, empresa: {...p.empresa, antecedentes: e.target.value}}))} className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red resize-none" />
+                  <textarea rows={10} value={revData.empresa.antecedentes} onChange={e => setRevData(p => ({...p, empresa: {...p.empresa, antecedentes: e.target.value}}))} className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red resize-y min-h-[150px]" />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -2,10 +2,13 @@
 
 import { useState } from "react";
 
-import { aprobarSolicitudEmpresa } from "@/app/actions/solicitudes";
+import { aprobarSolicitudEmpresa, rechazarSolicitudEmpresa } from "@/app/actions/solicitudes";
 
 export default function SolicitudesTable({ solicitudes }: { solicitudes: any[] }) {
   const [loadingId, setLoadingId] = useState<number | null>(null);
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [viewDetails, setViewDetails] = useState<any | null>(null);
 
   const handleApprove = async (id: number) => {
     if (!confirm("¿Estás seguro de aprobar esta solicitud? La empresa se guardará en la base de datos y la propuesta del egresado será desbloqueada.")) return;
@@ -21,7 +24,24 @@ export default function SolicitudesTable({ solicitudes }: { solicitudes: any[] }
     }
   };
 
+  const handleReject = async (id: number) => {
+    if (!rejectReason) return alert("Debes ingresar un motivo.");
+    
+    setLoadingId(id);
+    const res = await rechazarSolicitudEmpresa(id, rejectReason);
+    setLoadingId(null);
+    if (res.success) {
+      alert("Solicitud rechazada.");
+      setRejectingId(null);
+      setRejectReason("");
+      window.location.reload();
+    } else {
+      alert("Error: " + res.error);
+    }
+  };
+
   return (
+    <>
     <div className="overflow-x-auto">
       <table className="w-full text-sm text-left">
         <thead className="bg-slate-50 text-slate-500 font-medium">
@@ -73,14 +93,29 @@ export default function SolicitudesTable({ solicitudes }: { solicitudes: any[] }
                   {s.estado === "rechazada" && <span className="text-red-600 font-bold">Rechazada</span>}
                 </td>
                 <td className="px-6 py-4 text-right">
+                  <button
+                    onClick={() => setViewDetails(s)}
+                    className="mr-2 text-blue-600 hover:text-blue-800 font-bold text-xs"
+                  >
+                    Ver Detalles
+                  </button>
                   {s.estado === "pendiente" && (
-                    <button
-                      onClick={() => handleApprove(s.id)}
-                      disabled={loadingId === s.id}
-                      className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
-                    >
-                      {loadingId === s.id ? "Aprobando..." : "Aprobar"}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleApprove(s.id)}
+                        disabled={loadingId === s.id}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50 mr-2"
+                      >
+                        {loadingId === s.id ? "..." : "Aprobar"}
+                      </button>
+                      <button
+                        onClick={() => setRejectingId(s.id)}
+                        disabled={loadingId === s.id}
+                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                      >
+                        Rechazar
+                      </button>
+                    </>
                   )}
                 </td>
               </tr>
@@ -89,5 +124,81 @@ export default function SolicitudesTable({ solicitudes }: { solicitudes: any[] }
         </tbody>
       </table>
     </div>
+
+    {/* Reject Modal */}
+    {rejectingId && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-in fade-in zoom-in-95">
+          <h3 className="text-xl font-bold text-card-dark mb-4">Rechazar Solicitud</h3>
+          <p className="text-sm text-muted mb-4">Ingresa el motivo del rechazo para que el egresado pueda corregirlo.</p>
+          <textarea
+            value={rejectReason}
+            onChange={e => setRejectReason(e.target.value)}
+            placeholder="Motivo del rechazo..."
+            rows={3}
+            className="w-full px-3 py-2 border border-border rounded-lg mb-4 resize-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+          />
+          <div className="flex justify-end gap-3">
+            <button onClick={() => setRejectingId(null)} className="px-4 py-2 border border-border rounded-lg font-bold text-sm">Cancelar</button>
+            <button onClick={() => handleReject(rejectingId)} disabled={loadingId === rejectingId} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm">
+              {loadingId === rejectingId ? "Procesando..." : "Confirmar Rechazo"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* View Details Modal */}
+    {viewDetails && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+          <div className="p-6 border-b border-border flex justify-between items-center shrink-0">
+            <h3 className="text-xl font-bold text-card-dark">Detalles de Solicitud</h3>
+            <button onClick={() => setViewDetails(null)} className="text-muted hover:text-foreground">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+          </div>
+          <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm text-slate-700">
+            <div>
+              <h4 className="font-bold text-brand-red border-b border-border pb-1 mb-2">Datos de la Empresa</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa.nombre}</div>
+                <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa.area}</div>
+                <div className="col-span-2"><span className="font-bold">Dirección:</span> {viewDetails.datos.empresa.direccion}</div>
+                <div className="col-span-2">
+                  <span className="font-bold block mb-1">Descripción:</span>
+                  <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                    {viewDetails.datos.empresa.descripcion}
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <span className="font-bold block mb-1">Antecedentes:</span>
+                  <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                    {viewDetails.datos.empresa.antecedentes}
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-bold text-brand-red border-b border-border pb-1 mb-2">Datos del Supervisor</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor.nombres}</div>
+                <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor.apellidos}</div>
+                <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor.cargo}</div>
+                <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor.telefono}</div>
+                <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor.correo}</div>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 border-t border-border flex justify-end shrink-0">
+            <button onClick={() => setViewDetails(null)} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold text-sm transition-colors">
+              Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
