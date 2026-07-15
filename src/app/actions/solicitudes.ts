@@ -67,14 +67,14 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       
       const updateData: any = {
         area: data.empresa.area,
-        descripcion: data.empresa.descripcion,
-        antecedentes: data.empresa.antecedentes,
         organigramaUrl: data.empresa.organigramaUrl || null,
         verificada: true,
         habilitada: true
       };
       
       if (!targetSucursalId) {
+        updateData.descripcion = data.empresa.descripcion;
+        updateData.antecedentes = data.empresa.antecedentes;
         updateData.direccion = data.empresa.direccion;
         updateData.mapaUrl = data.empresa.mapaUrl || null;
       }
@@ -86,6 +86,8 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         await db.update(sucursales).set({
           direccion: data.empresa.direccion,
           mapaUrl: data.empresa.mapaUrl || null,
+          descripcion: data.empresa.descripcion,
+          antecedentes: data.empresa.antecedentes,
         }).where(eq(sucursales.id, targetSucursalId));
       }
 

@@ -23,6 +23,8 @@ interface Sucursal {
   direccion: string | null;
   telefono: string | null;
   mapaUrl: string | null;
+  descripcion?: string | null;
+  antecedentes?: string | null;
 }
 
 interface DatosEmpresarialesFormProps {
@@ -298,9 +300,9 @@ export default function DatosEmpresarialesForm({
                 <div className="relative">
                   <textarea
                     readOnly
-                    value={selectedEmpresa.descripcion || "Sin descripción"}
-                    rows={2}
-                    className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none resize-none"
+                    value={selectedSucursal?.descripcion || selectedEmpresa.descripcion || "Sin descripción"}
+                    rows={6}
+                    className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none resize-y min-h-[150px]"
                   />
                   <InputLock />
                 </div>
@@ -314,9 +316,9 @@ export default function DatosEmpresarialesForm({
               <div className="relative">
                 <textarea
                   readOnly
-                  value={selectedEmpresa.antecedentes || "Sin antecedentes"}
-                  rows={3}
-                  className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none resize-none"
+                  value={selectedSucursal?.antecedentes || selectedEmpresa.antecedentes || "Sin antecedentes"}
+                  rows={6}
+                  className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none resize-y min-h-[150px]"
                 />
                 <InputLock />
               </div>

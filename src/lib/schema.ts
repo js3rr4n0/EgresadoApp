@@ -159,6 +159,8 @@ export const sucursales = pgTable("sucursales", {
   direccion: text("direccion"),
   telefono: varchar("telefono", { length: 50 }),
   mapaUrl: text("mapa_url"),
+  descripcion: text("descripcion"),
+  antecedentes: text("antecedentes"),
   creadaEn: timestamp("creada_en", { withTimezone: true }).defaultNow(),
 });
 

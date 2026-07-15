@@ -23,6 +23,8 @@ export type SucursalData = {
   direccion?: string;
   telefono?: string;
   mapaUrl?: string;
+  descripcion?: string;
+  antecedentes?: string;
 };
 
 export type FirmanteData = {

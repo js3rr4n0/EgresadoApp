@@ -656,6 +656,20 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
 
                               <div className="grid grid-cols-1 gap-3 mb-3">
                                 <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Descripción</label>
+                                  <textarea rows={3} className="w-full border-gray-300 border p-2 rounded text-sm resize-y" value={suc.descripcion || ""} onChange={(e) => updateSucursal(index, "descripcion", e.target.value)} />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-3 mb-3">
+                                <div>
+                                  <label className="block text-xs font-bold text-gray-600 mb-1">Antecedentes</label>
+                                  <textarea rows={3} className="w-full border-gray-300 border p-2 rounded text-sm resize-y" value={suc.antecedentes || ""} onChange={(e) => updateSucursal(index, "antecedentes", e.target.value)} />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-3 mb-3">
+                                <div>
                                   <label className="block text-xs font-bold text-gray-600 mb-1">Teléfono</label>
                                   <input type="tel" className="w-full border-gray-300 border p-2 rounded text-sm" value={suc.telefono || ""} onChange={(e) => updateSucursal(index, "telefono", e.target.value)} />
                                 </div>
