@@ -74,10 +74,9 @@ export default async function EgresadoPage({
     { num: 2, title: "Datos empresariales", desc: "Información de la institución" },
     { num: 3, title: "Datos de supervisor", desc: "Información del supervisor" },
     { num: 4, title: "Carta de Aceptación", desc: "Documento de aceptación" },
-    { num: 5, title: "Datos de emisor", desc: "Datos de quien emite" },
-    { num: 6, title: "Descripción de actividades", desc: "Actividades que realizarás" },
-    { num: 7, title: "Justificación del proceso", desc: "Justificación y objetivos" },
-    { num: 8, title: "Documentos del estudiante", desc: "Documentos requeridos" },
+    { num: 5, title: "Descripción de actividades", desc: "Actividades que realizarás" },
+    { num: 6, title: "Justificación del proceso", desc: "Justificación y objetivos" },
+    { num: 7, title: "Documentos del estudiante", desc: "Documentos requeridos" },
   ];
 
   return (
@@ -192,7 +191,7 @@ export default async function EgresadoPage({
 
           {currentStep !== 1 && currentStep !== 2 && currentStep !== 4 && (
             <div className="text-center py-16">
-              <h3 className="text-lg font-bold text-card-dark">Paso en construcción (Fase 3, 5-8)</h3>
+              <h3 className="text-lg font-bold text-card-dark">Paso en construcción (Fase 3, 5-7)</h3>
             </div>
           )}
         </div>
