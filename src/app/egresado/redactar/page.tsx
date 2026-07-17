@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { getActivePropuesta } from "@/app/actions/propuestas";
 import { getCartaAceptacion } from "@/app/actions/carta";
+import { getActividades } from "@/app/actions/actividades";
 import PortadaForm from "@/components/PortadaForm";
 import CartaForm from "@/components/CartaForm";
+import ActividadesForm from "@/components/ActividadesForm";
 import DatosEmpresarialesForm from "@/components/DatosEmpresarialesForm";
 import { db } from "@/lib/db";
 import { empresas } from "@/lib/schema";
@@ -52,6 +54,12 @@ export default async function EgresadoPage({
         };
       }
     }
+  }
+
+  let actividadesList: any[] = [];
+  if (currentStep === 5) {
+    cartaData = await getCartaAceptacion(propuesta.id);
+    actividadesList = await getActividades(propuesta.id);
   }
   
   if (currentStep === 2) {
@@ -185,13 +193,25 @@ export default async function EgresadoPage({
                     empresaInfo={empresaInfo}
                   />
                 </>
+               )}
+
+              {currentStep === 5 && (
+                <>
+                  <h2 className="text-xl font-bold text-foreground mb-2">5. Descripción de Actividades</h2>
+                  <p className="text-sm text-muted mb-8">En esta etapa se gestiona y registra las actividades del plan por períodos.</p>
+                  <ActividadesForm 
+                    propuestaId={propuesta.id}
+                    initialFechas={{ fechaInicio: cartaData?.fechaInicio || "", fechaFin: cartaData?.fechaFin || "" }}
+                    initialActividades={actividadesList}
+                  />
+                </>
               )}
             </>
           )}
 
-          {currentStep !== 1 && currentStep !== 2 && currentStep !== 4 && (
+          {currentStep !== 1 && currentStep !== 2 && currentStep !== 4 && currentStep !== 5 && (
             <div className="text-center py-16">
-              <h3 className="text-lg font-bold text-card-dark">Paso en construcción (Fase 3, 5-7)</h3>
+              <h3 className="text-lg font-bold text-card-dark">Paso en construcción (Fase 3, 6-7)</h3>
             </div>
           )}
         </div>
