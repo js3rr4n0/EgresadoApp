@@ -46,24 +46,36 @@ export async function saveCartaAceptacion(formData: FormData) {
       return { success: false, error: "Las fechas colocadas no concuerdan con el periodo establecido, por favor ingrese otra fecha" };
     }
 
-    const cartaData = {
+
+    const archivoFile = formData.get("archivoPdf") as File | null;
+    const firmaFile = formData.get("emisorFirma") as File | null;
+
+    let archivoUrl = undefined;
+    if (archivoFile && archivoFile.size > 0) {
+      const buffer = Buffer.from(await archivoFile.arrayBuffer());
+      const base64String = buffer.toString("base64");
+      archivoUrl = `data:${archivoFile.type};base64,${base64String}`;
+    }
+
+    let emisorFirmaUrl = undefined;
+    if (firmaFile && firmaFile.size > 0) {
+      const buffer = Buffer.from(await firmaFile.arrayBuffer());
+      const base64String = buffer.toString("base64");
+      emisorFirmaUrl = `data:${firmaFile.type};base64,${base64String}`;
+    }
+
+    const cartaData: any = {
       propuestaId,
       fechaEmision,
       fechaInicio,
       fechaFin,
-      supTitulo: formData.get("supTitulo") as string,
-      supNombres: formData.get("supNombres") as string,
-      supApellidos: formData.get("supApellidos") as string,
-      supCargo: formData.get("supCargo") as string,
-      supTelefono: formData.get("supTelefono") as string,
-      supCorreo: formData.get("supCorreo") as string,
       emisorNombre: formData.get("emisorNombre") as string,
       emisorCargo: formData.get("emisorCargo") as string,
-      // Emisor Firma and Archivo URL would be handled by actual file uploads, mocked here for now
-      archivoUrl: "https://mock.storage/carta.pdf",
-      emisorFirmaUrl: "https://mock.storage/firma.png",
       bloqueada: true // Se bloquea al guardar exitosamente, según req 5.2
     };
+
+    if (archivoUrl) cartaData.archivoUrl = archivoUrl;
+    if (emisorFirmaUrl) cartaData.emisorFirmaUrl = emisorFirmaUrl;
 
     // Upsert logic
     const existing = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuestaId)).limit(1);

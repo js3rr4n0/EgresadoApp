@@ -35,9 +35,23 @@ export default async function EgresadoPage({
   let cartaData = null;
   let empresasList: any[] = [];
   let sucursalesList: any[] = [];
+  let empresaInfo = null;
   
   if (currentStep === 4) {
     cartaData = await getCartaAceptacion(propuesta.id);
+    if (propuesta.empresaId && propuesta.supervisorId) {
+      const { empresas, supervisores } = await import("@/lib/schema");
+      const { eq } = await import("drizzle-orm");
+      const empresaRows = await db.select().from(empresas).where(eq(empresas.id, propuesta.empresaId));
+      const supervisorRows = await db.select().from(supervisores).where(eq(supervisores.id, propuesta.supervisorId));
+      if (empresaRows.length > 0 && supervisorRows.length > 0) {
+        empresaInfo = {
+          nombre: empresaRows[0].nombre,
+          supervisor: `${supervisorRows[0].nombres} ${supervisorRows[0].apellidos}`,
+          supervisorCargo: supervisorRows[0].cargo
+        };
+      }
+    }
   }
   
   if (currentStep === 2) {
@@ -169,6 +183,7 @@ export default async function EgresadoPage({
                   <CartaForm 
                     propuestaId={propuesta.id}
                     initialData={cartaData}
+                    empresaInfo={empresaInfo}
                   />
                 </>
               )}

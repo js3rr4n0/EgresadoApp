@@ -143,7 +143,7 @@ export default function DatosEmpresarialesForm({
           alert("Por favor selecciona una empresa antes de continuar.");
           return;
         }
-        router.push("?step=3");
+        router.push("?step=4");
       } else {
         alert("Borrador guardado exitosamente.");
         router.refresh();

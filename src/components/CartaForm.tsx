@@ -7,9 +7,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 interface CartaFormProps {
   propuestaId: number;
   initialData: any; // data from DB if it exists
+  empresaInfo: any;
 }
 
-export default function CartaForm({ propuestaId, initialData }: CartaFormProps) {
+export default function CartaForm({ propuestaId, initialData, empresaInfo }: CartaFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isLocked = initialData?.bloqueada;
@@ -22,24 +23,66 @@ export default function CartaForm({ propuestaId, initialData }: CartaFormProps) 
   const [fechaFin, setFechaFin] = useState(initialData?.fechaFin || "");
   const [diasDiff, setDiasDiff] = useState<number | null>(null);
 
-  // Auto-calculate the difference to give visual feedback to the user before they submit
+  const todayStr = new Date().toISOString().split('T')[0];
+  const threeWeeksFromNow = new Date();
+  threeWeeksFromNow.setDate(threeWeeksFromNow.getDate() + 21);
+  const minInicioStr = threeWeeksFromNow.toISOString().split('T')[0];
+
   const handleDateChange = (type: "inicio" | "fin", val: string) => {
-    let start = type === "inicio" ? val : fechaInicio;
-    let end = type === "fin" ? val : fechaFin;
-
-    if (type === "inicio") setFechaInicio(val);
-    if (type === "fin") setFechaFin(val);
-
-    if (start && end) {
-      const d1 = new Date(start);
-      const d2 = new Date(end);
-      const diffTime = Math.abs(d2.getTime() - d1.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      setDiasDiff(diffDays);
+    if (type === "inicio") {
+      setFechaInicio(val);
+      // Auto-calculate fin (150 days)
+      if (val) {
+        const start = new Date(val);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 150);
+        const endStr = end.toISOString().split('T')[0];
+        setFechaFin(endStr);
+        setDiasDiff(150);
+      } else {
+        setFechaFin("");
+        setDiasDiff(null);
+      }
     } else {
-      setDiasDiff(null);
+      setFechaFin(val);
+      if (fechaInicio && val) {
+        const d1 = new Date(fechaInicio);
+        const d2 = new Date(val);
+        const diffTime = Math.abs(d2.getTime() - d1.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        setDiasDiff(diffDays);
+      } else {
+        setDiasDiff(null);
+      }
     }
   };
+
+  const openBase64Pdf = (base64Url: string) => {
+    try {
+      if (!base64Url.startsWith('data:')) {
+        window.open(base64Url, '_blank');
+        return;
+      }
+      const parts = base64Url.split(',');
+      const contentType = parts[0].split(':')[1].split(';')[0];
+      const raw = window.atob(parts[1]);
+      const rawLength = raw.length;
+      const uInt8Array = new Uint8Array(rawLength);
+      
+      for (let i = 0; i < rawLength; ++i) {
+        uInt8Array[i] = raw.charCodeAt(i);
+      }
+      
+      const blob = new Blob([uInt8Array], { type: contentType });
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, '_blank');
+    } catch(e) {
+      window.open(base64Url, '_blank');
+    }
+  };
+
+  const [removedFile, setRemovedFile] = useState(false);
+  const [removedFirma, setRemovedFirma] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -52,9 +95,9 @@ export default function CartaForm({ propuestaId, initialData }: CartaFormProps) 
     const result = await saveCartaAceptacion(formData);
 
     if (result.success) {
-      // Proceed to step 3
+      // Proceed to step 5
       const params = new URLSearchParams(searchParams.toString());
-      params.set("step", "3");
+      params.set("step", "5");
       router.push(`?${params.toString()}`);
     } else {
       setError(result.error || "Error desconocido");
@@ -62,22 +105,66 @@ export default function CartaForm({ propuestaId, initialData }: CartaFormProps) 
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      {error && (
-        <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm font-bold flex items-center gap-2">
-          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-          {error}
+    if (!empresaInfo) {
+      return (
+        <div className="p-8 bg-amber-50 border border-amber-200 rounded-xl text-center">
+          <svg className="w-12 h-12 text-amber-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+          <h2 className="text-xl font-bold text-amber-800 mb-2">Datos Empresariales Faltantes</h2>
+          <p className="text-sm text-amber-700">Debes completar y seleccionar tu empresa y supervisor en la Etapa 2 antes de poder llenar tu Carta de Aceptación.</p>
         </div>
-      )}
+      );
+    }
 
-      {/* PDF Upload */}
-      <div className="bg-slate-50 border border-dashed border-border rounded-xl p-6 text-center">
-        <svg className="w-8 h-8 text-brand-red mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-        <p className="font-bold text-card-dark text-sm">PDF de la Carta de Aceptación</p>
-        <p className="text-xs text-muted mt-1 mb-4">Sube el documento escaneado firmado y sellado por la empresa.</p>
-        <input type="file" name="archivoPdf" accept="application/pdf" className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-red-50 file:text-brand-red hover:file:bg-red-100 cursor-pointer" required={!isLocked} disabled={isLocked} />
-      </div>
+  return (
+    <div className="flex flex-col lg:flex-row gap-8">
+      <form onSubmit={handleSubmit} className="flex-1 space-y-8">
+        {error && (
+          <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm font-bold flex items-center gap-2">
+            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+            {error}
+          </div>
+        )}
+
+        {/* Read-Only Empresa Info */}
+        <div className="bg-slate-50 border border-border rounded-xl p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-brand-red uppercase tracking-wider mb-4 border-b pb-2">Información Vinculada</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-bold text-muted uppercase">Empresa de Pasantía</p>
+              <p className="font-semibold text-card-dark mt-1">{empresaInfo.nombre}</p>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-muted uppercase">Supervisor Asignado</p>
+              <p className="font-semibold text-card-dark mt-1">{empresaInfo.supervisor}</p>
+              <p className="text-sm text-slate-500">{empresaInfo.supervisorCargo}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* PDF Upload */}
+        <div className="bg-slate-50 border border-dashed border-border rounded-xl p-6 text-center">
+          {initialData?.archivoUrl && !removedFile ? (
+            <div className="flex flex-col items-center">
+              <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-3">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <p className="font-bold text-emerald-800 text-sm mb-4">Carta de Aceptación Subida</p>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={() => openBase64Pdf(initialData.archivoUrl)} className="text-xs font-bold bg-white border border-emerald-200 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-50 transition-colors">Ver Documento</button>
+                {!isLocked && (
+                  <button type="button" onClick={() => setRemovedFile(true)} className="text-xs font-bold bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 transition-colors">Eliminar / Reemplazar</button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              <svg className="w-8 h-8 text-brand-red mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+              <p className="font-bold text-card-dark text-sm">PDF de la Carta de Aceptación</p>
+              <p className="text-xs text-muted mt-1 mb-4">Sube el documento escaneado firmado y sellado por la empresa.</p>
+              <input type="file" name="archivoPdf" accept="application/pdf,image/*" className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-red-50 file:text-brand-red hover:file:bg-red-100 cursor-pointer" required={!isLocked} disabled={isLocked} />
+            </>
+          )}
+        </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Fechas */}
@@ -86,55 +173,24 @@ export default function CartaForm({ propuestaId, initialData }: CartaFormProps) 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-foreground mb-1">Emisión de la Carta</label>
-              <input type="date" name="fechaEmision" defaultValue={initialData?.fechaEmision} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
+              <input type="date" name="fechaEmision" max={todayStr} defaultValue={initialData?.fechaEmision} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-foreground mb-1">Inicio de Pasantía</label>
-              <input type="date" name="fechaInicio" value={fechaInicio} onChange={(e) => handleDateChange("inicio", e.target.value)} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
+              <label className="block text-xs font-bold text-foreground mb-1">Inicio de Pasantía (Min. 3 semanas)</label>
+              <input type="date" name="fechaInicio" min={minInicioStr} value={fechaInicio} onChange={(e) => handleDateChange("inicio", e.target.value)} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-foreground mb-1">Fin de Pasantía</label>
-              <input type="date" name="fechaFin" value={fechaFin} onChange={(e) => handleDateChange("fin", e.target.value)} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
+              <label className="block text-xs font-bold text-foreground mb-1">Fin de Pasantía (150 días)</label>
+              <input type="date" name="fechaFin" value={fechaFin} onChange={(e) => handleDateChange("fin", e.target.value)} required disabled={isLocked} readOnly className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm bg-slate-50 cursor-not-allowed" title="Se calcula automáticamente" />
             </div>
           </div>
           
           {/* Visual Date Feedback */}
           {diasDiff !== null && (
             <p className={`mt-2 text-xs font-bold ${diasDiff >= 150 && diasDiff <= 155 ? 'text-emerald-600' : 'text-red-500'}`}>
-              Duración calculada: {diasDiff} días {diasDiff >= 150 && diasDiff <= 155 ? '(Válida)' : '(Debe estar entre 150 y 155 días)'}
+              Duración calculada: {diasDiff} días {diasDiff >= 150 && diasDiff <= 155 ? '(Válida)' : '(Invalida)'}
             </p>
           )}
-        </div>
-
-        {/* Supervisor */}
-        <div className="md:col-span-2 mt-4">
-          <h3 className="text-sm font-bold text-brand-red uppercase tracking-wider mb-4 border-b pb-2">Datos del Supervisor Empresarial</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-foreground mb-1">Título</label>
-              <input type="text" name="supTitulo" placeholder="Ej. Ing, Lic" defaultValue={initialData?.supTitulo} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-foreground mb-1">Cargo</label>
-              <input type="text" name="supCargo" placeholder="Ej. Gerente de TI" defaultValue={initialData?.supCargo} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-foreground mb-1">Nombres</label>
-              <input type="text" name="supNombres" defaultValue={initialData?.supNombres} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-foreground mb-1">Apellidos</label>
-              <input type="text" name="supApellidos" defaultValue={initialData?.supApellidos} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-foreground mb-1">Teléfono</label>
-              <input type="text" name="supTelefono" defaultValue={initialData?.supTelefono} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-foreground mb-1">Correo Electrónico</label>
-              <input type="email" name="supCorreo" defaultValue={initialData?.supCorreo} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
-            </div>
-          </div>
         </div>
 
         {/* Emisor */}
@@ -150,23 +206,28 @@ export default function CartaForm({ propuestaId, initialData }: CartaFormProps) 
               <input type="text" name="emisorCargo" defaultValue={initialData?.emisorCargo} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-bold text-foreground mb-1">Imagen de Firma Digital</label>
-              <input type="file" name="emisorFirma" accept="image/*" className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-card-dark hover:file:bg-slate-200 cursor-pointer" required={!isLocked} disabled={isLocked} />
+              <label className="block text-xs font-bold text-foreground mb-1 flex justify-between">
+                <span>Imagen de Firma Digital</span>
+              </label>
+              {initialData?.emisorFirmaUrl && !removedFirma ? (
+                <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-lg border border-border">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={initialData.emisorFirmaUrl} alt="Firma del Emisor" className="h-12 object-contain bg-white border border-gray-200 rounded p-1" />
+                  {!isLocked && (
+                    <button type="button" onClick={() => setRemovedFirma(true)} className="text-xs font-bold text-red-600 hover:underline">Eliminar / Reemplazar</button>
+                  )}
+                </div>
+              ) : (
+                <input type="file" name="emisorFirma" accept="image/*" className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-card-dark hover:file:bg-slate-200 cursor-pointer" required={!isLocked} disabled={isLocked} />
+              )}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-[#fef9eb] border border-amber-200 rounded-lg p-4 flex items-start gap-3 mt-8">
-        <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-        <p className="text-xs text-amber-800 font-bold leading-relaxed">
-          Advertencia: Si alguno de los datos digitados son diferentes a los de la carta de aceptación de la propuesta, su propuesta será RECHAZADA. Revisa exhaustivamente antes de continuar. Una vez guardado, esta etapa se bloqueará.
-        </p>
-      </div>
-
       <div className="flex justify-between items-center pt-6 border-t border-border">
-        <button type="button" onClick={() => router.push('?step=1')} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors">
-          ← Volver a Portada
+        <button type="button" onClick={() => router.push('?step=2')} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors">
+          ← Volver a Datos Empresariales
         </button>
         <button 
           type="submit" 
@@ -178,5 +239,18 @@ export default function CartaForm({ propuestaId, initialData }: CartaFormProps) 
         </button>
       </div>
     </form>
+    {/* Lateral Warning */}
+    <div className="w-full lg:w-72 shrink-0">
+      <div className="bg-[#fffdf7] border-2 border-amber-300 rounded-xl p-5 shadow-sm sticky top-6">
+        <div className="flex items-center justify-center w-10 h-10 bg-amber-100 text-amber-600 rounded-full mb-4">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+        </div>
+        <h3 className="font-bold text-amber-900 text-sm uppercase tracking-wide mb-2">Aviso Importante</h3>
+        <p className="text-sm text-amber-800 leading-relaxed font-medium">
+          Los datos digitados deberán ser idénticos a los de la carta de aceptación adjunta, de otra manera su propuesta será <span className="font-bold text-red-600 underline">RECHAZADA</span>.
+        </p>
+      </div>
+    </div>
+  </div>
   );
 }
