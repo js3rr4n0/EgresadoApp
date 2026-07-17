@@ -5,10 +5,12 @@ import { getActividades } from "@/app/actions/actividades";
 import PortadaForm from "@/components/PortadaForm";
 import CartaForm from "@/components/CartaForm";
 import ActividadesForm from "@/components/ActividadesForm";
+import JustificacionForm from "@/components/JustificacionForm";
+import DocumentosEstudianteForm from "@/components/DocumentosEstudianteForm";
 import DatosEmpresarialesForm from "@/components/DatosEmpresarialesForm";
 import { db } from "@/lib/db";
 import { empresas } from "@/lib/schema";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 export default async function EgresadoPage({
   searchParams,
@@ -60,6 +62,12 @@ export default async function EgresadoPage({
   if (currentStep === 5) {
     cartaData = await getCartaAceptacion(propuesta.id);
     actividadesList = await getActividades(propuesta.id);
+  }
+
+  let documentosSubidos: any[] = [];
+  if (currentStep === 7) {
+    const { documentosEgresado } = await import("@/lib/schema");
+    documentosSubidos = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId));
   }
   
   if (currentStep === 2) {
@@ -206,12 +214,35 @@ export default async function EgresadoPage({
                   />
                 </>
               )}
+
+              {currentStep === 6 && (
+                <>
+                  <h2 className="text-xl font-bold text-foreground mb-2">6. Justificación del proceso</h2>
+                  <JustificacionForm 
+                    propuestaId={propuesta.id}
+                    initialData={propuesta.justificacionProceso}
+                    isLocked={propuesta.bloqueada || propuesta.estado !== "redactando"}
+                  />
+                </>
+              )}
+
+              {currentStep === 7 && (
+                <>
+                  <h2 className="text-xl font-bold text-foreground mb-2">7. Documentos del estudiante</h2>
+                  <p className="text-sm text-muted mb-8">Adjunción de los 3 documentos vitales del proceso.</p>
+                  <DocumentosEstudianteForm 
+                    propuestaId={propuesta.id}
+                    isLocked={propuesta.bloqueada || propuesta.estado !== "redactando"}
+                    documentosSubidos={documentosSubidos}
+                  />
+                </>
+              )}
             </>
           )}
 
-          {currentStep !== 1 && currentStep !== 2 && currentStep !== 4 && currentStep !== 5 && (
+          {currentStep !== 1 && currentStep !== 2 && currentStep !== 4 && currentStep !== 5 && currentStep !== 6 && currentStep !== 7 && (
             <div className="text-center py-16">
-              <h3 className="text-lg font-bold text-card-dark">Paso en construcción (Fase 3, 6-7)</h3>
+              <h3 className="text-lg font-bold text-card-dark">Paso en construcción</h3>
             </div>
           )}
         </div>
