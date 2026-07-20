@@ -25,27 +25,30 @@ export async function saveCartaAceptacion(formData: FormData) {
     const fechaEmision = formData.get("fechaEmision") as string;
     const fechaInicio = formData.get("fechaInicio") as string;
     const fechaFin = formData.get("fechaFin") as string;
+    const isPartial = formData.get("isPartial") === "true";
 
-    // VALIDACION: fecha_inicio >= HOY + 21 dias
-    const inicioDate = new Date(fechaInicio);
-    const today = new Date();
-    today.setHours(0,0,0,0);
-    const minInicio = new Date(today);
-    minInicio.setDate(minInicio.getDate() + 21);
+    // Only validate dates if they are provided
+    if (fechaInicio && fechaFin && !isPartial) {
+      // VALIDACION: fecha_inicio >= HOY + 21 dias (WAIT, rule was 3 weeks from fechaEmision, not today!)
+      const emisionDate = fechaEmision ? new Date(fechaEmision) : new Date();
+      const minInicio = new Date(emisionDate);
+      minInicio.setDate(minInicio.getDate() + 21);
+      
+      const inicioDate = new Date(fechaInicio);
 
-    if (inicioDate < minInicio) {
-      return { success: false, error: "Las fechas colocadas no concuerdan con el periodo establecido, por favor ingrese otra fecha" };
+      if (inicioDate < minInicio) {
+        return { success: false, error: "La fecha de inicio debe ser al menos 3 semanas después de la fecha de emisión." };
+      }
+
+      // VALIDACION: fecha_fin - fecha_inicio entre 150 y 155 dias
+      const finDate = new Date(fechaFin);
+      const diffTime = Math.abs(finDate.getTime() - inicioDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays < 150 || diffDays > 155) {
+        return { success: false, error: "Las fechas colocadas no concuerdan con el periodo establecido (150 días)" };
+      }
     }
-
-    // VALIDACION: fecha_fin - fecha_inicio entre 150 y 155 dias
-    const finDate = new Date(fechaFin);
-    const diffTime = Math.abs(finDate.getTime() - inicioDate.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 150 || diffDays > 155) {
-      return { success: false, error: "Las fechas colocadas no concuerdan con el periodo establecido, por favor ingrese otra fecha" };
-    }
-
 
     const archivoFile = formData.get("archivoPdf") as File | null;
     const firmaFile = formData.get("emisorFirma") as File | null;
@@ -66,13 +69,14 @@ export async function saveCartaAceptacion(formData: FormData) {
 
     const cartaData: any = {
       propuestaId,
-      fechaEmision,
-      fechaInicio,
-      fechaFin,
-      emisorNombre: formData.get("emisorNombre") as string,
-      emisorCargo: formData.get("emisorCargo") as string,
-      bloqueada: true // Se bloquea al guardar exitosamente, según req 5.2
+      bloqueada: !isPartial // Se bloquea al guardar exitosamente si NO es parcial
     };
+    
+    if (fechaEmision) cartaData.fechaEmision = fechaEmision;
+    if (fechaInicio) cartaData.fechaInicio = fechaInicio;
+    if (fechaFin) cartaData.fechaFin = fechaFin;
+    if (formData.get("emisorNombre")) cartaData.emisorNombre = formData.get("emisorNombre") as string;
+    if (formData.get("emisorCargo")) cartaData.emisorCargo = formData.get("emisorCargo") as string;
 
     if (archivoUrl) cartaData.archivoUrl = archivoUrl;
     if (emisorFirmaUrl) cartaData.emisorFirmaUrl = emisorFirmaUrl;

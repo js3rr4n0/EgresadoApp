@@ -114,6 +114,37 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo }: Car
   const [removedFile, setRemovedFile] = useState(false);
   const [removedFirma, setRemovedFirma] = useState(false);
 
+  const [uploadingPdf, setUploadingPdf] = useState(false);
+  const [uploadingFirma, setUploadingFirma] = useState(false);
+
+  const handlePartialUpload = async (e: React.ChangeEvent<HTMLInputElement>, fieldName: string) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    const formData = new FormData();
+    formData.append("propuestaId", propuestaId.toString());
+    formData.append(fieldName, file);
+    formData.append("isPartial", "true");
+
+    if (fieldName === "archivoPdf") setUploadingPdf(true);
+    if (fieldName === "emisorFirma") setUploadingFirma(true);
+    
+    setError(null);
+    const result = await saveCartaAceptacion(formData);
+    
+    if (fieldName === "archivoPdf") setUploadingPdf(false);
+    if (fieldName === "emisorFirma") setUploadingFirma(false);
+
+    if (result.success) {
+      if (fieldName === "archivoPdf") setRemovedFile(false);
+      if (fieldName === "emisorFirma") setRemovedFirma(false);
+      router.refresh(); // Fetch the new file URL
+    } else {
+      setError(result.error || `Error al subir el ${fieldName}`);
+      e.target.value = "";
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPending(true);
@@ -121,6 +152,11 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo }: Car
 
     const formData = new FormData(e.currentTarget);
     formData.append("propuestaId", propuestaId.toString());
+
+    // Make sure we pass the dates if they're not fully updated in form via UI updates
+    formData.set("fechaEmision", fechaEmision);
+    formData.set("fechaInicio", fechaInicio);
+    formData.set("fechaFin", fechaFin);
 
     const result = await saveCartaAceptacion(formData);
 
@@ -190,7 +226,11 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo }: Car
               <svg className="w-8 h-8 text-brand-red mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
               <p className="font-bold text-card-dark text-sm">PDF de la Carta de Aceptación</p>
               <p className="text-xs text-muted mt-1 mb-4">Sube el documento escaneado firmado y sellado por la empresa.</p>
-              <input type="file" name="archivoPdf" accept="application/pdf,image/*" className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-red-50 file:text-brand-red hover:file:bg-red-100 cursor-pointer" required={!isLocked} disabled={isLocked} />
+              {uploadingPdf ? (
+                <div className="text-sm font-bold text-brand-red animate-pulse">Subiendo documento...</div>
+              ) : (
+                <input type="file" name="archivoPdf" accept="application/pdf,image/*" onChange={(e) => handlePartialUpload(e, "archivoPdf")} className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-red-50 file:text-brand-red hover:file:bg-red-100 cursor-pointer" required={!initialData?.archivoUrl && !isLocked} disabled={isLocked} />
+              )}
             </>
           )}
         </div>
@@ -247,7 +287,11 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo }: Car
                   )}
                 </div>
               ) : (
-                <input type="file" name="emisorFirma" accept="image/*" className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-card-dark hover:file:bg-slate-200 cursor-pointer" required={!isLocked} disabled={isLocked} />
+                uploadingFirma ? (
+                  <div className="text-sm font-bold text-brand-red animate-pulse mt-2">Subiendo firma...</div>
+                ) : (
+                  <input type="file" name="emisorFirma" accept="image/*" onChange={(e) => handlePartialUpload(e, "emisorFirma")} className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-card-dark hover:file:bg-slate-200 cursor-pointer" required={!initialData?.emisorFirmaUrl && !isLocked} disabled={isLocked} />
+                )
               )}
             </div>
           </div>
