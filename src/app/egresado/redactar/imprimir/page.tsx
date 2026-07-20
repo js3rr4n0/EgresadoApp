@@ -95,7 +95,7 @@ export default async function PrintPropuestaPage() {
           <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">Datos Empresariales</h2>
           
           <div className="space-y-6">
-            <section>
+            <section className="print:break-inside-avoid mb-6">
               <h3 className="text-lg font-bold text-gray-800 mb-2 uppercase">1. Información de la Empresa</h3>
               {empresa ? (
                 <div className="grid grid-cols-2 gap-4 text-sm border p-4 rounded bg-gray-50">
@@ -106,7 +106,7 @@ export default async function PrintPropuestaPage() {
               ) : <p className="text-sm italic text-gray-500">Pendiente</p>}
             </section>
 
-            <section>
+            <section className="print:break-inside-avoid mb-6">
               <h3 className="text-lg font-bold text-gray-800 mb-2 uppercase">2. Ubicación y Sucursal</h3>
               <div className="text-sm border p-4 rounded bg-gray-50">
                 {sucursal ? (
@@ -149,7 +149,7 @@ export default async function PrintPropuestaPage() {
               </div>
             </section>
 
-            <section>
+            <section className="print:break-inside-avoid mb-6">
               <h3 className="text-lg font-bold text-gray-800 mb-2 uppercase">3. Supervisor Asignado</h3>
               {supervisor ? (
                 <div className="grid grid-cols-2 gap-4 text-sm border p-4 rounded bg-gray-50">
@@ -161,7 +161,7 @@ export default async function PrintPropuestaPage() {
               ) : <p className="text-sm italic text-gray-500">Pendiente</p>}
             </section>
 
-            <section>
+            <section className="print:break-inside-avoid mb-6">
               <h3 className="text-lg font-bold text-gray-800 mb-2 uppercase">4. Carta de Aceptación</h3>
               {carta ? (
                 <div className="grid grid-cols-2 gap-4 text-sm border p-4 rounded bg-gray-50">
@@ -183,7 +183,7 @@ export default async function PrintPropuestaPage() {
               ) : <p className="text-sm italic text-gray-500">Pendiente</p>}
             </section>
 
-            <section>
+            <section className="print:break-inside-avoid mb-6">
               <h3 className="text-lg font-bold text-gray-800 mb-2 uppercase">5. Justificación del Proyecto</h3>
               <div className="text-sm border p-4 rounded bg-gray-50 whitespace-pre-wrap">
                 {propuesta.justificacionProceso || <span className="italic text-gray-500">Pendiente</span>}
@@ -229,8 +229,6 @@ export default async function PrintPropuestaPage() {
 
         {/* IMAGES & DOCS (Each on new page if it's an image) */}
         {docs.length > 0 && docs.map(doc => {
-          if (!doc.archivoUrl?.startsWith('data:image')) return null;
-          
           const getTitle = (tipo: string) => {
             switch(tipo) {
               case 'pago_tg': return 'HOJA DE INSCRIPCIÓN DE TRABAJO DE GRADUACIÓN';
@@ -240,13 +238,24 @@ export default async function PrintPropuestaPage() {
             }
           };
 
+          const isImage = doc.archivoUrl?.startsWith('data:image');
+
           return (
             <div key={doc.id} style={{ pageBreakAfter: 'always' }} className="pt-8 flex flex-col items-center">
               <h2 className="text-lg font-bold uppercase mb-8 border-b-2 border-brand-red pb-2 w-full text-center">
                 {getTitle(doc.tipo)}
               </h2>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={doc.archivoUrl} alt={doc.tipo} className="max-w-full max-h-[800px] object-contain border shadow-sm" />
+              {isImage ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={doc.archivoUrl} alt={doc.tipo} className="max-w-full max-h-[800px] object-contain border shadow-sm" />
+              ) : (
+                <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 w-full max-w-2xl print:bg-white print:border-gray-200">
+                  <p className="font-bold text-gray-700 text-lg">Documento en formato PDF</p>
+                  <p className="text-sm text-gray-500 mt-2 text-center">Este documento fue subido como PDF y no puede incrustarse directamente en esta previsualización.</p>
+                  <p className="text-sm text-gray-500 text-center">Por favor, adjunte este documento manualmente a su reporte impreso final o vuélvalo a subir como imagen (JPG/PNG).</p>
+                  <a href={doc.archivoUrl} target="_blank" rel="noreferrer" className="mt-6 text-brand-red font-bold underline print:hidden">Abrir Documento Original</a>
+                </div>
+              )}
             </div>
           );
         })}
