@@ -170,7 +170,7 @@ export default function DatosEmpresarialesForm({
           alert("Por favor selecciona una empresa antes de continuar.");
           return;
         }
-        router.push("?step=4");
+        router.push("?step=3");
       } else {
         alert("Borrador guardado exitosamente.");
         router.refresh();
@@ -396,18 +396,36 @@ export default function DatosEmpresarialesForm({
                 <label className="block text-sm font-bold text-foreground mb-1.5">
                   Mapa de ubicación <span className="text-brand-red">*</span>
                 </label>
-                {(selectedSucursal?.mapaUrl || selectedEmpresa.mapaUrl) ? (
-                  <button
-                    type="button"
-                    onClick={() => handleViewMap(selectedSucursal?.mapaUrl || selectedEmpresa.mapaUrl!)}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg border-2 border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold text-sm transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    Ver Mapa
-                  </button>
-                ) : (
-                  <div className="px-4 py-2 text-sm text-muted bg-slate-100 rounded-lg inline-block">No disponible</div>
-                )}
+                {(() => {
+                  let rawUrl = selectedSucursal?.mapaUrl || selectedEmpresa?.mapaUrl;
+                  if (!rawUrl && selectedEmpresa) {
+                    const firstSucursal = sucursales.find(s => s.empresaId === selectedEmpresa.id && s.mapaUrl);
+                    if (firstSucursal) rawUrl = firstSucursal.mapaUrl;
+                  }
+                  
+                  if (!rawUrl) {
+                    return <div className="px-4 py-2 text-sm text-muted bg-slate-100 rounded-lg inline-block">No disponible</div>;
+                  }
+
+                  const isHttp = rawUrl.startsWith('http');
+                  const embedUrl = isHttp ? rawUrl : `https://maps.google.com/maps?q=${rawUrl}&hl=es;z=14&output=embed`;
+
+                  return (
+                    <div className="flex flex-col gap-2">
+                      <div className="border border-slate-200 rounded-lg overflow-hidden h-[150px] sm:h-[200px] relative bg-slate-50">
+                        <iframe src={embedUrl} className="w-full h-full border-0 absolute inset-0" allowFullScreen loading="lazy"></iframe>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleViewMap(rawUrl!)}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border-2 border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold text-xs transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        Abrir en nueva pestaña
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
