@@ -11,6 +11,10 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterArea, setFilterArea] = useState("");
+  const [filterSucursales, setFilterSucursales] = useState("todas");
+
   const [sucursalesModalOpen, setSucursalesModalOpen] = useState(false);
   const [currentEmpresaForSucs, setCurrentEmpresaForSucs] = useState<any>(null);
   const [tempSucs, setTempSucs] = useState<SucursalData[]>([]);
@@ -286,8 +290,67 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
         </button>
       </div>
 
+      {/* FILTERS */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-border mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
+        <div className="relative w-full md:w-96">
+          <svg className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <input
+            type="text"
+            placeholder="Buscar por nombre o sucursal..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 rounded-lg border border-border focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all text-sm"
+          />
+        </div>
+        
+        <div className="flex w-full md:w-auto gap-2">
+          <select
+            value={filterArea}
+            onChange={(e) => setFilterArea(e.target.value)}
+            className="w-full md:w-auto px-4 py-2 rounded-lg border border-border focus:border-brand-red outline-none bg-white text-sm"
+          >
+            <option value="">Todas las áreas</option>
+            {Array.from(new Set(initialEmpresas.map(e => e.area).filter(Boolean))).map(area => (
+              <option key={area} value={area}>{area}</option>
+            ))}
+          </select>
+          
+          <select
+            value={filterSucursales}
+            onChange={(e) => setFilterSucursales(e.target.value)}
+            className="w-full md:w-auto px-4 py-2 rounded-lg border border-border focus:border-brand-red outline-none bg-white text-sm"
+          >
+            <option value="todas">Todas</option>
+            <option value="con">Con Sucursales</option>
+            <option value="sin">Sin Sucursales</option>
+          </select>
+        </div>
+      </div>
+
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {initialEmpresas.map((emp) => (
+        {(() => {
+          const filteredEmpresas = initialEmpresas.filter(emp => {
+            if (filterArea && emp.area !== filterArea) return false;
+            if (filterSucursales === "con" && (!emp.sucursales || emp.sucursales.length === 0)) return false;
+            if (filterSucursales === "sin" && emp.sucursales && emp.sucursales.length > 0) return false;
+            if (searchTerm) {
+              const q = searchTerm.toLowerCase();
+              const matchNombre = emp.nombre.toLowerCase().includes(q);
+              const matchSucs = emp.sucursales?.some((s: any) => s.nombre.toLowerCase().includes(q));
+              if (!matchNombre && !matchSucs) return false;
+            }
+            return true;
+          });
+
+          if (filteredEmpresas.length === 0) {
+            return (
+              <div className="col-span-full py-12 text-center text-muted">
+                No se encontraron empresas con los filtros aplicados.
+              </div>
+            );
+          }
+
+          return filteredEmpresas.map((emp) => (
           <div key={emp.id} className={`border rounded-xl p-5 shadow-sm bg-white flex flex-col relative overflow-hidden transition-all ${emp.habilitada ? "border-brand-red/20 ring-1 ring-brand-red/10" : "border-gray-200 opacity-80"}`}>
             
             <div className="flex justify-between items-start z-10 relative">
@@ -359,13 +422,8 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
               </button>
             </div>
           </div>
-        ))}
-
-        {initialEmpresas.length === 0 && (
-          <div className="col-span-full py-12 text-center bg-gray-50 rounded-xl border border-dashed border-gray-300">
-            <p className="text-gray-500">No hay empresas en el catálogo aún.</p>
-          </div>
-        )}
+        ));
+        })()}
       </div>
 
       {/* Modal */}

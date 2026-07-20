@@ -205,6 +205,8 @@ export const propuestas = pgTable(
     sucursalId: integer("sucursal_id").references(() => sucursales.id),
     supervisorId: integer("supervisor_id").references(() => supervisores.id),
     justificacionProceso: text("justificacion_proceso"),
+    asesorId: integer("asesor_id").references(() => usuarios.id),
+    observaciones: text("observaciones"),
     enviadaEn: timestamp("enviada_en", { withTimezone: true }),
     bloqueada: boolean("bloqueada").notNull().default(false),
   },
