@@ -19,6 +19,7 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo }: Car
   const [error, setError] = useState<string | null>(null);
 
   // States for dynamic date calculation feedback
+  const [fechaEmision, setFechaEmision] = useState(initialData?.fechaEmision || "");
   const [fechaInicio, setFechaInicio] = useState(initialData?.fechaInicio || "");
   const [fechaFin, setFechaFin] = useState(initialData?.fechaFin || "");
   const [diasDiff, setDiasDiff] = useState<number | null>(null);
@@ -26,10 +27,39 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo }: Car
   const todayStr = new Date().toISOString().split('T')[0];
   const threeWeeksFromNow = new Date();
   threeWeeksFromNow.setDate(threeWeeksFromNow.getDate() + 21);
-  const minInicioStr = threeWeeksFromNow.toISOString().split('T')[0];
+  const defaultMinInicio = threeWeeksFromNow.toISOString().split('T')[0];
 
-  const handleDateChange = (type: "inicio" | "fin", val: string) => {
-    if (type === "inicio") {
+  const [minInicioStrDyn, setMinInicioStrDyn] = useState<string>(() => {
+    if (initialData?.fechaEmision) {
+      const d = new Date(initialData.fechaEmision);
+      d.setDate(d.getDate() + 21);
+      return d.toISOString().split('T')[0];
+    }
+    return defaultMinInicio;
+  });
+
+  const handleDateChange = (type: "emision" | "inicio" | "fin", val: string) => {
+    if (type === "emision") {
+      setFechaEmision(val);
+      if (val) {
+        const emisionDate = new Date(val);
+        const minInicio = new Date(emisionDate);
+        minInicio.setDate(emisionDate.getDate() + 21);
+        const minInicioStrNew = minInicio.toISOString().split('T')[0];
+        
+        setMinInicioStrDyn(minInicioStrNew);
+        setFechaInicio(minInicioStrNew);
+
+        // Auto-set fechaFin (150 days)
+        const finDate = new Date(minInicio);
+        finDate.setDate(minInicio.getDate() + 150);
+        const finStr = finDate.toISOString().split('T')[0];
+        setFechaFin(finStr);
+        setDiasDiff(150);
+      } else {
+        setMinInicioStrDyn(defaultMinInicio);
+      }
+    } else if (type === "inicio") {
       setFechaInicio(val);
       // Auto-calculate fin (150 days)
       if (val) {
@@ -172,11 +202,11 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo }: Car
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-foreground mb-1">Emisión de la Carta</label>
-              <input type="date" name="fechaEmision" max={todayStr} defaultValue={initialData?.fechaEmision} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
+              <input type="date" name="fechaEmision" max={todayStr} value={fechaEmision} onChange={(e) => handleDateChange("emision", e.target.value)} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
             </div>
             <div>
               <label className="block text-xs font-bold text-foreground mb-1">Inicio de Pasantía (Min. 3 semanas)</label>
-              <input type="date" name="fechaInicio" min={minInicioStr} value={fechaInicio} onChange={(e) => handleDateChange("inicio", e.target.value)} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
+              <input type="date" name="fechaInicio" min={minInicioStrDyn} value={fechaInicio} onChange={(e) => handleDateChange("inicio", e.target.value)} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
             </div>
             <div>
               <label className="block text-xs font-bold text-foreground mb-1">Fin de Pasantía (150 días)</label>
