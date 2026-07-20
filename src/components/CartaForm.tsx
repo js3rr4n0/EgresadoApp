@@ -87,30 +87,27 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
     }
   };
 
-  const openBase64Pdf = async (base64Url: string, title: string) => {
+  const openBase64Pdf = (base64Url: string) => {
     try {
       if (!base64Url.startsWith('data:')) {
         window.open(base64Url, '_blank');
         return;
       }
+      const parts = base64Url.split(',');
+      const contentType = parts[0].split(':')[1].split(';')[0];
+      const raw = window.atob(parts[1]);
+      const rawLength = raw.length;
+      const uInt8Array = new Uint8Array(rawLength);
       
-      const isImage = base64Url.startsWith('data:image/');
+      for (let i = 0; i < rawLength; ++i) {
+        uInt8Array[i] = raw.charCodeAt(i);
+      }
       
-      const response = await fetch(base64Url);
-      const blob = await response.blob();
+      const blob = new Blob([uInt8Array], { type: contentType });
       const objectUrl = URL.createObjectURL(blob);
-      
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = `Documento_${title.replace(/\s+/g, '_')}.${isImage ? 'png' : 'pdf'}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      window.open(objectUrl, '_blank');
     } catch(e) {
-      console.error("Error opening document:", e);
-      alert("Hubo un error al decodificar el documento. Intenta subirlo de nuevo.");
+      window.open(base64Url, '_blank');
     }
   };
 
@@ -218,7 +215,7 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
               </div>
               <p className="font-bold text-emerald-800 text-sm mb-4">Carta de Aceptación Subida</p>
               <div className="flex items-center gap-3">
-                <button type="button" onClick={() => openBase64Pdf(initialData.archivoUrl, "Carta_de_Aceptacion")} className="text-xs font-bold bg-white border border-emerald-200 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-50 transition-colors">Descargar Documento</button>
+                <button type="button" onClick={() => openBase64Pdf(initialData.archivoUrl)} className="text-xs font-bold bg-white border border-emerald-200 text-emerald-700 px-4 py-2 rounded-lg hover:bg-emerald-50 transition-colors">Ver Documento</button>
                 {!isLocked && (
                   <button type="button" onClick={() => setRemovedFile(true)} className="text-xs font-bold bg-white border border-red-200 text-red-600 px-4 py-2 rounded-lg hover:bg-red-50 transition-colors">Eliminar / Reemplazar</button>
                 )}
@@ -286,7 +283,7 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={initialData.emisorFirmaUrl} alt="Firma del Emisor" className="h-12 object-contain bg-white border border-gray-200 rounded p-1" />
                   <div className="flex flex-col gap-1 items-start">
-                    <button type="button" onClick={() => openBase64Pdf(initialData.emisorFirmaUrl, "Firma_Emisor")} className="text-xs font-bold text-emerald-600 hover:underline">Descargar Firma</button>
+                    <button type="button" onClick={() => openBase64Pdf(initialData.emisorFirmaUrl)} className="text-xs font-bold text-emerald-600 hover:underline">Ver Firma</button>
                     {!isLocked && (
                       <button type="button" onClick={() => setRemovedFirma(true)} className="text-xs font-bold text-red-600 hover:underline">Eliminar / Reemplazar</button>
                     )}

@@ -73,32 +73,27 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
     setUploading(null);
   };
 
-  const openBase64Pdf = async (base64Url: string, title: string) => {
+  const openBase64Pdf = (base64Url: string) => {
     try {
       if (!base64Url.startsWith('data:')) {
         window.open(base64Url, '_blank');
         return;
       }
+      const parts = base64Url.split(',');
+      const contentType = parts[0].split(':')[1].split(';')[0];
+      const raw = window.atob(parts[1]);
+      const rawLength = raw.length;
+      const uInt8Array = new Uint8Array(rawLength);
       
-      const isImage = base64Url.startsWith('data:image/');
+      for (let i = 0; i < rawLength; ++i) {
+        uInt8Array[i] = raw.charCodeAt(i);
+      }
       
-      // Use fetch to natively and safely decode the Data URI into a Blob
-      const response = await fetch(base64Url);
-      const blob = await response.blob();
+      const blob = new Blob([uInt8Array], { type: contentType });
       const objectUrl = URL.createObjectURL(blob);
-      
-      // Use anchor tag to force download/open securely
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = `Documento_${title.replace(/\s+/g, '_')}.${isImage ? 'png' : 'pdf'}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      window.open(objectUrl, '_blank');
     } catch(e) {
-      console.error("Error opening document:", e);
-      alert("Hubo un error al decodificar el documento. Intenta subirlo de nuevo.");
+      window.open(base64Url, '_blank');
     }
   };
 
@@ -158,11 +153,11 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
                 {isDone ? (
                   <>
                     <button 
-                      onClick={() => openBase64Pdf(uploadedDoc.url, doc.title)}
+                      onClick={() => openBase64Pdf(uploadedDoc.url)}
                       type="button"
                       className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors shadow-sm text-xs font-bold"
                     >
-                      Descargar
+                      Ver
                     </button>
                     {!isLocked && (
                       <>
