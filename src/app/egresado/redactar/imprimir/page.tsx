@@ -6,6 +6,11 @@ import { eq, and, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import PrintButton from "./PrintButton";
 
+const getStaticMapUrl = (coords: string | null) => {
+  if (!coords || !coords.includes(',')) return null;
+  return `/api/map?coords=${coords}`;
+};
+
 export default async function PrintPropuestaPage() {
   const session = await getSession();
   if (!session || session.rol !== "egresado") {
@@ -65,12 +70,8 @@ export default async function PrintPropuestaPage() {
           <h1 className="text-2xl font-bold uppercase tracking-widest mb-16">UNIVERSIDAD CATÓLICA DE EL SALVADOR</h1>
           
           <div className="mb-16">
-            {/* Fallback to generic seal if UNICAES logo is missing, using UNICAES text logo */}
-            <div className="w-48 h-48 border-4 border-brand-red rounded-full flex items-center justify-center bg-white mx-auto relative overflow-hidden shadow-sm">
-              <div className="text-center">
-                <span className="font-bold text-brand-red text-xl">UNICAES</span>
-              </div>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/unicaes-logo.png" alt="UNICAES" className="w-64 h-64 object-contain mx-auto" />
           </div>
           
           <h2 className="text-xl font-bold uppercase tracking-wider mb-2">REPORTE DE PROPUESTA</h2>
@@ -107,13 +108,45 @@ export default async function PrintPropuestaPage() {
 
             <section>
               <h3 className="text-lg font-bold text-gray-800 mb-2 uppercase">2. Ubicación y Sucursal</h3>
-              {sucursal ? (
-                <div className="grid grid-cols-2 gap-4 text-sm border p-4 rounded bg-gray-50">
-                  <p><span className="font-bold">Sucursal:</span> {sucursal.nombre}</p>
-                  <p><span className="font-bold">Teléfono:</span> {sucursal.telefono}</p>
-                  <p className="col-span-2"><span className="font-bold">Dirección:</span> {sucursal.direccion}</p>
-                </div>
-              ) : <p className="text-sm italic text-gray-500">Pendiente</p>}
+              <div className="text-sm border p-4 rounded bg-gray-50">
+                {sucursal ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <p><span className="font-bold">Sucursal:</span> {sucursal.nombre}</p>
+                      <p><span className="font-bold">Teléfono:</span> {sucursal.telefono || 'No especificado'}</p>
+                      <p className="col-span-2"><span className="font-bold">Dirección:</span> {sucursal.direccion || 'No especificada'}</p>
+                    </div>
+                    {sucursal.mapaUrl && getStaticMapUrl(sucursal.mapaUrl) && (
+                      <div className="mt-2 border-t border-gray-200 pt-4">
+                        <span className="font-bold block mb-2">Captura de Mapa (Sucursal):</span>
+                        <div className="border border-gray-300 p-1 rounded bg-white h-[300px] flex items-center justify-center overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={getStaticMapUrl(sucursal.mapaUrl)!} alt="Mapa Sucursal" className="w-full h-full object-cover rounded" />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : empresa ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <p><span className="font-bold">Sucursal:</span> Matriz / Sede Central</p>
+                      <p><span className="font-bold">Teléfono:</span> No especificado</p>
+                      <p className="col-span-2"><span className="font-bold">Dirección:</span> {empresa.direccion || 'No especificada'}</p>
+                    </div>
+                    {empresa.mapaUrl && getStaticMapUrl(empresa.mapaUrl) && (
+                      <div className="mt-2 border-t border-gray-200 pt-4">
+                        <span className="font-bold block mb-2">Captura de Mapa (Matriz):</span>
+                        <div className="border border-gray-300 p-1 rounded bg-white h-[300px] flex items-center justify-center overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={getStaticMapUrl(empresa.mapaUrl)!} alt="Mapa Matriz" className="w-full h-full object-cover rounded" />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm italic text-gray-500">Pendiente</p>
+                )}
+              </div>
             </section>
 
             <section>
