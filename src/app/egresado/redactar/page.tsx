@@ -110,6 +110,10 @@ export default async function EgresadoPage({
     enviada: "Enviada a Revisión",
     rechazada: "Propuesta Rechazada",
     aprobada: "Propuesta Aprobada",
+    pend_revision_datos: "En Revisión Administrativa",
+    pend_empresa_nueva: "Revisando Nueva Empresa",
+    empresa_rechazada: "Empresa Rechazada",
+    datos_rechazados: "Datos Rechazados",
   };
 
   const steps = [
