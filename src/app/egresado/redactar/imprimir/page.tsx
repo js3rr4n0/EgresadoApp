@@ -74,7 +74,7 @@ export default async function PrintPropuestaPage() {
             <img src="/unicaes-logo.png" alt="UNICAES" className="w-64 h-64 object-contain mx-auto" />
           </div>
           
-          <h2 className="text-xl font-bold uppercase tracking-wider mb-2">REPORTE DE PROPUESTA</h2>
+          <h2 className="text-xl font-bold uppercase tracking-wider mb-2">HOJA DE INSCRIPCIÓN DE TRABAJO DE GRADUACIÓN</h2>
           <h3 className="text-lg font-semibold text-gray-700 uppercase mb-16">ESTUDIANTE: {studentName}</h3>
 
           {empresa && (
@@ -165,10 +165,20 @@ export default async function PrintPropuestaPage() {
               <h3 className="text-lg font-bold text-gray-800 mb-2 uppercase">4. Carta de Aceptación</h3>
               {carta ? (
                 <div className="grid grid-cols-2 gap-4 text-sm border p-4 rounded bg-gray-50">
-                  <p><span className="font-bold">Emisor:</span> {carta.emisorNombre}</p>
-                  <p><span className="font-bold">Cargo Emisor:</span> {carta.emisorCargo}</p>
                   <p><span className="font-bold">Fecha de Emisión:</span> {carta.fechaEmision}</p>
                   <p><span className="font-bold">Período Pasantía:</span> {carta.fechaInicio} al {carta.fechaFin}</p>
+                  {carta.emisorFirmaUrl ? (
+                    <div className="col-span-2 mt-2 pt-2 border-t border-gray-200">
+                      <p className="font-bold mb-2">Firma Autorizada:</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={carta.emisorFirmaUrl} alt="Firma" className="max-h-24 object-contain mix-blend-multiply" />
+                    </div>
+                  ) : (
+                    <>
+                      <p><span className="font-bold">Emisor:</span> {carta.emisorNombre}</p>
+                      <p><span className="font-bold">Cargo Emisor:</span> {carta.emisorCargo}</p>
+                    </>
+                  )}
                 </div>
               ) : <p className="text-sm italic text-gray-500">Pendiente</p>}
             </section>
@@ -197,14 +207,19 @@ export default async function PrintPropuestaPage() {
                 </tr>
               </thead>
               <tbody>
-                {actividadesList.map(a => (
-                  <tr key={a.id}>
-                    <td className="border border-gray-300 p-2 text-center font-bold">Mes {a.periodo}</td>
-                    <td className="border border-gray-300 p-2 text-center">Semana {a.semana}</td>
-                    <td className="border border-gray-300 p-2 text-center text-gray-500 font-mono">{a.periodo}.{a.semana}.{a.numero}</td>
-                    <td className="border border-gray-300 p-2">{a.descripcion}</td>
-                  </tr>
-                ))}
+                {Array.from(new Set(actividadesList.map(a => a.periodo))).map(mes => {
+                  const actsMes = actividadesList.filter(a => a.periodo === mes);
+                  return actsMes.map((a, index) => (
+                    <tr key={a.id}>
+                      {index === 0 && (
+                        <td className="border border-gray-300 p-2 text-center font-bold align-middle bg-white" rowSpan={actsMes.length}>Mes {mes}</td>
+                      )}
+                      <td className="border border-gray-300 p-2 text-center">Semana {a.semana}</td>
+                      <td className="border border-gray-300 p-2 text-center text-gray-500 font-mono">{a.periodo}.{a.semana}.{a.numero}</td>
+                      <td className="border border-gray-300 p-2">{a.descripcion}</td>
+                    </tr>
+                  ));
+                })}
               </tbody>
             </table>
           ) : (

@@ -88,9 +88,20 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
               <section>
                 <h3 className="text-sm font-bold text-muted mb-2 uppercase">Carta de Aceptación</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm bg-slate-50 p-4 rounded-lg border border-border">
-                  <p><span className="font-bold">Emisor:</span> {carta?.emisorNombre}</p>
-                  <p><span className="font-bold">Cargo:</span> {carta?.emisorCargo}</p>
+                  <p><span className="font-bold">Fecha de Emisión:</span> {carta?.fechaEmision}</p>
                   <p><span className="font-bold">Período:</span> {carta?.fechaInicio} al {carta?.fechaFin}</p>
+                  {carta?.emisorFirmaUrl ? (
+                    <div className="col-span-2 mt-2 pt-2 border-t border-gray-200">
+                      <p className="font-bold mb-2">Firma Autorizada:</p>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={carta.emisorFirmaUrl} alt="Firma" className="max-h-24 object-contain mix-blend-multiply" />
+                    </div>
+                  ) : (
+                    <>
+                      <p><span className="font-bold">Emisor:</span> {carta?.emisorNombre}</p>
+                      <p><span className="font-bold">Cargo:</span> {carta?.emisorCargo}</p>
+                    </>
+                  )}
                   <div className="col-span-2">
                     {carta?.archivoUrl && (
                       <a href={carta.archivoUrl} target="_blank" rel="noreferrer" className="text-brand-red font-bold hover:underline inline-flex items-center gap-1">
@@ -121,13 +132,18 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {actividadesList.map(a => (
-                        <tr key={a.id}>
-                          <td className="py-2">Mes {a.periodo}</td>
-                          <td className="py-2">Semana {a.semana}</td>
-                          <td className="py-2">{a.descripcion}</td>
-                        </tr>
-                      ))}
+                      {Array.from(new Set(actividadesList.map(a => a.periodo))).map(mes => {
+                        const actsMes = actividadesList.filter(a => a.periodo === mes);
+                        return actsMes.map((a, index) => (
+                          <tr key={a.id}>
+                            {index === 0 && (
+                              <td className="py-2 align-middle font-bold bg-white" rowSpan={actsMes.length}>Mes {mes}</td>
+                            )}
+                            <td className="py-2">Semana {a.semana}</td>
+                            <td className="py-2">{a.descripcion}</td>
+                          </tr>
+                        ));
+                      })}
                     </tbody>
                   </table>
                 </div>
