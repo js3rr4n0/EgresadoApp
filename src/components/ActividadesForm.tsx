@@ -15,6 +15,7 @@ interface PeriodoDisplay {
   num: number;
   name: string;
   range: string;
+  weeks: number;
 }
 
 interface ActividadesFormProps {
@@ -75,10 +76,15 @@ export default function ActividadesForm({ propuestaId, initialFechas, initialAct
         
         const formatStr = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
         
+        const diffTime = Math.abs(monthEnd.getTime() - monthStart.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+        const weeks = Math.ceil(diffDays / 7);
+
         generatedPeriods.push({
           num: periodNum,
           name: name,
-          range: `${formatStr(monthStart)} al ${formatStr(monthEnd)}`
+          range: `${formatStr(monthStart)} al ${formatStr(monthEnd)}`,
+          weeks: weeks > 0 ? weeks : 1 // fallback to 1 just in case
         });
         
         // Move to next month
@@ -162,6 +168,8 @@ export default function ActividadesForm({ propuestaId, initialFechas, initialAct
   };
 
   const currentPeriodActs = actividades.filter(a => a.periodo === selectedPeriodo);
+  const currentPeriodDef = periodos.find(p => p.num === selectedPeriodo);
+  const maxWeeks = currentPeriodDef ? currentPeriodDef.weeks : 4; // fallback
 
   return (
     <form onSubmit={handleSubmit} className="w-full space-y-8">
@@ -222,7 +230,7 @@ export default function ActividadesForm({ propuestaId, initialFechas, initialAct
                     </div>
                     <p className={`text-base font-bold tracking-tight mb-0.5 ${isActive ? 'text-brand-red' : 'text-card-dark'}`}>{p.name}</p>
                     <p className={`text-[11px] font-semibold tracking-wide ${isActive ? 'text-red-700/70' : 'text-slate-400'}`}>
-                      {p.range}
+                      {p.range} ({p.weeks} {p.weeks === 1 ? 'sem' : 'sems'})
                     </p>
                   </button>
                 );
@@ -231,11 +239,11 @@ export default function ActividadesForm({ propuestaId, initialFechas, initialAct
           </div>
 
           {/* Activities Table */}
-          <div className="bg-white border border-border rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-white border border-border rounded-xl overflow-hidden shadow-sm mt-8">
             <div className="bg-slate-50 p-4 border-b border-border flex justify-between items-center">
               <div>
                 <h4 className="font-bold text-card-dark">Actividades del Período {selectedPeriodo}</h4>
-                <p className="text-xs text-muted">Añade las actividades que realizarás en este mes.</p>
+                <p className="text-xs text-muted">Este período contiene {maxWeeks} semanas calculadas.</p>
               </div>
               <button
                 type="button"
@@ -273,16 +281,13 @@ export default function ActividadesForm({ propuestaId, initialFechas, initialAct
                         <tr key={act.id} className="border-b border-border last:border-0 hover:bg-slate-50/50">
                           <td className="px-4 py-3">
                             <select 
-                              value={act.semana}
+                              value={act.semana > maxWeeks ? maxWeeks : act.semana}
                               onChange={(e) => updateRow(act.id, 'semana', parseInt(e.target.value))}
                               className="w-full bg-white border border-border rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-brand-red outline-none"
                             >
-                              <option value={1}>SEMANA 1</option>
-                              <option value={2}>SEMANA 2</option>
-                              <option value={3}>SEMANA 3</option>
-                              <option value={4}>SEMANA 4</option>
-                              <option value={5}>SEMANA 5</option>
-                              <option value={6}>SEMANA 6</option>
+                              {Array.from({ length: maxWeeks }).map((_, i) => (
+                                <option key={i + 1} value={i + 1}>SEMANA {i + 1}</option>
+                              ))}
                             </select>
                           </td>
                           <td className="px-4 py-3 text-center">
