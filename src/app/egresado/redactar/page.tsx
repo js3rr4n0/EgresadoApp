@@ -11,7 +11,7 @@ import DatosEmpresarialesForm from "@/components/DatosEmpresarialesForm";
 import DatosSupervisorForm from "@/components/DatosSupervisorForm";
 import { db } from "@/lib/db";
 import { empresas } from "@/lib/schema";
-import { asc, eq } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 
 export default async function EgresadoPage({
   searchParams,
@@ -73,9 +73,19 @@ export default async function EgresadoPage({
   
   if (currentStep === 2) {
     // Order alphabetically
-    const { sucursales } = await import("@/lib/schema");
+    const { sucursales, organigramasEmpresa } = await import("@/lib/schema");
     empresasList = await db.select().from(empresas).orderBy(asc(empresas.nombre));
     sucursalesList = await db.select().from(sucursales).orderBy(asc(sucursales.nombre));
+    
+    // Inject the latest organigrama for each empresa
+    const orgs = await db.select().from(organigramasEmpresa).orderBy(desc(organigramasEmpresa.subidoEn));
+    empresasList = empresasList.map(emp => {
+      const latestOrg = orgs.find(o => o.empresaId === emp.id);
+      if (latestOrg) {
+        return { ...emp, organigramaUrl: latestOrg.url };
+      }
+      return emp;
+    });
   }
 
   let supervisoresList: any[] = [];
