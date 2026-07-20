@@ -73,7 +73,7 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
     setUploading(null);
   };
 
-  const openBase64Pdf = (base64Url: string, title: string) => {
+  const openBase64Pdf = async (base64Url: string, title: string) => {
     try {
       if (!base64Url.startsWith('data:')) {
         window.open(base64Url, '_blank');
@@ -81,17 +81,10 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
       }
       
       const isImage = base64Url.startsWith('data:image/');
-      const parts = base64Url.split(',');
-      const contentType = parts[0].split(':')[1].split(';')[0];
-      const raw = window.atob(parts[1]);
-      const rawLength = raw.length;
-      const uInt8Array = new Uint8Array(rawLength);
       
-      for (let i = 0; i < rawLength; ++i) {
-        uInt8Array[i] = raw.charCodeAt(i);
-      }
-      
-      const blob = new Blob([uInt8Array], { type: contentType });
+      // Use fetch to natively and safely decode the Data URI into a Blob
+      const response = await fetch(base64Url);
+      const blob = await response.blob();
       const objectUrl = URL.createObjectURL(blob);
       
       // Use anchor tag to force download/open securely
@@ -105,7 +98,7 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
       setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch(e) {
       console.error("Error opening document:", e);
-      alert("Hubo un error al procesar el documento.");
+      alert("Hubo un error al decodificar el documento. Intenta subirlo de nuevo.");
     }
   };
 
