@@ -8,6 +8,7 @@ import ActividadesForm from "@/components/ActividadesForm";
 import JustificacionForm from "@/components/JustificacionForm";
 import DocumentosEstudianteForm from "@/components/DocumentosEstudianteForm";
 import DatosEmpresarialesForm from "@/components/DatosEmpresarialesForm";
+import DatosSupervisorForm from "@/components/DatosSupervisorForm";
 import { db } from "@/lib/db";
 import { empresas } from "@/lib/schema";
 import { asc, eq } from "drizzle-orm";
@@ -77,6 +78,22 @@ export default async function EgresadoPage({
     sucursalesList = await db.select().from(sucursales).orderBy(asc(sucursales.nombre));
   }
 
+  let supervisoresList: any[] = [];
+  if (currentStep === 3 && propuesta.empresaId) {
+    const { supervisores, sucursales } = await import("@/lib/schema");
+    supervisoresList = await db.select().from(supervisores).where(eq(supervisores.empresaId, propuesta.empresaId)).orderBy(asc(supervisores.nombres));
+    sucursalesList = await db.select().from(sucursales).where(eq(sucursales.empresaId, propuesta.empresaId)).orderBy(asc(sucursales.nombre));
+  }
+
+  // Calcular la máxima etapa permitida
+  const isStep2Complete = propuesta.empresaId !== null && propuesta.estado !== "pend_empresa_nueva" && propuesta.estado !== "pend_revision_datos" && propuesta.estado !== "empresa_rechazada" && propuesta.estado !== "datos_rechazados";
+  const isStep3Complete = isStep2Complete && propuesta.supervisorId !== null;
+  const isStep4Complete = isStep3Complete && (await getCartaAceptacion(propuesta.id)) !== null;
+  const isStep5Complete = isStep4Complete && (await getActividades(propuesta.id)).length > 0;
+  const isStep6Complete = isStep5Complete && propuesta.justificacionProceso !== null;
+
+  const maxAllowedStep = isStep6Complete ? 7 : isStep5Complete ? 6 : isStep4Complete ? 5 : isStep3Complete ? 4 : isStep2Complete ? 3 : 2;
+
   // Mapa de estados para etiquetas visuales
   const estadosLabel: Record<string, string> = {
     redactando: "Redactando Propuesta",
@@ -118,23 +135,41 @@ export default async function EgresadoPage({
             {steps.map((step) => {
               const active = step.num === currentStep;
               const completed = step.num < currentStep;
-              return (
-                <Link 
-                  href={`?step=${step.num}`}
-                  key={step.num} 
-                  className={`relative flex items-start gap-4 p-3 rounded-lg hover:bg-slate-50 transition-colors ${active ? "bg-red-50 hover:bg-red-50" : ""}`}
-                >
+              const locked = step.num > maxAllowedStep;
+
+              const innerContent = (
+                <>
                   <div className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold shadow-sm transition-colors ${
-                    active ? "bg-brand-red text-white" : completed ? "bg-emerald-500 text-white" : "bg-muted-bg text-muted border border-border"
+                    active ? "bg-brand-red text-white" : completed ? "bg-emerald-500 text-white" : locked ? "bg-slate-100 text-slate-400 border border-border" : "bg-muted-bg text-muted border border-border"
                   }`}>
-                    {completed ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : step.num}
+                    {completed && !locked ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg> : locked ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg> : step.num}
                   </div>
                   <div>
-                    <h3 className={`text-sm font-bold ${active ? "text-brand-red" : completed ? "text-emerald-700" : "text-foreground"}`}>
+                    <h3 className={`text-sm font-bold ${active ? "text-brand-red" : completed ? "text-emerald-700" : locked ? "text-slate-400" : "text-foreground"}`}>
                       {step.title}
                     </h3>
                     <p className="text-xs text-muted mt-0.5">{step.desc}</p>
                   </div>
+                </>
+              );
+
+              const className = `relative flex items-start gap-4 p-3 rounded-lg transition-colors ${active ? "bg-red-50 hover:bg-red-50" : locked ? "opacity-50 cursor-not-allowed" : "hover:bg-slate-50 cursor-pointer"}`;
+
+              if (locked) {
+                return (
+                  <div key={step.num} className={className}>
+                    {innerContent}
+                  </div>
+                );
+              }
+              
+              return (
+                <Link 
+                  href={`?step=${step.num}`}
+                  key={step.num} 
+                  className={className}
+                >
+                  {innerContent}
                 </Link>
               );
             })}
@@ -155,9 +190,9 @@ export default async function EgresadoPage({
               <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-600">
                 <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
               </div>
-              <h2 className="text-2xl font-bold text-card-dark">En espera de aprobación de empresa</h2>
+              <h2 className="text-2xl font-bold text-card-dark">En espera de aprobación administrativa</h2>
               <p className="text-muted max-w-md mx-auto">
-                Has enviado una solicitud para registrar o actualizar una empresa. No puedes avanzar en la redacción de tu propuesta hasta que la administración apruebe los datos.
+                Has enviado una solicitud para registrar o actualizar datos empresariales o de supervisor. No puedes avanzar en la redacción de tu propuesta hasta que la administración apruebe los datos.
               </p>
             </div>
           ) : (
@@ -186,6 +221,20 @@ export default async function EgresadoPage({
                     initialEmpresaId={propuesta.empresaId}
                     initialSucursalId={propuesta.sucursalId}
                     empresas={empresasList}
+                    sucursales={sucursalesList}
+                  />
+                </>
+              )}
+
+              {currentStep === 3 && (
+                <>
+                  <h2 className="text-xl font-bold text-foreground mb-2">3. Datos de supervisor</h2>
+                  <p className="text-sm text-muted mb-8">Selecciona tu supervisor dentro de la empresa elegida.</p>
+                  <DatosSupervisorForm 
+                    propuestaId={propuesta.id}
+                    empresaId={propuesta.empresaId}
+                    initialSupervisorId={propuesta.supervisorId}
+                    supervisores={supervisoresList}
                     sucursales={sucursalesList}
                   />
                 </>
@@ -240,9 +289,9 @@ export default async function EgresadoPage({
             </>
           )}
 
-          {currentStep !== 1 && currentStep !== 2 && currentStep !== 4 && currentStep !== 5 && currentStep !== 6 && currentStep !== 7 && (
+          {currentStep !== 1 && currentStep !== 2 && currentStep !== 3 && currentStep !== 4 && currentStep !== 5 && currentStep !== 6 && currentStep !== 7 && (
             <div className="text-center py-16">
-              <h3 className="text-lg font-bold text-card-dark">Paso en construcción</h3>
+              <h3 className="text-lg font-bold text-card-dark">Paso en construcción o no disponible</h3>
             </div>
           )}
         </div>
