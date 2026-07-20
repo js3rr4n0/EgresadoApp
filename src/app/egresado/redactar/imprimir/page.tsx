@@ -249,24 +249,37 @@ export default async function PrintPropuestaPage() {
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img src={doc.archivoUrl} alt={doc.tipo} className="max-w-full max-h-[800px] object-contain border shadow-sm" />
               ) : (
-                <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 w-full max-w-2xl print:bg-white print:border-gray-200">
-                  <p className="font-bold text-gray-700 text-lg">Documento en formato PDF</p>
-                  <p className="text-sm text-gray-500 mt-2 text-center">Este documento fue subido como PDF y no puede incrustarse directamente en esta previsualización.</p>
-                  <p className="text-sm text-gray-500 text-center">Por favor, adjunte este documento manualmente a su reporte impreso final o vuélvalo a subir como imagen (JPG/PNG).</p>
-                  <a href={doc.archivoUrl} target="_blank" rel="noreferrer" className="mt-6 text-brand-red font-bold underline print:hidden">Abrir Documento Original</a>
+                <div className="w-full h-[800px] border shadow-sm relative flex flex-col items-center justify-center bg-gray-50">
+                  <iframe src={doc.archivoUrl} title={doc.tipo} className="w-full h-full absolute inset-0 z-10" />
+                  {/* Fallback for print since iframes do not print in all browsers */}
+                  <div className="absolute inset-0 z-0 p-12 flex flex-col items-center justify-center bg-white text-center print:block hidden">
+                    <p className="font-bold text-gray-700 text-lg">Documento Adjunto (PDF)</p>
+                    <p className="text-sm text-gray-500 mt-2">Los archivos PDF no se imprimen nativamente dentro del reporte. Por favor, agregue la hoja del PDF original a su impresión final.</p>
+                  </div>
                 </div>
               )}
             </div>
           );
         })}
 
-        {carta?.archivoUrl?.startsWith('data:image') && (
+        {carta?.archivoUrl && (
           <div style={{ pageBreakAfter: 'always' }} className="pt-8 flex flex-col items-center">
             <h2 className="text-lg font-bold uppercase mb-8 border-b-2 border-brand-red pb-2 w-full text-center">
               CARTA DE ACEPTACIÓN
             </h2>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={carta.archivoUrl} alt="Carta de Aceptación" className="max-w-full max-h-[800px] object-contain border shadow-sm" />
+            {carta.archivoUrl.startsWith('data:image') ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={carta.archivoUrl} alt="Carta de Aceptación" className="max-w-full max-h-[800px] object-contain border shadow-sm" />
+            ) : (
+              <div className="w-full h-[800px] border shadow-sm relative flex flex-col items-center justify-center bg-gray-50">
+                <iframe src={carta.archivoUrl} title="Carta de Aceptación" className="w-full h-full absolute inset-0 z-10" />
+                {/* Fallback for print since iframes do not print in all browsers */}
+                <div className="absolute inset-0 z-0 p-12 flex flex-col items-center justify-center bg-white text-center print:block hidden">
+                  <p className="font-bold text-gray-700 text-lg">Documento Adjunto (PDF)</p>
+                  <p className="text-sm text-gray-500 mt-2">Los archivos PDF no se imprimen nativamente dentro del reporte. Por favor, agregue la hoja del PDF original a su impresión final.</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
