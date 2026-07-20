@@ -34,6 +34,7 @@ export default async function SolicitudesEmpresaPage() {
           solicitudes={solicitudes} 
           allEmpresas={await db.select().from(empresas)} 
           allSucursales={await db.select().from(sucursales)}
+          allSupervisores={await db.select().from((await import("@/lib/schema")).supervisores)}
         />
       </div>
     </div>

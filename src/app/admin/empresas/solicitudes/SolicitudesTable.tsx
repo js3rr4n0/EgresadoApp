@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { aprobarSolicitudEmpresa, rechazarSolicitudEmpresa } from "@/app/actions/solicitudes";
 
-export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSucursales = [] }: { solicitudes: any[], allEmpresas?: any[], allSucursales?: any[] }) {
+export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSucursales = [], allSupervisores = [] }: { solicitudes: any[], allEmpresas?: any[], allSucursales?: any[], allSupervisores?: any[] }) {
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -234,13 +234,44 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
             
             <div>
               <h4 className="font-bold text-brand-red border-b border-border pb-1 mb-2">Datos del Supervisor</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor.nombres}</div>
-                <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor.apellidos}</div>
-                <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor.cargo}</div>
-                <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor.telefono}</div>
-                <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor.correo}</div>
-              </div>
+              
+              {viewDetails.tipo === "actualizacion" && viewDetails.datos.supervisor.targetSupervisorId ? (
+                (() => {
+                  const targetSupervisor = allSupervisores?.find(s => s.id === viewDetails.datos.supervisor.targetSupervisorId);
+                  
+                  return (
+                    <div className="grid grid-cols-2 gap-6">
+                      {/* BEFORE */}
+                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                        <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Datos Actuales (Antes)</h5>
+                        <div><span className="font-bold">Nombres:</span> {targetSupervisor?.nombres || "N/A"}</div>
+                        <div><span className="font-bold">Apellidos:</span> {targetSupervisor?.apellidos || "N/A"}</div>
+                        <div><span className="font-bold">Cargo:</span> {targetSupervisor?.cargo || "N/A"}</div>
+                        <div><span className="font-bold">Teléfono:</span> {targetSupervisor?.telefono || "N/A"}</div>
+                        <div><span className="font-bold">Correo:</span> {targetSupervisor?.correo || "N/A"}</div>
+                      </div>
+
+                      {/* AFTER */}
+                      <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-4 space-y-3">
+                        <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-600 mb-2">Cambios Propuestos (Después)</h5>
+                        <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor.nombres}</div>
+                        <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor.apellidos}</div>
+                        <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor.cargo}</div>
+                        <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor.telefono}</div>
+                        <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor.correo}</div>
+                      </div>
+                    </div>
+                  );
+                })()
+              ) : (
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor.nombres}</div>
+                  <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor.apellidos}</div>
+                  <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor.cargo}</div>
+                  <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor.telefono}</div>
+                  <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor.correo}</div>
+                </div>
+              )}
             </div>
           </div>
           <div className="p-6 border-t border-border flex justify-end shrink-0">
