@@ -53,6 +53,7 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
   };
 
   const openBase64Pdf = (base64Url: string) => {
+    if (!base64Url) return;
     const newWin = window.open('', '_blank');
     if (!newWin) {
       alert("Por favor, permite las ventanas emergentes (pop-ups) en tu navegador.");

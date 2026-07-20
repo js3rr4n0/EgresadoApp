@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 interface DocumentosEstudianteFormProps {
   propuestaId: number;
   isLocked: boolean;
-  documentosSubidos: { tipo: string; url: string }[];
+  documentosSubidos: { tipo: string; archivoUrl: string }[];
 }
 
 export default function DocumentosEstudianteForm({ propuestaId, isLocked, documentosSubidos }: DocumentosEstudianteFormProps) {
@@ -74,6 +74,7 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
   };
 
   const openBase64Pdf = (base64Url: string) => {
+    if (!base64Url) return;
     const newWin = window.open('', '_blank');
     if (!newWin) {
       alert("Por favor, permite las ventanas emergentes (pop-ups) en tu navegador.");
@@ -158,7 +159,7 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
                 {isDone ? (
                   <>
                     <button 
-                      onClick={() => openBase64Pdf(uploadedDoc.url)}
+                      onClick={() => openBase64Pdf(uploadedDoc.archivoUrl)}
                       type="button"
                       className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors shadow-sm text-xs font-bold"
                     >
