@@ -73,12 +73,14 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
     setUploading(null);
   };
 
-  const openBase64Pdf = (base64Url: string) => {
+  const openBase64Pdf = (base64Url: string, title: string) => {
     try {
       if (!base64Url.startsWith('data:')) {
         window.open(base64Url, '_blank');
         return;
       }
+      
+      const isImage = base64Url.startsWith('data:image/');
       const parts = base64Url.split(',');
       const contentType = parts[0].split(':')[1].split(';')[0];
       const raw = window.atob(parts[1]);
@@ -91,9 +93,19 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
       
       const blob = new Blob([uInt8Array], { type: contentType });
       const objectUrl = URL.createObjectURL(blob);
-      window.open(objectUrl, '_blank');
+      
+      // Use anchor tag to force download/open securely
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `Documento_${title.replace(/\s+/g, '_')}.${isImage ? 'png' : 'pdf'}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
     } catch(e) {
-      window.open(base64Url, '_blank');
+      console.error("Error opening document:", e);
+      alert("Hubo un error al procesar el documento.");
     }
   };
 
@@ -153,11 +165,11 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
                 {isDone ? (
                   <>
                     <button 
-                      onClick={() => openBase64Pdf(uploadedDoc.url)}
+                      onClick={() => openBase64Pdf(uploadedDoc.url, doc.title)}
                       type="button"
                       className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors shadow-sm text-xs font-bold"
                     >
-                      Ver
+                      Descargar
                     </button>
                     {!isLocked && (
                       <>
