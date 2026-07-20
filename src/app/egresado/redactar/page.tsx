@@ -262,6 +262,7 @@ export default async function EgresadoPage({
                     propuestaId={propuesta.id}
                     initialData={cartaData}
                     empresaInfo={empresaInfo}
+                    isLocked={propuesta.bloqueada || propuesta.estado !== "redactando"}
                   />
                 </>
                )}

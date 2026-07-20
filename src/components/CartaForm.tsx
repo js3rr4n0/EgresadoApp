@@ -8,12 +8,12 @@ interface CartaFormProps {
   propuestaId: number;
   initialData: any; // data from DB if it exists
   empresaInfo: any;
+  isLocked: boolean;
 }
 
-export default function CartaForm({ propuestaId, initialData, empresaInfo }: CartaFormProps) {
+export default function CartaForm({ propuestaId, initialData, empresaInfo, isLocked }: CartaFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const isLocked = initialData?.bloqueada;
 
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -282,9 +282,12 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo }: Car
                 <div className="flex items-center gap-4 bg-slate-50 p-3 rounded-lg border border-border">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={initialData.emisorFirmaUrl} alt="Firma del Emisor" className="h-12 object-contain bg-white border border-gray-200 rounded p-1" />
-                  {!isLocked && (
-                    <button type="button" onClick={() => setRemovedFirma(true)} className="text-xs font-bold text-red-600 hover:underline">Eliminar / Reemplazar</button>
-                  )}
+                  <div className="flex flex-col gap-1 items-start">
+                    <button type="button" onClick={() => openBase64Pdf(initialData.emisorFirmaUrl)} className="text-xs font-bold text-emerald-600 hover:underline">Ver Firma</button>
+                    {!isLocked && (
+                      <button type="button" onClick={() => setRemovedFirma(true)} className="text-xs font-bold text-red-600 hover:underline">Eliminar / Reemplazar</button>
+                    )}
+                  </div>
                 </div>
               ) : (
                 uploadingFirma ? (
