@@ -211,7 +211,38 @@ export default function DatosSupervisorForm({
             <h3 className="font-bold text-blue-900 text-lg">¿El supervisor no está en la lista o tiene datos erróneos?</h3>
             <p className="text-blue-800/80 text-sm mt-1">
               Si tu supervisor no se encuentra registrado en la empresa o deseas actualizar sus datos, presiona{" "}
-              <button onClick={() => setProblemModalOpen(true)} type="button" className="font-bold underline hover:text-blue-600">aquí</button>.
+              <button onClick={() => {
+                if (selectedSupervisor) {
+                  setRevData({
+                    supervisor: {
+                      titulo: selectedSupervisor.titulo || "",
+                      nombres: selectedSupervisor.nombres || "",
+                      apellidos: selectedSupervisor.apellidos || "",
+                      cargo: selectedSupervisor.cargo || "",
+                      especialidad: selectedSupervisor.especialidad || "",
+                      telefono: selectedSupervisor.telefono || "",
+                      correo: selectedSupervisor.correo || "",
+                      targetSucursalId: selectedSupervisor.sucursalId || undefined,
+                      targetSupervisorId: selectedSupervisor.id,
+                    } as any
+                  });
+                } else {
+                  setRevData({
+                    supervisor: {
+                      titulo: "",
+                      nombres: "",
+                      apellidos: "",
+                      cargo: "",
+                      especialidad: "",
+                      telefono: "",
+                      correo: "",
+                      targetSucursalId: undefined,
+                      targetSupervisorId: undefined,
+                    } as any
+                  });
+                }
+                setProblemModalOpen(true);
+              }} type="button" className="font-bold underline hover:text-blue-600">aquí</button>.
             </p>
           </div>
         </div>
