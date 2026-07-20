@@ -78,7 +78,7 @@ export default function ActividadesForm({ propuestaId, initialFechas, initialAct
         generatedPeriods.push({
           num: periodNum,
           name: name,
-          range: `${formatStr(monthStart)} - ${formatStr(monthEnd)}`
+          range: `${formatStr(monthStart)} al ${formatStr(monthEnd)}`
         });
         
         // Move to next month
@@ -201,21 +201,29 @@ export default function ActividadesForm({ propuestaId, initialFechas, initialAct
                     key={p.num}
                     type="button"
                     onClick={() => setSelectedPeriodo(p.num)}
-                    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${
+                    className={`relative overflow-hidden flex flex-col items-start p-4 rounded-xl border transition-all duration-200 text-left ${
                       isActive 
-                        ? 'border-blue-400 bg-blue-50/50 shadow-sm' 
-                        : 'border-border bg-white hover:bg-slate-50'
+                        ? 'border-brand-red bg-red-50/40 shadow-md ring-1 ring-brand-red/20 scale-[1.02]' 
+                        : 'border-border bg-white hover:border-brand-red/30 hover:bg-slate-50 hover:shadow-sm'
                     }`}
                   >
-                    <div className={`w-8 h-8 rounded flex items-center justify-center font-bold text-sm ${
-                      isActive ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {p.num}
+                    <div className="flex items-center justify-between w-full mb-2">
+                      <div className={`w-7 h-7 rounded-md flex items-center justify-center font-black text-xs shadow-sm ${
+                        isActive ? 'bg-brand-red text-white' : 'bg-slate-100 text-slate-500'
+                      }`}>
+                        {p.num}
+                      </div>
+                      {isActive && (
+                        <div className="flex items-center gap-1.5 bg-white px-2 py-0.5 rounded-full border border-red-100 shadow-sm">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-red animate-pulse"></span>
+                          <span className="text-[9px] font-bold text-brand-red uppercase">Activo</span>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <p className={`text-sm font-bold ${isActive ? 'text-blue-900' : 'text-card-dark'}`}>{p.name}</p>
-                      <p className="text-xs text-muted">{p.range}</p>
-                    </div>
+                    <p className={`text-base font-bold tracking-tight mb-0.5 ${isActive ? 'text-brand-red' : 'text-card-dark'}`}>{p.name}</p>
+                    <p className={`text-[11px] font-semibold tracking-wide ${isActive ? 'text-red-700/70' : 'text-slate-400'}`}>
+                      {p.range}
+                    </p>
                   </button>
                 );
               })}
