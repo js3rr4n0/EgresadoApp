@@ -42,6 +42,8 @@ export default function DatosSupervisorForm({
 
   // Modals state
   const [problemModalOpen, setProblemModalOpen] = useState(false);
+  const [problemMode, setProblemMode] = useState<"edit_existing" | "create_new" | null>(null);
+  const [formModalOpen, setFormModalOpen] = useState(false);
   const [isSubmittingRevision, setIsSubmittingRevision] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
 
@@ -55,11 +57,86 @@ export default function DatosSupervisorForm({
       especialidad: "",
       telefono: "",
       correo: "",
-      targetSucursalId: undefined as number | undefined
+      targetSucursalId: undefined as number | undefined,
+      targetSupervisorId: undefined as number | undefined,
     }
   });
 
   const selectedSupervisor = supervisores.find(s => s.id === selectedSupervisorId);
+
+  const handleProblemSelection = (mode: "edit_existing" | "create_new") => {
+    setProblemMode(mode);
+    setProblemModalOpen(false);
+
+    if (mode === "edit_existing" && selectedSupervisor) {
+      setRevData({
+        supervisor: {
+          titulo: selectedSupervisor.titulo || "",
+          nombres: selectedSupervisor.nombres || "",
+          apellidos: selectedSupervisor.apellidos || "",
+          cargo: selectedSupervisor.cargo || "",
+          especialidad: selectedSupervisor.especialidad || "",
+          telefono: selectedSupervisor.telefono || "",
+          correo: selectedSupervisor.correo || "",
+          targetSucursalId: selectedSupervisor.sucursalId || undefined,
+          targetSupervisorId: selectedSupervisor.id,
+        }
+      });
+    } else {
+      setRevData({
+        supervisor: {
+          titulo: "",
+          nombres: "",
+          apellidos: "",
+          cargo: "",
+          especialidad: "",
+          telefono: "",
+          correo: "",
+          targetSucursalId: undefined,
+          targetSupervisorId: undefined,
+        }
+      });
+    }
+    
+    setFormModalOpen(true);
+  };
+
+  const handleExistingSupervisorSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    if (!val) {
+      setRevData({
+        supervisor: {
+          titulo: "",
+          nombres: "",
+          apellidos: "",
+          cargo: "",
+          especialidad: "",
+          telefono: "",
+          correo: "",
+          targetSucursalId: undefined,
+          targetSupervisorId: undefined,
+        }
+      });
+      return;
+    }
+
+    const sup = supervisores.find(s => s.id === Number(val));
+    if (sup) {
+      setRevData({
+        supervisor: {
+          titulo: sup.titulo || "",
+          nombres: sup.nombres || "",
+          apellidos: sup.apellidos || "",
+          cargo: sup.cargo || "",
+          especialidad: sup.especialidad || "",
+          telefono: sup.telefono || "",
+          correo: sup.correo || "",
+          targetSucursalId: sup.sucursalId || undefined,
+          targetSupervisorId: sup.id,
+        }
+      });
+    }
+  };
 
   const handleSave = async (proceed: boolean) => {
     setIsSaving(true);
@@ -94,12 +171,12 @@ export default function DatosSupervisorForm({
       empresa: { targetEmpresaId: empresaId }, // Mantener la empresa
       supervisor: revData.supervisor
     };
-    const res = await solicitarRevisionEmpresa(propuestaId, dataToSend, "edit_existing");
+    const res = await solicitarRevisionEmpresa(propuestaId, dataToSend, problemMode || "create_new");
     setIsSubmittingRevision(false);
 
     if (res.success) {
       setConfirmModalOpen(false);
-      setProblemModalOpen(false);
+      setFormModalOpen(false);
       alert("Solicitud de supervisor enviada correctamente.");
       router.refresh();
     } else {
@@ -211,38 +288,7 @@ export default function DatosSupervisorForm({
             <h3 className="font-bold text-blue-900 text-lg">¿El supervisor no está en la lista o tiene datos erróneos?</h3>
             <p className="text-blue-800/80 text-sm mt-1">
               Si tu supervisor no se encuentra registrado en la empresa o deseas actualizar sus datos, presiona{" "}
-              <button onClick={() => {
-                if (selectedSupervisor) {
-                  setRevData({
-                    supervisor: {
-                      titulo: selectedSupervisor.titulo || "",
-                      nombres: selectedSupervisor.nombres || "",
-                      apellidos: selectedSupervisor.apellidos || "",
-                      cargo: selectedSupervisor.cargo || "",
-                      especialidad: selectedSupervisor.especialidad || "",
-                      telefono: selectedSupervisor.telefono || "",
-                      correo: selectedSupervisor.correo || "",
-                      targetSucursalId: selectedSupervisor.sucursalId || undefined,
-                      targetSupervisorId: selectedSupervisor.id,
-                    } as any
-                  });
-                } else {
-                  setRevData({
-                    supervisor: {
-                      titulo: "",
-                      nombres: "",
-                      apellidos: "",
-                      cargo: "",
-                      especialidad: "",
-                      telefono: "",
-                      correo: "",
-                      targetSucursalId: undefined,
-                      targetSupervisorId: undefined,
-                    } as any
-                  });
-                }
-                setProblemModalOpen(true);
-              }} type="button" className="font-bold underline hover:text-blue-600">aquí</button>.
+              <button onClick={() => setProblemModalOpen(true)} type="button" className="font-bold underline hover:text-blue-600">aquí</button>.
             </p>
           </div>
         </div>
@@ -269,13 +315,62 @@ export default function DatosSupervisorForm({
         </button>
       </div>
 
-      {/* Modal for adding/editing supervisor */}
+      {/* 1. Problem Modal */}
       {problemModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 text-center border-b border-border">
+              <h3 className="text-xl font-bold text-card-dark">¿Cuál es el problema con el supervisor?</h3>
+              <p className="text-sm text-muted mt-1">Selecciona la opción que mejor describa tu situación.</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <button 
+                onClick={() => handleProblemSelection("edit_existing")}
+                className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:border-[#3b82f6] hover:bg-[#eff6ff] transition-colors text-left"
+              >
+                <div className="w-12 h-12 rounded-full bg-[#e0e7ff] flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6 text-[#4f46e5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                </div>
+                <div>
+                  <h4 className="font-bold text-card-dark">Tu supervisor existe pero los datos no son correctos</h4>
+                  <p className="text-sm text-muted">Podrás seleccionar un supervisor y enviar una solicitud para actualizar su información.</p>
+                </div>
+              </button>
+
+              <button 
+                onClick={() => handleProblemSelection("create_new")}
+                className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:border-[#8b5cf6] hover:bg-[#f5f3ff] transition-colors text-left"
+              >
+                <div className="w-12 h-12 rounded-full bg-[#ede9fe] flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6 text-[#7c3aed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                </div>
+                <div>
+                  <h4 className="font-bold text-card-dark">Tu supervisor no existe</h4>
+                  <p className="text-sm text-muted">Podrás registrar un nuevo supervisor para la empresa.</p>
+                </div>
+              </button>
+            </div>
+            <div className="p-6 border-t border-border bg-slate-50/50">
+              <button 
+                onClick={() => setProblemModalOpen(false)}
+                className="w-full px-5 py-3 rounded-xl border border-border bg-white text-card-dark font-bold hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Modal for adding/editing supervisor */}
+      {formModalOpen && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-6 bg-slate-50 border-b border-border flex justify-between items-center shrink-0">
-              <h3 className="text-xl font-black text-card-dark">Solicitud de Supervisor</h3>
-              <button onClick={() => setProblemModalOpen(false)} className="text-slate-400 hover:text-red-500 transition-colors">
+              <h3 className="text-xl font-black text-card-dark">
+                {problemMode === "edit_existing" ? "Actualizar datos de supervisor" : "Registrar nuevo supervisor"}
+              </h3>
+              <button onClick={() => setFormModalOpen(false)} className="text-slate-400 hover:text-red-500 transition-colors">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -284,6 +379,22 @@ export default function DatosSupervisorForm({
               <div className="bg-blue-50 p-4 rounded-xl text-blue-800 text-sm mb-6 border border-blue-100">
                 <p><strong>Importante:</strong> Al enviar esta solicitud, tu propuesta entrará en estado de revisión y <strong>no podrás continuar al siguiente paso</strong> hasta que administración apruebe los datos del supervisor.</p>
               </div>
+
+              {problemMode === "edit_existing" && (
+                <div className="mb-6 p-4 border border-slate-200 rounded-xl bg-slate-50">
+                  <label className="block text-sm font-bold text-card-dark mb-1.5">Selecciona el supervisor a editar <span className="text-brand-red">*</span></label>
+                  <select 
+                    value={revData.supervisor.targetSupervisorId || ""} 
+                    onChange={handleExistingSupervisorSelect}
+                    className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red"
+                  >
+                    <option value="">-- Seleccionar supervisor --</option>
+                    {supervisores.map(sup => (
+                      <option key={sup.id} value={sup.id}>{sup.nombres} {sup.apellidos} {sup.cargo ? `(${sup.cargo})` : ""}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -337,12 +448,12 @@ export default function DatosSupervisorForm({
             </div>
 
             <div className="p-6 border-t border-border flex justify-end gap-3 shrink-0 bg-white">
-              <button onClick={() => setProblemModalOpen(false)} type="button" className="px-5 py-2.5 rounded-lg border border-border text-card-dark font-bold text-sm bg-white hover:bg-slate-50 transition-colors">
+              <button onClick={() => setFormModalOpen(false)} type="button" className="px-5 py-2.5 rounded-lg border border-border text-card-dark font-bold text-sm bg-white hover:bg-slate-50 transition-colors">
                 Cancelar
               </button>
               <button 
                 type="button" 
-                disabled={!revData.supervisor.nombres || !revData.supervisor.apellidos}
+                disabled={!revData.supervisor.nombres || !revData.supervisor.apellidos || (problemMode === "edit_existing" && !revData.supervisor.targetSupervisorId)}
                 onClick={() => setConfirmModalOpen(true)}
                 className="px-5 py-2.5 rounded-lg bg-[#b90000] hover:bg-[#a00000] text-white font-bold text-sm transition-colors disabled:opacity-50"
               >
