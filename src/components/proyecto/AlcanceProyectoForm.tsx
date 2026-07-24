@@ -45,6 +45,7 @@ export default function AlcanceProyectoForm({
       setError(res.error || "Error al guardar el alcance del proyecto.");
     } else {
       setSuccess("Alcance del proyecto guardado correctamente.");
+      router.push("?step=7");
       router.refresh();
     }
     setPending(false);

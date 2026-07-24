@@ -96,6 +96,7 @@ export default function ObjetivosProyectoForm({
       setError(res.error || "Error al guardar los objetivos.");
     } else {
       setSuccess("Objetivos del proyecto guardados correctamente.");
+      router.push("?step=8");
       router.refresh();
     }
     setPending(false);

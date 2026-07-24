@@ -78,6 +78,13 @@ export async function saveCartaAceptacion(formData: FormData) {
     if (formData.get("emisorNombre")) cartaData.emisorNombre = formData.get("emisorNombre") as string;
     if (formData.get("emisorCargo")) cartaData.emisorCargo = formData.get("emisorCargo") as string;
 
+    if (formData.get("supTitulo")) cartaData.supTitulo = formData.get("supTitulo") as string;
+    if (formData.get("supNombres")) cartaData.supNombres = formData.get("supNombres") as string;
+    if (formData.get("supApellidos")) cartaData.supApellidos = formData.get("supApellidos") as string;
+    if (formData.get("supCargo")) cartaData.supCargo = formData.get("supCargo") as string;
+    if (formData.get("supTelefono")) cartaData.supTelefono = formData.get("supTelefono") as string;
+    if (formData.get("supCorreo")) cartaData.supCorreo = formData.get("supCorreo") as string;
+
     if (archivoUrl) cartaData.archivoUrl = archivoUrl;
     if (emisorFirmaUrl) cartaData.emisorFirmaUrl = emisorFirmaUrl;
 
@@ -91,6 +98,7 @@ export async function saveCartaAceptacion(formData: FormData) {
     }
 
     revalidatePath("/egresado");
+    revalidatePath("/egresado/redactar");
     return { success: true };
   } catch (error: any) {
     console.error("Error saving carta:", error);
