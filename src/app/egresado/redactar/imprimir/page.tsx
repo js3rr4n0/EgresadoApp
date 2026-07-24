@@ -14,6 +14,7 @@ import { getEquipoProyecto, getDetallesProyecto } from "@/app/actions/proyecto";
 import { eq, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import PrintButton from "./PrintButton";
+import PdfToImagesViewer from "@/components/PdfToImagesViewer";
 
 const getStaticMapUrl = (coords: string | null) => {
   if (!coords || !coords.includes(",")) return null;
@@ -447,51 +448,34 @@ export default async function PrintPropuestaPage() {
               }
             };
 
+            const title = getTitle(doc.tipo);
             const isImage = doc.archivoUrl?.startsWith("data:image");
 
-            return (
+            return isImage ? (
               <div key={doc.id} style={{ pageBreakAfter: "always" }} className="pt-8 flex flex-col items-center">
                 <h2 className="text-lg font-bold uppercase mb-8 border-b-2 border-brand-red pb-2 w-full text-center">
-                  {getTitle(doc.tipo)}
+                  {title}
                 </h2>
-                {isImage ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={doc.archivoUrl} alt={doc.tipo} className="max-w-full max-h-[800px] object-contain border shadow-sm" />
-                ) : (
-                  <div className="w-full h-[800px] border shadow-sm relative flex flex-col items-center justify-center bg-gray-50">
-                    <iframe src={doc.archivoUrl} title={doc.tipo} className="w-full h-full absolute inset-0 z-10" />
-                    <div className="absolute inset-0 z-0 p-12 flex flex-col items-center justify-center bg-white text-center print:block hidden">
-                      <p className="font-bold text-gray-700 text-lg">Documento Adjunto (PDF)</p>
-                      <p className="text-sm text-gray-500 mt-2">
-                        Los archivos PDF no se imprimen nativamente dentro del reporte. Por favor, agregue la hoja del PDF original a su impresión final.
-                      </p>
-                    </div>
-                  </div>
-                )}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={doc.archivoUrl} alt={doc.tipo} className="max-w-full max-h-[800px] object-contain border shadow-sm" />
               </div>
+            ) : (
+              <PdfToImagesViewer key={doc.id} url={doc.archivoUrl} title={title} />
             );
           })}
 
         {carta?.archivoUrl && (
-          <div style={{ pageBreakAfter: "always" }} className="pt-8 flex flex-col items-center">
-            <h2 className="text-lg font-bold uppercase mb-8 border-b-2 border-brand-red pb-2 w-full text-center">
-              CARTA DE ACEPTACIÓN
-            </h2>
-            {carta.archivoUrl.startsWith("data:image") ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
+          carta.archivoUrl.startsWith("data:image") ? (
+            <div style={{ pageBreakAfter: "always" }} className="pt-8 flex flex-col items-center">
+              <h2 className="text-lg font-bold uppercase mb-8 border-b-2 border-brand-red pb-2 w-full text-center">
+                CARTA DE ACEPTACIÓN
+              </h2>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={carta.archivoUrl} alt="Carta de Aceptación" className="max-w-full max-h-[800px] object-contain border shadow-sm" />
-            ) : (
-              <div className="w-full h-[800px] border shadow-sm relative flex flex-col items-center justify-center bg-gray-50">
-                <iframe src={carta.archivoUrl} title="Carta de Aceptación" className="w-full h-full absolute inset-0 z-10" />
-                <div className="absolute inset-0 z-0 p-12 flex flex-col items-center justify-center bg-white text-center print:block hidden">
-                  <p className="font-bold text-gray-700 text-lg">Documento Adjunto (PDF)</p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Los archivos PDF no se imprimen nativamente dentro del reporte. Por favor, agregue la hoja del PDF original a su impresión final.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <PdfToImagesViewer url={carta.archivoUrl} title="CARTA DE ACEPTACIÓN" />
+          )
         )}
       </div>
 
@@ -501,7 +485,7 @@ export default async function PrintPropuestaPage() {
         if (typeof window !== 'undefined') {
           setTimeout(() => {
             window.print();
-          }, 1000);
+          }, 2500);
         }
       `,
         }}
