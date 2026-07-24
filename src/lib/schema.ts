@@ -367,3 +367,56 @@ export const temasHistoricos = pgTable("temas_historicos", {
   fechaInicio: date("fecha_inicio"),
   fechaFin: date("fecha_fin"),
 });
+
+// ─────────────────────────── Proyecto Específico ───────────────────────────
+
+export const integrantesProyecto = pgTable(
+  "integrantes_proyecto",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    egresadoId: integer("egresado_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    invitadoPorId: integer("invitado_por_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // 'pendiente', 'aceptado', 'rechazado'
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("unique_propuesta_egresado_integrante").on(
+      table.propuestaId,
+      table.egresadoId
+    ),
+    check(
+      "estado_integrante_check",
+      sql`${table.estado} IN ('pendiente', 'aceptado', 'rechazado')`
+    ),
+  ]
+);
+
+export const detallesProyecto = pgTable("detalles_proyecto", {
+  id: serial("id").primaryKey(),
+  propuestaId: integer("propuesta_id")
+    .notNull()
+    .unique()
+    .references(() => propuestas.id, { onDelete: "cascade" }),
+  // Step 2: Actores intervinientes
+  actorPatrocinador: text("actor_patrocinador"),
+  actorBeneficiario: text("actor_beneficiario"),
+  actorEjecutor: text("actor_ejecutor"),
+  actorFinancista: text("actor_financista"),
+  // Step 4: Descripción del problema
+  descripcionProblema: text("descripcion_problema"),
+  // Step 5: Justificación del proyecto
+  justificacion: text("justificacion"),
+  // Step 6: Alcance del proyecto
+  alcance: text("alcance"),
+  // Step 7: Objetivos del proyecto
+  objetivoGeneral: text("objetivo_general"),
+  objetivosEspecificos: jsonb("objetivos_especificos"), // Array of { titulo: string, descripcion: string }
+});
+

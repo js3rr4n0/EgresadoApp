@@ -15,7 +15,7 @@ export async function getActivePropuesta() {
   if (activePeriodRows.length === 0) return { error: "No hay periodo activo actualmente." };
   const periodo = activePeriodRows[0];
 
-  // 2. Check for existing proposal
+  // 2. Check for existing proposal owned by user
   const props = await db
     .select()
     .from(propuestas)
@@ -28,8 +28,42 @@ export async function getActivePropuesta() {
     .orderBy(desc(propuestas.numero));
 
   let propuesta = props.length > 0 ? props[0] : null;
+  let isLeader = true;
+  let memberInfo = null;
 
-  // 3. Return null if no proposal exists yet, let the user create it via modal
+  // If user doesn't own a proposal, check if they are part of an accepted project team
+  if (!propuesta) {
+    const { integrantesProyecto, usuarios } = await import("@/lib/schema");
+    const teamMemberRows = await db
+      .select({
+        integranteId: integrantesProyecto.id,
+        propuesta: propuestas,
+        liderNombre: usuarios.nombreCompleto,
+        liderCarnet: usuarios.carnet,
+      })
+      .from(integrantesProyecto)
+      .innerJoin(propuestas, eq(integrantesProyecto.propuestaId, propuestas.id))
+      .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+      .where(
+        and(
+          eq(integrantesProyecto.egresadoId, session.userId),
+          eq(integrantesProyecto.estado, "aceptado")
+        )
+      )
+      .limit(1);
+
+    if (teamMemberRows.length > 0) {
+      propuesta = teamMemberRows[0].propuesta;
+      isLeader = false;
+      memberInfo = {
+        integranteId: teamMemberRows[0].integranteId,
+        liderNombre: teamMemberRows[0].liderNombre,
+        liderCarnet: teamMemberRows[0].liderCarnet,
+      };
+    }
+  }
+
+  // 3. Return error if no proposal exists or assigned
   if (!propuesta) {
     return { error: "No has creado ninguna propuesta aún." };
   }
@@ -53,7 +87,7 @@ export async function getActivePropuesta() {
   // 5. Month of sending (from current date as it is being drafted)
   const mesEnvio = new Intl.DateTimeFormat('es-SV', { month: 'long' }).format(new Date());
 
-  return { propuesta, userDetails, mesEnvio, periodo };
+  return { propuesta, userDetails, mesEnvio, periodo, isLeader, memberInfo };
 }
 
 export async function updatePortada(formData: FormData) {
@@ -106,6 +140,7 @@ export async function initPropuesta(tipo: string) {
       if (propuesta.estado === "redactando") {
         await db.update(propuestas).set({ tipo }).where(eq(propuestas.id, propuesta.id));
         revalidatePath("/egresado");
+        revalidatePath("/egresado/redactar");
         return { success: true };
       }
       
@@ -118,6 +153,7 @@ export async function initPropuesta(tipo: string) {
           estado: "redactando"
         });
         revalidatePath("/egresado");
+        revalidatePath("/egresado/redactar");
         return { success: true };
       }
 
@@ -131,6 +167,7 @@ export async function initPropuesta(tipo: string) {
         estado: "redactando"
       });
       revalidatePath("/egresado");
+      revalidatePath("/egresado/redactar");
       return { success: true };
     }
   } catch (error: any) {

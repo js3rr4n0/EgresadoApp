@@ -5,6 +5,8 @@ import { documentosEgresado, propuestas } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import DocumentGate from "@/components/DocumentGate";
 import Link from "next/link";
+import InvitationAlert from "@/components/proyecto/InvitationAlert";
+import { getUserPendingInvitations, getUserAcceptedTeamProposal } from "@/app/actions/proyecto";
 
 export default async function EgresadoLandingPage() {
   const session = await getSession();
@@ -12,14 +14,18 @@ export default async function EgresadoLandingPage() {
     redirect("/login");
   }
 
-  // 1. Fetch documents
+  // 1. Fetch pending team invitations & accepted team proposal
+  const pendingInvitations = await getUserPendingInvitations();
+  const acceptedTeam = await getUserAcceptedTeamProposal();
+
+  // 2. Fetch documents
   const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, session.userId));
   const docServicio = docs.find((d) => d.tipo === "servicio_social");
   const docNotas = docs.find((d) => d.tipo === "certificacion_notas");
   const docPago = docs.find((d) => d.tipo === "pago_tg");
 
-  // 2. Fetch user proposals
-  const userPropuestas = await db
+  // 3. Fetch user proposals
+  let userPropuestas = await db
     .select()
     .from(propuestas)
     .where(eq(propuestas.egresadoId, session.userId))
@@ -27,6 +33,9 @@ export default async function EgresadoLandingPage() {
 
   return (
     <div>
+      {/* Pending Invitations Alert Banner */}
+      <InvitationAlert invitations={pendingInvitations} />
+
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-foreground">Mi Trabajo de Graduación</h1>
         <p className="text-muted mt-1 text-sm">
@@ -43,11 +52,11 @@ export default async function EgresadoLandingPage() {
             urlServicio={docServicio?.archivoUrl}
             urlNotas={docNotas?.archivoUrl}
             urlPago={docPago?.archivoUrl}
+            isTeamMember={!!acceptedTeam}
           />
         </div>
 
         <div className="space-y-6">
-
           <div className="bg-[#1e293b] text-white rounded-xl p-6">
             <h3 className="font-bold flex items-center gap-2 mb-4">
               <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -57,6 +66,11 @@ export default async function EgresadoLandingPage() {
               <li>Puedes crear hasta 3 propuestas.</li>
               <li>Solo podrás enviar (mandar) una propuesta.</li>
               <li>Las propuestas no enviadas quedarán guardadas como respaldo.</li>
+              {acceptedTeam && (
+                <li className="text-amber-300 font-bold">
+                  Estás registrado en un equipo de trabajo. Las opciones de creación están deshabilitadas mientras pertenezcas al equipo.
+                </li>
+              )}
             </ul>
           </div>
         </div>
@@ -83,7 +97,34 @@ export default async function EgresadoLandingPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {userPropuestas.length === 0 ? (
+                {/* If user is part of a team, render leader's proposal */}
+                {acceptedTeam ? (
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-6 py-4 font-bold">{acceptedTeam.propuesta.numero}</td>
+                    <td className="px-6 py-4 font-medium text-foreground max-w-[300px] truncate">
+                      Propuesta de Proyecto (Equipo de {acceptedTeam.liderNombre})
+                    </td>
+                    <td className="px-6 py-4 text-muted">
+                      {new Date().toLocaleDateString("es-SV")}
+                    </td>
+                    <td className="px-6 py-4 uppercase text-xs font-bold text-muted">
+                      {acceptedTeam.propuesta.tipo}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800">
+                        Integrante de equipo
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right flex justify-end items-center gap-3">
+                      <Link
+                        href="/egresado/redactar"
+                        className="text-brand-red hover:text-brand-red-hover font-bold text-sm"
+                      >
+                        Ver propuesta
+                      </Link>
+                    </td>
+                  </tr>
+                ) : userPropuestas.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center text-muted">
@@ -98,8 +139,7 @@ export default async function EgresadoLandingPage() {
                     <tr key={p.id} className="hover:bg-slate-50">
                       <td className="px-6 py-4 font-bold">{p.numero}</td>
                       <td className="px-6 py-4 font-medium text-foreground max-w-[300px] truncate">
-                        {/* the real title isn't easily available since it's inside the proposal block, we can just say "Propuesta #N" for now if not fetched, but let's just show "Trabajo de Graduación" */}
-                        Propuesta de Trabajo de Graduación
+                        Propuesta de Trabajo de Graduación ({p.tipo})
                       </td>
                       <td className="px-6 py-4 text-muted">
                         {new Date().toLocaleDateString("es-SV")}

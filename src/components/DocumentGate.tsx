@@ -12,9 +12,10 @@ interface DocumentGateProps {
   urlServicio?: string;
   urlNotas?: string;
   urlPago?: string;
+  isTeamMember?: boolean;
 }
 
-export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServicio, urlNotas, urlPago }: DocumentGateProps) {
+export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServicio, urlNotas, urlPago, isTeamMember = false }: DocumentGateProps) {
   const router = useRouter();
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -234,11 +235,13 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
             <div className="mt-4 sm:mt-0 sm:ml-6 shrink-0">
               <button 
                 onClick={() => setIsModalOpen(true)}
+                disabled={isTeamMember}
                 type="button"
-                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white shadow-sm transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                title={isTeamMember ? "No puedes crear propuestas mientras pertenezcas a un equipo de trabajo." : "Crear nueva propuesta"}
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                Crear Propuesta
+                {isTeamMember ? "Perteneces a un Equipo" : "Crear Propuesta"}
               </button>
             </div>
           </div>
@@ -319,7 +322,7 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
                     setIsInitializing(true);
                     const res = await initPropuesta(selectedProcess);
                     if (res?.success) {
-                      router.push('/egresado/redactar');
+                      window.location.href = '/egresado/redactar';
                     } else {
                       alert(res?.error || "Ocurrió un error al iniciar la propuesta.");
                       setIsInitializing(false);
