@@ -33,6 +33,8 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
 
   const { propuesta, estudiante } = propuestaInfo;
   const isProyecto = propuesta.tipo === "proyecto";
+  const isInvestigacion = propuesta.tipo === "investigacion";
+  const isMultiUserFlow = isProyecto || isInvestigacion;
 
   let empresa: any = null;
   let sucursal: any = null;
@@ -41,7 +43,7 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
   let teamMembers: any[] = [];
   let detallesProj: any = null;
 
-  if (isProyecto) {
+  if (isMultiUserFlow) {
     teamMembers = await getEquipoProyecto(propuesta.id);
     detallesProj = await getDetallesProyecto(propuesta.id);
   } else {
@@ -90,7 +92,7 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
             </span>
           </div>
           <p className="text-muted text-sm">
-            {isProyecto ? "Líder: " : "Estudiante: "}
+            {isMultiUserFlow ? (isInvestigacion ? "Investigador Principal: " : "Líder: ") : "Estudiante: "}
             {estudiante?.nombreCompleto} ({estudiante?.carnet || "Sin carnet"})
           </p>
         </div>
@@ -105,13 +107,16 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
             </h2>
 
             <div className="space-y-8">
-              {isProyecto ? (
-                /* PROYECTO REVIEW DETAILS */
+              {isMultiUserFlow ? (
+                /* PROYECTO / INVESTIGACIÓN REVIEW DETAILS */
                 <>
                   <section>
                     <h3 className="text-sm font-bold text-muted mb-2 uppercase">Integrantes del Equipo</h3>
                     <div className="bg-slate-50 p-4 rounded-lg border border-border">
-                      <p className="text-xs font-bold text-card-dark mb-2">Líder: {estudiante?.nombreCompleto} ({estudiante?.carnet || "N/A"})</p>
+                      <p className="text-xs font-bold text-card-dark mb-2">
+                        {isInvestigacion ? "Investigador Principal: " : "Líder: "}
+                        {estudiante?.nombreCompleto} ({estudiante?.carnet || "N/A"})
+                      </p>
                       {teamMembers.length > 0 ? (
                         <div className="space-y-1 mt-2 pt-2 border-t border-border">
                           {teamMembers.map((m) => (
@@ -134,13 +139,15 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
                         <p className="text-muted mt-1 whitespace-pre-wrap">{detallesProj?.actorPatrocinador || "N/A"}</p>
                       </div>
                       <div>
-                        <span className="font-bold block text-card-dark">Beneficiario:</span>
+                        <span className="font-bold block text-card-dark">{isInvestigacion ? "Investigador:" : "Beneficiario:"}</span>
                         <p className="text-muted mt-1 whitespace-pre-wrap">{detallesProj?.actorBeneficiario || "N/A"}</p>
                       </div>
-                      <div>
-                        <span className="font-bold block text-card-dark">Ejecutor:</span>
-                        <p className="text-muted mt-1 whitespace-pre-wrap">{detallesProj?.actorEjecutor || "N/A"}</p>
-                      </div>
+                      {!isInvestigacion && (
+                        <div>
+                          <span className="font-bold block text-card-dark">Ejecutor:</span>
+                          <p className="text-muted mt-1 whitespace-pre-wrap">{detallesProj?.actorEjecutor || "N/A"}</p>
+                        </div>
+                      )}
                       <div>
                         <span className="font-bold block text-card-dark">Financista:</span>
                         <p className="text-muted mt-1 whitespace-pre-wrap">{detallesProj?.actorFinancista || "N/A"}</p>
@@ -179,12 +186,14 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
                     </div>
                   </section>
 
-                  <section>
-                    <h3 className="text-sm font-bold text-muted mb-2 uppercase">Alcance del Proyecto</h3>
-                    <div className="text-sm bg-slate-50 p-4 rounded-lg border border-border whitespace-pre-wrap leading-relaxed">
-                      {detallesProj?.alcance || "N/A"}
-                    </div>
-                  </section>
+                  {!isInvestigacion && (
+                    <section>
+                      <h3 className="text-sm font-bold text-muted mb-2 uppercase">Alcance del Proyecto</h3>
+                      <div className="text-sm bg-slate-50 p-4 rounded-lg border border-border whitespace-pre-wrap leading-relaxed">
+                        {detallesProj?.alcance || "N/A"}
+                      </div>
+                    </section>
+                  )}
 
                   <section>
                     <h3 className="text-sm font-bold text-muted mb-2 uppercase">Objetivos del Proyecto</h3>

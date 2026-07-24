@@ -51,6 +51,8 @@ export default async function EgresadoPage({
 
   const { propuesta, userDetails, mesEnvio, isLeader, memberInfo } = data;
   const isProyecto = propuesta.tipo === "proyecto";
+  const isInvestigacion = propuesta.tipo === "investigacion";
+  const isMultiUserFlow = isProyecto || isInvestigacion;
 
   let cartaData: any = null;
   let empresasList: any[] = [];
@@ -62,12 +64,13 @@ export default async function EgresadoPage({
   let teamMembers: any[] = [];
   let detallesProj: any = null;
 
-  if (isProyecto) {
+  if (isMultiUserFlow) {
     teamMembers = await getEquipoProyecto(propuesta.id);
     detallesProj = await getDetallesProyecto(propuesta.id);
     cartaData = await getCartaAceptacion(propuesta.id);
 
-    if (currentStep === 8) {
+    const docStepNumber = isInvestigacion ? 7 : 8;
+    if (currentStep === docStepNumber) {
       const { documentosEgresado } = await import("@/lib/schema");
       documentosSubidos = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId));
     }
@@ -121,7 +124,30 @@ export default async function EgresadoPage({
   // Calculate max allowed step
   let maxAllowedStep = 1;
 
-  if (isProyecto) {
+  if (isInvestigacion) {
+    const isStep2Complete =
+      detallesProj?.actorPatrocinador &&
+      detallesProj?.actorBeneficiario &&
+      detallesProj?.actorFinancista;
+
+    const isStep3Complete =
+      isStep2Complete &&
+      cartaData?.archivoUrl &&
+      cartaData?.fechaEmision &&
+      cartaData?.fechaInicio &&
+      cartaData?.fechaFin &&
+      cartaData?.supNombres;
+
+    const isStep4Complete = isStep3Complete && detallesProj?.descripcionProblema;
+    const isStep5Complete = isStep4Complete && detallesProj?.justificacion;
+    const isStep6Complete =
+      isStep5Complete &&
+      detallesProj?.objetivoGeneral &&
+      Array.isArray(detallesProj?.objetivosEspecificos) &&
+      detallesProj.objetivosEspecificos.length >= 4;
+
+    maxAllowedStep = isStep6Complete ? 7 : isStep5Complete ? 6 : isStep4Complete ? 5 : isStep3Complete ? 4 : isStep2Complete ? 3 : 2;
+  } else if (isProyecto) {
     const isStep2Complete =
       detallesProj?.actorPatrocinador &&
       detallesProj?.actorBeneficiario &&
@@ -173,7 +199,17 @@ export default async function EgresadoPage({
     datos_rechazados: "Datos Rechazados",
   };
 
-  const steps = isProyecto
+  const steps = isInvestigacion
+    ? [
+        { num: 1, title: "Portada", desc: "Información general e integrantes" },
+        { num: 2, title: "Actores intervinientes", desc: "Patrocinador, investigador y financista" },
+        { num: 3, title: "Carta de Aceptación", desc: "Documento de la institución" },
+        { num: 4, title: "Descripción del problema", desc: "Problema u oportunidad a investigar" },
+        { num: 5, title: "Justificación", desc: "Justificación de la investigación" },
+        { num: 6, title: "Objetivos", desc: "Objetivo general y específicos" },
+        { num: 7, title: "Documentación de soporte", desc: "Documentos obligatorios" },
+      ]
+    : isProyecto
     ? [
         { num: 1, title: "Portada", desc: "Información general e integrantes" },
         { num: 2, title: "Actores intervinientes", desc: "Patrocinador, beneficiario, etc." },
@@ -312,6 +348,81 @@ export default async function EgresadoPage({
                 Has enviado una solicitud para registrar o actualizar datos empresariales o de supervisor. No puedes avanzar en la redacción de tu propuesta hasta que la administración apruebe los datos.
               </p>
             </div>
+          ) : isInvestigacion ? (
+            /* RENDER INVESTIGACIÓN STEPS */
+            <>
+              {currentStep === 1 && (
+                <ProyectoPortadaForm
+                  propuestaId={propuesta.id}
+                  userDetails={userDetails}
+                  mesEnvio={mesEnvio}
+                  isLocked={isFormLocked}
+                  isLeader={isLeader}
+                  teamMembers={teamMembers}
+                  memberInfo={memberInfo}
+                  isInvestigacion={true}
+                />
+              )}
+
+              {currentStep === 2 && (
+                <ActoresIntervinientesForm
+                  propuestaId={propuesta.id}
+                  initialData={detallesProj}
+                  isLocked={isFormLocked}
+                  isReadOnly={!isLeader}
+                  isInvestigacion={true}
+                />
+              )}
+
+              {currentStep === 3 && (
+                <CartaProyectoForm
+                  propuestaId={propuesta.id}
+                  initialData={cartaData}
+                  isLocked={isFormLocked}
+                  isReadOnly={!isLeader}
+                  isInvestigacion={true}
+                />
+              )}
+
+              {currentStep === 4 && (
+                <DescripcionProblemaForm
+                  propuestaId={propuesta.id}
+                  initialData={detallesProj?.descripcionProblema}
+                  isLocked={isFormLocked}
+                  isReadOnly={!isLeader}
+                  isInvestigacion={true}
+                />
+              )}
+
+              {currentStep === 5 && (
+                <JustificacionProyectoForm
+                  propuestaId={propuesta.id}
+                  initialData={detallesProj?.justificacion}
+                  isLocked={isFormLocked}
+                  isReadOnly={!isLeader}
+                  isInvestigacion={true}
+                />
+              )}
+
+              {currentStep === 6 && (
+                <ObjetivosProyectoForm
+                  propuestaId={propuesta.id}
+                  initialObjetivoGeneral={detallesProj?.objetivoGeneral}
+                  initialObjetivosEspecificos={detallesProj?.objetivosEspecificos}
+                  isLocked={isFormLocked}
+                  isReadOnly={!isLeader}
+                  isInvestigacion={true}
+                />
+              )}
+
+              {currentStep === 7 && (
+                <DocumentosEstudianteForm
+                  propuestaId={propuesta.id}
+                  isLocked={isFormLocked || !isLeader}
+                  documentosSubidos={documentosSubidos}
+                />
+              )}
+            </>
           ) : isProyecto ? (
             /* RENDER PROYECTO STEPS */
             <>

@@ -34,13 +34,15 @@ export default async function PrintPropuestaPage() {
   const { propuesta } = data;
 
   const isProyecto = propuesta.tipo === "proyecto";
+  const isInvestigacion = propuesta.tipo === "investigacion";
+  const isMultiUserFlow = isProyecto || isInvestigacion;
 
   // Fetch student info
   const studentRows = await db.select().from(usuarios).where(eq(usuarios.id, session.userId)).limit(1);
   const student = studentRows[0];
   const studentName = student?.nombreCompleto || "Estudiante";
 
-  // Fetch relations for Pasantía or Proyecto
+  // Fetch relations for Pasantía, Proyecto or Investigación
   let empresa: any = null;
   let supervisor: any = null;
   let sucursal: any = null;
@@ -48,7 +50,7 @@ export default async function PrintPropuestaPage() {
   let teamMembers: any[] = [];
   let detallesProj: any = null;
 
-  if (isProyecto) {
+  if (isMultiUserFlow) {
     teamMembers = await getEquipoProyecto(propuesta.id);
     detallesProj = await getDetallesProyecto(propuesta.id);
   } else {
@@ -108,10 +110,10 @@ export default async function PrintPropuestaPage() {
 
           <div className="mb-12 space-y-2">
             <h3 className="text-lg font-bold text-gray-900 uppercase">
-              {isProyecto ? "LÍDER DE PROYECTO: " : "ESTUDIANTE: "} {studentName} ({student?.carnet || "N/A"})
+              {isMultiUserFlow ? (isInvestigacion ? "INVESTIGADOR PRINCIPAL: " : "LÍDER DE PROYECTO: ") : "ESTUDIANTE: "} {studentName} ({student?.carnet || "N/A"})
             </h3>
 
-            {isProyecto && teamMembers.length > 0 && (
+            {isMultiUserFlow && teamMembers.length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-200">
                 <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Integrantes del Equipo:</p>
                 <div className="space-y-1">
@@ -124,7 +126,7 @@ export default async function PrintPropuestaPage() {
               </div>
             )}
 
-            {!isProyecto && empresa && (
+            {!isMultiUserFlow && empresa && (
               <div className="mt-6">
                 <h2 className="text-md font-bold uppercase mb-1">EMPRESA:</h2>
                 <p className="text-lg uppercase text-gray-800 font-medium">{empresa.nombre}</p>
@@ -138,13 +140,13 @@ export default async function PrintPropuestaPage() {
           </div>
         </div>
 
-        {/* ────────────────── CONTENIDO PROYECTO ────────────────── */}
-        {isProyecto ? (
+        {/* ────────────────── CONTENIDO PROYECTO / INVESTIGACIÓN ────────────────── */}
+        {isMultiUserFlow ? (
           <>
             {/* PAGE 2: ACTORES INTERVINIENTES */}
             <div style={{ pageBreakAfter: "always" }} className="pt-8">
               <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">
-                1. Actores Intervinientes del Proyecto
+                1. Actores Intervinientes {isInvestigacion ? "de la Investigación" : "del Proyecto"}
               </h2>
 
               <div className="space-y-6">
@@ -156,18 +158,20 @@ export default async function PrintPropuestaPage() {
                 </section>
 
                 <section className="print:break-inside-avoid border p-4 rounded bg-gray-50">
-                  <h3 className="text-md font-bold text-gray-900 mb-2 uppercase">Beneficiario</h3>
+                  <h3 className="text-md font-bold text-gray-900 mb-2 uppercase">{isInvestigacion ? "Investigador" : "Beneficiario"}</h3>
                   <p className="text-sm leading-relaxed text-gray-800 whitespace-pre-wrap">
                     {detallesProj?.actorBeneficiario || <span className="italic text-gray-400">No especificado</span>}
                   </p>
                 </section>
 
-                <section className="print:break-inside-avoid border p-4 rounded bg-gray-50">
-                  <h3 className="text-md font-bold text-gray-900 mb-2 uppercase">Ejecutor</h3>
-                  <p className="text-sm leading-relaxed text-gray-800 whitespace-pre-wrap">
-                    {detallesProj?.actorEjecutor || <span className="italic text-gray-400">No especificado</span>}
-                  </p>
-                </section>
+                {!isInvestigacion && (
+                  <section className="print:break-inside-avoid border p-4 rounded bg-gray-50">
+                    <h3 className="text-md font-bold text-gray-900 mb-2 uppercase">Ejecutor</h3>
+                    <p className="text-sm leading-relaxed text-gray-800 whitespace-pre-wrap">
+                      {detallesProj?.actorEjecutor || <span className="italic text-gray-400">No especificado</span>}
+                    </p>
+                  </section>
+                )}
 
                 <section className="print:break-inside-avoid border p-4 rounded bg-gray-50">
                   <h3 className="text-md font-bold text-gray-900 mb-2 uppercase">Financista</h3>
@@ -178,17 +182,17 @@ export default async function PrintPropuestaPage() {
               </div>
             </div>
 
-            {/* PAGE 3: CARTA DE ACEPTACIÓN DE PROYECTO */}
+            {/* PAGE 3: CARTA DE ACEPTACIÓN */}
             <div style={{ pageBreakAfter: "always" }} className="pt-8">
               <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">
-                2. Carta de Aceptación del Proyecto
+                2. Carta de Aceptación {isInvestigacion ? "de la Investigación" : "del Proyecto"}
               </h2>
 
               {carta ? (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-4 text-sm border p-4 rounded bg-gray-50 print:break-inside-avoid">
                     <p><span className="font-bold">Fecha de Emisión:</span> {carta.fechaEmision}</p>
-                    <p><span className="font-bold">Período del Proyecto:</span> {carta.fechaInicio} al {carta.fechaFin}</p>
+                    <p><span className="font-bold">Período:</span> {carta.fechaInicio} al {carta.fechaFin}</p>
                     <p className="col-span-2"><span className="font-bold">Supervisor Encargado:</span> {carta.supTitulo ? `${carta.supTitulo} ` : ""}{carta.supNombres} {carta.supApellidos}</p>
                     <p className="col-span-2"><span className="font-bold">Cargo del Supervisor:</span> {carta.supCargo}</p>
                   </div>
@@ -201,7 +205,7 @@ export default async function PrintPropuestaPage() {
             {/* PAGE 4: DESCRIPCIÓN DEL PROBLEMA */}
             <div style={{ pageBreakAfter: "always" }} className="pt-8">
               <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">
-                3. Descripción del Problema o la Oportunidad
+                3. Descripción del Problema o la Oportunidad {isInvestigacion ? "a ser Investigada" : ""}
               </h2>
 
               <div className="text-sm border p-5 rounded bg-gray-50 leading-relaxed whitespace-pre-wrap print:break-inside-avoid">
@@ -209,10 +213,10 @@ export default async function PrintPropuestaPage() {
               </div>
             </div>
 
-            {/* PAGE 5: JUSTIFICACIÓN DEL PROYECTO */}
+            {/* PAGE 5: JUSTIFICACIÓN */}
             <div style={{ pageBreakAfter: "always" }} className="pt-8">
               <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">
-                4. Justificación del Proyecto
+                4. Justificación {isInvestigacion ? "de la Investigación" : "del Proyecto"}
               </h2>
 
               <div className="text-sm border p-5 rounded bg-gray-50 leading-relaxed whitespace-pre-wrap print:break-inside-avoid">
@@ -220,21 +224,23 @@ export default async function PrintPropuestaPage() {
               </div>
             </div>
 
-            {/* PAGE 6: ALCANCE DEL PROYECTO */}
-            <div style={{ pageBreakAfter: "always" }} className="pt-8">
-              <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">
-                5. Alcance del Proyecto
-              </h2>
+            {/* PAGE 6: ALCANCE (ONLY FOR PROYECTO) */}
+            {!isInvestigacion && (
+              <div style={{ pageBreakAfter: "always" }} className="pt-8">
+                <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">
+                  5. Alcance del Proyecto
+                </h2>
 
-              <div className="text-sm border p-5 rounded bg-gray-50 leading-relaxed whitespace-pre-wrap print:break-inside-avoid">
-                {detallesProj?.alcance || <span className="italic text-gray-400">No especificado</span>}
+                <div className="text-sm border p-5 rounded bg-gray-50 leading-relaxed whitespace-pre-wrap print:break-inside-avoid">
+                  {detallesProj?.alcance || <span className="italic text-gray-400">No especificado</span>}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* PAGE 7: OBJETIVOS DEL PROYECTO */}
+            {/* PAGE 7: OBJETIVOS */}
             <div style={{ pageBreakAfter: "always" }} className="pt-8">
               <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">
-                6. Objetivos del Proyecto
+                {isInvestigacion ? "5. Objetivos de la Investigación" : "6. Objetivos del Proyecto"}
               </h2>
 
               <div className="space-y-6">

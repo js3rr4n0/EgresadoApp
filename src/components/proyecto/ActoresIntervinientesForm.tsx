@@ -14,6 +14,7 @@ interface ActoresIntervinientesFormProps {
   } | null;
   isLocked: boolean;
   isReadOnly?: boolean;
+  isInvestigacion?: boolean;
 }
 
 export default function ActoresIntervinientesForm({
@@ -21,6 +22,7 @@ export default function ActoresIntervinientesForm({
   initialData,
   isLocked,
   isReadOnly = false,
+  isInvestigacion = false,
 }: ActoresIntervinientesFormProps) {
   const router = useRouter();
   const [patrocinador, setPatrocinador] = useState(initialData?.actorPatrocinador || "");
@@ -38,9 +40,16 @@ export default function ActoresIntervinientesForm({
     e.preventDefault();
     if (disabled) return;
 
-    if (!patrocinador.trim() || !beneficiario.trim() || !ejecutor.trim() || !financista.trim()) {
-      setError("Debes completar la información de los 4 actores obligatorios.");
-      return;
+    if (isInvestigacion) {
+      if (!patrocinador.trim() || !beneficiario.trim() || !financista.trim()) {
+        setError("Debes completar la información de los 3 actores obligatorios (Patrocinador, Investigador y Financista).");
+        return;
+      }
+    } else {
+      if (!patrocinador.trim() || !beneficiario.trim() || !ejecutor.trim() || !financista.trim()) {
+        setError("Debes completar la información de los 4 actores obligatorios.");
+        return;
+      }
     }
 
     setPending(true);
@@ -50,7 +59,7 @@ export default function ActoresIntervinientesForm({
     const res = await saveActoresIntervinientes(propuestaId, {
       patrocinador,
       beneficiario,
-      ejecutor,
+      ejecutor: isInvestigacion ? (ejecutor.trim() || "N/A") : ejecutor,
       financista,
     });
 
@@ -67,9 +76,13 @@ export default function ActoresIntervinientesForm({
   return (
     <div className="bg-white border border-border rounded-xl p-6 lg:p-8 shadow-sm">
       <div className="mb-6 border-b border-border pb-4">
-        <h2 className="text-xl font-bold text-card-dark">Actores Intervinientes del Proyecto</h2>
+        <h2 className="text-xl font-bold text-card-dark">
+          {isInvestigacion ? "Actores Intervinientes de la Investigación" : "Actores Intervinientes del Proyecto"}
+        </h2>
         <p className="text-sm text-muted mt-1">
-          Establece y describe a los actores principales del proyecto, así como sus aportes y rol en el mismo.
+          {isInvestigacion
+            ? "Establece y describe a los 3 actores principales de la investigación: Patrocinador, Investigador y Financista."
+            : "Establece y describe a los actores principales del proyecto, así como sus aportes y rol en el mismo."}
         </p>
       </div>
 
@@ -88,7 +101,7 @@ export default function ActoresIntervinientesForm({
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <label className="block text-sm font-bold text-card-dark mb-2">
-            1. Patrocinador <span className="text-red-500">*</span>
+            1. Patrocinador {isInvestigacion && "de la investigación"} <span className="text-red-500">*</span>
           </label>
           <p className="text-xs text-muted mb-2">Entidad, empresa o persona que impulsa o patrocina la propuesta.</p>
           <textarea
@@ -104,39 +117,49 @@ export default function ActoresIntervinientesForm({
 
         <div>
           <label className="block text-sm font-bold text-card-dark mb-2">
-            2. Beneficiario <span className="text-red-500">*</span>
+            2. {isInvestigacion ? "Investigador" : "Beneficiario"} <span className="text-red-500">*</span>
           </label>
-          <p className="text-xs text-muted mb-2">Población, usuarios o institución beneficiada con el proyecto.</p>
+          <p className="text-xs text-muted mb-2">
+            {isInvestigacion
+              ? "Egresado o equipo encargado del desarrollo y ejecución de la investigación."
+              : "Población, usuarios o institución beneficiada con el proyecto."}
+          </p>
           <textarea
             rows={4}
             value={beneficiario}
             onChange={(e) => setBeneficiario(e.target.value)}
             disabled={disabled}
-            placeholder="Describe a los beneficiarios directos e indirectos y el impacto esperado..."
+            placeholder={
+              isInvestigacion
+                ? "Describe al investigador principal, sus responsabilidades y alcances..."
+                : "Describe a los beneficiarios directos e indirectos y el impacto esperado..."
+            }
             className="w-full p-3.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
             required
           />
         </div>
 
-        <div>
-          <label className="block text-sm font-bold text-card-dark mb-2">
-            3. Ejecutor <span className="text-red-500">*</span>
-          </label>
-          <p className="text-xs text-muted mb-2">Equipo de trabajo / egresados encargados del desarrollo técnico y operativo.</p>
-          <textarea
-            rows={4}
-            value={ejecutor}
-            onChange={(e) => setEjecutor(e.target.value)}
-            disabled={disabled}
-            placeholder="Describe al equipo ejecutor, roles internos y responsabilidades..."
-            className="w-full p-3.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
-            required
-          />
-        </div>
+        {!isInvestigacion && (
+          <div>
+            <label className="block text-sm font-bold text-card-dark mb-2">
+              3. Ejecutor <span className="text-red-500">*</span>
+            </label>
+            <p className="text-xs text-muted mb-2">Equipo de trabajo / egresados encargados del desarrollo técnico y operativo.</p>
+            <textarea
+              rows={4}
+              value={ejecutor}
+              onChange={(e) => setEjecutor(e.target.value)}
+              disabled={disabled}
+              placeholder="Describe al equipo ejecutor, roles internos y responsabilidades..."
+              className="w-full p-3.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
+              required
+            />
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-bold text-card-dark mb-2">
-            4. Financista <span className="text-red-500">*</span>
+            {isInvestigacion ? "3. Financista" : "4. Financista"} <span className="text-red-500">*</span>
           </label>
           <p className="text-xs text-muted mb-2">Entidad o fuente que proveerá los recursos económicos o materiales.</p>
           <textarea

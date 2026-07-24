@@ -15,6 +15,7 @@ interface ObjetivosProyectoFormProps {
   initialObjetivosEspecificos?: ObjectiveItem[] | null;
   isLocked: boolean;
   isReadOnly?: boolean;
+  isInvestigacion?: boolean;
 }
 
 export default function ObjetivosProyectoForm({
@@ -23,6 +24,7 @@ export default function ObjetivosProyectoForm({
   initialObjetivosEspecificos,
   isLocked,
   isReadOnly = false,
+  isInvestigacion = false,
 }: ObjetivosProyectoFormProps) {
   const router = useRouter();
   const [objetivoGeneral, setObjetivoGeneral] = useState(initialObjetivoGeneral || "");
@@ -95,8 +97,8 @@ export default function ObjetivosProyectoForm({
     if (!res.success) {
       setError(res.error || "Error al guardar los objetivos.");
     } else {
-      setSuccess("Objetivos del proyecto guardados correctamente.");
-      router.push("?step=8");
+      setSuccess("Objetivos guardados correctamente.");
+      router.push(isInvestigacion ? "?step=7" : "?step=8");
       router.refresh();
     }
     setPending(false);
@@ -105,7 +107,9 @@ export default function ObjetivosProyectoForm({
   return (
     <div className="bg-white border border-border rounded-xl p-6 lg:p-8 shadow-sm">
       <div className="mb-6 border-b border-border pb-4">
-        <h2 className="text-xl font-bold text-card-dark">Objetivos del Proyecto</h2>
+        <h2 className="text-xl font-bold text-card-dark">
+          {isInvestigacion ? "Objetivos de la Investigación" : "Objetivos del Proyecto"}
+        </h2>
         <p className="text-sm text-muted mt-1">
           Establece 1 objetivo general y de 4 a 6 objetivos específicos en la tabla a continuación.
         </p>

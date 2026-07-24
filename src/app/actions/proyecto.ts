@@ -28,9 +28,11 @@ export async function getUserPendingInvitations() {
       creadoEn: integrantesProyecto.creadoEn,
       invitadorNombre: usuarios.nombreCompleto,
       invitadorCarnet: usuarios.carnet,
+      propuestaTipo: propuestas.tipo,
     })
     .from(integrantesProyecto)
     .innerJoin(usuarios, eq(integrantesProyecto.invitadoPorId, usuarios.id))
+    .innerJoin(propuestas, eq(integrantesProyecto.propuestaId, propuestas.id))
     .where(
       and(
         eq(integrantesProyecto.egresadoId, session.userId),
@@ -174,7 +176,8 @@ export async function invitarIntegrante(propuestaId: number, carnet: string) {
     .limit(1);
 
   const inviter = inviterUsers[0];
-  const mensaje = `${inviter.nombreCompleto} (${inviter.carnet || 'Sin carnet'}) te ha invitado a unirte a su propuesta de tipo Proyecto.`;
+  const tipoLabel = propuesta.tipo === "investigacion" ? "Investigación" : propuesta.tipo === "proyecto" ? "Proyecto" : "Pasantía";
+  const mensaje = `${inviter.nombreCompleto} (${inviter.carnet || 'Sin carnet'}) te ha invitado a unirte a su propuesta de tipo ${tipoLabel}.`;
 
   await db.insert(notificaciones).values({
     usuarioId: targetUser.id,

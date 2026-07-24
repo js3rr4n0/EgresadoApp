@@ -9,6 +9,7 @@ interface CartaProyectoFormProps {
   initialData?: any;
   isLocked: boolean;
   isReadOnly?: boolean;
+  isInvestigacion?: boolean;
 }
 
 const addDays = (dateStr: string, days: number): string => {
@@ -28,6 +29,7 @@ export default function CartaProyectoForm({
   initialData,
   isLocked,
   isReadOnly = false,
+  isInvestigacion = false,
 }: CartaProyectoFormProps) {
   const router = useRouter();
 
@@ -142,7 +144,9 @@ export default function CartaProyectoForm({
   return (
     <div className="bg-white border border-border rounded-xl p-6 lg:p-8 shadow-sm">
       <div className="mb-6 border-b border-border pb-4">
-        <h2 className="text-xl font-bold text-card-dark">Carta de Aceptación de Proyecto</h2>
+        <h2 className="text-xl font-bold text-card-dark">
+          {isInvestigacion ? "Carta de Aceptación de Investigación" : "Carta de Aceptación de Proyecto"}
+        </h2>
         <p className="text-sm text-muted mt-1">
           Adjunta la carta de aceptación otorgada por la institución o empresa en formato PDF y completa los datos del supervisor.
         </p>
@@ -226,7 +230,7 @@ export default function CartaProyectoForm({
 
           <div>
             <label className="block text-sm font-bold text-card-dark mb-1">
-              Fecha de Inicio de Proyecto <span className="text-red-500">*</span>
+              {isInvestigacion ? "Fecha de Inicio de Investigación" : "Fecha de Inicio de Proyecto"} <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
@@ -243,7 +247,7 @@ export default function CartaProyectoForm({
 
           <div>
             <label className="block text-sm font-bold text-card-dark mb-1">
-              Fecha de Fin de Proyecto <span className="text-red-500">*</span>
+              {isInvestigacion ? "Fecha de Fin de Investigación" : "Fecha de Fin de Proyecto"} <span className="text-red-500">*</span>
             </label>
             <input
               type="date"

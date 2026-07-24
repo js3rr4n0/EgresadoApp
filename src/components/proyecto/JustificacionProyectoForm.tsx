@@ -9,6 +9,7 @@ interface JustificacionProyectoFormProps {
   initialData?: string | null;
   isLocked: boolean;
   isReadOnly?: boolean;
+  isInvestigacion?: boolean;
 }
 
 export default function JustificacionProyectoForm({
@@ -16,6 +17,7 @@ export default function JustificacionProyectoForm({
   initialData,
   isLocked,
   isReadOnly = false,
+  isInvestigacion = false,
 }: JustificacionProyectoFormProps) {
   const router = useRouter();
   const [justificacion, setJustificacion] = useState(initialData || "");
@@ -31,7 +33,7 @@ export default function JustificacionProyectoForm({
     if (disabled) return;
 
     if (!justificacion.trim()) {
-      setError("Debes ingresar la justificación del proyecto.");
+      setError("Debes ingresar la justificación.");
       return;
     }
 
@@ -42,10 +44,10 @@ export default function JustificacionProyectoForm({
     const res = await saveJustificacionProyecto(propuestaId, justificacion);
 
     if (!res.success) {
-      setError(res.error || "Error al guardar la justificación del proyecto.");
+      setError(res.error || "Error al guardar la justificación.");
     } else {
       setSuccess("Justificación guardada correctamente.");
-      router.push("?step=6");
+      router.push(isInvestigacion ? "?step=6" : "?step=6");
       router.refresh();
     }
     setPending(false);
@@ -54,7 +56,9 @@ export default function JustificacionProyectoForm({
   return (
     <div className="bg-white border border-border rounded-xl p-6 lg:p-8 shadow-sm">
       <div className="mb-6 border-b border-border pb-4">
-        <h2 className="text-xl font-bold text-card-dark">Justificación del Proyecto</h2>
+        <h2 className="text-xl font-bold text-card-dark">
+          {isInvestigacion ? "Justificación de la Investigación" : "Justificación del Proyecto"}
+        </h2>
         <p className="text-sm text-muted mt-1">
           Argumenta la relevancia, conveniencia, beneficios e impacto esperado de llevar a cabo este proyecto (máximo 3 páginas).
         </p>

@@ -9,6 +9,7 @@ interface DescripcionProblemaFormProps {
   initialData?: string | null;
   isLocked: boolean;
   isReadOnly?: boolean;
+  isInvestigacion?: boolean;
 }
 
 export default function DescripcionProblemaForm({
@@ -16,6 +17,7 @@ export default function DescripcionProblemaForm({
   initialData,
   isLocked,
   isReadOnly = false,
+  isInvestigacion = false,
 }: DescripcionProblemaFormProps) {
   const router = useRouter();
   const [descripcion, setDescripcion] = useState(initialData || "");
@@ -45,7 +47,7 @@ export default function DescripcionProblemaForm({
       setError(res.error || "Error al guardar la descripción del problema.");
     } else {
       setSuccess("Descripción del problema guardada correctamente.");
-      router.push("?step=5");
+      router.push(isInvestigacion ? "?step=5" : "?step=5");
       router.refresh();
     }
     setPending(false);
@@ -54,7 +56,9 @@ export default function DescripcionProblemaForm({
   return (
     <div className="bg-white border border-border rounded-xl p-6 lg:p-8 shadow-sm">
       <div className="mb-6 border-b border-border pb-4">
-        <h2 className="text-xl font-bold text-card-dark">Descripción del Problema o la Oportunidad</h2>
+        <h2 className="text-xl font-bold text-card-dark">
+          {isInvestigacion ? "Descripción del Problema o la Oportunidad a ser Investigada" : "Descripción del Problema o la Oportunidad"}
+        </h2>
         <p className="text-sm text-muted mt-1">
           Describe la problemática o la oportunidad identificada que motiva el desarrollo de este proyecto (máximo 3 páginas).
         </p>
