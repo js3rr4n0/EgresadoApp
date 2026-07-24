@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { saveCartaAceptacion } from "@/app/actions/carta";
 import { useRouter } from "next/navigation";
 
@@ -11,6 +11,18 @@ interface CartaProyectoFormProps {
   isReadOnly?: boolean;
 }
 
+const addDays = (dateStr: string, days: number): string => {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-").map(Number);
+  if (!year || !month || !day) return "";
+  const d = new Date(year, month - 1, day);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const da = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${da}`;
+};
+
 export default function CartaProyectoForm({
   propuestaId,
   initialData,
@@ -19,9 +31,22 @@ export default function CartaProyectoForm({
 }: CartaProyectoFormProps) {
   const router = useRouter();
 
-  const [fechaEmision, setFechaEmision] = useState(initialData?.fechaEmision || "");
-  const [fechaInicio, setFechaInicio] = useState(initialData?.fechaInicio || "");
-  const [fechaFin, setFechaFin] = useState(initialData?.fechaFin || "");
+  const getTodayStr = () => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = String(today.getMonth() + 1).padStart(2, "0");
+    const d = String(today.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
+  const defaultEmision = initialData?.fechaEmision || getTodayStr();
+  const defaultInicio = initialData?.fechaInicio || addDays(defaultEmision, 21);
+  const defaultFin = initialData?.fechaFin || addDays(defaultInicio, 150);
+
+  const [fechaEmision, setFechaEmision] = useState(defaultEmision);
+  const [fechaInicio, setFechaInicio] = useState(defaultInicio);
+  const [fechaFin, setFechaFin] = useState(defaultFin);
+
   const [supTitulo, setSupTitulo] = useState(initialData?.supTitulo || "");
   const [supNombres, setSupNombres] = useState(initialData?.supNombres || "");
   const [supApellidos, setSupApellidos] = useState(initialData?.supApellidos || "");
@@ -35,6 +60,24 @@ export default function CartaProyectoForm({
   const [success, setSuccess] = useState<string | null>(null);
 
   const disabled = isLocked || isReadOnly;
+
+  const handleEmisionChange = (val: string) => {
+    setFechaEmision(val);
+    if (val) {
+      const calculatedInicio = addDays(val, 21);
+      setFechaInicio(calculatedInicio);
+      const calculatedFin = addDays(calculatedInicio, 150);
+      setFechaFin(calculatedFin);
+    }
+  };
+
+  const handleInicioChange = (val: string) => {
+    setFechaInicio(val);
+    if (val) {
+      const calculatedFin = addDays(val, 150);
+      setFechaFin(calculatedFin);
+    }
+  };
 
   const openPdf = (url: string) => {
     const newWin = window.open("", "_blank");
@@ -161,38 +204,44 @@ export default function CartaProyectoForm({
           </div>
         </div>
 
-        {/* Date Pickers */}
+        {/* Date Pickers with Automated Logic */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">
+            <label className="block text-sm font-bold text-card-dark mb-1">
               Fecha de Emisión de Carta <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
               value={fechaEmision}
-              onChange={(e) => setFechaEmision(e.target.value)}
+              onChange={(e) => handleEmisionChange(e.target.value)}
               disabled={disabled}
               className="w-full px-4 py-2.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
               required
             />
+            <p className="text-[11px] text-slate-500 mt-1">
+              Calcula automáticamente la fecha de inicio (+21 días) y fin (+150 días).
+            </p>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">
+            <label className="block text-sm font-bold text-card-dark mb-1">
               Fecha de Inicio de Proyecto <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
               value={fechaInicio}
-              onChange={(e) => setFechaInicio(e.target.value)}
+              onChange={(e) => handleInicioChange(e.target.value)}
               disabled={disabled}
               className="w-full px-4 py-2.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
               required
             />
+            <p className="text-[11px] text-slate-500 mt-1">
+              Debe ser al menos 3 semanas (21 días) posterior a la fecha de emisión.
+            </p>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">
+            <label className="block text-sm font-bold text-card-dark mb-1">
               Fecha de Fin de Proyecto <span className="text-red-500">*</span>
             </label>
             <input
@@ -203,6 +252,9 @@ export default function CartaProyectoForm({
               className="w-full px-4 py-2.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
               required
             />
+            <p className="text-[11px] text-slate-500 mt-1">
+              Período exacto establecido de 150 días de ejecución.
+            </p>
           </div>
         </div>
 

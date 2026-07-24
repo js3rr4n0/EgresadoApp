@@ -38,22 +38,27 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
     return defaultMinInicio;
   });
 
+  const addDays = (dateStr: string, days: number): string => {
+    if (!dateStr) return "";
+    const [year, month, day] = dateStr.split("-").map(Number);
+    if (!year || !month || !day) return "";
+    const d = new Date(year, month - 1, day);
+    d.setDate(d.getDate() + days);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const da = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${da}`;
+  };
+
   const handleDateChange = (type: "emision" | "inicio" | "fin", val: string) => {
     if (type === "emision") {
       setFechaEmision(val);
       if (val) {
-        const emisionDate = new Date(val);
-        const minInicio = new Date(emisionDate);
-        minInicio.setDate(emisionDate.getDate() + 21);
-        const minInicioStrNew = minInicio.toISOString().split('T')[0];
-        
+        const minInicioStrNew = addDays(val, 21);
         setMinInicioStrDyn(minInicioStrNew);
         setFechaInicio(minInicioStrNew);
 
-        // Auto-set fechaFin (150 days)
-        const finDate = new Date(minInicio);
-        finDate.setDate(minInicio.getDate() + 150);
-        const finStr = finDate.toISOString().split('T')[0];
+        const finStr = addDays(minInicioStrNew, 150);
         setFechaFin(finStr);
         setDiasDiff(150);
       } else {
@@ -61,12 +66,8 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
       }
     } else if (type === "inicio") {
       setFechaInicio(val);
-      // Auto-calculate fin (150 days)
       if (val) {
-        const start = new Date(val);
-        const end = new Date(start);
-        end.setDate(start.getDate() + 150);
-        const endStr = end.toISOString().split('T')[0];
+        const endStr = addDays(val, 150);
         setFechaFin(endStr);
         setDiasDiff(150);
       } else {
