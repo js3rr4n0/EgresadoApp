@@ -166,10 +166,18 @@ export default function DatosSupervisorForm({
   };
 
   const handleSubmitRevision = async () => {
+    if (!revData.supervisor.nombres || !revData.supervisor.nombres.trim() || !revData.supervisor.apellidos || !revData.supervisor.apellidos.trim()) {
+      alert("Los campos Nombres y Apellidos del supervisor son obligatorios y no pueden quedar vacíos.");
+      return;
+    }
     setIsSubmittingRevision(true);
     const dataToSend = {
       empresa: { targetEmpresaId: empresaId }, // Mantener la empresa
-      supervisor: revData.supervisor
+      supervisor: {
+        ...revData.supervisor,
+        nombres: revData.supervisor.nombres.trim(),
+        apellidos: revData.supervisor.apellidos.trim(),
+      }
     };
     const res = await solicitarRevisionEmpresa(propuestaId, dataToSend, problemMode || "create_new");
     setIsSubmittingRevision(false);
@@ -453,7 +461,7 @@ export default function DatosSupervisorForm({
               </button>
               <button 
                 type="button" 
-                disabled={!revData.supervisor.nombres || !revData.supervisor.apellidos || (problemMode === "edit_existing" && !revData.supervisor.targetSupervisorId)}
+                disabled={!revData.supervisor.nombres?.trim() || !revData.supervisor.apellidos?.trim() || (problemMode === "edit_existing" && !revData.supervisor.targetSupervisorId)}
                 onClick={() => setConfirmModalOpen(true)}
                 className="px-5 py-2.5 rounded-lg bg-[#b90000] hover:bg-[#a00000] text-white font-bold text-sm transition-colors disabled:opacity-50"
               >

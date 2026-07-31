@@ -404,6 +404,30 @@ Cuando el egresado solicitaba una edición o actualización de datos de empresa 
 - **TypeScript:** Validado con `npx tsc --noEmit` obteniendo 0 errores.
 - **Git Push:** Sincronizado en la rama `main`.
 
+---
+
+## 11. ERROR 8: Validación de Campos de Supervisores (Admin y Egresado)
+
+### 11.1. Descripción del Problema
+Si un administrador (desde `/admin/empresas`) o un egresado (desde `/egresado/redactar`) agregaba o solicitaba la edición de un supervisor sin ingresar datos, la aplicación permitía guardar o registrar campos de texto vacíos o formados por espacios en blanco.
+
+### 11.2. Diagnóstico y Causa Raíz
+Faltaba una validación de campos obligatorios (`nombres` y `apellidos` limpios de espacios vacíos) en el formulario de la interfaz de administración (`EmpresasManager.tsx`), en el modal de solicitud del egresado (`DatosSupervisorForm.tsx`), y en las Server Actions correspondientes (`empresas.ts` y `solicitudes.ts`).
+
+### 11.3. Solución Aplicada
+1. **Validación en Panel Administrador (`EmpresasManager.tsx` & `empresas.ts`):**
+   - Se incorporó una validación previa que comprueba que cada supervisor agregado tenga nombres y apellidos válidos (`!sup.nombres.trim() || !sup.apellidos.trim()`). Si alguno está vacío, la interfaz detiene la ejecución y despliega un mensaje de error.
+   - En las Server Actions `createEmpresa` y `updateEmpresa`, se añadieron validaciones de servidor que rechazan el guardado si se intentan enviar nombres o apellidos vacíos.
+2. **Validación en Portal del Egresado (`DatosSupervisorForm.tsx` & `solicitudes.ts`):**
+   - El botón de envío en el modal del egresado se deshabilita si los campos `nombres` o `apellidos` consisten en espacios en blanco.
+   - `handleSubmitRevision` bloquea el envío y alerta al usuario si detecta entradas vacías.
+   - `aprobarSolicitudEmpresa` limpia espacios sobrantes con `.trim()` y valida que los supervisores aprobados contengan apellidos y nombres válidos.
+
+### 11.4. Verificación y Calidad
+- **TypeScript:** Validado con `npx tsc --noEmit` obteniendo 0 errores.
+- **Git Push:** Sincronizado en la rama `main`.
+
+
 
 
 

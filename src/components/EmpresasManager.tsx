@@ -74,6 +74,15 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
       return;
     }
 
+    for (let i = 0; i < formData.supervisores.length; i++) {
+      const sup = formData.supervisores[i];
+      if (!sup.nombres || !sup.nombres.trim() || !sup.apellidos || !sup.apellidos.trim()) {
+        setError(`El supervisor #${i + 1} debe incluir Nombres y Apellidos válidos (no se permiten campos vacíos).`);
+        setIsSaving(false);
+        return;
+      }
+    }
+
     let res;
     if (editingId) {
       res = await updateEmpresa(editingId, formData);

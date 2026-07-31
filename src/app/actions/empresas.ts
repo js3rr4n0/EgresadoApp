@@ -84,7 +84,16 @@ export async function getEmpresas() {
 export async function createEmpresa(data: EmpresaData) {
   try {
     const { supervisores: sups, firmantes: firms, organigramas: orgs, sucursales: sucs, ...empresaFields } = data;
-    
+
+    // Validate Supervisores
+    if (sups && sups.length > 0) {
+      for (const s of sups) {
+        if (!s.nombres || !s.nombres.trim() || !s.apellidos || !s.apellidos.trim()) {
+          return { success: false, error: "Todos los supervisores deben incluir nombres y apellidos válidos." };
+        }
+      }
+    }
+
     // 1. Insert Empresa
     const [nuevaEmpresa] = await db.insert(empresas).values({
       ...empresaFields,
@@ -96,6 +105,8 @@ export async function createEmpresa(data: EmpresaData) {
     if (sups && sups.length > 0) {
       const supsToInsert = sups.map(s => ({
         ...s,
+        nombres: s.nombres.trim(),
+        apellidos: s.apellidos.trim(),
         empresaId: nuevaEmpresa.id,
       }));
       await db.insert(supervisores).values(supsToInsert);
@@ -139,6 +150,15 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
   try {
     const { supervisores: sups, firmantes: firms, organigramas: orgs, sucursales: sucs, ...empresaFields } = data;
 
+    // Validate Supervisores
+    if (sups && sups.length > 0) {
+      for (const s of sups) {
+        if (!s.nombres || !s.nombres.trim() || !s.apellidos || !s.apellidos.trim()) {
+          return { success: false, error: "Todos los supervisores deben incluir nombres y apellidos válidos." };
+        }
+      }
+    }
+
     // 1. Update Empresa
     await db.update(empresas).set({
       ...empresaFields,
@@ -161,9 +181,9 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
 
       for (const s of sups) {
         if (s.id) {
-          await db.update(supervisores).set({ ...s, actualizadoEn: new Date() }).where(eq(supervisores.id, s.id));
+          await db.update(supervisores).set({ ...s, nombres: s.nombres.trim(), apellidos: s.apellidos.trim(), actualizadoEn: new Date() }).where(eq(supervisores.id, s.id));
         } else {
-          await db.insert(supervisores).values({ ...s, empresaId: id });
+          await db.insert(supervisores).values({ ...s, nombres: s.nombres.trim(), apellidos: s.apellidos.trim(), empresaId: id });
         }
       }
     } else {

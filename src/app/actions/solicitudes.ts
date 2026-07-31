@@ -145,8 +145,8 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         const updateSupObj: any = {
           actualizadoEn: new Date(),
         };
-        if (data.supervisor.nombres !== undefined) updateSupObj.nombres = data.supervisor.nombres;
-        if (data.supervisor.apellidos !== undefined) updateSupObj.apellidos = data.supervisor.apellidos;
+        if (data.supervisor.nombres !== undefined && data.supervisor.nombres.trim() !== "") updateSupObj.nombres = data.supervisor.nombres.trim();
+        if (data.supervisor.apellidos !== undefined && data.supervisor.apellidos.trim() !== "") updateSupObj.apellidos = data.supervisor.apellidos.trim();
         if (data.supervisor.cargo !== undefined) updateSupObj.cargo = data.supervisor.cargo || null;
         if (data.supervisor.especialidad !== undefined) updateSupObj.especialidad = data.supervisor.especialidad || null;
         if (data.supervisor.telefono !== undefined) updateSupObj.telefono = data.supervisor.telefono || null;
@@ -159,12 +159,15 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         await db.update(supervisores).set(updateSupObj).where(eq(supervisores.id, existingSupId));
         targetSupervisorId = existingSupId;
       } else if (data.supervisor && data.supervisor.nombres && data.supervisor.nombres.trim() !== "") {
+        if (!data.supervisor.apellidos || data.supervisor.apellidos.trim() === "") {
+          return { success: false, error: "El supervisor a registrar requiere apellidos válidos (no pueden quedar vacíos)." };
+        }
         // Insert new supervisor
         const newSupervisores = await db.insert(supervisores).values({
           empresaId: targetEmpresaId,
           sucursalId: targetSucursalId || data.supervisor.targetSucursalId || null,
-          nombres: data.supervisor.nombres,
-          apellidos: data.supervisor.apellidos || "",
+          nombres: data.supervisor.nombres.trim(),
+          apellidos: data.supervisor.apellidos.trim(),
           cargo: data.supervisor.cargo || null,
           especialidad: data.supervisor.especialidad || null,
           telefono: data.supervisor.telefono || null,
