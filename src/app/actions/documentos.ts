@@ -23,6 +23,13 @@ export async function uploadDocumento(formData: FormData) {
       return { success: false, error: "Tipo de documento inválido." };
     }
 
+    const { propuestas } = await import("@/lib/schema");
+    const { eq } = await import("drizzle-orm");
+    const userProps = await db.select().from(propuestas).where(eq(propuestas.egresadoId, session.userId));
+    if (userProps.some(p => p.estado === "enviada" || p.estado === "aprobada")) {
+      return { success: false, error: "No puedes modificar tus documentos una vez enviada tu propuesta." };
+    }
+
     // Convert file to Base64 to store directly in DB
     const buffer = Buffer.from(await file.arrayBuffer());
     const base64String = buffer.toString("base64");
@@ -61,7 +68,13 @@ export async function deleteDocumento(tipo: string) {
       return { success: false, error: "Tipo de documento inválido." };
     }
 
-    const { and, eq } = await import("drizzle-orm");
+    const { propuestas } = await import("@/lib/schema");
+    const { eq, and } = await import("drizzle-orm");
+    const userProps = await db.select().from(propuestas).where(eq(propuestas.egresadoId, session.userId));
+    if (userProps.some(p => p.estado === "enviada" || p.estado === "aprobada")) {
+      return { success: false, error: "No puedes eliminar tus documentos una vez enviada tu propuesta." };
+    }
+
     await db.delete(documentosEgresado).where(
       and(
         eq(documentosEgresado.egresadoId, session.userId),

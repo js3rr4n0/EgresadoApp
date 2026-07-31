@@ -348,7 +348,33 @@ export default async function EgresadoPage({
 
         {/* Right Column - Step Form Content */}
         <div className="flex-1">
-          {propuesta.bloqueada ? (
+          {propuesta.estado === "enviada" ? (
+            <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm text-center py-16 space-y-6">
+              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto text-blue-600 shadow-inner">
+                <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-2xl font-extrabold text-slate-800">Tu propuesta está en revisión</h2>
+                <p className="text-slate-600 max-w-md mx-auto text-sm leading-relaxed">
+                  Has enviado oficialmente tu propuesta de Trabajo de Graduación. En este momento está siendo evaluada por las autoridades académicas. Ya no es posible modificar los datos de la propuesta.
+                </p>
+              </div>
+              <div className="pt-4 flex justify-center">
+                <Link
+                  href="/egresado/redactar/imprimir"
+                  target="_blank"
+                  className="inline-flex items-center gap-2 bg-brand-red hover:bg-brand-red-hover text-white font-bold px-6 py-3 rounded-xl text-sm shadow-md transition-all active:scale-95"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Ver PDF / Vista Previa
+                </Link>
+              </div>
+            </div>
+          ) : propuesta.bloqueada ? (
             <div className="bg-white border border-border rounded-xl p-8 shadow-sm text-center py-12 space-y-4">
               <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto text-amber-600">
                 <svg className="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">

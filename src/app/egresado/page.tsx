@@ -31,6 +31,8 @@ export default async function EgresadoLandingPage() {
     .where(eq(propuestas.egresadoId, session.userId))
     .orderBy(desc(propuestas.numero));
 
+  const hasSubmittedPropuesta = userPropuestas.some(p => p.estado === "enviada" || p.estado === "aprobada") || acceptedTeam?.propuesta?.estado === "enviada";
+
   return (
     <div>
       {/* Pending Invitations Alert Banner */}
@@ -53,6 +55,7 @@ export default async function EgresadoLandingPage() {
             urlNotas={docNotas?.archivoUrl}
             urlPago={docPago?.archivoUrl}
             isTeamMember={!!acceptedTeam}
+            isLocked={hasSubmittedPropuesta}
           />
         </div>
 
@@ -146,8 +149,12 @@ export default async function EgresadoLandingPage() {
                       </td>
                       <td className="px-6 py-4 uppercase text-xs font-bold text-muted">{p.tipo}</td>
                       <td className="px-6 py-4">
-                        <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
-                          {p.estado === 'redactando' ? 'Redactando' : p.estado}
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold ${
+                          p.estado === 'enviada' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                          p.estado === 'aprobada' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                          p.estado === 'rechazada' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-amber-100 text-amber-800 border border-amber-300'
+                        }`}>
+                          {p.estado === 'redactando' ? 'Redactando' : p.estado === 'enviada' ? 'Enviada' : p.estado === 'aprobada' ? 'Aprobada' : p.estado === 'rechazada' ? 'Rechazada' : p.estado}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -155,7 +162,7 @@ export default async function EgresadoLandingPage() {
                           href="/egresado/redactar"
                           className="text-brand-red hover:text-brand-red-hover font-bold text-sm"
                         >
-                          Continuar
+                          {p.estado === 'enviada' || p.estado === 'aprobada' || p.estado === 'rechazada' ? 'Ver Propuesta' : 'Continuar'}
                         </Link>
                       </td>
                     </tr>
