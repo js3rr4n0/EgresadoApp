@@ -58,8 +58,8 @@ export default function ReviewForm({
     }
   };
 
-  const handleDeleteBorrador = async () => {
-    const confirmMsg = "¿Estás seguro de eliminar definitivamente esta propuesta en borrador? Se borrarán todos los datos adjuntos y actividades.";
+  const handleDeletePropuesta = async () => {
+    const confirmMsg = "¿Estás seguro de eliminar definitivamente esta propuesta? Se eliminarán todos sus datos y serás redirigido al listado de propuestas.";
     if (!window.confirm(confirmMsg)) return;
 
     setDeleting(true);
@@ -69,6 +69,7 @@ export default function ReviewForm({
     if (res.success) {
       alert(res.message);
       router.push("/admin/propuestas");
+      router.refresh();
     } else {
       alert(res.error || "Error al eliminar propuesta.");
     }
@@ -77,6 +78,7 @@ export default function ReviewForm({
   const getBadgeStyle = () => {
     switch (estadoActual) {
       case "borrador":
+      case "redactando":
         return "bg-slate-100 text-slate-800 border-slate-300";
       case "coordinador_asignado":
         return "bg-indigo-100 text-indigo-800 border-indigo-300";
@@ -92,9 +94,10 @@ export default function ReviewForm({
   const getBadgeText = () => {
     switch (estadoActual) {
       case "borrador":
+      case "redactando":
         return "En Borrador (No Enviada)";
       case "coordinador_asignado":
-        return "Coordinador Asignado (Esperando Respuesta)";
+        return "Coordinador Asignado";
       case "aprobada":
         return "Aceptada por Coordinador";
       case "rechazada":
@@ -117,34 +120,6 @@ export default function ReviewForm({
           </span>
         </div>
       </div>
-
-      {estadoActual === "borrador" && (
-        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl space-y-3">
-          <div className="flex items-start gap-2.5">
-            <svg className="w-5 h-5 text-rose-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <div>
-              <h3 className="text-xs font-black uppercase text-rose-900">Propuesta en Estado Borrador</h3>
-              <p className="text-xs text-rose-700 mt-0.5 leading-relaxed">
-                El estudiante aún no ha enviado esta propuesta formalmente. Como administrador puedes eliminarla si es necesario.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleDeleteBorrador}
-            disabled={deleting}
-            className="w-full py-2.5 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-            <span>{deleting ? "Eliminando..." : "Eliminar Propuesta Definitivamente"}</span>
-          </button>
-        </div>
-      )}
 
       <form onSubmit={handleAssignCoordinatorSubmit} className="space-y-4">
         {/* Sección de Asignación de Coordinador con Búsqueda y Autocompletado */}
@@ -216,6 +191,22 @@ export default function ReviewForm({
           )}
         </button>
       </form>
+
+      {/* Botón de Eliminar Definitivamente (Acción dentro del panel de revisión) */}
+      <div className="pt-4 border-t border-slate-200 space-y-2">
+        <label className="block text-xs font-bold text-slate-500 uppercase">Acción Administrativa Especial</label>
+        <button
+          type="button"
+          onClick={handleDeletePropuesta}
+          disabled={deleting}
+          className="w-full py-3 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          <span>{deleting ? "Eliminando propuesta..." : "Eliminar Propuesta Definitivamente"}</span>
+        </button>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { asignarPropuestaACoordinador, eliminarPropuestaBorrador } from "@/app/actions/adminPropuestas";
+import { asignarPropuestaACoordinador } from "@/app/actions/adminPropuestas";
 
 interface CoordinadorStat {
   id: number;
@@ -21,7 +21,6 @@ export default function PropuestasTable({
 }) {
   const [search, setSearch] = useState("");
   const [filterEstado, setFilterEstado] = useState("todos");
-  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Modal State
   const [selectedPropuesta, setSelectedPropuesta] = useState<any | null>(null);
@@ -87,22 +86,6 @@ export default function PropuestasTable({
     }
   };
 
-  const handleDeleteBorrador = async (propuesta: any) => {
-    const confirmMessage = `¿Estás seguro de eliminar definitivamente la propuesta #${propuesta.numero} en borrador del estudiante ${propuesta.estudiante}? Esta acción no se puede deshacer.`;
-    if (!window.confirm(confirmMessage)) return;
-
-    setDeletingId(propuesta.id);
-    const res = await eliminarPropuestaBorrador(propuesta.id);
-    setDeletingId(null);
-
-    if (res.success) {
-      alert(res.message);
-      window.location.reload();
-    } else {
-      alert(res.error || "Error al eliminar la propuesta.");
-    }
-  };
-
   const getStatusBadge = (estado: string) => {
     if (isDraftState(estado)) {
       return <span className="px-2.5 py-1 bg-slate-200 text-slate-800 rounded-md text-xs font-black uppercase">En Borrador</span>;
@@ -121,9 +104,53 @@ export default function PropuestasTable({
     }
   };
 
+  const countTodos = data.length;
+  const countPendientes = data.filter((p) => p.estado === "enviada" || p.estado === "coordinador_asignado").length;
+  const countBorradores = data.filter((p) => isDraftState(p.estado)).length;
+  const countAprobadas = data.filter((p) => p.estado === "aprobada").length;
+  const countRechazadas = data.filter((p) => p.estado === "rechazada").length;
+
+  const tabs = [
+    { key: "todos", label: "Todos los estados", count: countTodos },
+    { key: "pendiente", label: "Pendientes de Revisión", count: countPendientes },
+    { key: "borrador", label: "En Borrador", count: countBorradores },
+    { key: "aprobada", label: "Aprobadas", count: countAprobadas },
+    { key: "rechazada", label: "Rechazadas", count: countRechazadas },
+  ];
+
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
-      {/* Header Filters */}
+    <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden space-y-0">
+      {/* Horizontal Tabs Bar across the top */}
+      <div className="p-3 bg-slate-100/80 border-b border-border overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1.5 min-w-max">
+          {tabs.map((tab) => {
+            const isActive = filterEstado === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setFilterEstado(tab.key)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap ${
+                  isActive
+                    ? "bg-slate-900 text-white shadow-sm"
+                    : "bg-white text-slate-600 hover:bg-slate-200/70 hover:text-slate-900 border border-slate-200"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-extrabold ${
+                    isActive ? "bg-indigo-500 text-white" : "bg-slate-100 text-slate-700"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Header Search Bar */}
       <div className="p-4 lg:p-6 border-b border-border flex flex-col sm:flex-row gap-4 items-center justify-between bg-slate-50/50">
         <div className="relative w-full sm:w-96">
           <svg className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,30 +161,22 @@ export default function PropuestasTable({
             placeholder="Buscar estudiante, título, carnet..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-border focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all text-sm"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all text-sm bg-white"
           />
         </div>
 
-        {/* Filter Buttons & Dropdown */}
-        <div className="w-full sm:w-auto flex flex-wrap items-center gap-2">
+        {/* Mobile Fallback Select Box */}
+        <div className="w-full sm:w-auto sm:hidden">
           <select
             value={filterEstado}
             onChange={(e) => setFilterEstado(e.target.value)}
-            className="w-full sm:w-auto px-4 py-2 rounded-lg border border-border focus:border-brand-red outline-none bg-white text-sm font-bold text-slate-800 shadow-2xs"
+            className="w-full px-4 py-2 rounded-lg border border-border outline-none bg-white text-sm font-bold text-slate-800"
           >
-            <option value="todos">📑 Todos los estados ({data.length})</option>
-            <option value="pendiente">
-              ⏳ Pendientes de Revisión ({data.filter((p) => p.estado === "enviada" || p.estado === "coordinador_asignado").length})
-            </option>
-            <option value="borrador">
-              📝 En Borrador ({data.filter((p) => isDraftState(p.estado)).length})
-            </option>
-            <option value="aprobada">
-              ✅ Aprobadas ({data.filter((p) => p.estado === "aprobada").length})
-            </option>
-            <option value="rechazada">
-              ❌ Rechazadas ({data.filter((p) => p.estado === "rechazada").length})
-            </option>
+            {tabs.map((tab) => (
+              <option key={tab.key} value={tab.key}>
+                {tab.label} ({tab.count})
+              </option>
+            ))}
           </select>
         </div>
       </div>
@@ -200,7 +219,7 @@ export default function PropuestasTable({
                       {!isDraftState(p.estado) && (
                         <button
                           onClick={() => handleOpenAssignModal(p)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors font-bold text-xs shadow-xs"
+                          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-colors font-bold text-xs shadow-2xs"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -209,22 +228,9 @@ export default function PropuestasTable({
                         </button>
                       )}
 
-                      {isDraftState(p.estado) && (
-                        <button
-                          onClick={() => handleDeleteBorrador(p)}
-                          disabled={deletingId === p.id}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors font-bold text-xs shadow-xs disabled:opacity-50"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          {deletingId === p.id ? "Eliminando..." : "Eliminar Definitivamente"}
-                        </button>
-                      )}
-
                       <Link
                         href={`/admin/propuestas/${p.id}`}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-border hover:border-brand-red text-card-dark hover:text-brand-red rounded-lg transition-colors font-bold text-xs"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-slate-300 hover:border-brand-red text-slate-800 hover:text-brand-red rounded-xl transition-colors font-bold text-xs shadow-2xs"
                       >
                         Revisar
                       </Link>

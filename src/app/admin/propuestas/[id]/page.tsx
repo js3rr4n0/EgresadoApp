@@ -19,6 +19,7 @@ import Link from "next/link";
 import ReviewForm from "./ReviewForm";
 import PdfToImagesViewer from "@/components/PdfToImagesViewer";
 import MediaZoomViewer from "@/components/MediaZoomViewer";
+import HistorialProyectoAccordion from "@/components/HistorialProyectoAccordion";
 
 export default async function AdminPropuestaReviewPage({
   params,
@@ -136,7 +137,7 @@ export default async function AdminPropuestaReviewPage({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Left Column: Exact Generated Document View (Formato Hoja de Impresión / PDF Foto) */}
+        {/* Left Column: Document View */}
         <div className="lg:col-span-8 space-y-8">
           {/* SHEET PAPER CONTAINER */}
           <div className="bg-white rounded-xl shadow-2xl border border-slate-300 p-6 sm:p-12 space-y-10 text-slate-900 mx-auto max-w-[850px]">
@@ -158,225 +159,190 @@ export default async function AdminPropuestaReviewPage({
 
               <div className="space-y-1">
                 <h2 className="text-lg sm:text-xl font-black uppercase tracking-wider text-slate-900">
-                  HOJA DE INSCRIPCIÓN DE TRABAJO DE GRADUACIÓN
+                  FACULTAD DE INGENIERÍA Y ARQUITECTURA
                 </h2>
-                <p className="text-xs sm:text-sm font-extrabold text-slate-500 uppercase tracking-widest">
-                  MODALIDAD: {propuesta.tipo.toUpperCase()} (PROPUESTA #{propuesta.numero})
-                </p>
-              </div>
-
-              {/* TÍTULO DE LA PROPUESTA BOX */}
-              <div className="w-full max-w-xl mx-auto p-4 bg-slate-50 border border-slate-300 rounded-xl text-center space-y-1 shadow-2xs">
-                <p className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest">
-                  TÍTULO DE LA PROPUESTA:
-                </p>
-                <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase leading-snug">
-                  {propuesta.titulo || `TÍTULO DE PRUEBA - PROPUESTA #${propuesta.numero}`}
+                <h3 className="text-base font-extrabold uppercase text-slate-800 tracking-wider">
+                  DECANATO
                 </h3>
               </div>
 
-              {/* DATOS ESTUDIANTE Y CARRERA */}
-              <div className="space-y-2 text-sm sm:text-base font-bold text-slate-900">
-                <p>
-                  {isMultiUserFlow
-                    ? isInvestigacion
-                      ? "INVESTIGADOR PRINCIPAL: "
-                      : "LÍDER DE PROYECTO: "
-                    : "ESTUDIANTE: "}
-                  <span className="uppercase font-black text-indigo-950">{estudiante?.nombreCompleto} ({estudiante?.carnet || "N/A"})</span>
+              <div className="pt-4 space-y-2 max-w-2xl">
+                <h4 className="text-sm font-bold uppercase text-slate-600 tracking-wide">
+                  HOJA DE INSCRIPCIÓN DE TRABAJO DE GRADUACIÓN
+                </h4>
+                <p className="text-xs font-semibold text-slate-500 uppercase">
+                  CICLO I-{today.getFullYear()}
                 </p>
-                <p className="text-xs sm:text-sm font-bold text-slate-700 uppercase">
-                  <strong>TÍTULO AL QUE SE OPTA / CARRERA:</strong> {carreraNombre || "INGENIERÍA EN SISTEMAS"}
-                </p>
-                <p className="text-xs font-bold text-slate-600 uppercase">
-                  <strong>MES DE ENVÍO:</strong> {mesEnvioStr}
-                </p>
-                {empresa && (
-                  <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase">
-                    <strong>EMPRESA:</strong> {empresa.nombre}
-                  </p>
-                )}
-              </div>
-
-              <div className="pt-4 text-xs font-bold text-slate-600 uppercase tracking-wider">
-                <p>FECHA DE PRESENTACIÓN:</p>
-                <p className="text-slate-900 font-extrabold mt-0.5">{formattedDate}</p>
+                <div className="pt-2">
+                  <span className="inline-block bg-slate-100 border border-slate-300 px-4 py-1.5 rounded-full text-xs font-black uppercase tracking-widest text-indigo-900">
+                    MODALIDAD: {propuesta.tipo}
+                  </span>
+                </div>
               </div>
             </div>
 
-            {/* SECCIÓN DATOS EMPRESARIALES / DETALLES DE PROYECTO */}
-            <div className="space-y-8 pt-4">
-              <h2 className="text-lg font-black uppercase text-rose-700 border-b-2 border-rose-600 pb-2 tracking-wider">
-                {isMultiUserFlow ? "DETALLES DEL PROYECTO E INVESTIGACIÓN" : "DATOS EMPRESARIALES"}
+            {/* SECCIÓN 1: DATOS GENERALES */}
+            <div className="space-y-4">
+              <h2 className="text-base font-black uppercase border-b-2 border-slate-900 pb-1 text-slate-900 tracking-wider">
+                1. DATOS DEL O LOS ESTUDIANTES
               </h2>
 
-              {!isMultiUserFlow ? (
-                /* PASANTÍA */
-                <div className="space-y-6">
-                  {/* 1. INFORMACIÓN DE LA EMPRESA */}
-                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
-                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
-                      1. INFORMACIÓN DE LA EMPRESA
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <p><strong className="text-slate-900">Razón Social:</strong> {empresa?.nombre || "N/A"}</p>
-                      <p><strong className="text-slate-900">Área:</strong> {empresa?.area || "N/A"}</p>
-                      <p className="sm:col-span-2"><strong className="text-slate-900">Descripción:</strong> {empresa?.descripcion || "N/A"}</p>
+              {isMultiUserFlow ? (
+                <div className="space-y-4">
+                  {teamMembers.map((member, idx) => (
+                    <div key={member.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
+                      <div className="flex items-center justify-between font-bold border-b border-slate-200 pb-2">
+                        <span className="text-indigo-900 font-black">ESTUDIANTE #{idx + 1}</span>
+                        <span className="bg-white px-2 py-0.5 rounded border border-slate-300 font-mono">{member.usuario?.carnet}</span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <p><strong className="text-slate-700">Nombre:</strong> {member.usuario?.nombreCompleto}</p>
+                        <p><strong className="text-slate-700">Correo:</strong> {member.usuario?.correo}</p>
+                        <p><strong className="text-slate-700">Teléfono:</strong> {member.usuario?.telefono || "N/A"}</p>
+                        <p><strong className="text-slate-700">Carrera:</strong> {carreraNombre}</p>
+                      </div>
                     </div>
-                  </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
+                  <p><strong className="text-slate-700">Nombre:</strong> {estudiante?.nombreCompleto}</p>
+                  <p><strong className="text-slate-700">Carnet:</strong> {estudiante?.carnet}</p>
+                  <p><strong className="text-slate-700">Carrera:</strong> {carreraNombre}</p>
+                  <p><strong className="text-slate-700">Correo:</strong> {estudiante?.correo}</p>
+                </div>
+              )}
+            </div>
 
-                  {/* 2. UBICACIÓN Y SUCURSAL */}
-                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
-                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
-                      2. UBICACIÓN Y SUCURSAL
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <p><strong className="text-slate-900">Sucursal:</strong> {sucursal?.nombre || "Matriz / Sede Central"}</p>
-                      <p><strong className="text-slate-900">Teléfono:</strong> {sucursal?.telefono || "No especificado"}</p>
-                      <p className="sm:col-span-2"><strong className="text-slate-900">Dirección:</strong> {sucursal?.direccion || "No especificada"}</p>
+            {/* SECCIÓN 2: TÍTULO Y DETALLES DEL TRABAJO */}
+            <div className="space-y-4">
+              <h2 className="text-base font-black uppercase border-b-2 border-slate-900 pb-1 text-slate-900 tracking-wider">
+                2. TÍTULO Y DETALLES DEL TRABAJO DE GRADUACIÓN
+              </h2>
+              <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-3 text-xs">
+                <div>
+                  <strong className="text-slate-700 block uppercase font-bold text-[11px] mb-1">Título de la Propuesta:</strong>
+                  <p className="font-extrabold text-slate-900 text-sm leading-relaxed">{propuesta.titulo || "Sín Título"}</p>
+                </div>
+
+                {isMultiUserFlow && detallesProj && (
+                  <div className="space-y-2 pt-2 border-t border-slate-200">
+                    <div>
+                      <strong className="text-slate-700 block font-bold text-[11px]">Objetivo General:</strong>
+                      <p className="text-slate-800">{detallesProj.objetivoGeneral || "N/A"}</p>
                     </div>
-                  </div>
-
-                  {/* 3. SUPERVISOR ASIGNADO */}
-                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
-                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
-                      3. SUPERVISOR ASIGNADO
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <p><strong className="text-slate-900">Nombre:</strong> {supervisor ? `${supervisor.nombres} ${supervisor.apellidos}` : "N/A"}</p>
-                      <p><strong className="text-slate-900">Cargo:</strong> {supervisor?.cargo || "N/A"}</p>
-                      <p><strong className="text-slate-900">Email:</strong> {supervisor?.correo || "N/A"}</p>
-                      <p><strong className="text-slate-900">Teléfono:</strong> {supervisor?.telefono || "N/A"}</p>
+                    <div>
+                      <strong className="text-slate-700 block font-bold text-[11px]">Objetivos Específicos:</strong>
+                      <p className="text-slate-800 whitespace-pre-line">{detallesProj.objetivosEspecificos || "N/A"}</p>
                     </div>
-                  </div>
-
-                  {/* 4. CARTA DE ACEPTACIÓN */}
-                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
-                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
-                      4. CARTA DE ACEPTACIÓN
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <p><strong className="text-slate-900">Fecha de Emisión:</strong> {carta?.fechaEmision || "N/A"}</p>
-                      <p><strong className="text-slate-900">Período Pasantía:</strong> {carta?.fechaInicio || "N/A"} al {carta?.fechaFin || "N/A"}</p>
-                    </div>
-
-                    {(carta?.emisorFirmaUrl || supervisor?.firmaUrl) && (
-                      <div className="pt-3 border-t border-slate-200">
-                        <p className="text-xs font-bold text-slate-900 mb-2">Firma Autorizada:</p>
-                        <MediaZoomViewer
-                          url={carta?.emisorFirmaUrl || supervisor?.firmaUrl}
-                          title="Firma Autorizada"
-                          isSignature={true}
-                        />
+                    {detallesProj.alcance && (
+                      <div>
+                        <strong className="text-slate-700 block font-bold text-[11px]">Alcance:</strong>
+                        <p className="text-slate-800">{detallesProj.alcance}</p>
+                      </div>
+                    )}
+                    {detallesProj.limitaciones && (
+                      <div>
+                        <strong className="text-slate-700 block font-bold text-[11px]">Limitaciones:</strong>
+                        <p className="text-slate-800">{detallesProj.limitaciones}</p>
                       </div>
                     )}
                   </div>
+                )}
+              </div>
+            </div>
 
-                  {/* 5. JUSTIFICACIÓN DEL PROYECTO */}
-                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
-                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
-                      5. JUSTIFICACIÓN DEL PROYECTO
-                    </h3>
-                    <p className="text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
-                      {propuesta.justificacionProceso || "Sin justificación provista."}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                /* PROYECTO / INVESTIGACIÓN MULTIUSER */
-                <div className="space-y-6">
-                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
-                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
-                      1. INTEGRANTES DEL EQUIPO
-                    </h3>
-                    <div className="text-xs space-y-2">
-                      <p className="font-bold text-slate-900">
-                        Líder: {estudiante?.nombreCompleto} ({estudiante?.carnet || "N/A"})
-                      </p>
-                      {teamMembers.length > 0 && (
-                        <ul className="list-disc pl-4 space-y-1">
-                          {teamMembers.map((t) => (
-                            <li key={t.id}>{t.nombreCompleto} ({t.carnet})</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
-                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
-                      2. DESCRIPCIÓN Y JUSTIFICACIÓN
-                    </h3>
-                    <div className="text-xs space-y-3">
-                      <div>
-                        <strong className="block text-slate-900 mb-1">Descripción del Problema:</strong>
-                        <p className="text-slate-800 whitespace-pre-wrap leading-relaxed">{detallesProj?.descripcionProblema || "N/A"}</p>
-                      </div>
-                      <div>
-                        <strong className="block text-slate-900 mb-1">Justificación:</strong>
-                        <p className="text-slate-800 whitespace-pre-wrap leading-relaxed">{detallesProj?.justificacion || "N/A"}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* PLAN DE ACTIVIDADES */}
-              <div className="space-y-4 pt-6 border-t-2 border-rose-600">
-                <h2 className="text-lg font-black uppercase text-rose-700 tracking-wider">
-                  PLAN DE ACTIVIDADES
+            {/* SECCIÓN 3: DATOS DE LA EMPRESA / INSTITUCIÓN (PASANTÍAS) */}
+            {!isMultiUserFlow && empresa && (
+              <div className="space-y-4">
+                <h2 className="text-base font-black uppercase border-b-2 border-slate-900 pb-1 text-slate-900 tracking-wider">
+                  3. INSTITUCIÓN O EMPRESA RECEPTORA
                 </h2>
-                <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-100 border-b border-slate-300 font-extrabold text-slate-800 uppercase">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs">
+                  <p><strong className="text-slate-700">Nombre Empresa:</strong> {empresa.nombre}</p>
+                  <p><strong className="text-slate-700">Rubro:</strong> {empresa.rubro || "N/A"}</p>
+                  {sucursal && <p><strong className="text-slate-700">Sucursal/Dirección:</strong> {sucursal.direccion}</p>}
+                  {supervisor && <p><strong className="text-slate-700">Supervisor Asignado:</strong> {supervisor.nombreCompleto} ({supervisor.cargo})</p>}
+                </div>
+              </div>
+            )}
+
+            {/* SECCIÓN 4: CRONOGRAMA DE ACTIVIDADES */}
+            {actividadesList.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-base font-black uppercase border-b-2 border-slate-900 pb-1 text-slate-900 tracking-wider">
+                  4. PLANIFICACIÓN DE ACTIVIDADES
+                </h2>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left border border-slate-300">
+                    <thead className="bg-slate-100 font-bold uppercase text-[11px]">
                       <tr>
-                        <th className="p-3 w-20 border-r border-slate-300 text-center">Mes</th>
-                        <th className="p-3 w-28 border-r border-slate-300">Semana</th>
-                        <th className="p-3 w-24 border-r border-slate-300 font-mono text-center">Código</th>
-                        <th className="p-3">Actividad a desarrollar</th>
+                        <th className="p-2 border border-slate-300">N°</th>
+                        <th className="p-2 border border-slate-300">Mes / Período</th>
+                        <th className="p-2 border border-slate-300">Semana</th>
+                        <th className="p-2 border border-slate-300">Descripción de la Actividad</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((mes) => {
-                        const actsMes = actividadesList.filter((a) => a.periodo === mes);
-                        return actsMes.map((a, idx) => (
-                          <tr key={a.id} className="hover:bg-slate-50">
-                            {idx === 0 && (
-                              <td
-                                className="p-3 font-extrabold text-slate-900 border-r border-slate-300 align-top text-center bg-white"
-                                rowSpan={actsMes.length}
-                              >
-                                Mes {mes}
-                              </td>
-                            )}
-                            <td className="p-3 font-semibold border-r border-slate-300 whitespace-nowrap">Semana {a.semana}</td>
-                            <td className="p-3 font-mono text-slate-500 border-r border-slate-300 text-center">{`${a.periodo}.${a.semana}.${a.numero || idx + 1}`}</td>
-                            <td className="p-3 text-slate-800">{a.descripcion}</td>
-                          </tr>
-                        ));
-                      })}
+                    <tbody>
+                      {actividadesList.map((act, i) => (
+                        <tr key={act.id} className="border-b border-slate-200">
+                          <td className="p-2 border border-slate-300 font-bold">{i + 1}</td>
+                          <td className="p-2 border border-slate-300 font-medium">{act.periodo}</td>
+                          <td className="p-2 border border-slate-300">{act.semana}</td>
+                          <td className="p-2 border border-slate-300">{act.descripcion}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
               </div>
+            )}
 
-              {/* DOCUMENTOS ANEXOS DEL ESTUDIANTE CONVERTI2 A FOTOS DE PÁGINA CON ZOOM */}
-              {docs.length > 0 && (
-                <div className="space-y-6 pt-8">
-                  {docs.map((d) => (
-                    <PdfToImagesViewer
-                      key={d.id}
-                      url={d.archivoUrl}
-                      title={d.tipo.toUpperCase().replace("_", " ")}
-                    />
-                  ))}
-                </div>
+            {/* SECCIÓN 5: DOCUMENTOS Y CERTIFICACIONES ADJUNTAS */}
+            <div className="space-y-6">
+              <h2 className="text-base font-black uppercase border-b-2 border-slate-900 pb-1 text-slate-900 tracking-wider">
+                5. DOCUMENTOS Y CONSTANCIAS ADJUNTAS
+              </h2>
+
+              {carta?.archivoUrl && (
+                <PdfToImagesViewer url={carta.archivoUrl} title="CARTA DE ACEPTACIÓN DE LA EMPRESA" />
               )}
+
+              {docs.map((doc) => (
+                <PdfToImagesViewer key={doc.id} url={doc.archivoUrl} title={doc.tipo.toUpperCase()} />
+              ))}
+            </div>
+
+            {/* SECCIÓN 6: FIRMAS Y FECHA */}
+            <div className="pt-8 border-t-2 border-slate-900 space-y-6">
+              <p className="text-xs font-bold text-center text-slate-700">{formattedDate}</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 pt-4">
+                <div className="flex flex-col items-center justify-center text-center space-y-2">
+                  <div className="h-24 w-full flex items-center justify-center border-b border-slate-400">
+                    {(estudiante as any)?.firmaUrl ? (
+                      <MediaZoomViewer url={(estudiante as any).firmaUrl} alt="Firma Estudiante" isSignature />
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">Sin firma cargada</span>
+                    )}
+                  </div>
+                  <p className="text-xs font-bold uppercase">{estudiante?.nombreCompleto}</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">FIRMA DEL ESTUDIANTE</p>
+                </div>
+
+                <div className="flex flex-col items-center justify-center text-center space-y-2">
+                  <div className="h-24 w-full flex items-center justify-center border-b border-slate-400">
+                    <span className="text-xs text-slate-400 italic">Sello y Firma Decanato</span>
+                  </div>
+                  <p className="text-xs font-bold uppercase">DECANATO DE INGENIERÍA Y ARQUITECTURA</p>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase">UNICAES</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Review Form & History Trail */}
+        {/* Right Column: Review Form & Collapsible History */}
         <div className="lg:col-span-4 space-y-6">
           <ReviewForm
             propuestaId={propuesta.id}
@@ -386,43 +352,19 @@ export default async function AdminPropuestaReviewPage({
             initialObservaciones={propuesta.observaciones}
           />
 
-          {/* HISTORIAL DE CAMBIOS Y ASIGNACIONES */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
-            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-200 pb-3">
-              <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Historial de Asignaciones y Cambios
-            </h3>
-
-            {historialList.length > 0 ? (
-              <div className="space-y-3">
-                {historialList.map((h) => {
-                  const fechaStr = new Date(h.historial.creadoEn || "").toLocaleString("es-SV", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  });
-                  const usuarioNombre = h.usuario ? `${h.usuario.nombreCompleto} (${h.usuario.rol})` : "Sistema";
-
-                  return (
-                    <div key={h.historial.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-900">{usuarioNombre}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{fechaStr}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-100 text-indigo-800">
-                          {h.historial.de || "inicio"} ➔ {h.historial.a}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-xs text-slate-400 italic">No hay registros aún en el historial.</p>
-            )}
-          </div>
+          {/* HISTORIAL DE ACCIONES Y CAMBIOS DEL PROYECTO (ACORDEÓN COLAPSABLE) */}
+          <HistorialProyectoAccordion
+            historial={historialList.map((h) => ({
+              id: h.historial.id,
+              usuarioNombre: h.usuario ? `${h.usuario.nombreCompleto} (${h.usuario.rol})` : "Sistema",
+              de: h.historial.de,
+              a: h.historial.a,
+              fechaStr: new Date(h.historial.creadoEn || "").toLocaleString("es-SV", {
+                dateStyle: "short",
+                timeStyle: "short",
+              }),
+            }))}
+          />
         </div>
       </div>
     </div>
