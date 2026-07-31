@@ -156,22 +156,33 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
 
     // Update propuesta to unlock it
     if (solicitud.propuestaId) {
-      const targetSucursalId = data.empresa?.targetSucursalId;
-      await db.update(propuestas).set({
-        empresaId: targetEmpresaId,
-        sucursalId: targetSucursalId || null,
-        supervisorId: targetSupervisorId,
-        bloqueada: false,
-        estado: "redactando"
-      }).where(eq(propuestas.id, solicitud.propuestaId));
+      if (solicitud.tipo === "datos_alumno") {
+        await db.update(propuestas).set({
+          bloqueada: false,
+          estado: "redactando"
+        }).where(eq(propuestas.id, solicitud.propuestaId));
+      } else {
+        const targetSucursalId = data.empresa?.targetSucursalId;
+        await db.update(propuestas).set({
+          empresaId: targetEmpresaId,
+          sucursalId: targetSucursalId || null,
+          supervisorId: targetSupervisorId,
+          bloqueada: false,
+          estado: "redactando"
+        }).where(eq(propuestas.id, solicitud.propuestaId));
+      }
 
       // Notify egresado
       const prop = await db.query.propuestas.findFirst({ where: eq(propuestas.id, solicitud.propuestaId) });
       if (prop) {
+        const mensajeNotif = solicitud.tipo === "datos_alumno"
+          ? "Tu solicitud de corrección de datos personales ha sido APROBADA. Tu propuesta está desbloqueada."
+          : "Tu solicitud de empresa/supervisor ha sido APROBADA por el Administrador. Tu propuesta está desbloqueada.";
+
         await db.insert(notificaciones).values({
           usuarioId: prop.egresadoId,
           tipo: "solicitud_aprobada",
-          mensaje: `Tu solicitud de empresa/supervisor ha sido APROBADA por el Administrador. Tu propuesta está desbloqueada.`,
+          mensaje: mensajeNotif,
         });
       }
     }

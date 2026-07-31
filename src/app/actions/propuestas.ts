@@ -296,6 +296,12 @@ export async function solicitarCorreccionDatosDecanato(formData: FormData) {
       estado: "pendiente",
     });
 
+    // Lock proposal waiting for approval
+    await db
+      .update(propuestas)
+      .set({ bloqueada: true })
+      .where(eq(propuestas.id, propuestaId));
+
     // Notify Decanato and Admin users
     const adminOrDecanatoUsers = await db
       .select()
