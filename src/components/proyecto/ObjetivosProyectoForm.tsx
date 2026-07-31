@@ -98,7 +98,7 @@ export default function ObjetivosProyectoForm({
       setError(res.error || "Error al guardar los objetivos.");
     } else {
       setSuccess("Objetivos guardados correctamente.");
-      router.push(isInvestigacion ? "?step=7" : "?step=8");
+      router.push(isInvestigacion ? `?id=${propuestaId}&step=7` : `?id=${propuestaId}&step=8`);
       router.refresh();
     }
     setPending(false);

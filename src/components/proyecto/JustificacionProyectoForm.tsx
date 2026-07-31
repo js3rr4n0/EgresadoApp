@@ -47,7 +47,7 @@ export default function JustificacionProyectoForm({
       setError(res.error || "Error al guardar la justificación.");
     } else {
       setSuccess("Justificación guardada correctamente.");
-      router.push(isInvestigacion ? "?step=6" : "?step=6");
+      router.push(`?id=${propuestaId}&step=6`);
       router.refresh();
     }
     setPending(false);

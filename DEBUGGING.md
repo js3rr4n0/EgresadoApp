@@ -340,5 +340,27 @@ En `src/app/actions/solicitudes.ts` (`aprobarSolicitudEmpresa`), el bloque `else
 - **TypeScript:** `npx tsc --noEmit` ejecutado sin errores (0 errors).
 - **Git Push:** Sincronizado en la rama `main` de GitHub.
 
+---
+
+## 8. ERROR: Salto Indeseado de Navegación entre Propuestas al Guardar y Continuar
+
+### 8.1. Descripción del Problema
+Al estar completando una propuesta específica (ej. Propuesta 1 de Pasantía) y hacer clic en "Guardar y Continuar", el navegador redirigía automáticamente a la Propuesta 3 (Proyecto de Graduación) o a una propuesta equivocada.
+
+### 8.2. Diagnóstico y Causa Raíz
+En `src/components/PortadaForm.tsx` (y otros componentes de formulario de etapas), las llamadas a `router.push()` utilizaban rutas relativas de tipo `?step=2` sin incluir el parámetro `id=${propuestaId}`. Al omitir el `id` de la propuesta activa en la query string, Next.js removía el parámetro de la URL, lo que causaba que `src/app/egresado/redactar/page.tsx` cayera en el fallback por defecto de cargar la propuesta más reciente (`userPropuestas[0]`), cambiando abruptamente de propuesta al usuario.
+
+### 8.3. Solución Aplicada
+1. **Auditoría e Inyección de `propuestaId`:**
+   - Se actualizó `PortadaFormProps` para requerir `propuestaId: number`.
+   - Se actualizaron todos los botones de navegación entre etapas en componentes del egresado (`PortadaForm`, `DatosEmpresarialesForm`, `DatosSupervisorForm`, `CartaForm`, `ActividadesForm`, `JustificacionForm`, `DocumentosEstudianteForm`, `ActoresIntervinientesForm`, `CartaProyectoForm`, `DescripcionProblemaForm`, `JustificacionProyectoForm`, `AlcanceProyectoForm`, `ObjetivosProyectoForm`) para usar explícitamente `?id=${propuestaId}&step=X`.
+2. **Preservación de URL en Links y Popups:**
+   - Se aseguró que los enlaces a `Vista Previa` e `Imprimir` incluyan el query parameter `?id=${propuesta.id}`.
+
+### 8.4. Verificación y Calidad
+- **TypeScript:** Validado con `npx tsc --noEmit` obteniendo 0 errores.
+- **Aislamiento:** Cada propuesta redactada mantiene su `id` aislado en la barra de navegación sin riesgo de fuga de datos ni redirección cruzada.
+
+
 
 

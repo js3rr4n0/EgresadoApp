@@ -31,6 +31,7 @@ export default function JustificacionForm({ propuestaId, initialData, isLocked }
     const res = await saveJustificacion(propuestaId, justificacion);
     if (res.success) {
       const params = new URLSearchParams(searchParams.toString());
+      params.set("id", propuestaId.toString());
       params.set("step", "7");
       router.push(`?${params.toString()}`);
     } else {
@@ -65,7 +66,7 @@ export default function JustificacionForm({ propuestaId, initialData, isLocked }
       </div>
 
       <div className="flex justify-between items-center pt-6 border-t border-border mt-8">
-        <button type="button" onClick={() => router.push('?step=5')} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors">
+        <button type="button" onClick={() => router.push(`?id=${propuestaId}&step=5`)} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors">
           ← Volver a Actividades
         </button>
         <button 

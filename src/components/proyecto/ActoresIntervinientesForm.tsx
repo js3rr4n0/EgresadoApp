@@ -67,7 +67,7 @@ export default function ActoresIntervinientesForm({
       setError(res.error || "Error al guardar los actores intervinientes.");
     } else {
       setSuccess("Actores intervinientes guardados correctamente.");
-      router.push("?step=3");
+      router.push(`?id=${propuestaId}&step=3`);
       router.refresh();
     }
     setPending(false);

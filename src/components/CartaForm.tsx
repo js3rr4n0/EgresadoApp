@@ -170,6 +170,7 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
     if (result.success) {
       // Proceed to step 5
       const params = new URLSearchParams(searchParams.toString());
+      params.set("id", propuestaId.toString());
       params.set("step", "5");
       router.push(`?${params.toString()}`);
     } else {

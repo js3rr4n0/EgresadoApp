@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { updatePortada } from "@/app/actions/propuestas";
 
 interface PortadaFormProps {
+  propuestaId: number;
   initialData: {
     nombreCompleto: string | null;
     carnet: string | null;
@@ -13,7 +14,7 @@ interface PortadaFormProps {
   };
 }
 
-export default function PortadaForm({ initialData }: PortadaFormProps) {
+export default function PortadaForm({ propuestaId, initialData }: PortadaFormProps) {
   const router = useRouter();
 
   // Split full name into names and surnames approximately for display
@@ -149,7 +150,7 @@ export default function PortadaForm({ initialData }: PortadaFormProps) {
           </button>
           <button 
             type="button" 
-            onClick={() => router.push("?step=2")}
+            onClick={() => router.push(`?id=${propuestaId}&step=2`)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#b90000] hover:bg-[#a00000] text-white font-bold text-sm transition-colors"
           >
             Guardar y Continuar

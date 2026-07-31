@@ -168,6 +168,7 @@ export default function ActividadesForm({ propuestaId, initialFechas, initialAct
     const res = await saveActividades(propuestaId, finalData, fechaInicio, fechaFin);
     if (res.success) {
       const params = new URLSearchParams(window.location.search);
+      params.set("id", propuestaId.toString());
       params.set("step", "6");
       router.push(`?${params.toString()}`);
     } else {

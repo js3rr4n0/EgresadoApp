@@ -170,7 +170,7 @@ export default function DatosEmpresarialesForm({
           alert("Por favor selecciona una empresa antes de continuar.");
           return;
         }
-        router.push("?step=3");
+        router.push(`?id=${propuestaId}&step=3`);
       } else {
         alert("Borrador guardado exitosamente.");
         router.refresh();

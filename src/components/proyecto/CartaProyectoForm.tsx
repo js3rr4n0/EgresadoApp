@@ -135,7 +135,7 @@ export default function CartaProyectoForm({
     } else {
       setSuccess("Carta de aceptación guardada correctamente.");
       if ((res as any).archivoUrl) setExistingPdfUrl((res as any).archivoUrl);
-      router.push("?step=4");
+      router.push(`?id=${propuestaId}&step=4`);
       router.refresh();
     }
     setPending(false);

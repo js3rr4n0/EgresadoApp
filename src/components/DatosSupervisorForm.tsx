@@ -151,7 +151,7 @@ export default function DatosSupervisorForm({
       
       if (data.success) {
         if (proceed) {
-          router.push(`?step=4`);
+          router.push(`?id=${propuestaId}&step=4`);
         } else {
           alert("Borrador guardado correctamente.");
         }
@@ -191,7 +191,7 @@ export default function DatosSupervisorForm({
         <h3 className="font-bold text-lg mb-2">Empresa no seleccionada</h3>
         <p className="max-w-md mx-auto">Debes completar el Paso 2 seleccionando una empresa antes de poder elegir un supervisor.</p>
         <button 
-          onClick={() => router.push('?step=2')}
+          onClick={() => router.push(`?id=${propuestaId}&step=2`)}
           className="mt-6 px-6 py-2.5 bg-brand-red text-white font-bold rounded-lg hover:bg-red-700 transition-colors"
         >
           Ir al Paso 2

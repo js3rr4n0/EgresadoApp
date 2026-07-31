@@ -47,7 +47,7 @@ export default function DescripcionProblemaForm({
       setError(res.error || "Error al guardar la descripción del problema.");
     } else {
       setSuccess("Descripción del problema guardada correctamente.");
-      router.push(isInvestigacion ? "?step=5" : "?step=5");
+      router.push(`?id=${propuestaId}&step=5`);
       router.refresh();
     }
     setPending(false);

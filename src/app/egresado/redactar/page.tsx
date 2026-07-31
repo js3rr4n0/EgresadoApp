@@ -388,7 +388,7 @@ export default async function EgresadoPage({
               </div>
               <div className="pt-4 flex justify-center">
                 <Link
-                  href="/egresado/redactar/imprimir"
+                  href={`/egresado/redactar/imprimir?id=${propuesta.id}`}
                   target="_blank"
                   className="inline-flex items-center gap-2 bg-brand-red hover:bg-brand-red-hover text-white font-bold px-6 py-3 rounded-xl text-sm shadow-md transition-all active:scale-95"
                 >
@@ -572,6 +572,7 @@ export default async function EgresadoPage({
                   <h2 className="text-xl font-bold text-foreground mb-2">1. Portada</h2>
                   <p className="text-sm text-muted mb-8">Verifica tus datos personales para pasar a la siguiente etapa.</p>
                   <PortadaForm
+                    propuestaId={propuesta.id}
                     initialData={{
                       nombreCompleto: userDetails.nombreCompleto,
                       carnet: userDetails.carnet,
