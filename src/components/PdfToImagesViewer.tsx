@@ -26,14 +26,14 @@ export default function PdfToImagesViewer({ url, title }: PdfToImagesViewerProps
       return;
     }
 
-    const loadPdfJs = async () => {
+    const loadPdfJsAndRenderPages = async () => {
       try {
         if (!(window as any).pdfjsLib) {
           await new Promise<void>((resolve, reject) => {
             const script = document.createElement("script");
             script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
             script.onload = () => resolve();
-            script.onerror = () => reject(new Error("No se pudo cargar la librería de PDF.js"));
+            script.onerror = () => reject(new Error("No se pudo cargar la librería PDF.js"));
             document.body.appendChild(script);
           });
         }
@@ -44,13 +44,18 @@ export default function PdfToImagesViewer({ url, title }: PdfToImagesViewerProps
         pdfjsLib.GlobalWorkerOptions.workerSrc =
           "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-        const loadingTask = pdfjsLib.getDocument(url);
+        // Fetch PDF file as ArrayBuffer to bypass CORS and URL loading restrictions
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status} al descargar el archivo.`);
+        const arrayBuffer = await response.arrayBuffer();
+
+        const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
         const pdf = await loadingTask.promise;
         const pageImages: string[] = [];
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 2.2 }); // Ultra HD quality render
+          const viewport = page.getViewport({ scale: 2.0 }); // Ultra crisp resolution
           const canvas = document.createElement("canvas");
           const context = canvas.getContext("2d");
           canvas.height = viewport.height;
@@ -67,17 +72,15 @@ export default function PdfToImagesViewer({ url, title }: PdfToImagesViewerProps
           setLoading(false);
         }
       } catch (err: any) {
-        console.error("Error convirtiendo PDF a imágenes:", err);
+        console.error("Error convirtiendo PDF a foto:", err);
         if (isMounted) {
-          // Fallback to single URL image or show error with direct link
-          setError(err.message || "No se pudo convertir el PDF.");
-          setImages([url]);
+          setError(err.message || "Error al procesar el archivo PDF.");
           setLoading(false);
         }
       }
     };
 
-    loadPdfJs();
+    loadPdfJsAndRenderPages();
 
     return () => {
       isMounted = false;
@@ -86,10 +89,24 @@ export default function PdfToImagesViewer({ url, title }: PdfToImagesViewerProps
 
   if (loading) {
     return (
-      <div className="pt-8 flex flex-col items-center justify-center min-h-[300px] border border-slate-200 rounded-2xl bg-slate-50 p-8 my-4 text-center">
-        <div className="w-10 h-10 border-4 border-rose-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-        <p className="font-bold text-slate-800 text-sm">Generando páginas en formato foto ({title})...</p>
-        <p className="text-xs text-slate-500 mt-1">Renderizando documento en alta resolución...</p>
+      <div className="pt-6 flex flex-col items-center justify-center min-h-[250px] border border-slate-200 rounded-2xl bg-slate-50 p-6 my-4 text-center">
+        <div className="w-9 h-9 border-4 border-rose-600 border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p className="font-bold text-slate-800 text-xs">Cargando documento en formato foto ({title})...</p>
+        <p className="text-[11px] text-slate-500 mt-1">Renderizando páginas sin deslizadores...</p>
+      </div>
+    );
+  }
+
+  if (error || images.length === 0) {
+    return (
+      <div className="pt-6 flex flex-col items-center w-full">
+        <h2 className="text-sm font-black uppercase mb-3 border-b-2 border-rose-600 pb-2 w-full text-slate-900 tracking-wider">
+          {title}
+        </h2>
+        <div className="w-full bg-slate-50 border border-slate-300 rounded-xl p-6 text-center space-y-3">
+          <p className="text-xs font-bold text-slate-700">Visualización de foto de documento</p>
+          <MediaZoomViewer url={url} title={title} alt={title} />
+        </div>
       </div>
     );
   }
@@ -100,10 +117,10 @@ export default function PdfToImagesViewer({ url, title }: PdfToImagesViewerProps
         const pageTitle = `${title} ${images.length > 1 ? `(PÁGINA ${index + 1} DE ${images.length})` : ""}`;
         return (
           <div key={index} className="pt-6 flex flex-col items-center w-full">
-            <h2 className="text-base font-black uppercase mb-3 border-b-2 border-rose-600 pb-2 w-full text-slate-900 tracking-wider">
+            <h2 className="text-sm font-black uppercase mb-3 border-b-2 border-rose-600 pb-2 w-full text-slate-900 tracking-wider">
               {pageTitle}
             </h2>
-            <div className="w-full bg-white border border-slate-300 shadow-md rounded-xl p-1">
+            <div className="w-full bg-white border border-slate-300 shadow-md rounded-xl p-2">
               <MediaZoomViewer
                 url={imgSrc}
                 title={pageTitle}

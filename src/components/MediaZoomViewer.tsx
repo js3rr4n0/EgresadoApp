@@ -22,7 +22,7 @@ export default function MediaZoomViewer({
 
   if (!url) return null;
 
-  const isPdf = url.toLowerCase().endsWith(".pdf") || url.includes("pdf");
+  const isPdf = !url.startsWith("data:image/") && (url.toLowerCase().endsWith(".pdf") || url.toLowerCase().includes(".pdf?"));
 
   const handleZoomIn = () => setZoomLevel((prev) => Math.min(prev + 0.25, 3));
   const handleZoomOut = () => setZoomLevel((prev) => Math.max(prev - 0.25, 0.5));
@@ -34,13 +34,13 @@ export default function MediaZoomViewer({
         {isSignature ? (
           <div
             onClick={() => setIsOpen(true)}
-            className="p-4 flex items-center justify-center bg-slate-50 hover:bg-slate-100 transition-colors relative min-h-[100px]"
+            className="p-3 flex items-center justify-center bg-slate-50 hover:bg-slate-100 transition-colors relative min-h-[90px]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={url}
               alt={alt}
-              className="max-h-32 w-auto object-contain filter drop-shadow-xs mix-blend-multiply"
+              className="max-h-28 w-auto object-contain filter drop-shadow-xs mix-blend-multiply"
             />
             {/* Hover Lupa Button */}
             <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/80 text-white px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md">
@@ -49,27 +49,6 @@ export default function MediaZoomViewer({
               </svg>
               <span>Ampliar Firma</span>
             </div>
-          </div>
-        ) : isPdf ? (
-          <div className="flex flex-col w-full">
-            <div className="flex items-center justify-between p-3 bg-slate-100 border-b border-slate-200">
-              <span className="text-xs font-bold text-slate-700 truncate">{title}</span>
-              <button
-                type="button"
-                onClick={() => setIsOpen(true)}
-                className="px-3 py-1 bg-white hover:bg-slate-200 text-indigo-700 text-xs font-bold rounded-lg border border-slate-300 flex items-center gap-1 shadow-2xs"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
-                </svg>
-                🔍 Lupa / Pantalla Completa
-              </button>
-            </div>
-            <iframe
-              src={url}
-              title={title}
-              className="w-full min-h-[900px] border-none"
-            />
           </div>
         ) : (
           <div
