@@ -320,7 +320,7 @@ export const solicitudesEmpresa = pgTable(
   (table) => [
     check(
       "tipo_solicitud_check",
-      sql`${table.tipo} IN ('nueva', 'actualizacion', 'modificacion')`
+      sql`${table.tipo} IN ('nueva', 'actualizacion', 'modificacion', 'datos_alumno')`
     ),
     check(
       "estado_solicitud_check",
