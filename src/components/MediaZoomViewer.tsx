@@ -30,63 +30,64 @@ export default function MediaZoomViewer({
 
   return (
     <>
-      <div className={`relative group cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white ${className}`}>
+      <div className={`relative group cursor-pointer w-full bg-white rounded-xl border border-slate-200 overflow-hidden ${className}`}>
         {isSignature ? (
           <div
             onClick={() => setIsOpen(true)}
-            className="p-3 flex items-center justify-center bg-slate-50 hover:bg-slate-100 transition-colors relative min-h-[90px]"
+            className="p-4 flex items-center justify-center bg-slate-50 hover:bg-slate-100 transition-colors relative min-h-[100px]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={url}
               alt={alt}
-              className="max-h-24 w-auto object-contain filter drop-shadow-xs mix-blend-multiply"
+              className="max-h-32 w-auto object-contain filter drop-shadow-xs mix-blend-multiply"
             />
-            {/* Lupa overlay on hover */}
-            <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white font-bold text-xs backdrop-blur-2xs">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* Hover Lupa Button */}
+            <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/80 text-white px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md">
+              <svg className="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
               </svg>
               <span>Ampliar Firma</span>
             </div>
           </div>
         ) : isPdf ? (
-          <div className="flex flex-col">
-            <div className="flex items-center justify-between p-2.5 bg-slate-100 border-b border-slate-200">
+          <div className="flex flex-col w-full">
+            <div className="flex items-center justify-between p-3 bg-slate-100 border-b border-slate-200">
               <span className="text-xs font-bold text-slate-700 truncate">{title}</span>
               <button
                 type="button"
                 onClick={() => setIsOpen(true)}
-                className="px-2 py-1 bg-white hover:bg-slate-200 text-indigo-700 text-xs font-bold rounded-lg border border-slate-300 flex items-center gap-1 shadow-2xs"
+                className="px-3 py-1 bg-white hover:bg-slate-200 text-indigo-700 text-xs font-bold rounded-lg border border-slate-300 flex items-center gap-1 shadow-2xs"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
                 </svg>
-                🔍 Lupa / Zoom
+                🔍 Lupa / Pantalla Completa
               </button>
             </div>
             <iframe
               src={url}
               title={title}
-              className="w-full h-80 border-none"
+              className="w-full min-h-[900px] border-none"
             />
           </div>
         ) : (
-          <div onClick={() => setIsOpen(true)} className="relative bg-slate-50 flex items-center justify-center p-2 min-h-[160px] max-h-[380px] overflow-hidden">
+          <div
+            onClick={() => setIsOpen(true)}
+            className="relative bg-white flex items-center justify-center p-0 w-full"
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={url}
               alt={alt}
-              className="max-h-[360px] w-auto object-contain"
+              className="w-full h-auto object-contain block rounded-xl shadow-xs"
             />
-            {/* Lupa overlay on hover */}
-            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs backdrop-blur-2xs">
-              <div className="bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded-xl shadow-xl flex items-center gap-1.5">
-                <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
-                </svg>
-                <span>Click para Zoom 🔍</span>
-              </div>
+            {/* Hover Lupa Overlay */}
+            <div className="absolute top-3 right-3 bg-slate-900/85 hover:bg-slate-900 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity">
+              <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+              </svg>
+              <span>Ampliar 🔍</span>
             </div>
           </div>
         )}

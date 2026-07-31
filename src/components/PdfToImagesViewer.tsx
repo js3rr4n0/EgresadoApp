@@ -103,7 +103,7 @@ export default function PdfToImagesViewer({ url, title }: PdfToImagesViewerProps
             <h2 className="text-base font-black uppercase mb-3 border-b-2 border-rose-600 pb-2 w-full text-slate-900 tracking-wider">
               {pageTitle}
             </h2>
-            <div className="w-full bg-white border border-slate-300 shadow-md rounded-xl p-2 overflow-hidden">
+            <div className="w-full bg-white border border-slate-300 shadow-md rounded-xl p-1">
               <MediaZoomViewer
                 url={imgSrc}
                 title={pageTitle}
