@@ -78,27 +78,41 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="flex items-center gap-4">
-        <Link
-          href="/admin/propuestas"
-          className="w-10 h-10 rounded-full bg-white border border-border flex items-center justify-center text-muted hover:text-card-dark hover:border-card-dark transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-        </Link>
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-card-dark">Revisión de Propuesta</h1>
-            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-brand-red text-white uppercase">
-              {propuesta.tipo}
-            </span>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/admin/propuestas"
+            className="w-10 h-10 rounded-full bg-white border border-border flex items-center justify-center text-muted hover:text-card-dark hover:border-card-dark transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold text-card-dark">Revisión de Propuesta</h1>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-brand-red text-white uppercase">
+                {propuesta.tipo}
+              </span>
+            </div>
+            <p className="text-muted text-sm">
+              {isMultiUserFlow ? (isInvestigacion ? "Investigador Principal: " : "Líder: ") : "Estudiante: "}
+              {estudiante?.nombreCompleto} ({estudiante?.carnet || "Sin carnet"}) - <span className="font-semibold text-gray-700">{carreraNombre || "Sin Carrera"}</span>
+            </p>
           </div>
-          <p className="text-muted text-sm">
-            {isMultiUserFlow ? (isInvestigacion ? "Investigador Principal: " : "Líder: ") : "Estudiante: "}
-            {estudiante?.nombreCompleto} ({estudiante?.carnet || "Sin carnet"}) - <span className="font-semibold text-gray-700">{carreraNombre || "Sin Carrera"}</span>
-          </p>
         </div>
+
+        <Link
+          href={`/admin/propuestas/${propuesta.id}/imprimir`}
+          target="_blank"
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all shrink-0"
+        >
+          <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          Ver Documento PDF
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
