@@ -17,6 +17,7 @@ import { eq, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import ReviewForm from "./ReviewForm";
+import PdfToImagesViewer from "@/components/PdfToImagesViewer";
 import MediaZoomViewer from "@/components/MediaZoomViewer";
 
 export default async function AdminPropuestaReviewPage({
@@ -43,8 +44,9 @@ export default async function AdminPropuestaReviewPage({
   if (!propuestaInfo) redirect("/admin/propuestas");
 
   const { propuesta, estudiante, carreraNombre } = propuestaInfo;
-  const isMultiUserFlow = propuesta.tipo === "proyecto" || propuesta.tipo === "investigacion";
+  const isProyecto = propuesta.tipo === "proyecto";
   const isInvestigacion = propuesta.tipo === "investigacion";
+  const isMultiUserFlow = isProyecto || isInvestigacion;
 
   let teamMembers: any[] = [];
   let detallesProj: any = null;
@@ -76,7 +78,7 @@ export default async function AdminPropuestaReviewPage({
       .select()
       .from(actividades)
       .where(eq(actividades.propuestaId, propuesta.id))
-      .orderBy(asc(actividades.periodo), asc(actividades.numero));
+      .orderBy(asc(actividades.periodo), asc(actividades.semana), asc(actividades.numero));
   }
 
   const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuesta.id)).limit(1);
@@ -95,381 +97,287 @@ export default async function AdminPropuestaReviewPage({
   const coordRes = await getCoordinadoresConEstadisticas();
   const coordinadoresList = coordRes.success ? coordRes.data : [];
 
+  const dateForMonth = propuesta.enviadaEn ? new Date(propuesta.enviadaEn) : new Date();
+  const mesEnvioStr = new Intl.DateTimeFormat("es-SV", { month: "long" }).format(dateForMonth).toUpperCase();
+  const today = new Date();
+  const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
+  const formattedDate = `SANTA ANA, ${today.toLocaleDateString("es-SV", options).toUpperCase()}`;
+
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Top Breadcrumb & Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
-        <div>
+    <div className="space-y-6 max-w-7xl mx-auto pb-16 px-2 sm:px-4">
+      {/* Top Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-3">
           <Link
             href="/admin/propuestas"
-            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 inline-flex items-center gap-1 mb-2"
+            className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all inline-flex items-center gap-1.5"
           >
-            ← Volver a Gestión de Propuestas
+            ← Volver al Panel Principal
           </Link>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Revisión de Propuesta #{propuesta.numero}
-          </h1>
-          <p className="text-slate-500 text-xs mt-1">
-            Modalidad: <span className="font-bold uppercase text-indigo-700">{propuesta.tipo}</span> • Estudiante: <span className="font-bold text-slate-800">{estudiante?.nombreCompleto}</span>
-          </p>
+          <span className="text-xs font-bold text-slate-400">|</span>
+          <span className="text-xs font-bold text-slate-700">
+            Propuesta #{propuesta.numero} - <span className="uppercase text-indigo-700">{propuesta.tipo}</span>
+          </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-500">Estado:</span>
-          <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
-            propuesta.estado === "coordinador_asignado"
-              ? "bg-indigo-100 text-indigo-800 border-indigo-300"
-              : propuesta.estado === "aprobada"
-              ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-              : propuesta.estado === "rechazada"
-              ? "bg-rose-100 text-rose-800 border-rose-300"
-              : "bg-amber-100 text-amber-800 border-amber-300"
-          }`}>
-            {propuesta.estado === "coordinador_asignado"
-              ? "Coordinador Asignado"
-              : propuesta.estado === "aprobada"
-              ? "Aceptada por Coordinador"
-              : propuesta.estado === "rechazada"
-              ? "Rechazada"
-              : "Pendiente de Revisión"}
-          </span>
+        <div className="flex items-center gap-3">
+          <a
+            href={`/admin/propuestas/${propuesta.id}/imprimir`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white font-extrabold text-xs rounded-xl shadow-md transition-all inline-flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+            </svg>
+            Imprimir Reporte
+          </a>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Complete Full Proposal View (Portada + Sections) */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white rounded-2xl shadow-md border border-slate-200 p-6 sm:p-10 space-y-8">
-            {/* OFFICIAL UNICAES PORTADA HEADER */}
-            <div className="text-center border-b-2 border-indigo-900 pb-8 space-y-3">
-              <div className="flex items-center justify-center gap-3 mb-2">
-                <span className="text-2xl">🏛️</span>
-                <h2 className="text-lg sm:text-xl font-black text-indigo-950 uppercase tracking-widest">
-                  UNIVERSIDAD CATÓLICA DE EL SALVADOR
-                </h2>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left Column: Exact Generated Document View (Formato Hoja de Impresión / PDF Foto) */}
+        <div className="lg:col-span-8 space-y-8">
+          {/* SHEET PAPER CONTAINER */}
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-300 p-6 sm:p-12 space-y-10 text-slate-900 mx-auto max-w-[850px]">
+            {/* PORTADA - UNIVERSIDAD CATÓLICA DE EL SALVADOR */}
+            <div className="flex flex-col items-center justify-center text-center space-y-6 border-b-2 border-slate-200 pb-10">
+              <h1 className="text-xl sm:text-2xl font-black uppercase tracking-widest text-slate-900">
+                UNIVERSIDAD CATÓLICA DE EL SALVADOR
+              </h1>
+
+              <div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/unicaes-logo.png"
+                  alt="UNICAES"
+                  className="w-44 h-44 sm:w-52 sm:h-52 object-contain mx-auto filter drop-shadow-sm"
+                />
+                <p className="text-xs font-bold text-slate-700 italic mt-2">&ldquo;La Ciencia sin Moral es Vana&rdquo;</p>
               </div>
-              <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                {carreraNombre || "FACULTAD DE INGENIERÍA Y ARQUITECTURA"}
-              </p>
-              <div className="py-4 my-2 bg-indigo-50/60 rounded-2xl border border-indigo-100">
-                <span className="text-xs font-extrabold text-indigo-700 uppercase tracking-widest block mb-1">
-                  PROPUESTA DE TRABAJO DE GRADUACIÓN
-                </span>
-                <h3 className="text-lg sm:text-2xl font-black text-slate-900 px-4 max-w-xl mx-auto leading-tight">
-                  &ldquo;{propuesta.titulo || `Propuesta #${propuesta.numero}`}&rdquo;
+
+              <div className="space-y-1">
+                <h2 className="text-lg sm:text-xl font-black uppercase tracking-wider text-slate-900">
+                  HOJA DE INSCRIPCIÓN DE TRABAJO DE GRADUACIÓN
+                </h2>
+                <p className="text-xs sm:text-sm font-extrabold text-slate-500 uppercase tracking-widest">
+                  MODALIDAD: {propuesta.tipo.toUpperCase()} (PROPUESTA #{propuesta.numero})
+                </p>
+              </div>
+
+              {/* TÍTULO DE LA PROPUESTA BOX */}
+              <div className="w-full max-w-xl mx-auto p-4 bg-slate-50 border border-slate-300 rounded-xl text-center space-y-1 shadow-2xs">
+                <p className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest">
+                  TÍTULO DE LA PROPUESTA:
+                </p>
+                <h3 className="text-base sm:text-lg font-black text-slate-900 uppercase leading-snug">
+                  {propuesta.titulo || `TÍTULO DE PRUEBA - PROPUESTA #${propuesta.numero}`}
                 </h3>
               </div>
-              <div className="text-xs text-slate-600 space-y-1">
-                <p><strong className="text-slate-800">Presentado por:</strong> {estudiante?.nombreCompleto} ({estudiante?.carnet || "N/A"})</p>
-                <p><strong className="text-slate-800">Fecha de envío:</strong> {propuesta.enviadaEn ? new Date(propuesta.enviadaEn).toLocaleDateString("es-SV", { day: "2-digit", month: "long", year: "numeric" }) : "N/A"}</p>
+
+              {/* DATOS ESTUDIANTE Y CARRERA */}
+              <div className="space-y-2 text-sm sm:text-base font-bold text-slate-900">
+                <p>
+                  {isMultiUserFlow
+                    ? isInvestigacion
+                      ? "INVESTIGADOR PRINCIPAL: "
+                      : "LÍDER DE PROYECTO: "
+                    : "ESTUDIANTE: "}
+                  <span className="uppercase font-black text-indigo-950">{estudiante?.nombreCompleto} ({estudiante?.carnet || "N/A"})</span>
+                </p>
+                <p className="text-xs sm:text-sm font-bold text-slate-700 uppercase">
+                  <strong>TÍTULO AL QUE SE OPTA / CARRERA:</strong> {carreraNombre || "INGENIERÍA EN SISTEMAS"}
+                </p>
+                <p className="text-xs font-bold text-slate-600 uppercase">
+                  <strong>MES DE ENVÍO:</strong> {mesEnvioStr}
+                </p>
+                {empresa && (
+                  <p className="text-xs sm:text-sm font-bold text-slate-800 uppercase">
+                    <strong>EMPRESA:</strong> {empresa.nombre}
+                  </p>
+                )}
+              </div>
+
+              <div className="pt-4 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                <p>FECHA DE PRESENTACIÓN:</p>
+                <p className="text-slate-900 font-extrabold mt-0.5">{formattedDate}</p>
               </div>
             </div>
 
-            {/* SECCIONES DE LA PROPUESTA */}
-            <div className="space-y-8">
-              {isMultiUserFlow ? (
-                /* PROYECTO / INVESTIGACIÓN DETAILS */
-                <>
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      1. Integrantes del Equipo
-                    </h4>
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2">
-                      <p className="font-extrabold text-slate-900">
-                        {isInvestigacion ? "Investigador Principal: " : "Líder de Proyecto: "}
-                        {estudiante?.nombreCompleto} ({estudiante?.carnet || "N/A"})
-                      </p>
-                      {teamMembers.length > 0 ? (
-                        <div className="space-y-1 pt-2 border-t border-slate-200">
-                          {teamMembers.map((m) => (
-                            <p key={m.id} className="text-slate-700">
-                              • <strong>{m.nombreCompleto}</strong> ({m.carnet || "Sin carnet"}) - <span className="font-bold text-emerald-700 capitalize">{m.estado}</span>
-                            </p>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="italic text-slate-400">Sin otros integrantes en el equipo.</p>
-                      )}
+            {/* SECCIÓN DATOS EMPRESARIALES / DETALLES DE PROYECTO */}
+            <div className="space-y-8 pt-4">
+              <h2 className="text-lg font-black uppercase text-rose-700 border-b-2 border-rose-600 pb-2 tracking-wider">
+                {isMultiUserFlow ? "DETALLES DEL PROYECTO E INVESTIGACIÓN" : "DATOS EMPRESARIALES"}
+              </h2>
+
+              {!isMultiUserFlow ? (
+                /* PASANTÍA */
+                <div className="space-y-6">
+                  {/* 1. INFORMACIÓN DE LA EMPRESA */}
+                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
+                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
+                      1. INFORMACIÓN DE LA EMPRESA
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <p><strong className="text-slate-900">Razón Social:</strong> {empresa?.nombre || "N/A"}</p>
+                      <p><strong className="text-slate-900">Área:</strong> {empresa?.area || "N/A"}</p>
+                      <p className="sm:col-span-2"><strong className="text-slate-900">Descripción:</strong> {empresa?.descripcion || "N/A"}</p>
                     </div>
-                  </section>
+                  </div>
 
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      2. Actores Intervinientes
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
-                      <div>
-                        <span className="font-bold block text-slate-900 mb-1">Patrocinador:</span>
-                        <p className="text-slate-600 whitespace-pre-wrap">{detallesProj?.actorPatrocinador || "N/A"}</p>
-                      </div>
-                      <div>
-                        <span className="font-bold block text-slate-900 mb-1">{isInvestigacion ? "Investigador:" : "Beneficiario:"}</span>
-                        <p className="text-slate-600 whitespace-pre-wrap">{detallesProj?.actorBeneficiario || "N/A"}</p>
-                      </div>
-                      {!isInvestigacion && (
-                        <div>
-                          <span className="font-bold block text-slate-900 mb-1">Ejecutor:</span>
-                          <p className="text-slate-600 whitespace-pre-wrap">{detallesProj?.actorEjecutor || "N/A"}</p>
-                        </div>
-                      )}
-                      <div>
-                        <span className="font-bold block text-slate-900 mb-1">Financista:</span>
-                        <p className="text-slate-600 whitespace-pre-wrap">{detallesProj?.actorFinancista || "N/A"}</p>
-                      </div>
+                  {/* 2. UBICACIÓN Y SUCURSAL */}
+                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
+                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
+                      2. UBICACIÓN Y SUCURSAL
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <p><strong className="text-slate-900">Sucursal:</strong> {sucursal?.nombre || "Matriz / Sede Central"}</p>
+                      <p><strong className="text-slate-900">Teléfono:</strong> {sucursal?.telefono || "No especificado"}</p>
+                      <p className="sm:col-span-2"><strong className="text-slate-900">Dirección:</strong> {sucursal?.direccion || "No especificada"}</p>
                     </div>
-                  </section>
+                  </div>
 
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      3. Descripción del Problema / Oportunidad
-                    </h4>
-                    <div className="text-xs bg-slate-50 p-4 rounded-xl border border-slate-200 whitespace-pre-wrap leading-relaxed text-slate-800">
-                      {detallesProj?.descripcionProblema || "N/A"}
+                  {/* 3. SUPERVISOR ASIGNADO */}
+                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
+                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
+                      3. SUPERVISOR ASIGNADO
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <p><strong className="text-slate-900">Nombre:</strong> {supervisor ? `${supervisor.nombres} ${supervisor.apellidos}` : "N/A"}</p>
+                      <p><strong className="text-slate-900">Cargo:</strong> {supervisor?.cargo || "N/A"}</p>
+                      <p><strong className="text-slate-900">Email:</strong> {supervisor?.correo || "N/A"}</p>
+                      <p><strong className="text-slate-900">Teléfono:</strong> {supervisor?.telefono || "N/A"}</p>
                     </div>
-                  </section>
+                  </div>
 
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      4. Justificación del Proyecto
-                    </h4>
-                    <div className="text-xs bg-slate-50 p-4 rounded-xl border border-slate-200 whitespace-pre-wrap leading-relaxed text-slate-800">
-                      {detallesProj?.justificacion || "N/A"}
+                  {/* 4. CARTA DE ACEPTACIÓN */}
+                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
+                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
+                      4. CARTA DE ACEPTACIÓN
+                    </h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                      <p><strong className="text-slate-900">Fecha de Emisión:</strong> {carta?.fechaEmision || "N/A"}</p>
+                      <p><strong className="text-slate-900">Período Pasantía:</strong> {carta?.fechaInicio || "N/A"} al {carta?.fechaFin || "N/A"}</p>
                     </div>
-                  </section>
 
-                  {!isInvestigacion && (
-                    <section className="space-y-3">
-                      <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                        5. Alcance del Proyecto
-                      </h4>
-                      <div className="text-xs bg-slate-50 p-4 rounded-xl border border-slate-200 whitespace-pre-wrap leading-relaxed text-slate-800">
-                        {detallesProj?.alcance || "N/A"}
-                      </div>
-                    </section>
-                  )}
-
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      6. Objetivos del Proyecto
-                    </h4>
-                    <div className="space-y-3 text-xs">
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <span className="font-bold block text-slate-900 mb-1">Objetivo General:</span>
-                        <p className="text-slate-700 leading-relaxed">{detallesProj?.objetivoGeneral || "N/A"}</p>
-                      </div>
-
-                      {Array.isArray(detallesProj?.objetivosEspecificos) && detallesProj.objetivosEspecificos.length > 0 && (
-                        <div className="border border-slate-200 rounded-xl overflow-hidden">
-                          <table className="w-full text-xs text-left">
-                            <thead className="bg-slate-100 font-bold text-slate-700 uppercase">
-                              <tr>
-                                <th className="px-4 py-2.5 w-10 text-center">#</th>
-                                <th className="px-4 py-2.5 w-1/3">Objetivo Específico</th>
-                                <th className="px-4 py-2.5">Descripción / Alcance</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                              {detallesProj.objetivosEspecificos.map((obj: any, idx: number) => (
-                                <tr key={idx}>
-                                  <td className="px-4 py-2.5 text-center font-bold text-slate-800">{idx + 1}</td>
-                                  <td className="px-4 py-2.5 font-semibold text-slate-900">{obj.titulo}</td>
-                                  <td className="px-4 py-2.5 text-slate-600">{obj.descripcion}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                </>
-              ) : (
-                /* PASANTÍA DETAILS */
-                <>
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      1. Datos de la Empresa y Sucursal
-                    </h4>
-                    <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
-                      <p><span className="font-bold text-slate-900">Empresa:</span> {empresa?.nombre || "N/A"}</p>
-                      <p><span className="font-bold text-slate-900">Área:</span> {empresa?.area || "N/A"}</p>
-                      <p className="col-span-2"><span className="font-bold text-slate-900">Sucursal:</span> {sucursal ? `${sucursal.nombre} (${sucursal.direccion})` : "Matriz"}</p>
-                    </div>
-                  </section>
-
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      2. Supervisor Asignado y Firma
-                    </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
-                      <div>
-                        <p><span className="font-bold text-slate-900">Nombre:</span> {supervisor?.nombres} {supervisor?.apellidos}</p>
-                        <p><span className="font-bold text-slate-900">Cargo:</span> {supervisor?.cargo || "N/A"}</p>
-                        <p><span className="font-bold text-slate-900">Teléfono:</span> {supervisor?.telefono || "N/A"}</p>
-                        <p><span className="font-bold text-slate-900">Correo:</span> {supervisor?.correo || "N/A"}</p>
-                      </div>
-
-                      {supervisor?.firmaUrl && (
-                        <div className="sm:col-span-1">
-                          <p className="font-bold text-slate-900 mb-2">Firma del Supervisor:</p>
-                          <MediaZoomViewer
-                            url={supervisor.firmaUrl}
-                            title={`Firma - ${supervisor.nombres} ${supervisor.apellidos}`}
-                            isSignature={true}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </section>
-
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      3. Carta de Aceptación Institucional
-                    </h4>
-                    <div className="space-y-3 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
-                      <div className="grid grid-cols-2 gap-2">
-                        <p><span className="font-bold text-slate-900">Emisión:</span> {carta?.fechaEmision || "N/A"}</p>
-                        <p><span className="font-bold text-slate-900">Período:</span> {carta?.fechaInicio} al {carta?.fechaFin}</p>
-                        <p><span className="font-bold text-slate-900">Emisor:</span> {carta?.emisorNombre || "N/A"}</p>
-                        <p><span className="font-bold text-slate-900">Cargo:</span> {carta?.emisorCargo || "N/A"}</p>
-                      </div>
-
-                      {carta?.emisorFirmaUrl && (
-                        <div className="pt-3 border-t border-slate-200">
-                          <p className="font-bold text-slate-900 mb-2">Firma Autorizada de la Carta:</p>
-                          <MediaZoomViewer
-                            url={carta.emisorFirmaUrl}
-                            title="Firma Autorizada Carta de Aceptación"
-                            isSignature={true}
-                          />
-                        </div>
-                      )}
-
-                      {carta?.archivoUrl && (
-                        <div className="pt-3 border-t border-slate-200">
-                          <p className="font-bold text-slate-900 mb-2">Documento de la Carta de Aceptación:</p>
-                          <MediaZoomViewer
-                            url={carta.archivoUrl}
-                            title="Carta de Aceptación"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </section>
-
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      4. Justificación del Proceso
-                    </h4>
-                    <div className="text-xs bg-slate-50 p-4 rounded-xl border border-slate-200 whitespace-pre-wrap text-slate-800">
-                      {propuesta.justificacionProceso || "Sin justificación adicional registrada."}
-                    </div>
-                  </section>
-
-                  <section className="space-y-3">
-                    <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                      5. Plan de Actividades (Cronograma)
-                    </h4>
-                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 overflow-x-auto text-xs">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="border-b border-slate-300 font-bold text-slate-800">
-                            <th className="py-2 w-20">Mes</th>
-                            <th className="py-2 w-24">Semana</th>
-                            <th className="py-2">Descripción de la Actividad</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200">
-                          {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((mes) => {
-                            const actsMes = actividadesList.filter((a) => a.periodo === mes);
-                            return actsMes.map((a, index) => (
-                              <tr key={a.id}>
-                                {index === 0 && (
-                                  <td className="py-2 font-bold bg-white align-top" rowSpan={actsMes.length}>
-                                    Mes {mes}
-                                  </td>
-                                )}
-                                <td className="py-2 font-semibold">Semana {a.semana}</td>
-                                <td className="py-2 text-slate-700">{a.descripcion}</td>
-                              </tr>
-                            ));
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
-                </>
-              )}
-
-              {/* DOCUMENTOS ANEXOS DEL ESTUDIANTE CON ZOOM VIEWER */}
-              <section className="space-y-4">
-                <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider border-b border-slate-200 pb-1">
-                  Documentos Anexos del Estudiante
-                </h4>
-                {docs.length > 0 ? (
-                  <div className="space-y-4">
-                    {docs.map((d) => (
-                      <div key={d.id} className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-extrabold uppercase text-slate-900">
-                            📄 {d.tipo.replace("_", " ")}
-                          </span>
-                        </div>
+                    {(carta?.emisorFirmaUrl || supervisor?.firmaUrl) && (
+                      <div className="pt-3 border-t border-slate-200">
+                        <p className="text-xs font-bold text-slate-900 mb-2">Firma Autorizada:</p>
                         <MediaZoomViewer
-                          url={d.archivoUrl}
-                          title={d.tipo.toUpperCase().replace("_", " ")}
+                          url={carta?.emisorFirmaUrl || supervisor?.firmaUrl}
+                          title="Firma Autorizada"
+                          isSignature={true}
                         />
                       </div>
-                    ))}
+                    )}
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-500 italic">No hay documentos anexos subidos por el estudiante.</p>
-                )}
-              </section>
 
-              {/* HISTORIAL DE CAMBIOS Y ASIGNACIONES */}
-              <section className="space-y-3 pt-4 border-t border-slate-200">
-                <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Historial de Cambios y Respuestas de Asignación
-                </h4>
-
-                {historialList.length > 0 ? (
-                  <div className="space-y-2.5">
-                    {historialList.map((h) => {
-                      const fechaStr = new Date(h.historial.creadoEn || "").toLocaleString("es-SV", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      });
-                      const usuarioNombre = h.usuario ? `${h.usuario.nombreCompleto} (${h.usuario.rol})` : "Sistema";
-
-                      return (
-                        <div key={h.historial.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-bold text-slate-900">{usuarioNombre}</span>
-                              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-100 text-indigo-800">
-                                {h.historial.de || "inicio"} ➔ {h.historial.a}
-                              </span>
-                            </div>
-                          </div>
-                          <span className="text-[11px] text-slate-400 font-mono">{fechaStr}</span>
-                        </div>
-                      );
-                    })}
+                  {/* 5. JUSTIFICACIÓN DEL PROYECTO */}
+                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
+                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
+                      5. JUSTIFICACIÓN DEL PROYECTO
+                    </h3>
+                    <p className="text-xs leading-relaxed text-slate-800 whitespace-pre-wrap">
+                      {propuesta.justificacionProceso || "Sin justificación provista."}
+                    </p>
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-400 italic">No hay registros aún en el historial.</p>
-                )}
-              </section>
+                </div>
+              ) : (
+                /* PROYECTO / INVESTIGACIÓN MULTIUSER */
+                <div className="space-y-6">
+                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
+                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
+                      1. INTEGRANTES DEL EQUIPO
+                    </h3>
+                    <div className="text-xs space-y-2">
+                      <p className="font-bold text-slate-900">
+                        Líder: {estudiante?.nombreCompleto} ({estudiante?.carnet || "N/A"})
+                      </p>
+                      {teamMembers.length > 0 && (
+                        <ul className="list-disc pl-4 space-y-1">
+                          {teamMembers.map((t) => (
+                            <li key={t.id}>{t.nombreCompleto} ({t.carnet})</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border border-slate-900 rounded-lg p-4 space-y-3 bg-white">
+                    <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider">
+                      2. DESCRIPCIÓN Y JUSTIFICACIÓN
+                    </h3>
+                    <div className="text-xs space-y-3">
+                      <div>
+                        <strong className="block text-slate-900 mb-1">Descripción del Problema:</strong>
+                        <p className="text-slate-800 whitespace-pre-wrap leading-relaxed">{detallesProj?.descripcionProblema || "N/A"}</p>
+                      </div>
+                      <div>
+                        <strong className="block text-slate-900 mb-1">Justificación:</strong>
+                        <p className="text-slate-800 whitespace-pre-wrap leading-relaxed">{detallesProj?.justificacion || "N/A"}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* PLAN DE ACTIVIDADES */}
+              <div className="space-y-4 pt-6 border-t-2 border-rose-600">
+                <h2 className="text-lg font-black uppercase text-rose-700 tracking-wider">
+                  PLAN DE ACTIVIDADES
+                </h2>
+                <div className="border border-slate-300 rounded-lg overflow-hidden text-xs">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-100 border-b border-slate-300 font-extrabold text-slate-800 uppercase">
+                      <tr>
+                        <th className="p-3 w-20 border-r border-slate-300 text-center">Mes</th>
+                        <th className="p-3 w-28 border-r border-slate-300">Semana</th>
+                        <th className="p-3 w-24 border-r border-slate-300 font-mono text-center">Código</th>
+                        <th className="p-3">Actividad a desarrollar</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((mes) => {
+                        const actsMes = actividadesList.filter((a) => a.periodo === mes);
+                        return actsMes.map((a, idx) => (
+                          <tr key={a.id} className="hover:bg-slate-50">
+                            {idx === 0 && (
+                              <td
+                                className="p-3 font-extrabold text-slate-900 border-r border-slate-300 align-top text-center bg-white"
+                                rowSpan={actsMes.length}
+                              >
+                                Mes {mes}
+                              </td>
+                            )}
+                            <td className="p-3 font-semibold border-r border-slate-300 whitespace-nowrap">Semana {a.semana}</td>
+                            <td className="p-3 font-mono text-slate-500 border-r border-slate-300 text-center">{`${a.periodo}.${a.semana}.${a.numero || idx + 1}`}</td>
+                            <td className="p-3 text-slate-800">{a.descripcion}</td>
+                          </tr>
+                        ));
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* DOCUMENTOS ANEXOS DEL ESTUDIANTE CONVERTI2 A FOTOS DE PÁGINA CON ZOOM */}
+              {docs.length > 0 && (
+                <div className="space-y-6 pt-8">
+                  {docs.map((d) => (
+                    <PdfToImagesViewer
+                      key={d.id}
+                      url={d.archivoUrl}
+                      title={d.tipo.toUpperCase().replace("_", " ")}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* Right Column: Review & Assignment Form */}
-        <div className="lg:col-span-1">
+        {/* Right Column: Review Form & History Trail */}
+        <div className="lg:col-span-4 space-y-6">
           <ReviewForm
             propuestaId={propuesta.id}
             estadoActual={propuesta.estado}
@@ -477,6 +385,44 @@ export default async function AdminPropuestaReviewPage({
             initialCoordinadorId={propuesta.coordinadorId}
             initialObservaciones={propuesta.observaciones}
           />
+
+          {/* HISTORIAL DE CAMBIOS Y ASIGNACIONES */}
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2 border-b border-slate-200 pb-3">
+              <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Historial de Asignaciones y Cambios
+            </h3>
+
+            {historialList.length > 0 ? (
+              <div className="space-y-3">
+                {historialList.map((h) => {
+                  const fechaStr = new Date(h.historial.creadoEn || "").toLocaleString("es-SV", {
+                    dateStyle: "short",
+                    timeStyle: "short",
+                  });
+                  const usuarioNombre = h.usuario ? `${h.usuario.nombreCompleto} (${h.usuario.rol})` : "Sistema";
+
+                  return (
+                    <div key={h.historial.id} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-900">{usuarioNombre}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{fechaStr}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-indigo-100 text-indigo-800">
+                          {h.historial.de || "inicio"} ➔ {h.historial.a}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400 italic">No hay registros aún en el historial.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
