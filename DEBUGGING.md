@@ -361,6 +361,29 @@ En `src/components/PortadaForm.tsx` (y otros componentes de formulario de etapas
 - **TypeScript:** Validado con `npx tsc --noEmit` obteniendo 0 errores.
 - **Aislamiento:** Cada propuesta redactada mantiene su `id` aislado en la barra de navegación sin riesgo de fuga de datos ni redirección cruzada.
 
+---
+
+## 9. ERROR: Fallo al Eliminar Empresa en Panel Administrador por Restricción de Clave Foránea
+
+### 9.1. Descripción del Problema
+Al intentar eliminar una empresa desde el catálogo administrativo (`/admin/empresas`), aparecía una alerta con un error de consulta SQL sin tratar: `Failed query: delete from "empresas" where "empresas"."id" = $1 params: 15`.
+
+### 9.2. Diagnóstico y Causa Raíz
+En `src/app/actions/empresas.ts`, `deleteEmpresa()` ejecutaba directamente un `DELETE FROM empresas WHERE id = X`. Como la tabla `empresas` posee relaciones de clave foránea con tablas dependientes (`supervisores`, `firmantes`, `organigramas_empresa`, `historial_empresas`, `sucursales`, `solicitudes_empresa` y `propuestas`), PostgreSQL bloqueaba el borrado por violaciones de clave foránea (FK constraint), devolviendo una excepción SQL técnica.
+
+### 9.3. Solución Aplicada
+1. **Validación Previa de Propuestas de Estudiantes:**
+   - Antes de intentar borrar, `deleteEmpresa` consulta la tabla `propuestas`. Si la empresa está asignada a 1 o más propuestas de egresados, cancela el borrado y retorna un mensaje amigable indicando la cantidad de propuestas vinculadas.
+2. **Cascada Manual de Registros Secundarios:**
+   - Si la empresa no está vinculada a propuestas académicas, la Server Action elimina primero de forma limpia los registros hijos en `solicitudesEmpresa`, `supervisores`, `firmantes`, `organigramasEmpresa`, `historialEmpresas` y `sucursales` antes de eliminar la fila principal en `empresas`.
+3. **Manejo Amigable de Excepciones:**
+   - Se capturan las excepciones de PostgreSQL/Drizzle para devolver mensajes descriptivos en español en lugar de alertas con la consulta SQL cruda.
+
+### 9.4. Verificación y Calidad
+- **TypeScript:** Validado con `npx tsc --noEmit` obteniendo 0 errores.
+- **Git Push:** Cambios confirmados e integrados.
+
+
 
 
 

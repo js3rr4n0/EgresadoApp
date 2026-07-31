@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { empresas, supervisores, firmantes, organigramasEmpresa, sucursales } from "@/lib/schema";
+import { empresas, supervisores, firmantes, organigramasEmpresa, sucursales, propuestas, solicitudesEmpresa, historialEmpresas } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -285,13 +285,40 @@ export async function updateSucursalesSolo(empresaId: number, sucs: SucursalData
 
 export async function deleteEmpresa(id: number) {
   try {
+    // 1. Verificar si existen propuestas de egresados vinculadas a esta empresa
+    const propuestasVinculadas = await db
+      .select({ id: propuestas.id })
+      .from(propuestas)
+      .where(eq(propuestas.empresaId, id));
+
+    if (propuestasVinculadas.length > 0) {
+      return {
+        success: false,
+        error: `No se puede eliminar la empresa porque está vinculada a ${propuestasVinculadas.length} propuesta(s) de Trabajo de Graduación de estudiantes.`
+      };
+    }
+
+    // 2. Limpiar registros hijos asociados (solicitudes, supervisores, firmantes, organigramas, historial y sucursales)
+    await db.delete(solicitudesEmpresa).where(eq(solicitudesEmpresa.empresaId, id));
+    await db.delete(supervisores).where(eq(supervisores.empresaId, id));
+    await db.delete(firmantes).where(eq(firmantes.empresaId, id));
+    await db.delete(organigramasEmpresa).where(eq(organigramasEmpresa.empresaId, id));
+    await db.delete(historialEmpresas).where(eq(historialEmpresas.empresaId, id));
+    await db.delete(sucursales).where(eq(sucursales.empresaId, id));
+
+    // 3. Eliminar la empresa
     await db.delete(empresas).where(eq(empresas.id, id));
+
     revalidatePath("/admin/empresas");
     return { success: true };
   } catch (error: any) {
-    if (error.code === '23503') {
-      return { success: false, error: "No se puede eliminar la empresa porque ya tiene registros académicos vinculados a ella." };
+    console.error("Error al eliminar empresa:", error);
+    if (error?.code === '23503' || error?.message?.includes('delete from "empresas"')) {
+      return {
+        success: false,
+        error: "No se puede eliminar la empresa porque existen registros o propuestas académicas vinculadas a ella."
+      };
     }
-    return { success: false, error: error.message };
+    return { success: false, error: error?.message || "Ocurrió un error al eliminar la empresa." };
   }
 }
