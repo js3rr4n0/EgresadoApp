@@ -83,7 +83,9 @@ export default async function AdminPropuestaReviewPage({
   }
 
   const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuesta.id)).limit(1);
-  const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId));
+  const docs = propuesta.egresadoId
+    ? await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId))
+    : [];
 
   const historialList = await db
     .select({
@@ -308,9 +310,16 @@ export default async function AdminPropuestaReviewPage({
                 <PdfToImagesViewer url={carta.archivoUrl} title="CARTA DE ACEPTACIÓN DE LA EMPRESA" />
               )}
 
-              {docs.map((doc) => (
-                <PdfToImagesViewer key={doc.id} url={doc.archivoUrl} title={doc.tipo.toUpperCase()} />
-              ))}
+              {docs.map((doc) => {
+                if (!doc?.archivoUrl) return null;
+                return (
+                  <PdfToImagesViewer
+                    key={doc.id}
+                    url={doc.archivoUrl}
+                    title={doc.tipo ? doc.tipo.toUpperCase() : "DOCUMENTO ADJUNTO"}
+                  />
+                );
+              })}
             </div>
 
             {/* SECCIÓN 6: FIRMAS Y FECHA */}

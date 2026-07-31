@@ -13,8 +13,10 @@ export default function PdfToImagesViewer({ url, title }: PdfToImagesViewerProps
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  if (!url) return null;
+
   const isDirectImage =
-    url.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i) ||
+    Boolean(url.match(/\.(jpeg|jpg|gif|png|webp|svg)(\?.*)?$/i)) ||
     url.startsWith("data:image/");
 
   useEffect(() => {
