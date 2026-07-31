@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { propuestas, periodos, usuarios, carreras, facultades } from "@/lib/schema";
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, asc, desc, and, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
@@ -25,7 +25,7 @@ export async function getActivePropuesta(targetPropuestaId?: number) {
         eq(propuestas.periodoId, periodo.id)
       )
     )
-    .orderBy(desc(propuestas.id));
+    .orderBy(asc(propuestas.id));
 
   let propuesta = null;
   if (targetPropuestaId) {
@@ -75,9 +75,14 @@ export async function getActivePropuesta(targetPropuestaId?: number) {
     return { error: "No has creado ninguna propuesta aún." };
   }
 
+  // Calculate sequential display number for current proposal
+  const currentPropIndex = props.findIndex((p) => p.id === propuesta!.id);
+  const displayNumero = currentPropIndex !== -1 ? currentPropIndex + 1 : (propuesta.numero || 1);
+  const propuestaConNumero = { ...propuesta, numero: displayNumero };
+
   // Check if ANY proposal of the user is submitted or approved
-  const submittedProp = props.find((p) => p.estado === "enviada" || p.estado === "aprobada");
-  const isAnySubmitted = !!submittedProp;
+  const submittedIndex = props.findIndex((p) => p.estado === "enviada" || p.estado === "aprobada");
+  const isAnySubmitted = submittedIndex !== -1;
   const isCurrentSubmitted = propuesta.estado === "enviada" || propuesta.estado === "aprobada";
 
   // 4. Fetch User details for Portada
@@ -100,7 +105,7 @@ export async function getActivePropuesta(targetPropuestaId?: number) {
   const mesEnvio = new Intl.DateTimeFormat('es-SV', { month: 'long' }).format(new Date());
 
   return {
-    propuesta,
+    propuesta: propuestaConNumero,
     userDetails,
     mesEnvio,
     periodo,
@@ -109,7 +114,7 @@ export async function getActivePropuesta(targetPropuestaId?: number) {
     allPropuestas: props,
     isAnySubmitted,
     isCurrentSubmitted,
-    submittedPropNumber: submittedProp ? submittedProp.numero : null,
+    submittedPropNumber: submittedIndex !== -1 ? submittedIndex + 1 : null,
   };
 }
 
@@ -155,7 +160,7 @@ export async function initPropuesta(tipo: string) {
           eq(propuestas.periodoId, periodo.id)
         )
       )
-      .orderBy(desc(propuestas.numero));
+      .orderBy(asc(propuestas.id));
 
     // If user has any proposal currently submitted or approved, block creating a new one
     const activeSubmitted = props.find((p) => p.estado === "enviada" || p.estado === "aprobada");

@@ -2,7 +2,7 @@ import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { documentosEgresado, propuestas } from "@/lib/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 import DocumentGate from "@/components/DocumentGate";
 import Link from "next/link";
 import InvitationAlert from "@/components/proyecto/InvitationAlert";
@@ -24,12 +24,12 @@ export default async function EgresadoLandingPage() {
   const docNotas = docs.find((d) => d.tipo === "certificacion_notas");
   const docPago = docs.find((d) => d.tipo === "pago_tg");
 
-  // 3. Fetch user proposals
+  // 3. Fetch user proposals ordered by creation date (id asc)
   let userPropuestas = await db
     .select()
     .from(propuestas)
     .where(eq(propuestas.egresadoId, session.userId))
-    .orderBy(desc(propuestas.numero));
+    .orderBy(asc(propuestas.id));
 
   const hasSubmittedPropuesta = userPropuestas.some(p => p.estado === "enviada" || p.estado === "aprobada") || acceptedTeam?.propuesta?.estado === "enviada";
 
@@ -138,13 +138,14 @@ export default async function EgresadoLandingPage() {
                     </td>
                   </tr>
                 ) : (
-                  userPropuestas.map((p) => {
+                  userPropuestas.map((p, index) => {
                     const isThisSubmitted = p.estado === 'enviada' || p.estado === 'aprobada';
                     const isLockedOther = hasSubmittedPropuesta && !isThisSubmitted;
+                    const numeroCalculado = index + 1;
 
                     return (
                       <tr key={p.id} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 font-bold text-brand-red">Propuesta #{p.numero}</td>
+                        <td className="px-6 py-4 font-bold text-brand-red">Propuesta #{numeroCalculado}</td>
                         <td className="px-6 py-4 font-medium text-foreground max-w-[300px] truncate" title={p.titulo || ""}>
                           {p.titulo || `Propuesta de Trabajo de Graduación (${p.tipo.toUpperCase()})`}
                         </td>
