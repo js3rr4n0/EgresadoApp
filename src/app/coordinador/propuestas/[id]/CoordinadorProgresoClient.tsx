@@ -145,7 +145,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                 <span>Documentos de la Propuesta</span>
               </h3>
               <a
-                href={`/admin/propuestas/${propuesta.id}/imprimir`}
+                href={`/coordinador/propuestas/${propuesta.id}/imprimir`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-1.5"

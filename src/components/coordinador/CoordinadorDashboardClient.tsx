@@ -562,7 +562,7 @@ export default function CoordinadorDashboardClient({
               </div>
               <div className="flex items-center gap-2">
                 <a
-                  href={`/admin/propuestas/${viewingDocPropuesta.id}/imprimir`}
+                  href={`/coordinador/propuestas/${viewingDocPropuesta.id}/imprimir`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1"
@@ -585,7 +585,7 @@ export default function CoordinadorDashboardClient({
             {/* Modal Body iframe */}
             <div className="flex-1 w-full bg-slate-100 relative">
               <iframe
-                src={`/admin/propuestas/${viewingDocPropuesta.id}/imprimir`}
+                src={`/coordinador/propuestas/${viewingDocPropuesta.id}/imprimir`}
                 className="w-full h-full border-none"
                 title={`Documento Propuesta ${viewingDocPropuesta.id}`}
               />

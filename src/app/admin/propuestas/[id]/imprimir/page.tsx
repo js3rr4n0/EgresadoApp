@@ -102,7 +102,7 @@ export default async function AdminPrintPropuestaPage({
 
   const today = new Date();
   const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
-  const formattedDate = `SANTA ANA, ${today.toLocaleDateString("es-SV", options).toUpperCase()}`;
+  const backUrl = session.rol === "coordinador" ? "/coordinador" : (session.rol === "decanato" ? "/decanato/propuestas" : `/admin/propuestas/${propuesta.id}`);
 
   return (
     <div className="bg-white min-h-screen text-black">
@@ -110,7 +110,7 @@ export default async function AdminPrintPropuestaPage({
         {/* Helper navigation and print buttons */}
         <div className="mb-8 flex justify-between items-center print:hidden">
           <Link
-            href={`/admin/propuestas/${propuesta.id}`}
+            href={backUrl}
             className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all shadow-xs"
           >
             <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
