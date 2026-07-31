@@ -1,14 +1,16 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { solicitudesEmpresa, empresas, supervisores, historialEmpresas, propuestas } from "@/lib/schema";
+import { solicitudesEmpresa, empresas, supervisores, historialEmpresas, propuestas, usuarios, notificaciones } from "@/lib/schema";
 import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
 export async function aprobarSolicitudEmpresa(solicitudId: number) {
   const session = await getSession();
-  if (!session || session.rol !== "admin") return { success: false, error: "No autorizado" };
+  if (!session || (session.rol !== "admin" && session.rol !== "decanato")) {
+    return { success: false, error: "No autorizado" };
+  }
 
   try {
     const solicitud = await db.query.solicitudesEmpresa.findFirst({
@@ -19,6 +21,42 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
     if (solicitud.estado !== "pendiente") return { success: false, error: "La solicitud ya fue procesada" };
 
     const data = solicitud.datos as any;
+
+    if (solicitud.tipo === "datos_alumno") {
+      const egresadoId = data?.egresadoId;
+      const nuevosNombre = data?.nuevos?.nombreCompleto || data?.nombrePropuesto;
+      const nuevosCarnet = data?.nuevos?.carnet || data?.carnetPropuesto;
+
+      if (egresadoId && (nuevosNombre || nuevosCarnet)) {
+        const updateObj: any = {};
+        if (nuevosNombre) updateObj.nombreCompleto = nuevosNombre;
+        if (nuevosCarnet) updateObj.carnet = nuevosCarnet;
+
+        await db.update(usuarios).set(updateObj).where(eq(usuarios.id, egresadoId));
+
+        // Create notification for student
+        await db.insert(notificaciones).values({
+          usuarioId: egresadoId,
+          tipo: "solicitud_aprobada",
+          mensaje: `¡Buenas noticias! Tu solicitud de corrección de datos personales (${nuevosNombre || ""}, ${nuevosCarnet || ""}) fue APROBADA por el Decanato/Administración.`,
+        });
+      }
+
+      await db.update(solicitudesEmpresa)
+        .set({ estado: "aprobada", revisadoPor: session.userId, revisadoEn: new Date() })
+        .where(eq(solicitudesEmpresa.id, solicitudId));
+
+      if (solicitud.propuestaId) {
+        await db.update(propuestas).set({
+          bloqueada: false
+        }).where(eq(propuestas.id, solicitud.propuestaId));
+      }
+
+      revalidatePath("/admin/empresas/solicitudes");
+      revalidatePath("/egresado");
+      revalidatePath("/egresado/redactar");
+      return { success: true };
+    }
 
     let targetEmpresaId = solicitud.empresaId;
     let targetSupervisorId = null;
@@ -63,7 +101,7 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       
       const existingEmpresa = await db.query.empresas.findFirst({ where: eq(empresas.id, targetEmpresaId) });
       
-      const targetSucursalId = data.empresa.targetSucursalId;
+      const targetSucursalId = data.empresa?.targetSucursalId;
       
       const updateData: any = {
         area: data.empresa.area,
@@ -118,7 +156,7 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
 
     // Update propuesta to unlock it
     if (solicitud.propuestaId) {
-      const targetSucursalId = data.empresa.targetSucursalId;
+      const targetSucursalId = data.empresa?.targetSucursalId;
       await db.update(propuestas).set({
         empresaId: targetEmpresaId,
         sucursalId: targetSucursalId || null,
@@ -126,9 +164,21 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         bloqueada: false,
         estado: "redactando"
       }).where(eq(propuestas.id, solicitud.propuestaId));
+
+      // Notify egresado
+      const prop = await db.query.propuestas.findFirst({ where: eq(propuestas.id, solicitud.propuestaId) });
+      if (prop) {
+        await db.insert(notificaciones).values({
+          usuarioId: prop.egresadoId,
+          tipo: "solicitud_aprobada",
+          mensaje: `Tu solicitud de empresa/supervisor ha sido APROBADA por el Administrador. Tu propuesta está desbloqueada.`,
+        });
+      }
     }
 
     revalidatePath("/admin/empresas/solicitudes");
+    revalidatePath("/egresado");
+    revalidatePath("/egresado/redactar");
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -137,7 +187,9 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
 
 export async function rechazarSolicitudEmpresa(solicitudId: number, justificacion: string) {
   const session = await getSession();
-  if (!session || session.rol !== "admin") return { success: false, error: "No autorizado" };
+  if (!session || (session.rol !== "admin" && session.rol !== "decanato")) {
+    return { success: false, error: "No autorizado" };
+  }
 
   try {
     const solicitud = await db.query.solicitudesEmpresa.findFirst({
@@ -146,6 +198,8 @@ export async function rechazarSolicitudEmpresa(solicitudId: number, justificacio
     
     if (!solicitud) return { success: false, error: "Solicitud no encontrada" };
     if (solicitud.estado !== "pendiente") return { success: false, error: "La solicitud ya fue procesada" };
+
+    const data = solicitud.datos as any;
 
     // Update solicitud to rejected
     await db.update(solicitudesEmpresa)
@@ -157,10 +211,24 @@ export async function rechazarSolicitudEmpresa(solicitudId: number, justificacio
       })
       .where(eq(solicitudesEmpresa.id, solicitudId));
 
+    // Notify student
+    let egresadoId = data?.egresadoId;
+    if (!egresadoId && solicitud.propuestaId) {
+      const prop = await db.query.propuestas.findFirst({ where: eq(propuestas.id, solicitud.propuestaId) });
+      if (prop) egresadoId = prop.egresadoId;
+    }
+
+    if (egresadoId) {
+      const tipoTexto = solicitud.tipo === "datos_alumno" ? "corrección de datos personales" : "empresa / supervisor";
+      await db.insert(notificaciones).values({
+        usuarioId: egresadoId,
+        tipo: "solicitud_rechazada",
+        mensaje: `Tu solicitud de ${tipoTexto} fue RECHAZADA. Motivo: "${justificacion}".`,
+      });
+    }
+
     // Unlock propuesta so user can fix and try again
     if (solicitud.propuestaId) {
-      // Return state to redactando, but we might want to alert them.
-      // Since it's returned to redactando, the UI will just let them edit the form again.
       await db.update(propuestas).set({
         bloqueada: false,
         estado: "redactando"
@@ -168,6 +236,8 @@ export async function rechazarSolicitudEmpresa(solicitudId: number, justificacio
     }
 
     revalidatePath("/admin/empresas/solicitudes");
+    revalidatePath("/egresado");
+    revalidatePath("/egresado/redactar");
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };

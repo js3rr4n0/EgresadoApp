@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { propuestas, periodos, usuarios, carreras, facultades } from "@/lib/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
@@ -261,29 +261,58 @@ export async function solicitarCorreccionDatosDecanato(formData: FormData) {
   }
 
   try {
-    const { solicitudesCorreccionDatos, notificaciones, usuarios } = await import("@/lib/schema");
+    const { solicitudesEmpresa, notificaciones, usuarios } = await import("@/lib/schema");
 
-    await db.insert(solicitudesCorreccionDatos).values({
+    // Fetch current user info for comparisons
+    const currentUser = await db.query.usuarios.findFirst({
+      where: eq(usuarios.id, session.userId)
+    });
+
+    const datosPayload = {
+      tipo: "datos_alumno",
       egresadoId: session.userId,
-      propuestaId: propuestaId && !isNaN(propuestaId) ? propuestaId : null,
       nombrePropuesto,
       carnetPropuesto,
-      justificacion,
+      justificacion: justificacion || "Sin justificación especificada",
+      anteriores: {
+        nombreCompleto: currentUser?.nombreCompleto || "N/A",
+        carnet: currentUser?.carnet || "N/A"
+      },
+      nuevos: {
+        nombreCompleto: nombrePropuesto,
+        carnet: carnetPropuesto
+      }
+    };
+
+    if (!propuestaId) {
+      return { success: false, error: "Debes tener una propuesta iniciada para enviar esta solicitud." };
+    }
+
+    await db.insert(solicitudesEmpresa).values({
+      propuestaId: propuestaId,
+      empresaId: null,
+      tipo: "datos_alumno",
+      datos: datosPayload,
       estado: "pendiente",
     });
 
-    // Notify Decanato users
-    const decanatoUsers = await db.select().from(usuarios).where(eq(usuarios.rol, "decanato"));
-    for (const dec of decanatoUsers) {
+    // Notify Decanato and Admin users
+    const adminOrDecanatoUsers = await db
+      .select()
+      .from(usuarios)
+      .where(inArray(usuarios.rol, ["decanato", "admin"]));
+
+    for (const u of adminOrDecanatoUsers) {
       await db.insert(notificaciones).values({
-        usuarioId: dec.id,
+        usuarioId: u.id,
         tipo: "solicitud_correccion_datos",
-        mensaje: `El egresado (ID: ${session.userId}) ha enviado una solicitud de corrección de datos institucionales (Nombre: ${nombrePropuesto}, Carnet: ${carnetPropuesto}).`,
+        mensaje: `El egresado ${currentUser?.nombreCompleto} (Carnet: ${currentUser?.carnet}) ha enviado una solicitud de corrección de datos personales/carnet (${nombrePropuesto}, ${carnetPropuesto}).`,
       });
     }
 
     revalidatePath("/egresado/redactar");
-    return { success: true, message: "Solicitud enviada al Decanato exitosamente para su revisión." };
+    revalidatePath("/admin/empresas/solicitudes");
+    return { success: true, message: "Solicitud enviada exitosamente para su revisión por las autoridades." };
   } catch (error: any) {
     console.error("Error al solicitar corrección de datos:", error);
     return { success: false, error: error.message || "Error al procesar la solicitud." };

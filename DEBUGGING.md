@@ -165,3 +165,75 @@ Se integró el botón oficial **"¿Datos erróneos?"** y un modal responsivo con
 
 ---
 
+## 🛠️ ERROR 3: Unificación de Solicitudes Administrativas (Datos de Alumno, Empresa y Supervisor), Trazabilidad Histórica y Notificaciones en Tiempo Real
+
+### 3.1. Ubicación del Incidente
+* **Rutas de la App:** `/admin/empresas/solicitudes`, `/egresado/redactar` y cabeceras globales (`DashboardHeader.tsx`, `AdminSidebar.tsx`).
+* **Componentes y Archivos Afectados:**
+  - `src/lib/schema.ts`
+  - `src/app/actions/solicitudes.ts`
+  - `src/app/actions/propuestas.ts`
+  - `src/app/actions/notificaciones.ts`
+  - `src/app/admin/empresas/solicitudes/SolicitudesTable.tsx`
+  - `src/components/NotificationBell.tsx`
+  - `src/components/AdminSidebar.tsx`
+  - `src/components/DashboardHeader.tsx`
+
+### 3.2. Descripción Técnica del Incidente
+Inicialmente, las solicitudes de creación o modificación de empresas/supervisores se procesaban en la tabla `solicitudes_empresa`, mientras que las peticiones de corrección de datos personales de alumnos se intentaban dirigir a un esquema independiente (`solicitudes_correccion_datos`). Esto ocasionaba tres problemas principales:
+1. **Falta de Centralización:** El administrador y el decanato debían consultar múltiples vistas para atender las peticiones de los graduando.
+2. **Inexistencia de Trazabilidad Comparativa ("Antes vs Después"):** En el panel de revisión no se mostraba el estado de los datos del estudiante previos a la solicitud frente a los datos propuestos.
+3. **Falta de Notificaciones en Tiempo Real:** El icono de la campana en la cabecera era estático, impidiendo que el Administrador/Decanato supiera cuántas solicitudes pendientes requerían atención y que el Egresado se enterase cuando su petición fuera aprobada o rechazada.
+
+### 3.3. Análisis de Causa Raíz (Root Cause Analysis - RCA)
+1. **Modelado de Datos Fragmentado:** La tabla `solicitudes_empresa` no estaba estructurada para actuar de forma polimórfica registrando distintos tipos de solicitudes institucionales.
+2. **Falta de Instantánea Histórica (Snapshot):** Al registrar la solicitud de datos, no se capturaban en el payload JSON los valores vigentes (`anteriores`) del usuario en la tabla `usuarios`.
+3. **Ausencia de Componente Cliente Reactivo:** La interfaz no contaba con un componente cliente de notificaciones con sondeo o actualización dinámica.
+
+### 3.4. Solución Aplicada y Cambios en el Código
+
+#### A) Unificación Polimórfica en `solicitudes_empresa`
+Se configuró la tabla `solicitudes_empresa` para almacenar solicitudes del tipo `"datos_alumno"`, `"nueva"` (empresa) y `"actualizacion"`, utilizando la columna `datos` (JSONB) para preservar la trazabilidad diferencial:
+
+```json
+{
+  "tipo": "datos_alumno",
+  "egresadoId": 21,
+  "nombrePropuesto": "Merlon Brendon",
+  "carnetPropuesto": "2026MB607",
+  "justificacion": "Me equivoqué en el carnet",
+  "anteriores": {
+    "nombreCompleto": "Merlon Brandon",
+    "carnet": "2026MB600"
+  },
+  "nuevos": {
+    "nombreCompleto": "Merlon Brendon",
+    "carnet": "2026MB607"
+  }
+}
+```
+
+#### B) Refactorización de Server Actions (`solicitudes.ts` y `propuestas.ts`)
+1. **`solicitarCorreccionDatosDecanato` (`propuestas.ts`):** Guarda la solicitud en `solicitudes_empresa` e inserta registros en la tabla `notificaciones` para los usuarios con rol `admin` y `decanato`.
+2. **`aprobarSolicitudEmpresa` (`solicitudes.ts`):** 
+   - Cuando `solicitud.tipo === "datos_alumno"`, actualiza la tabla `usuarios` (`nombreCompleto` y `carnet`).
+   - Inserta una notificación de aprobación en `notificaciones` para el egresado.
+   - Desbloquea la propuesta del egresado para continuar con su trámite académico.
+3. **`rechazarSolicitudEmpresa` (`solicitudes.ts`):** Actualiza el estado a `"rechazada"` guardando el motivo y notifica inmediatamente al egresado.
+
+#### C) Visualización Comparativa en `SolicitudesTable.tsx`
+Se actualizó el modal de detalles (`viewDetails`) para presentar paneles lado a lado con el estado **"Datos Actuales (Antes)"** y **"Cambios Propuestos (Después)"**, resaltando con distintivos los campos corregidos y mostrando la justificación presentada por el alumno.
+
+#### D) Componente de Notificaciones en Tiempo Real (`NotificationBell.tsx`)
+Se creó el componente cliente `NotificationBell.tsx` con un temporizador de sondeo cada 10 segundos:
+- **Para Administrador / Decanato:** Muestra una insignia roja/amarilla pulsante con el conteo exacto de solicitudes pendientes. Al hacer clic, redirige a `/admin/empresas/solicitudes`.
+- **Para Egresados:** Muestra las notificaciones de aprobación/rechazo en un menú desplegable interactivo, permitiendo marcarlas como leídas.
+
+### 3.5. Verificación de la Solución (Quality Assurance)
+1. **Prueba de Flujo Completo:**
+   - Egresado envía solicitud de datos erróneos -> Se genera registro unificado e incrementa el contador de la campana del Admin/Decanato.
+   - Admin hace clic en la campana -> Redirección a `/admin/empresas/solicitudes`.
+   - Admin visualiza comparativo "Antes vs Después" y aprueba -> Se actualizan los datos institucionales del usuario en la BD y el egresado recibe una notificación de confirmación en su propia campana.
+2. **Comprobación de Tipado y Compilación:** Se ejecutó `npx tsc --noEmit` confirmando 0 errores de TypeScript y compilación satisfactoria.
+
+---

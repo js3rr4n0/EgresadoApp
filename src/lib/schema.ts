@@ -329,24 +329,6 @@ export const solicitudesEmpresa = pgTable(
   ]
 );
 
-// ─────────────────────────── Solicitudes de corrección de datos ───────────────────────────
-
-export const solicitudesCorreccionDatos = pgTable("solicitudes_correccion_datos", {
-  id: serial("id").primaryKey(),
-  egresadoId: integer("egresado_id")
-    .notNull()
-    .references(() => usuarios.id, { onDelete: "cascade" }),
-  propuestaId: integer("propuesta_id")
-    .references(() => propuestas.id, { onDelete: "cascade" }),
-  nombrePropuesto: varchar("nombre_propuesto", { length: 255 }),
-  carnetPropuesto: varchar("carnet_propuesto", { length: 50 }),
-  justificacion: text("justificacion"),
-  estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
-  revisadoPor: integer("revisado_por").references(() => usuarios.id),
-  revisadoEn: timestamp("revisado_en", { withTimezone: true }),
-  creadaEn: timestamp("creada_en", { withTimezone: true }).defaultNow(),
-});
-
 // ─────────────────────────── Trazabilidad ───────────────────────────
 
 export const historialEstados = pgTable("historial_estados", {

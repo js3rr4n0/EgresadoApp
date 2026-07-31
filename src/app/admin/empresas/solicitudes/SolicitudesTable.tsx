@@ -72,19 +72,34 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                 <td className="px-6 py-4">
                   {s.tipo === "nueva" ? (
                     <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">Nueva Empresa</span>
+                  ) : s.tipo === "datos_alumno" ? (
+                    <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold">Datos Alumno</span>
                   ) : (
                     <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold">Actualización</span>
                   )}
                 </td>
                 <td className="px-6 py-4">{s.egresado || "Desconocido"}</td>
                 <td className="px-6 py-4">
-                  <div className="font-bold text-foreground">
-                    {data.empresa.nombre}
-                  </div>
-                  {s.tipo === "actualizacion" && s.empresaTarget && (
-                    <div className="text-xs text-muted">
-                      Objetivo: {s.empresaTarget}
+                  {s.tipo === "datos_alumno" ? (
+                    <div>
+                      <div className="font-bold text-foreground">
+                        Corrección de Nombre / Carnet
+                      </div>
+                      <div className="text-xs text-muted">
+                        Solicitado: {data?.nuevos?.nombreCompleto || data?.nombrePropuesto} ({data?.nuevos?.carnet || data?.carnetPropuesto})
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      <div className="font-bold text-foreground">
+                        {data?.empresa?.nombre || "N/A"}
+                      </div>
+                      {s.tipo === "actualizacion" && s.empresaTarget && (
+                        <div className="text-xs text-muted">
+                          Objetivo: {s.empresaTarget}
+                        </div>
+                      )}
+                    </>
                   )}
                 </td>
                 <td className="px-6 py-4">
@@ -153,126 +168,200 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
           <div className="p-6 border-b border-border flex justify-between items-center shrink-0">
-            <h3 className="text-xl font-bold text-card-dark">Detalles de Solicitud</h3>
+            <div>
+              <h3 className="text-xl font-bold text-card-dark">Detalles de Solicitud</h3>
+              <p className="text-xs text-muted">
+                {viewDetails.tipo === "datos_alumno" ? "Solicitud de Corrección de Datos del Egresado" : "Solicitud de Datos de Empresa / Supervisor"}
+              </p>
+            </div>
             <button onClick={() => setViewDetails(null)} className="text-muted hover:text-foreground">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
           </div>
+
           <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm text-slate-700">
-            <div>
-              <h4 className="font-bold text-brand-red border-b border-border pb-1 mb-4">Datos de la Empresa</h4>
-              
-              {viewDetails.tipo === "actualizacion" ? (
-                (() => {
-                  const targetEmpresa = allEmpresas?.find(e => e.id === viewDetails.datos.empresa.targetEmpresaId);
-                  const targetSucursal = allSucursales?.find(s => s.id === viewDetails.datos.empresa.targetSucursalId);
-                  
-                  return (
-                    <div className="grid grid-cols-2 gap-6">
+            {viewDetails.tipo === "datos_alumno" ? (
+              (() => {
+                const anteriores = viewDetails.datos?.anteriores || {};
+                const nuevos = viewDetails.datos?.nuevos || {};
+                const nombreChanged = anteriores.nombreCompleto !== nuevos.nombreCompleto;
+                const carnetChanged = anteriores.carnet !== nuevos.carnet;
+
+                return (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {/* BEFORE */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                        <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Datos Actuales (Antes)</h5>
-                        <div><span className="font-bold">Nombre:</span> {targetSucursal ? `${targetSucursal.nombre} (Sucursal)` : targetEmpresa?.nombre}</div>
-                        <div><span className="font-bold">Área:</span> {targetEmpresa?.area}</div>
-                        <div><span className="font-bold block mb-1">Dirección:</span> <div className="text-xs">{targetSucursal ? targetSucursal.direccion : targetEmpresa?.direccion}</div></div>
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                        <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2 border-b border-slate-200 pb-1">
+                          Datos Actuales (Antes)
+                        </h5>
                         <div>
-                          <span className="font-bold block mb-1">Descripción:</span>
-                          <div className="bg-white p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
-                            {targetSucursal?.descripcion || targetEmpresa?.descripcion || "Sin descripción"}
-                          </div>
+                          <span className="font-bold text-xs text-muted block">Nombre Completo:</span>
+                          <span className="font-semibold text-slate-800">{anteriores.nombreCompleto || "N/A"}</span>
                         </div>
                         <div>
-                          <span className="font-bold block mb-1">Antecedentes:</span>
-                          <div className="bg-white p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
-                            {targetSucursal?.antecedentes || targetEmpresa?.antecedentes || "Sin antecedentes"}
-                          </div>
+                          <span className="font-bold text-xs text-muted block">Carnet:</span>
+                          <span className="font-semibold text-slate-800">{anteriores.carnet || "N/A"}</span>
                         </div>
                       </div>
 
                       {/* AFTER */}
-                      <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-4 space-y-3">
-                        <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-600 mb-2">Cambios Propuestos (Después)</h5>
-                        <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa.nombre}</div>
-                        <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa.area}</div>
-                        <div><span className="font-bold block mb-1">Dirección:</span> <div className="text-xs">{viewDetails.datos.empresa.direccion}</div></div>
+                      <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-4 space-y-3">
+                        <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-700 mb-2 border-b border-emerald-200 pb-1">
+                          Cambios Propuestos (Después)
+                        </h5>
                         <div>
-                          <span className="font-bold block mb-1">Descripción:</span>
-                          <div className="bg-white p-2 rounded border border-emerald-50 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
-                            {viewDetails.datos.empresa.descripcion || "Sin descripción"}
-                          </div>
+                          <span className="font-bold text-xs text-emerald-800 block">Nombre Completo Solicitado:</span>
+                          {nombreChanged ? (
+                            <span className="font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded text-sm">
+                              {nuevos.nombreCompleto}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">No realizó cambios</span>
+                          )}
                         </div>
                         <div>
-                          <span className="font-bold block mb-1">Antecedentes:</span>
-                          <div className="bg-white p-2 rounded border border-emerald-50 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
-                            {viewDetails.datos.empresa.antecedentes || "Sin antecedentes"}
-                          </div>
+                          <span className="font-bold text-xs text-emerald-800 block">Carnet Solicitado:</span>
+                          {carnetChanged ? (
+                            <span className="font-bold text-emerald-900 bg-emerald-100 px-2 py-0.5 rounded text-sm">
+                              {nuevos.carnet}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 italic">No realizó cambios</span>
+                          )}
                         </div>
                       </div>
                     </div>
-                  );
-                })()
-              ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa.nombre}</div>
-                  <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa.area}</div>
-                  <div className="col-span-2"><span className="font-bold">Dirección:</span> {viewDetails.datos.empresa.direccion}</div>
-                  <div className="col-span-2">
-                    <span className="font-bold block mb-1">Descripción:</span>
-                    <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
-                      {viewDetails.datos.empresa.descripcion}
-                    </div>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="font-bold block mb-1">Antecedentes:</span>
-                    <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
-                      {viewDetails.datos.empresa.antecedentes}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div>
-              <h4 className="font-bold text-brand-red border-b border-border pb-1 mb-2">Datos del Supervisor</h4>
-              
-              {viewDetails.tipo === "actualizacion" && viewDetails.datos.supervisor.targetSupervisorId ? (
-                (() => {
-                  const targetSupervisor = allSupervisores?.find(s => s.id === viewDetails.datos.supervisor.targetSupervisorId);
-                  
-                  return (
-                    <div className="grid grid-cols-2 gap-6">
-                      {/* BEFORE */}
-                      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                        <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Datos Actuales (Antes)</h5>
-                        <div><span className="font-bold">Nombres:</span> {targetSupervisor?.nombres || "N/A"}</div>
-                        <div><span className="font-bold">Apellidos:</span> {targetSupervisor?.apellidos || "N/A"}</div>
-                        <div><span className="font-bold">Cargo:</span> {targetSupervisor?.cargo || "N/A"}</div>
-                        <div><span className="font-bold">Teléfono:</span> {targetSupervisor?.telefono || "N/A"}</div>
-                        <div><span className="font-bold">Correo:</span> {targetSupervisor?.correo || "N/A"}</div>
-                      </div>
 
-                      {/* AFTER */}
-                      <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-4 space-y-3">
-                        <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-600 mb-2">Cambios Propuestos (Después)</h5>
-                        <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor.nombres}</div>
-                        <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor.apellidos}</div>
-                        <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor.cargo}</div>
-                        <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor.telefono}</div>
-                        <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor.correo}</div>
+                    <div className="bg-amber-50/50 border border-amber-200 rounded-xl p-4">
+                      <h5 className="font-bold text-xs uppercase tracking-wider text-amber-800 mb-1">
+                        Justificación del Egresado
+                      </h5>
+                      <p className="text-xs text-amber-900 whitespace-pre-wrap">
+                        {viewDetails.datos?.justificacion || "Sin justificación especificada"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <>
+                <div>
+                  <h4 className="font-bold text-brand-red border-b border-border pb-1 mb-4">Datos de la Empresa</h4>
+                  
+                  {viewDetails.tipo === "actualizacion" ? (
+                    (() => {
+                      const targetEmpresa = allEmpresas?.find(e => e.id === viewDetails.datos.empresa.targetEmpresaId);
+                      const targetSucursal = allSucursales?.find(s => s.id === viewDetails.datos.empresa.targetSucursalId);
+                      
+                      return (
+                        <div className="grid grid-cols-2 gap-6">
+                          {/* BEFORE */}
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                            <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Datos Actuales (Antes)</h5>
+                            <div><span className="font-bold">Nombre:</span> {targetSucursal ? `${targetSucursal.nombre} (Sucursal)` : targetEmpresa?.nombre}</div>
+                            <div><span className="font-bold">Área:</span> {targetEmpresa?.area}</div>
+                            <div><span className="font-bold block mb-1">Dirección:</span> <div className="text-xs">{targetSucursal ? targetSucursal.direccion : targetEmpresa?.direccion}</div></div>
+                            <div>
+                              <span className="font-bold block mb-1">Descripción:</span>
+                              <div className="bg-white p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
+                                {targetSucursal?.descripcion || targetEmpresa?.descripcion || "Sin descripción"}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="font-bold block mb-1">Antecedentes:</span>
+                              <div className="bg-white p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
+                                {targetSucursal?.antecedentes || targetEmpresa?.antecedentes || "Sin antecedentes"}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* AFTER */}
+                          <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-4 space-y-3">
+                            <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-600 mb-2">Cambios Propuestos (Después)</h5>
+                            <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa.nombre}</div>
+                            <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa.area}</div>
+                            <div><span className="font-bold block mb-1">Dirección:</span> <div className="text-xs">{viewDetails.datos.empresa.direccion}</div></div>
+                            <div>
+                              <span className="font-bold block mb-1">Descripción:</span>
+                              <div className="bg-white p-2 rounded border border-emerald-50 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
+                                {viewDetails.datos.empresa.descripcion || "Sin descripción"}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="font-bold block mb-1">Antecedentes:</span>
+                              <div className="bg-white p-2 rounded border border-emerald-50 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
+                                {viewDetails.datos.empresa.antecedentes || "Sin antecedentes"}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa.nombre}</div>
+                      <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa.area}</div>
+                      <div className="col-span-2"><span className="font-bold">Dirección:</span> {viewDetails.datos.empresa.direccion}</div>
+                      <div className="col-span-2">
+                        <span className="font-bold block mb-1">Descripción:</span>
+                        <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                          {viewDetails.datos.empresa.descripcion}
+                        </div>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="font-bold block mb-1">Antecedentes:</span>
+                        <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                          {viewDetails.datos.empresa.antecedentes}
+                        </div>
                       </div>
                     </div>
-                  );
-                })()
-              ) : (
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor.nombres}</div>
-                  <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor.apellidos}</div>
-                  <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor.cargo}</div>
-                  <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor.telefono}</div>
-                  <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor.correo}</div>
+                  )}
                 </div>
-              )}
-            </div>
+                
+                <div>
+                  <h4 className="font-bold text-brand-red border-b border-border pb-1 mb-2">Datos del Supervisor</h4>
+                  
+                  {viewDetails.tipo === "actualizacion" && viewDetails.datos.supervisor?.targetSupervisorId ? (
+                    (() => {
+                      const targetSupervisor = allSupervisores?.find(s => s.id === viewDetails.datos.supervisor.targetSupervisorId);
+                      
+                      return (
+                        <div className="grid grid-cols-2 gap-6">
+                          {/* BEFORE */}
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+                            <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Datos Actuales (Antes)</h5>
+                            <div><span className="font-bold">Nombres:</span> {targetSupervisor?.nombres || "N/A"}</div>
+                            <div><span className="font-bold">Apellidos:</span> {targetSupervisor?.apellidos || "N/A"}</div>
+                            <div><span className="font-bold">Cargo:</span> {targetSupervisor?.cargo || "N/A"}</div>
+                            <div><span className="font-bold">Teléfono:</span> {targetSupervisor?.telefono || "N/A"}</div>
+                            <div><span className="font-bold">Correo:</span> {targetSupervisor?.correo || "N/A"}</div>
+                          </div>
+
+                          {/* AFTER */}
+                          <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-4 space-y-3">
+                            <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-600 mb-2">Cambios Propuestos (Después)</h5>
+                            <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor.nombres}</div>
+                            <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor.apellidos}</div>
+                            <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor.cargo}</div>
+                            <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor.telefono}</div>
+                            <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor.correo}</div>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor?.nombres || "N/A"}</div>
+                      <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor?.apellidos || "N/A"}</div>
+                      <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor?.cargo || "N/A"}</div>
+                      <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor?.telefono || "N/A"}</div>
+                      <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor?.correo || "N/A"}</div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           <div className="p-6 border-t border-border flex justify-end shrink-0">
             <button onClick={() => setViewDetails(null)} className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg font-bold text-sm transition-colors">
