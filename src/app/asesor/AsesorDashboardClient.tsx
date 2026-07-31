@@ -200,7 +200,7 @@ export default function AsesorDashboardClient({
             </svg>
             <p className="text-sm font-semibold text-slate-600">No tienes propuestas aceptadas por el momento.</p>
             <p className="text-xs text-slate-400 max-w-md mx-auto">
-              Cuando el administrador te asigne una propuesta y aceptes la solicitud en "VER SOLICITUDES DE PROPUESTA", aparecerá en esta tabla.
+              Cuando el coordinador te asigne una propuesta y aceptes la solicitud en "VER SOLICITUDES DE PROPUESTA", aparecerá en esta tabla.
             </p>
           </div>
         ) : (
