@@ -16,6 +16,7 @@ import {
   documentosEgresado,
   integrantesProyecto,
   notificaciones,
+  historialEstados,
 } from "@/lib/schema";
 import { eq, and, desc, asc, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
@@ -52,10 +53,10 @@ export async function getPropuestasPendientesCoordinador() {
       .where(
         and(
           eq(propuestas.coordinadorId, session.userId),
-          eq(propuestas.estado, "aprobada")
+          inArray(propuestas.estado, ["coordinador_asignado", "aprobada"])
         )
       )
-      .orderBy(desc(propuestas.fechaAprobacion), desc(propuestas.id));
+      .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
 
     const result = await Promise.all(
       rawPropuestas.map(async (row) => {
@@ -606,6 +607,92 @@ export async function responderSolicitudBajaCoordinador(
     };
   } catch (error: any) {
     console.error("Error al responder solicitud de baja:", error);
+    return { success: false, error: "Error interno: " + error.message };
+  }
+}
+
+/**
+ * Coordinator accepts or rejects proposal assignment from Admin
+ */
+export async function responderAsignacionCoordinador(
+  propuestaId: number,
+  aceptada: boolean,
+  motivoRechazo?: string
+) {
+  try {
+    const session = await getSession();
+    if (!session || session.rol !== "coordinador") {
+      return { success: false, error: "No autorizado" };
+    }
+
+    const [propuesta] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
+    if (!propuesta) return { success: false, error: "Propuesta no encontrada." };
+
+    const estadoAnterior = propuesta.estado;
+
+    if (aceptada) {
+      // Coordinator accepts proposal assignment
+      await db.update(propuestas)
+        .set({
+          estado: "aprobada",
+          fechaAprobacion: propuesta.fechaAprobacion || new Date(),
+        })
+        .where(eq(propuestas.id, propuestaId));
+
+      await db.insert(historialEstados).values({
+        propuestaId,
+        de: estadoAnterior,
+        a: "aprobada",
+        usuarioId: session.userId,
+      });
+
+      revalidatePath("/coordinador");
+      revalidatePath("/admin/propuestas");
+      revalidatePath(`/admin/propuestas/${propuestaId}`);
+
+      return { success: true, message: "Has aceptado la asignación de la propuesta exitosamente." };
+    } else {
+      // Coordinator rejects assignment -> Reverts back to 'enviada' (Pendiente de Revisión)
+      await db.update(propuestas)
+        .set({
+          estado: "enviada",
+          coordinadorId: null,
+        })
+        .where(eq(propuestas.id, propuestaId));
+
+      await db.insert(historialEstados).values({
+        propuestaId,
+        de: estadoAnterior,
+        a: "enviada",
+        usuarioId: session.userId,
+      });
+
+      // Notify Admins
+      const admins = await db.select().from(usuarios).where(eq(usuarios.rol, "admin"));
+      const [coordUser] = await db.select().from(usuarios).where(eq(usuarios.id, session.userId)).limit(1);
+      const coordNombre = coordUser ? coordUser.nombreCompleto : "Coordinador";
+
+      for (const admin of admins) {
+        await db.insert(notificaciones).values({
+          usuarioId: admin.id,
+          tipo: "coordinador_rechazo",
+          mensaje: `El coordinador ${coordNombre} NO aceptó la asignación de la propuesta #${propuesta.numero} (${propuesta.titulo || "Sin Título"}). La propuesta ha regresado a Pendiente de Revisión. ${motivoRechazo ? `Motivo: ${motivoRechazo}` : ""}`,
+          leida: false,
+          creadoEn: new Date(),
+        });
+      }
+
+      revalidatePath("/coordinador");
+      revalidatePath("/admin/propuestas");
+      revalidatePath(`/admin/propuestas/${propuestaId}`);
+
+      return {
+        success: true,
+        message: "Asignación rechazada. La propuesta ha regresado a Pendiente de Revisión para el Administrador.",
+      };
+    }
+  } catch (error: any) {
+    console.error("Error al responder asignación de coordinador:", error);
     return { success: false, error: "Error interno: " + error.message };
   }
 }

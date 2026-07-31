@@ -169,16 +169,15 @@ export async function asignarPropuestaACoordinador(propuestaId: number, coordina
     await db.update(propuestas)
       .set({
         coordinadorId: coordinadorId,
-        estado: "aprobada",
-        fechaAprobacion: propuesta.fechaAprobacion || new Date(),
+        estado: "coordinador_asignado",
       })
       .where(eq(propuestas.id, propuestaId));
 
-    if (estadoAnterior !== "aprobada") {
+    if (estadoAnterior !== "coordinador_asignado") {
       await db.insert(historialEstados).values({
         propuestaId,
         de: estadoAnterior,
-        a: "aprobada",
+        a: "coordinador_asignado",
         usuarioId: session.userId,
       });
     }

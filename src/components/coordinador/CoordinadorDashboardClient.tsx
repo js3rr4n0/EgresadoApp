@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   asignarAsesorCoordinador,
   responderSolicitudBajaCoordinador,
+  responderAsignacionCoordinador,
 } from "@/app/actions/coordinador";
 import Link from "next/link";
 
@@ -108,6 +109,39 @@ export default function CoordinadorDashboardClient({
       router.refresh();
     } else {
       alert(res.error || "Error al asignar la propuesta.");
+    }
+  };
+
+  // Modal / Confirm para rechazar asignacion de Admin
+  const [rejectingPropuesta, setRejectingPropuesta] = useState<PropuestaPendiente | null>(null);
+  const [motivoRechazoAdmin, setMotivoRechazoAdmin] = useState("");
+  const [processingAssignResp, setProcessingAssignResp] = useState(false);
+
+  const handleAceptarAsignacion = async (prop: PropuestaPendiente) => {
+    if (!confirm(`¿Está seguro que desea ACEPTAR coordinar la propuesta "${prop.titulo}"?`)) return;
+    setProcessingAssignResp(true);
+    const res = await responderAsignacionCoordinador(prop.id, true);
+    setProcessingAssignResp(false);
+    if (res.success) {
+      alert(res.message);
+      router.refresh();
+    } else {
+      alert(res.error || "Error al aceptar la propuesta.");
+    }
+  };
+
+  const handleRechazarAsignacionSubmit = async () => {
+    if (!rejectingPropuesta) return;
+    setProcessingAssignResp(true);
+    const res = await responderAsignacionCoordinador(rejectingPropuesta.id, false, motivoRechazoAdmin);
+    setProcessingAssignResp(false);
+    if (res.success) {
+      alert(res.message);
+      setRejectingPropuesta(null);
+      setMotivoRechazoAdmin("");
+      router.refresh();
+    } else {
+      alert(res.error || "Error al rechazar la asignación.");
     }
   };
 
@@ -301,15 +335,36 @@ export default function CoordinadorDashboardClient({
                           )}
                         </td>
                         <td className="p-4 text-right">
-                          <button
-                            onClick={() => handleOpenAssignModal(prop)}
-                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                            </svg>
-                            {prop.solicitudActual?.estado === "rechazada" ? "Reasignar Asesor" : "Asignar"}
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleAceptarAsignacion(prop)}
+                              disabled={processingAssignResp}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1"
+                              title="Aceptar coordinar esta propuesta"
+                            >
+                              ✓ Aceptar
+                            </button>
+                            <button
+                              onClick={() => {
+                                setRejectingPropuesta(prop);
+                                setMotivoRechazoAdmin("");
+                              }}
+                              disabled={processingAssignResp}
+                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1"
+                              title="Rechazar asignación y devolver a Pendiente de Revisión"
+                            >
+                              ✕ Rechazar
+                            </button>
+                            <button
+                              onClick={() => handleOpenAssignModal(prop)}
+                              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                              </svg>
+                              {prop.solicitudActual?.estado === "rechazada" ? "Reasignar Asesor" : "Asignar Asesor"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -657,6 +712,53 @@ export default function CoordinadorDashboardClient({
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors"
               >
                 {processingBaja ? "Procesando..." : "Dar de Baja (Anular Proyecto)"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ────────────────── MODAL: RECHAZAR ASIGNACIÓN DE ADMIN ────────────────── */}
+      {rejectingPropuesta && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+            <h3 className="text-lg font-bold text-rose-800 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Rechazar Asignación de Propuesta
+            </h3>
+            <p className="text-xs text-slate-600">
+              Al rechazar la propuesta &quot;{rejectingPropuesta.titulo}&quot;, esta regresará automáticamente a <strong>Pendiente de Revisión</strong> en la vista del Administrador y se registrará en el historial.
+            </p>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Motivo del rechazo / observaciones (Opcional):
+              </label>
+              <textarea
+                value={motivoRechazoAdmin}
+                onChange={(e) => setMotivoRechazoAdmin(e.target.value)}
+                rows={3}
+                placeholder="Indique los motivos por los cuales no puede coordinar la propuesta..."
+                className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setRejectingPropuesta(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={processingAssignResp}
+                onClick={handleRechazarAsignacionSubmit}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors"
+              >
+                {processingAssignResp ? "Procesando..." : "Confirmar Rechazo"}
               </button>
             </div>
           </div>
