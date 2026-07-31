@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { responderSolicitudAsesor } from "@/app/actions/asesor";
+import { useState, useEffect } from "react";
+import { responderSolicitudAsesor, getDetallePropuestaAsesor } from "@/app/actions/asesor";
 import Link from "next/link";
 
 interface AsesorDashboardClientProps {
@@ -18,7 +18,25 @@ export default function AsesorDashboardClient({
 
   // Solicitudes modal / view state
   const [showSolicitudesModal, setShowSolicitudesModal] = useState(false);
-  const [selectedPdfUrl, setSelectedPdfUrl] = useState<string | null>(null);
+  const [viewingPropuesta, setViewingPropuesta] = useState<any | null>(null);
+  const [propDetails, setPropDetails] = useState<any>(null);
+  const [loadingPropDetails, setLoadingPropDetails] = useState(false);
+  const [modalTab, setModalTab] = useState<"pdf" | "info" | "actividades">("pdf");
+
+  useEffect(() => {
+    if (viewingPropuesta) {
+      const pId = viewingPropuesta.propuestaId || viewingPropuesta.id;
+      setLoadingPropDetails(true);
+      setPropDetails(null);
+      setModalTab("pdf");
+      getDetallePropuestaAsesor(pId).then((res) => {
+        if (res.success && res.data) {
+          setPropDetails(res.data);
+        }
+        setLoadingPropDetails(false);
+      });
+    }
+  }, [viewingPropuesta]);
 
   // Confirmations state
   const [activeSolicitud, setActiveSolicitud] = useState<any | null>(null);
@@ -303,21 +321,16 @@ export default function AsesorDashboardClient({
                     {/* PDF / Document preview action */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                       <div>
-                        {sol.cartaUrl ? (
-                          <button
-                            onClick={() => setSelectedPdfUrl(sol.cartaUrl)}
-                            className="inline-flex items-center gap-2 text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 font-bold px-3 py-2 rounded-lg border border-purple-200 transition-colors"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            Ver PDF de la Propuesta / Carta de Aceptación
-                          </button>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">
-                            Documento PDF pendiente de subida por el egresado
-                          </span>
-                        )}
+                        <button
+                          onClick={() => setViewingPropuesta(sol)}
+                          className="inline-flex items-center gap-2 text-xs bg-brand-red hover:bg-brand-red-dark text-white font-bold px-3.5 py-2 rounded-lg transition-colors shadow-2xs"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          📄 Ver Documento PDF / Detalles de la Propuesta
+                        </button>
                       </div>
 
                       {/* SI / NO Buttons */}
@@ -493,26 +506,193 @@ export default function AsesorDashboardClient({
         </div>
       )}
 
-      {/* ------------------------------------------------------------- */}
-      {/* VISOR MODAL DE ARCHIVO PDF */}
-      {/* ------------------------------------------------------------- */}
-      {selectedPdfUrl && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col p-4">
-          <div className="flex justify-between items-center text-white pb-3 px-2">
-            <h3 className="font-bold text-sm">Vista Previa de Propuesta PDF</h3>
-            <button
-              onClick={() => setSelectedPdfUrl(null)}
-              className="text-white hover:text-slate-300 font-bold text-lg"
-            >
-              ✕ Cerrar
-            </button>
-          </div>
-          <div className="flex-1 w-full bg-white rounded-xl overflow-hidden">
-            <iframe
-              src={selectedPdfUrl}
-              className="w-full h-full border-none"
-              title="PDF Propuesta"
-            />
+      {/* ────────────────── MODAL: REVISIÓN COMPLETA Y DOCUMENTO PDF (ASESOR) ────────────────── */}
+      {viewingPropuesta && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-6xl w-full h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Top Header */}
+            <div className="p-4 bg-brand-red text-white flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold text-lg">
+                  📄
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-sm sm:text-base leading-tight">
+                      Propuesta #{viewingPropuesta.numero}
+                    </h3>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-white/20 text-white">
+                      {getTipoLabel(viewingPropuesta.tipo)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/90 truncate max-w-lg mt-0.5">
+                    Estudiante: {viewingPropuesta.estudiante?.nombreCompleto} ({viewingPropuesta.estudiante?.carnet})
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons inside Modal */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={() => {
+                    const sol = viewingPropuesta;
+                    setViewingPropuesta(null);
+                    handleStartAceptar(sol);
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all inline-flex items-center gap-1"
+                >
+                  ✓ Aceptar Asesoría (SI)
+                </button>
+                <button
+                  onClick={() => {
+                    const sol = viewingPropuesta;
+                    setViewingPropuesta(null);
+                    handleStartRechazar(sol);
+                  }}
+                  className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold rounded-lg shadow-sm transition-all inline-flex items-center gap-1"
+                >
+                  ✕ Rechazar (NO)
+                </button>
+                <a
+                  href={`/asesor/propuestas/${viewingPropuesta.propuestaId || viewingPropuesta.id}/imprimir`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Nueva Pestaña
+                </a>
+                <button
+                  onClick={() => setViewingPropuesta(null)}
+                  className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white font-bold text-sm"
+                  title="Cerrar Modal"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Tabs Bar */}
+            <div className="bg-slate-100 border-b border-slate-200 px-4 pt-3 flex gap-2 shrink-0">
+              <button
+                onClick={() => setModalTab("pdf")}
+                className={`px-4 py-2.5 rounded-t-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
+                  modalTab === "pdf"
+                    ? "bg-white text-brand-red border-t-2 border-brand-red shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span>📄 Documento PDF Oficial (Hoja de Inscripción)</span>
+              </button>
+
+              <button
+                onClick={() => setModalTab("info")}
+                className={`px-4 py-2.5 rounded-t-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
+                  modalTab === "info"
+                    ? "bg-white text-brand-red border-t-2 border-brand-red shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span>📋 Información Completa y Estudiante</span>
+              </button>
+            </div>
+
+            {/* Modal Content Area */}
+            <div className="flex-1 w-full bg-slate-50 relative overflow-y-auto">
+              {modalTab === "pdf" && (
+                <iframe
+                  src={`/asesor/propuestas/${viewingPropuesta.propuestaId || viewingPropuesta.id}/imprimir`}
+                  className="w-full h-full border-none"
+                  title={`Documento Propuesta ${viewingPropuesta.propuestaId || viewingPropuesta.id}`}
+                />
+              )}
+
+              {modalTab === "info" && (
+                <div className="p-6 space-y-6 max-w-4xl mx-auto">
+                  {loadingPropDetails ? (
+                    <div className="text-center py-12 text-slate-500 font-bold text-sm">
+                      Cargando información completa...
+                    </div>
+                  ) : propDetails ? (
+                    <>
+                      {/* Estudiante */}
+                      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                          Estudiante Solicitante
+                        </h4>
+                        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                          <p className="font-extrabold text-slate-900 text-base">{propDetails.estudiante?.nombreCompleto}</p>
+                          <p className="text-xs text-slate-600 font-mono">Carnet: {propDetails.estudiante?.carnet}</p>
+                          <p className="text-xs text-slate-600">Correo: {propDetails.estudiante?.correo}</p>
+                          <p className="text-xs font-bold text-brand-red mt-1">{propDetails.estudiante?.carrera}</p>
+                        </div>
+                      </div>
+
+                      {/* Carta de Aceptación / Documento subido */}
+                      {propDetails.carta?.archivoUrl && (
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                            Carta de Aceptación / Archivo Adjunto por Estudiante
+                          </h4>
+                          <div className="flex items-center gap-3 bg-purple-50 border border-purple-200 p-4 rounded-xl">
+                            <svg className="w-8 h-8 text-purple-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-slate-900 truncate">
+                                Documento / Archivo Subido
+                              </p>
+                              <p className="text-xs text-purple-700 font-medium">Click para abrir en nueva pestaña</p>
+                            </div>
+                            <a
+                              href={propDetails.carta.archivoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shrink-0"
+                            >
+                              Abrir Archivo ↗
+                            </a>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Empresa & Supervisor */}
+                      {propDetails.empresa && (
+                        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                            Empresa y Supervisor
+                          </h4>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                              <span className="text-[11px] text-slate-400 font-bold uppercase block">Empresa</span>
+                              <p className="font-bold text-slate-900 text-sm">{propDetails.empresa.nombre}</p>
+                              <p className="text-xs text-slate-600 mt-1">{propDetails.empresa.direccion || "Sin dirección"}</p>
+                            </div>
+                            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                              <span className="text-[11px] text-slate-400 font-bold uppercase block">Supervisor</span>
+                              <p className="font-bold text-slate-900 text-sm">
+                                {propDetails.supervisor ? `${propDetails.supervisor.nombres} ${propDetails.supervisor.apellidos}` : "Sin supervisor"}
+                              </p>
+                              {propDetails.supervisor && (
+                                <p className="text-xs text-slate-600 mt-1">
+                                  {propDetails.supervisor.cargo || "Sin cargo"} | {propDetails.supervisor.correo || propDetails.supervisor.telefono}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center py-12 text-slate-400 text-sm">
+                      No se encontraron detalles adicionales.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

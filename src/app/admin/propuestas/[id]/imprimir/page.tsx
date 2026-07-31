@@ -29,7 +29,7 @@ export default async function AdminPrintPropuestaPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await getSession();
-  if (!session || (session.rol !== "admin" && session.rol !== "decanato" && session.rol !== "coordinador")) {
+  if (!session || (session.rol !== "admin" && session.rol !== "decanato" && session.rol !== "coordinador" && session.rol !== "asesor")) {
     redirect("/login");
   }
 
@@ -49,17 +49,22 @@ export default async function AdminPrintPropuestaPage({
   const [student] = await db
     .select({
       id: usuarios.id,
-      nombreCompleto: usuarios.nombreCompleto,
       carnet: usuarios.carnet,
-      carrera: carreras.nombre,
+      nombreCompleto: usuarios.nombreCompleto,
+      correo: usuarios.correo,
+      carreraId: usuarios.carreraId,
     })
     .from(usuarios)
-    .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
     .where(eq(usuarios.id, propuesta.egresadoId))
     .limit(1);
 
+  let carreraNombre = "N/A";
+  if (student?.carreraId) {
+    const [c] = await db.select().from(carreras).where(eq(carreras.id, student.carreraId)).limit(1);
+    if (c) carreraNombre = c.nombre;
+  }
+
   const studentName = student?.nombreCompleto || "Estudiante";
-  const carreraNombre = student?.carrera || "Carrera no especificada";
 
   const dateForMonth = propuesta.enviadaEn ? new Date(propuesta.enviadaEn) : new Date();
   const mesEnvioStr = new Intl.DateTimeFormat("es-SV", { month: "long" }).format(dateForMonth).toUpperCase();
@@ -103,7 +108,7 @@ export default async function AdminPrintPropuestaPage({
   const today = new Date();
   const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
   const formattedDate = `SANTA ANA, ${today.toLocaleDateString("es-SV", options).toUpperCase()}`;
-  const backUrl = session.rol === "coordinador" ? "/coordinador" : (session.rol === "decanato" ? "/decanato/propuestas" : `/admin/propuestas/${propuesta.id}`);
+  const backUrl = session.rol === "coordinador" ? "/coordinador" : (session.rol === "decanato" ? "/decanato/propuestas" : (session.rol === "asesor" ? "/asesor" : `/admin/propuestas/${propuesta.id}`));
 
   return (
     <div className="bg-white min-h-screen text-black">
