@@ -85,6 +85,7 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         especialidad: data.supervisor.especialidad,
         telefono: data.supervisor.telefono,
         correo: data.supervisor.correo,
+        titulo: data.supervisor.titulo || null,
       }).returning({ id: supervisores.id });
       targetSupervisorId = newSupervisores[0].id;
 

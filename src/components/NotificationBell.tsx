@@ -111,6 +111,8 @@ export default function NotificationBell({ roleName }: NotificationBellProps) {
                 const isApproved = n.tipo === "solicitud_aprobada";
                 const isRejected = n.tipo === "solicitud_rechazada";
                 const isCorrection = n.tipo === "solicitud_correccion_datos";
+                const isEmpresaAct = n.tipo === "solicitud_empresa_actualizacion";
+                const isEmpresaNueva = n.tipo === "solicitud_empresa_nueva";
 
                 return (
                   <div
@@ -134,10 +136,20 @@ export default function NotificationBell({ roleName }: NotificationBellProps) {
                         )}
                         {isCorrection && (
                           <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded">
-                            📑 Solicitud de Alumno
+                            👤 Datos de Alumno
                           </span>
                         )}
-                        {!isApproved && !isRejected && !isCorrection && (
+                        {isEmpresaAct && (
+                          <span className="bg-purple-100 text-purple-900 border border-purple-300 px-2 py-0.5 rounded">
+                            🏢 Corrección de Empresa
+                          </span>
+                        )}
+                        {isEmpresaNueva && (
+                          <span className="bg-blue-100 text-blue-900 border border-blue-300 px-2 py-0.5 rounded">
+                            🏢 Nueva Empresa
+                          </span>
+                        )}
+                        {!isApproved && !isRejected && !isCorrection && !isEmpresaAct && !isEmpresaNueva && (
                           <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
                             📢 Notificación
                           </span>

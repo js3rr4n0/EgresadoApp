@@ -344,9 +344,11 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                           {/* BEFORE */}
                           <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
                             <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Datos Actuales (Antes)</h5>
+                            <div><span className="font-bold">Título:</span> {targetSupervisor?.titulo || "N/A"}</div>
                             <div><span className="font-bold">Nombres:</span> {targetSupervisor?.nombres || "N/A"}</div>
                             <div><span className="font-bold">Apellidos:</span> {targetSupervisor?.apellidos || "N/A"}</div>
                             <div><span className="font-bold">Cargo:</span> {targetSupervisor?.cargo || "N/A"}</div>
+                            <div><span className="font-bold">Especialidad:</span> {targetSupervisor?.especialidad || "N/A"}</div>
                             <div><span className="font-bold">Teléfono:</span> {targetSupervisor?.telefono || "N/A"}</div>
                             <div><span className="font-bold">Correo:</span> {targetSupervisor?.correo || "N/A"}</div>
                           </div>
@@ -354,20 +356,24 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                           {/* AFTER */}
                           <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-4 space-y-3">
                             <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-600 mb-2">Cambios Propuestos (Después)</h5>
-                            <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor.nombres}</div>
-                            <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor.apellidos}</div>
-                            <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor.cargo}</div>
-                            <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor.telefono}</div>
-                            <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor.correo}</div>
+                            <div><span className="font-bold">Título:</span> {viewDetails.datos.supervisor?.titulo || "N/A"}</div>
+                            <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor?.nombres || "N/A"}</div>
+                            <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor?.apellidos || "N/A"}</div>
+                            <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor?.cargo || "N/A"}</div>
+                            <div><span className="font-bold">Especialidad:</span> {viewDetails.datos.supervisor?.especialidad || "N/A"}</div>
+                            <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor?.telefono || "N/A"}</div>
+                            <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor?.correo || "N/A"}</div>
                           </div>
                         </div>
                       );
                     })()
                   ) : (
                     <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div><span className="font-bold">Título:</span> {viewDetails.datos.supervisor?.titulo || "N/A"}</div>
                       <div><span className="font-bold">Nombres:</span> {viewDetails.datos.supervisor?.nombres || "N/A"}</div>
                       <div><span className="font-bold">Apellidos:</span> {viewDetails.datos.supervisor?.apellidos || "N/A"}</div>
                       <div><span className="font-bold">Cargo:</span> {viewDetails.datos.supervisor?.cargo || "N/A"}</div>
+                      <div><span className="font-bold">Especialidad:</span> {viewDetails.datos.supervisor?.especialidad || "N/A"}</div>
                       <div><span className="font-bold">Teléfono:</span> {viewDetails.datos.supervisor?.telefono || "N/A"}</div>
                       <div><span className="font-bold">Correo:</span> {viewDetails.datos.supervisor?.correo || "N/A"}</div>
                     </div>

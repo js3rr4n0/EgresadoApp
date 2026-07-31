@@ -234,12 +234,12 @@ export async function solicitarRevisionEmpresa(propuestaId: number, data: any, m
   if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
 
   try {
-    const { solicitudesEmpresa } = await import("@/lib/schema");
+    const { solicitudesEmpresa, notificaciones, usuarios } = await import("@/lib/schema");
 
     // 1. Insert request into solicitudes_empresa
     await db.insert(solicitudesEmpresa).values({
       propuestaId,
-      empresaId: data.empresa.targetEmpresaId || null,
+      empresaId: data.empresa?.targetEmpresaId || null,
       tipo: mode === "edit_existing" ? "actualizacion" : "nueva",
       datos: data,
       estado: "pendiente"
@@ -253,7 +253,29 @@ export async function solicitarRevisionEmpresa(propuestaId: number, data: any, m
       })
       .where(and(eq(propuestas.id, propuestaId), eq(propuestas.egresadoId, session.userId)));
 
+    // 3. Create notification for admin & decanato users
+    const adminOrDecanatoUsers = await db
+      .select()
+      .from(usuarios)
+      .where(inArray(usuarios.rol, ["decanato", "admin"]));
+
+    const currentUser = await db.query.usuarios.findFirst({
+      where: eq(usuarios.id, session.userId)
+    });
+
+    const tipoNombre = mode === "edit_existing" ? "corrección de datos de empresa/supervisor" : "registro de nueva empresa/supervisor";
+    const empresaNombre = data.empresa?.nombre ? ` (${data.empresa.nombre})` : "";
+
+    for (const u of adminOrDecanatoUsers) {
+      await db.insert(notificaciones).values({
+        usuarioId: u.id,
+        tipo: mode === "edit_existing" ? "solicitud_empresa_actualizacion" : "solicitud_empresa_nueva",
+        mensaje: `El egresado ${currentUser?.nombreCompleto || "Egresado"} (Carnet: ${currentUser?.carnet || "N/A"}) ha enviado una solicitud de ${tipoNombre}${empresaNombre}.`,
+      });
+    }
+
     revalidatePath("/egresado/redactar");
+    revalidatePath("/admin/empresas/solicitudes");
     return { success: true };
   } catch (error: any) {
     console.error("Error soliciting revision:", error);
