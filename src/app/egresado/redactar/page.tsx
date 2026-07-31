@@ -27,11 +27,12 @@ import { eq, asc, desc } from "drizzle-orm";
 export default async function EgresadoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ step?: string }>;
+  searchParams: Promise<{ step?: string; id?: string }>;
 }) {
   const params = await searchParams;
   const currentStep = parseInt(params.step || "1");
-  const data = await getActivePropuesta();
+  const targetPropId = params.id ? parseInt(params.id, 10) : undefined;
+  const data = await getActivePropuesta(targetPropId);
 
   if (!data) {
     return <div className="p-8 text-center text-muted">Error cargando sesión.</div>;
@@ -49,7 +50,16 @@ export default async function EgresadoPage({
     );
   }
 
-  const { propuesta, userDetails, mesEnvio, isLeader, memberInfo } = data;
+  const {
+    propuesta,
+    userDetails,
+    mesEnvio,
+    isLeader,
+    memberInfo,
+    isAnySubmitted,
+    isCurrentSubmitted,
+    submittedPropNumber,
+  } = data;
   const isProyecto = propuesta.tipo === "proyecto";
   const isInvestigacion = propuesta.tipo === "investigacion";
   const isMultiUserFlow = isProyecto || isInvestigacion;
@@ -230,7 +240,8 @@ export default async function EgresadoPage({
         { num: 7, title: "Documentos del estudiante", desc: "Documentos requeridos" },
       ];
 
-  const isFormLocked = propuesta.bloqueada || propuesta.estado !== "redactando";
+  const isLockedOther = isAnySubmitted && !isCurrentSubmitted;
+  const isFormLocked = propuesta.bloqueada || propuesta.estado !== "redactando" || isLockedOther;
 
   return (
     <div>
@@ -246,6 +257,20 @@ export default async function EgresadoPage({
         </Link>
       </div>
 
+      {isLockedOther && (
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+          <svg className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <h3 className="font-bold text-amber-900 text-sm">Propuesta #{propuesta.numero} (Bloqueada)</h3>
+            <p className="text-xs text-amber-800 mt-1">
+              Has enviado la <strong>Propuesta #{submittedPropNumber}</strong> a revisión administrativa. Mientras se encuentre en evaluación, tus demás propuestas están en modo solo lectura. Si es rechazada, se desbloquearán automáticamente con todos sus datos conservados.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Mi Trabajo de Graduación</h1>
@@ -254,14 +279,14 @@ export default async function EgresadoPage({
           </p>
         </div>
         <div className="bg-card-dark text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">
-          Propuesta #{propuesta.numero}
+          Propuesta #{propuesta.numero} ({propuesta.tipo.toUpperCase()})
         </div>
       </div>
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* Left Column - Stepper */}
         <div className="w-full lg:w-72 shrink-0 bg-white border border-border rounded-xl p-5">
-          <h2 className="font-bold text-foreground mb-6">Progreso de la Propuesta</h2>
+          <h2 className="font-bold text-foreground mb-6">Progreso de la Propuesta #{propuesta.numero}</h2>
 
           <div className="space-y-0 relative before:absolute before:inset-y-0 before:left-4 before:-ml-px before:w-0.5 before:bg-border">
             {steps.map((step) => {
@@ -326,7 +351,7 @@ export default async function EgresadoPage({
               }
 
               return (
-                <Link href={`?step=${step.num}`} key={step.num} className={className}>
+                <Link href={`?id=${propuesta.id}&step=${step.num}`} key={step.num} className={className}>
                   {innerContent}
                 </Link>
               );
@@ -334,7 +359,7 @@ export default async function EgresadoPage({
           </div>
 
           <Link
-            href="/egresado/redactar/imprimir"
+            href={`/egresado/redactar/imprimir?id=${propuesta.id}`}
             target="_blank"
             className="mt-8 w-full flex items-center justify-center gap-2 bg-white border border-border hover:bg-muted-bg text-foreground font-semibold py-2.5 px-4 rounded-lg text-sm transition-colors"
           >

@@ -23,14 +23,20 @@ const getStaticMapUrl = (coords: string | null) => {
   return `/api/map?coords=${coords}`;
 };
 
-export default async function PrintPropuestaPage() {
+export default async function PrintPropuestaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string }>;
+}) {
+  const params = await searchParams;
   const session = await getSession();
   if (!session || session.rol !== "egresado") {
     redirect("/login");
   }
 
   // Get active proposal
-  const data = await getActivePropuesta();
+  const targetId = params.id ? parseInt(params.id, 10) : undefined;
+  const data = await getActivePropuesta(targetId);
   if (!data || "error" in data) {
     redirect("/egresado");
   }

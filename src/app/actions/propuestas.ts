@@ -6,7 +6,7 @@ import { eq, desc, and, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
-export async function getActivePropuesta() {
+export async function getActivePropuesta(targetPropuestaId?: number) {
   const session = await getSession();
   if (!session || session.rol !== "egresado") return null;
 
@@ -15,7 +15,7 @@ export async function getActivePropuesta() {
   if (activePeriodRows.length === 0) return { error: "No hay periodo activo actualmente." };
   const periodo = activePeriodRows[0];
 
-  // 2. Check for existing proposal owned by user
+  // 2. Check for existing proposals owned by user
   const props = await db
     .select()
     .from(propuestas)
@@ -25,9 +25,16 @@ export async function getActivePropuesta() {
         eq(propuestas.periodoId, periodo.id)
       )
     )
-    .orderBy(desc(propuestas.numero));
+    .orderBy(desc(propuestas.id));
 
-  let propuesta = props.length > 0 ? props[0] : null;
+  let propuesta = null;
+  if (targetPropuestaId) {
+    propuesta = props.find((p) => p.id === targetPropuestaId) || null;
+  }
+  if (!propuesta && props.length > 0) {
+    propuesta = props[0];
+  }
+
   let isLeader = true;
   let memberInfo = null;
 
@@ -68,6 +75,11 @@ export async function getActivePropuesta() {
     return { error: "No has creado ninguna propuesta aún." };
   }
 
+  // Check if ANY proposal of the user is submitted or approved
+  const submittedProp = props.find((p) => p.estado === "enviada" || p.estado === "aprobada");
+  const isAnySubmitted = !!submittedProp;
+  const isCurrentSubmitted = propuesta.estado === "enviada" || propuesta.estado === "aprobada";
+
   // 4. Fetch User details for Portada
   const userRows = await db
     .select({
@@ -84,10 +96,21 @@ export async function getActivePropuesta() {
 
   const userDetails = userRows[0];
 
-  // 5. Month of sending (from current date as it is being drafted)
+  // 5. Month of sending
   const mesEnvio = new Intl.DateTimeFormat('es-SV', { month: 'long' }).format(new Date());
 
-  return { propuesta, userDetails, mesEnvio, periodo, isLeader, memberInfo };
+  return {
+    propuesta,
+    userDetails,
+    mesEnvio,
+    periodo,
+    isLeader,
+    memberInfo,
+    allPropuestas: props,
+    isAnySubmitted,
+    isCurrentSubmitted,
+    submittedPropNumber: submittedProp ? submittedProp.numero : null,
+  };
 }
 
 export async function updatePortada(formData: FormData) {
@@ -134,42 +157,35 @@ export async function initPropuesta(tipo: string) {
       )
       .orderBy(desc(propuestas.numero));
 
-    let propuesta = props.length > 0 ? props[0] : null;
+    // If user has any proposal currently submitted or approved, block creating a new one
+    const activeSubmitted = props.find((p) => p.estado === "enviada" || p.estado === "aprobada");
+    if (activeSubmitted) {
+      return {
+        success: false,
+        error: `Ya tienes la Propuesta #${activeSubmitted.numero} en estado de revisión o aprobada. No puedes crear nuevas propuestas mientras una esté en proceso.`,
+      };
+    }
 
-    if (propuesta) {
-      if (propuesta.estado === "redactando") {
-        await db.update(propuestas).set({ tipo }).where(eq(propuestas.id, propuesta.id));
-        revalidatePath("/egresado");
-        revalidatePath("/egresado/redactar");
-        return { success: true };
-      }
-      
-      if (propuesta.estado === "rechazada") {
-        await db.insert(propuestas).values({
-          egresadoId: session.userId,
-          periodoId: periodo.id,
-          tipo,
-          numero: propuesta.numero + 1,
-          estado: "redactando"
-        });
-        revalidatePath("/egresado");
-        revalidatePath("/egresado/redactar");
-        return { success: true };
-      }
+    if (props.length >= 3) {
+      return { success: false, error: "Has alcanzado el límite máximo de 3 propuestas permitidas." };
+    }
 
-      return { success: false, error: "Ya existe una propuesta activa enviada o aprobada." };
-    } else {
-      await db.insert(propuestas).values({
+    const nextNumero = props.length + 1;
+
+    const [newProp] = await db
+      .insert(propuestas)
+      .values({
         egresadoId: session.userId,
         periodoId: periodo.id,
         tipo,
-        numero: 1,
-        estado: "redactando"
-      });
-      revalidatePath("/egresado");
-      revalidatePath("/egresado/redactar");
-      return { success: true };
-    }
+        numero: nextNumero,
+        estado: "redactando",
+      })
+      .returning();
+
+    revalidatePath("/egresado");
+    revalidatePath("/egresado/redactar");
+    return { success: true, propuestaId: newProp.id, numero: nextNumero };
   } catch (error: any) {
     console.error("Error initPropuesta:", error);
     return { success: false, error: "Error interno del servidor al crear la propuesta: " + error.message };

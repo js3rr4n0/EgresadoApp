@@ -290,3 +290,32 @@ En `src/components/ActividadesForm.tsx`, el campo `fechaInicio` utilizaba un con
 - **TypeScript:** Se ejecutó `npx tsc --noEmit` confirmando 0 errores.
 - **Sincronización:** Cambios confirmados y sincronizados en la rama `main` de GitHub.
 
+---
+
+## 6. FEATURE: Gestión de Hasta 3 Propuestas por Egresado y Bloqueo Selectivo
+
+### 6.1. Requerimiento
+Permitir a los egresados redactar hasta **3 propuestas de trabajo de graduación** simultáneamente (Pasantía, Proyecto o Investigación).
+- La primera propuesta se crea como **Propuesta #1**.
+- Al intentar crear más propuestas, la interfaz le notifica al alumno: *"Ya tienes X propuesta(s) en curso, se creará como la Propuesta #X"* y le permite elegir la modalidad.
+- El egresado puede redactar cualquiera de las 3 y enviar a revisión la que finalice primero.
+- **Regla de Bloqueo:** Al enviar una propuesta a revisión (`enviada` o `aprobada`), las otras 2 propuestas se bloquean automáticamente en modo solo lectura para evitar múltiples entregas.
+- **Regla de Rechazo:** Si la propuesta enviada es **rechazada**, todas las 3 propuestas se desbloquean automáticamente, conservando intactos todos sus datos para que el estudiante pueda modificarlas o reenviar cualquiera de ellas.
+
+### 6.2. Solución Aplicada
+1. **Server Actions (`src/app/actions/propuestas.ts`)**:
+   - `initPropuesta(tipo)`: Valida el límite de 3 propuestas por egresado, verifica si hay alguna propuesta enviada en proceso de revisión (bloqueando la creación de nuevas propuestas si hay una en evaluación) e inserta la nueva propuesta con su número secuencial correspondiente (1, 2, 3). Devuelve `propuestaId`.
+   - `getActivePropuesta(targetPropuestaId?)`: Permite consultar propuestas específicas vía `id`. Retorna la información de bloqueo global (`isAnySubmitted`, `isCurrentSubmitted`, `submittedPropNumber`).
+2. **Interfaz de Usuario y Dashboard (`src/app/egresado/page.tsx` & `DocumentGate.tsx`)**:
+   - Se actualizó el modal de creación en `DocumentGate.tsx` para mostrar un banner interactivo notificando cuántas propuestas tiene en curso y cuál número asignará a la nueva propuesta.
+   - La tabla **"Mis Propuestas"** lista todas las propuestas (#1, #2, #3) con badges de estado diferenciados (`Redactando`, `Enviada / En Revisión`, `Bloqueada (Otra en revisión)`, `Rechazada`).
+   - Los enlaces dirigen dinámicamente a `/egresado/redactar?id=${p.id}`.
+3. **Página de Redacción e Impresión (`/egresado/redactar` & `imprimir`)**:
+   - Soporte para parámetro `id` en la URL.
+   - Banner explicativo cuando la propuesta visualizada se encuentra bloqueada por otra propuesta enviada a revisión.
+
+### 6.3. Verificación y Calidad
+- **TypeScript:** Validado mediante `npx tsc --noEmit` obteniendo 0 errores.
+- **Git Push:** Sincronizado en la rama `main` en GitHub.
+
+

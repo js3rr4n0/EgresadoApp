@@ -56,6 +56,7 @@ export default async function EgresadoLandingPage() {
             urlPago={docPago?.archivoUrl}
             isTeamMember={!!acceptedTeam}
             isLocked={hasSubmittedPropuesta}
+            existingCount={userPropuestas.length}
           />
         </div>
 
@@ -66,9 +67,10 @@ export default async function EgresadoLandingPage() {
               Información importante
             </h3>
             <ul className="text-sm space-y-3 text-slate-300 list-disc pl-5">
-              <li>Puedes crear hasta 3 propuestas.</li>
-              <li>Solo podrás enviar (mandar) una propuesta.</li>
-              <li>Las propuestas no enviadas quedarán guardadas como respaldo.</li>
+              <li>Puedes redactar hasta <strong>3 propuestas</strong> simultáneamente.</li>
+              <li>Cualquiera de las 3 propuestas que envíes primero será la evaluada.</li>
+              <li>Al enviar una propuesta a revisión, las demás quedan bloqueadas temporalmente.</li>
+              <li>Si tu propuesta enviada es rechazada, las 3 propuestas se desbloquean con sus datos conservados para que puedas modificarlas.</li>
               {acceptedTeam && (
                 <li className="text-amber-300 font-bold">
                   Estás registrado en un equipo de trabajo. Las opciones de creación están deshabilitadas mientras pertenezcas al equipo.
@@ -81,9 +83,11 @@ export default async function EgresadoLandingPage() {
 
       {/* Mis propuestas table */}
       <div className="mt-12">
-        <div className="mb-4">
-          <h2 className="text-xl font-bold text-foreground">Mis propuestas</h2>
-          <p className="text-sm text-muted">Puedes crear hasta 3 propuestas. Solo podrás enviar una.</p>
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-foreground">Mis Propuestas ({userPropuestas.length}/3)</h2>
+            <p className="text-sm text-muted">Puedes redactar hasta 3 propuestas. Solo se evaluará la que decidas enviar.</p>
+          </div>
         </div>
 
         <div className="bg-white border border-border rounded-xl overflow-hidden shadow-sm">
@@ -91,10 +95,9 @@ export default async function EgresadoLandingPage() {
             <table className="w-full text-sm text-left">
               <thead className="text-xs text-muted bg-muted-bg uppercase font-bold border-b border-border">
                 <tr>
-                  <th className="px-6 py-4">#</th>
-                  <th className="px-6 py-4">Título de la Propuesta</th>
-                  <th className="px-6 py-4">Fecha de Creación</th>
-                  <th className="px-6 py-4">Tipo</th>
+                  <th className="px-6 py-4"># Propuesta</th>
+                  <th className="px-6 py-4">Título / Descripción</th>
+                  <th className="px-6 py-4">Modalidad</th>
                   <th className="px-6 py-4">Estado</th>
                   <th className="px-6 py-4 text-right">Acciones</th>
                 </tr>
@@ -103,12 +106,9 @@ export default async function EgresadoLandingPage() {
                 {/* If user is part of a team, render leader's proposal */}
                 {acceptedTeam ? (
                   <tr className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-bold">{acceptedTeam.propuesta.numero}</td>
+                    <td className="px-6 py-4 font-bold">Propuesta #{acceptedTeam.propuesta.numero}</td>
                     <td className="px-6 py-4 font-medium text-foreground max-w-[300px] truncate">
                       Propuesta de Proyecto (Equipo de {acceptedTeam.liderNombre})
-                    </td>
-                    <td className="px-6 py-4 text-muted">
-                      {new Date().toLocaleDateString("es-SV")}
                     </td>
                     <td className="px-6 py-4 uppercase text-xs font-bold text-muted">
                       {acceptedTeam.propuesta.tipo}
@@ -120,7 +120,7 @@ export default async function EgresadoLandingPage() {
                     </td>
                     <td className="px-6 py-4 text-right flex justify-end items-center gap-3">
                       <Link
-                        href="/egresado/redactar"
+                        href={`/egresado/redactar?id=${acceptedTeam.propuesta.id}`}
                         className="text-brand-red hover:text-brand-red-hover font-bold text-sm"
                       >
                         Ver propuesta
@@ -129,7 +129,7 @@ export default async function EgresadoLandingPage() {
                   </tr>
                 ) : userPropuestas.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center">
+                    <td colSpan={5} className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center justify-center text-muted">
                         <svg className="w-12 h-12 mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
                         <p className="font-semibold text-foreground">Aún no has creado ninguna propuesta.</p>
@@ -138,35 +138,43 @@ export default async function EgresadoLandingPage() {
                     </td>
                   </tr>
                 ) : (
-                  userPropuestas.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50">
-                      <td className="px-6 py-4 font-bold">{p.numero}</td>
-                      <td className="px-6 py-4 font-medium text-foreground max-w-[300px] truncate">
-                        Propuesta de Trabajo de Graduación ({p.tipo})
-                      </td>
-                      <td className="px-6 py-4 text-muted">
-                        {new Date().toLocaleDateString("es-SV")}
-                      </td>
-                      <td className="px-6 py-4 uppercase text-xs font-bold text-muted">{p.tipo}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold ${
-                          p.estado === 'enviada' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
-                          p.estado === 'aprobada' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
-                          p.estado === 'rechazada' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-amber-100 text-amber-800 border border-amber-300'
-                        }`}>
-                          {p.estado === 'redactando' ? 'Redactando' : p.estado === 'enviada' ? 'Enviada' : p.estado === 'aprobada' ? 'Aprobada' : p.estado === 'rechazada' ? 'Rechazada' : p.estado}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <Link
-                          href="/egresado/redactar"
-                          className="text-brand-red hover:text-brand-red-hover font-bold text-sm"
-                        >
-                          {p.estado === 'enviada' || p.estado === 'aprobada' || p.estado === 'rechazada' ? 'Ver Propuesta' : 'Continuar'}
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
+                  userPropuestas.map((p) => {
+                    const isThisSubmitted = p.estado === 'enviada' || p.estado === 'aprobada';
+                    const isLockedOther = hasSubmittedPropuesta && !isThisSubmitted;
+
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50">
+                        <td className="px-6 py-4 font-bold text-brand-red">Propuesta #{p.numero}</td>
+                        <td className="px-6 py-4 font-medium text-foreground max-w-[300px] truncate">
+                          Propuesta de Trabajo de Graduación ({p.tipo.toUpperCase()})
+                        </td>
+                        <td className="px-6 py-4 uppercase text-xs font-bold text-muted">{p.tipo}</td>
+                        <td className="px-6 py-4">
+                          {isLockedOther ? (
+                            <span className="px-2.5 py-1 rounded-full text-xs font-extrabold bg-slate-100 text-slate-500 border border-slate-300">
+                              Bloqueada (Otra en revisión)
+                            </span>
+                          ) : (
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold ${
+                              p.estado === 'enviada' ? 'bg-blue-100 text-blue-800 border border-blue-300' :
+                              p.estado === 'aprobada' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                              p.estado === 'rechazada' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-amber-100 text-amber-800 border border-amber-300'
+                            }`}>
+                              {p.estado === 'redactando' ? 'Redactando (Borrador)' : p.estado === 'enviada' ? 'Enviada / En Revisión' : p.estado === 'aprobada' ? 'Aprobada' : p.estado === 'rechazada' ? 'Rechazada' : p.estado}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Link
+                            href={`/egresado/redactar?id=${p.id}`}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors"
+                          >
+                            {isThisSubmitted ? 'Ver Propuesta' : isLockedOther ? 'Ver Propuesta (Bloqueada)' : 'Continuar Redacción'}
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>

@@ -14,9 +14,10 @@ interface DocumentGateProps {
   urlPago?: string;
   isTeamMember?: boolean;
   isLocked?: boolean;
+  existingCount?: number;
 }
 
-export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServicio, urlNotas, urlPago, isTeamMember = false, isLocked = false }: DocumentGateProps) {
+export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServicio, urlNotas, urlPago, isTeamMember = false, isLocked = false, existingCount = 0 }: DocumentGateProps) {
   const router = useRouter();
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -249,13 +250,27 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
             <div className="mt-4 sm:mt-0 sm:ml-6 shrink-0">
               <button 
                 onClick={() => setIsModalOpen(true)}
-                disabled={isTeamMember}
+                disabled={isTeamMember || isLocked || existingCount >= 3}
                 type="button"
                 className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white shadow-sm transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                title={isTeamMember ? "No puedes crear propuestas mientras pertenezcas a un equipo de trabajo." : "Crear nueva propuesta"}
+                title={
+                  isTeamMember
+                    ? "No puedes crear propuestas mientras pertenezcas a un equipo de trabajo."
+                    : isLocked
+                    ? "Tienes una propuesta enviada a revisión. Las demás propuestas están bloqueadas."
+                    : existingCount >= 3
+                    ? "Has alcanzado el límite máximo de 3 propuestas."
+                    : "Crear nueva propuesta"
+                }
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                {isTeamMember ? "Perteneces a un Equipo" : "Crear Propuesta"}
+                {isTeamMember
+                  ? "Perteneces a un Equipo"
+                  : existingCount >= 3
+                  ? "Límite Alcanzado (3/3)"
+                  : existingCount > 0
+                  ? `Crear Propuesta #${existingCount + 1}`
+                  : "Crear Propuesta"}
               </button>
             </div>
           </div>
@@ -276,6 +291,14 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
             </div>
             
             <div className="p-6 space-y-4">
+              {existingCount > 0 && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs font-bold text-amber-800 flex items-center gap-2">
+                  <svg className="w-4 h-4 shrink-0 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Ya tienes <strong>{existingCount}</strong> propuesta(s) en curso. Esta nueva propuesta se registrará como la <strong>Propuesta #{existingCount + 1}</strong>.</span>
+                </div>
+              )}
               <p className="text-sm text-muted mb-4">
                 Selecciona el tipo de proceso que deseas realizar para comenzar con la creación de tu propuesta.
               </p>
@@ -336,7 +359,7 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
                     setIsInitializing(true);
                     const res = await initPropuesta(selectedProcess);
                     if (res?.success) {
-                      window.location.href = '/egresado/redactar';
+                      window.location.href = res.propuestaId ? `/egresado/redactar?id=${res.propuestaId}` : '/egresado/redactar';
                     } else {
                       alert(res?.error || "Ocurrió un error al iniciar la propuesta.");
                       setIsInitializing(false);
