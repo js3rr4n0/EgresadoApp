@@ -299,6 +299,31 @@ export const semanasJustificadas = pgTable(
   ]
 );
 
+// ─────────────────────────── Solicitudes de Asesoría ───────────────────────────
+
+export const solicitudesAsesor = pgTable(
+  "solicitudes_asesor",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    asesorId: integer("asesor_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // 'pendiente', 'aceptada', 'rechazada'
+    justificacionRechazo: text("justificacion_rechazo"),
+    respondidoEn: timestamp("respondido_en", { withTimezone: true }),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "estado_solicitud_asesor_check",
+      sql`${table.estado} IN ('pendiente', 'aceptada', 'rechazada')`
+    ),
+  ]
+);
+
 // ─────────────────────────── Solicitudes de empresa ───────────────────────────
 
 export const solicitudesEmpresa = pgTable(

@@ -447,6 +447,32 @@ Faltaba una validación de campos obligatorios (`nombres` y `apellidos` limpios 
 - **TypeScript:** Compilado exitosamente con `npx tsc --noEmit` (0 errores).
 - **Git Push:** Sincronizado en la rama `main`.
 
+---
+
+## 13. Implementación del Rol y Panel de Asesor (`/asesor`)
+
+### 13.1. Requerimientos Cumplidos
+1. **Esquema de Base de Datos (`solicitudes_asesor`):**
+   - Se incorporó la tabla `solicitudes_asesor` para gestionar la asignación, fecha/hora exacta de respuesta (`respondido_en`) y justificaciones de rechazo.
+2. **Página de Inicio del Asesor (`/asesor/page.tsx` & `AsesorDashboardClient.tsx`):**
+   - **Tabla "Mis propuestas":** Lista las propuestas aceptadas con datos del alumno, carnet, carrera y botón **"Ver Progreso"**.
+   - **Sección / Modal "VER SOLICITUDES DE PROPUESTA":** Despliega notificaciones con la plantilla exacta:
+     *“Se ha asignado una propuesta de (Tipo de propuesta) de parte del estudiante (Nombre completo) con carnet (N. de carnet), ¿estaría dispuesto a asesorar?”*
+   - **Visualización de PDF:** Permite abrir/ver el archivo PDF de la propuesta del estudiante.
+   - **Confirmaciones SI / NO:**
+     - **SI:** Confirmación modal → Al aceptar, se registra `respondido_en` con fecha/hora y se habilita la propuesta en "Mis propuestas".
+     - **NO:** Confirmación modal → Habilita cuadro de texto para justificación **obligatoria** con botón **"Enviar"**, registrando fecha, hora y motivo en BD.
+3. **Sección "VER PROGRESO" (`/asesor/propuestas/[id]`):**
+   - Interfaz con control de pestañas y botón **"← Regresar a Mis propuestas"**.
+   - **Pestaña 1: "Datos de Propuesta":** Muestra Nombre completo, Carnet, Carrera y visor de PDF.
+   - **Pestaña 2: "Visualizar plan de trabajo":** Muestra Diagrama de Gantt por mes y semanas con actividades, botón para modificar la descripción de actividades (sincronizado con el alumno) y apartado de informes mensuales.
+   - **Pestaña 3: "Informe de primer contacto":** Formulario con distintivo **"(En desarrollo)"** para registrar datos del contacto inicial en la empresa.
+
+### 13.2. Verificación y Calidad
+- **TypeScript:** Validado exitosamente con `npx tsc --noEmit` (0 errores).
+- **Git Push:** Sincronizado en la rama `main`.
+
+
 
 
 
