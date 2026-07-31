@@ -7,6 +7,7 @@ import {
   actividades,
   documentosEgresado,
   usuarios,
+  carreras,
 } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { getActivePropuesta } from "@/app/actions/propuestas";
@@ -38,10 +39,25 @@ export default async function PrintPropuestaPage() {
   const isInvestigacion = propuesta.tipo === "investigacion";
   const isMultiUserFlow = isProyecto || isInvestigacion;
 
-  // Fetch student info
-  const studentRows = await db.select().from(usuarios).where(eq(usuarios.id, session.userId)).limit(1);
+  // Fetch student info with carrera
+  const studentRows = await db
+    .select({
+      id: usuarios.id,
+      nombreCompleto: usuarios.nombreCompleto,
+      carnet: usuarios.carnet,
+      carrera: carreras.nombre,
+    })
+    .from(usuarios)
+    .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
+    .where(eq(usuarios.id, session.userId))
+    .limit(1);
+
   const student = studentRows[0];
   const studentName = student?.nombreCompleto || "Estudiante";
+  const carreraNombre = student?.carrera || "Carrera no especificada";
+
+  const dateForMonth = propuesta.enviadaEn ? new Date(propuesta.enviadaEn) : new Date();
+  const mesEnvioStr = new Intl.DateTimeFormat("es-SV", { month: "long" }).format(dateForMonth).toUpperCase();
 
   // Fetch relations for Pasantía, Proyecto or Investigación
   let empresa: any = null;
@@ -109,10 +125,18 @@ export default async function PrintPropuestaPage() {
             MODALIDAD: {propuesta.tipo.toUpperCase()}
           </p>
 
-          <div className="mb-12 space-y-2">
+          <div className="mb-12 space-y-3">
             <h3 className="text-lg font-bold text-gray-900 uppercase">
               {isMultiUserFlow ? (isInvestigacion ? "INVESTIGADOR PRINCIPAL: " : "LÍDER DE PROYECTO: ") : "ESTUDIANTE: "} {studentName} ({student?.carnet || "N/A"})
             </h3>
+
+            <p className="text-sm font-semibold text-gray-700 uppercase">
+              <strong>TÍTULO AL QUE SE OPTA / CARRERA:</strong> {carreraNombre}
+            </p>
+
+            <p className="text-sm font-semibold text-gray-700 uppercase">
+              <strong>MES DE ENVÍO:</strong> {mesEnvioStr}
+            </p>
 
             {isMultiUserFlow && teamMembers.length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-200">

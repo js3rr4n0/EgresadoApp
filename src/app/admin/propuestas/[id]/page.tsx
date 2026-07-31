@@ -8,6 +8,7 @@ import {
   cartasAceptacion,
   actividades,
   documentosEgresado,
+  carreras,
 } from "@/lib/schema";
 import { getEquipoProyecto, getDetallesProyecto } from "@/app/actions/proyecto";
 import { eq, asc } from "drizzle-orm";
@@ -23,15 +24,17 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
     .select({
       propuesta: propuestas,
       estudiante: usuarios,
+      carreraNombre: carreras.nombre,
     })
     .from(propuestas)
     .leftJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+    .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
     .where(eq(propuestas.id, pId))
     .limit(1);
 
   if (!propuestaInfo) redirect("/admin/propuestas");
 
-  const { propuesta, estudiante } = propuestaInfo;
+  const { propuesta, estudiante, carreraNombre } = propuestaInfo;
   const isProyecto = propuesta.tipo === "proyecto";
   const isInvestigacion = propuesta.tipo === "investigacion";
   const isMultiUserFlow = isProyecto || isInvestigacion;
@@ -93,7 +96,7 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
           </div>
           <p className="text-muted text-sm">
             {isMultiUserFlow ? (isInvestigacion ? "Investigador Principal: " : "Líder: ") : "Estudiante: "}
-            {estudiante?.nombreCompleto} ({estudiante?.carnet || "Sin carnet"})
+            {estudiante?.nombreCompleto} ({estudiante?.carnet || "Sin carnet"}) - <span className="font-semibold text-gray-700">{carreraNombre || "Sin Carrera"}</span>
           </p>
         </div>
       </div>
