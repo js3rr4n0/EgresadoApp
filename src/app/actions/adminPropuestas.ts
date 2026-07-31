@@ -1,7 +1,19 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { propuestas, historialEstados, solicitudesAsesor, usuarios, notificaciones, facultades, carreras } from "@/lib/schema";
+import {
+  propuestas,
+  historialEstados,
+  solicitudesAsesor,
+  usuarios,
+  notificaciones,
+  facultades,
+  carreras,
+  actividades,
+  cartasAceptacion,
+  detallesProyecto,
+  integrantesProyecto,
+} from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
@@ -28,51 +40,9 @@ export async function reviewPropuesta(
         asesorId,
         coordinadorId: coordinadorId ?? propuesta.coordinadorId,
         fechaAprobacion: estado === "aprobada" && !propuesta.fechaAprobacion ? new Date() : propuesta.fechaAprobacion,
-        observaciones: observaciones || null
+        observaciones,
       })
       .where(eq(propuestas.id, propuestaId));
-
-    if (asesorId) {
-      // Check if request already exists
-      const [existingReq] = await db
-        .select()
-        .from(solicitudesAsesor)
-        .where(
-          and(
-            eq(solicitudesAsesor.propuestaId, propuestaId),
-            eq(solicitudesAsesor.asesorId, asesorId)
-          )
-        )
-        .limit(1);
-
-      if (!existingReq) {
-        await db.insert(solicitudesAsesor).values({
-          propuestaId,
-          asesorId,
-          estado: "pendiente",
-          creadaEn: new Date()
-        });
-
-        // Insert notification
-        const [estudiante] = await db
-          .select()
-          .from(usuarios)
-          .where(eq(usuarios.id, propuesta.egresadoId))
-          .limit(1);
-
-        const tipoProp = propuesta.tipo === "pasantia" ? "Pasantía" : (propuesta.tipo === "proyecto" ? "Proyecto Específico" : "Investigación");
-        const nombreEst = estudiante ? estudiante.nombreCompleto : "Estudiante";
-        const carnetEst = estudiante?.carnet || "N/A";
-
-        await db.insert(notificaciones).values({
-          usuarioId: asesorId,
-          tipo: "solicitud_asesoria",
-          mensaje: `Se ha asignado una propuesta de ${tipoProp} de parte del estudiante ${nombreEst} con carnet ${carnetEst}, ¿estaría dispuesto a asesorar?`,
-          leida: false,
-          creadoEn: new Date()
-        });
-      }
-    }
 
     if (estadoAnterior !== estado) {
       await db.insert(historialEstados).values({
@@ -83,70 +53,76 @@ export async function reviewPropuesta(
       });
     }
 
-    revalidatePath(`/admin/propuestas/${propuestaId}`);
+    if (asesorId && estadoAnterior !== estado) {
+      await db.insert(solicitudesAsesor).values({
+        propuestaId,
+        asesorId,
+        estado: "pendiente",
+      });
+    }
+
+    let notifMsg = `El estado de tu propuesta ha sido actualizado a: ${estado}.`;
+    if (estado === "aprobada") {
+      notifMsg = "¡Felicidades! Tu propuesta ha sido APROBADA por la administración.";
+    } else if (estado === "rechazada") {
+      notifMsg = `Tu propuesta ha sido RECHAZADA. Observaciones: ${observaciones || "Sin observaciones."}`;
+    }
+
+    await db.insert(notificaciones).values({
+      usuarioId: propuesta.egresadoId,
+      tipo: `propuesta_${estado}`,
+      mensaje: notifMsg,
+      leida: false,
+      creadoEn: new Date(),
+    });
+
     revalidatePath("/admin/propuestas");
+    revalidatePath(`/admin/propuestas/${propuestaId}`);
 
     return { success: true };
   } catch (error: any) {
     console.error("Error al revisar propuesta:", error);
-    return { success: false, error: "Error interno: " + error.message };
+    return { success: false, error: error.message };
   }
 }
 
 export async function getCoordinadoresConEstadisticas() {
   try {
-    const session = await getSession();
-    if (!session || session.rol !== "admin") return { success: false, error: "No autorizado", data: [] };
-
     const coords = await db
       .select({
         id: usuarios.id,
         nombreCompleto: usuarios.nombreCompleto,
         correo: usuarios.correo,
         facultadId: usuarios.facultadId,
-        carreraId: usuarios.carreraId,
+        facultadNombre: facultades.nombre,
       })
       .from(usuarios)
+      .leftJoin(facultades, eq(usuarios.facultadId, facultades.id))
       .where(eq(usuarios.rol, "coordinador"));
 
-    // Fetch all facultades
-    const facs = await db.select().from(facultades);
-    const cars = await db.select().from(carreras);
-    const propsList = await db.select({
-      id: propuestas.id,
-      coordinadorId: propuestas.coordinadorId,
-      estado: propuestas.estado,
-    }).from(propuestas);
+    const coordinadoresConStats = await Promise.all(
+      coords.map(async (c) => {
+        const result = await db
+          .select({ id: propuestas.id })
+          .from(propuestas)
+          .where(
+            and(
+              eq(propuestas.coordinadorId, c.id),
+              eq(propuestas.estado, "coordinador_asignado")
+            )
+          );
 
-    const data = coords.map((c) => {
-      // Determine facultad name
-      let facNombre = "Facultad General";
-      if (c.facultadId) {
-        const f = facs.find((item) => item.id === c.facultadId);
-        if (f) facNombre = f.nombre;
-      } else if (c.carreraId) {
-        const car = cars.find((item) => item.id === c.carreraId);
-        if (car && car.facultadId) {
-          const f = facs.find((item) => item.id === car.facultadId);
-          if (f) facNombre = f.nombre;
-        }
-      }
+        return {
+          id: c.id,
+          nombreCompleto: c.nombreCompleto,
+          correo: c.correo,
+          facultadNombre: c.facultadNombre || "Sin Facultad",
+          proyectosAsignadosCount: result.length,
+        };
+      })
+    );
 
-      // Count assigned non-rejected proposals
-      const count = propsList.filter(
-        (p) => p.coordinadorId === c.id && p.estado !== "rechazada"
-      ).length;
-
-      return {
-        id: c.id,
-        nombreCompleto: c.nombreCompleto,
-        correo: c.correo,
-        facultadNombre: facNombre,
-        proyectosAsignadosCount: count,
-      };
-    });
-
-    return { success: true, data };
+    return { success: true, data: coordinadoresConStats };
   } catch (error: any) {
     console.error("Error al obtener coordinadores:", error);
     return { success: false, error: "Error al cargar coordinadores", data: [] };
@@ -182,7 +158,6 @@ export async function asignarPropuestaACoordinador(propuestaId: number, coordina
       });
     }
 
-    // Send notification to coordinator
     const [estudiante] = await db.select().from(usuarios).where(eq(usuarios.id, propuesta.egresadoId)).limit(1);
     const estNombre = estudiante ? estudiante.nombreCompleto : "Estudiante";
 
@@ -201,5 +176,40 @@ export async function asignarPropuestaACoordinador(propuestaId: number, coordina
   } catch (error: any) {
     console.error("Error al asignar coordinador:", error);
     return { success: false, error: "Error al asignar coordinador: " + error.message };
+  }
+}
+
+export async function eliminarPropuestaBorrador(propuestaId: number) {
+  try {
+    const session = await getSession();
+    if (!session || (session.rol !== "admin" && session.rol !== "decanato")) {
+      return { success: false, error: "No autorizado" };
+    }
+
+    const [propuesta] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
+    if (!propuesta) return { success: false, error: "Propuesta no encontrada" };
+
+    const isBorrador = propuesta.estado === "borrador" || propuesta.estado === "redactando" || propuesta.estado.startsWith("pend_") || propuesta.estado.includes("empresa") || propuesta.estado.includes("datos");
+
+    if (!isBorrador) {
+      return { success: false, error: "Solo se pueden eliminar propuestas en estado borrador o redactando." };
+    }
+
+    // Delete child dependencies first
+    await db.delete(actividades).where(eq(actividades.propuestaId, propuestaId));
+    await db.delete(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuestaId));
+    await db.delete(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
+    await db.delete(integrantesProyecto).where(eq(integrantesProyecto.propuestaId, propuestaId));
+    await db.delete(historialEstados).where(eq(historialEstados.propuestaId, propuestaId));
+    await db.delete(solicitudesAsesor).where(eq(solicitudesAsesor.propuestaId, propuestaId));
+
+    // Delete main proposal record
+    await db.delete(propuestas).where(eq(propuestas.id, propuestaId));
+
+    revalidatePath("/admin/propuestas");
+    return { success: true, message: `Propuesta #${propuesta.numero} en borrador eliminada definitivamente.` };
+  } catch (error: any) {
+    console.error("Error al eliminar propuesta en borrador:", error);
+    return { success: false, error: "Error al eliminar propuesta: " + error.message };
   }
 }
