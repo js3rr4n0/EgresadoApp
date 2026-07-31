@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updatePortada, solicitarCorreccionDatosDecanato } from "@/app/actions/propuestas";
+import { updatePortada, solicitarCorreccionDatosDecanato, updateTituloPropuesta } from "@/app/actions/propuestas";
 import { invitarIntegrante, expulsarIntegrante, salirDelGrupo } from "@/app/actions/proyecto";
 import { useRouter } from "next/navigation";
 
@@ -30,6 +30,7 @@ interface ProyectoPortadaFormProps {
     liderCarnet: string | null;
   } | null;
   isInvestigacion?: boolean;
+  initialTitulo?: string | null;
 }
 
 export default function ProyectoPortadaForm({
@@ -41,8 +42,11 @@ export default function ProyectoPortadaForm({
   teamMembers,
   memberInfo,
   isInvestigacion = false,
+  initialTitulo = "",
 }: ProyectoPortadaFormProps) {
   const router = useRouter();
+  const [titulo, setTitulo] = useState(initialTitulo || "");
+  const [savingTitulo, setSavingTitulo] = useState(false);
   const [nombreCompleto] = useState(userDetails?.nombreCompleto || "");
   const [carnet] = useState(userDetails?.carnet || "");
   const [invitingCarnet, setInvitingCarnet] = useState("");
@@ -50,6 +54,24 @@ export default function ProyectoPortadaForm({
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  const isReadOnly = isLocked || !isLeader;
+
+  const handleSaveTituloAndContinue = async () => {
+    if (!titulo.trim()) {
+      alert("Por favor ingresa el título de la propuesta.");
+      return;
+    }
+    setSavingTitulo(true);
+    const res = await updateTituloPropuesta(propuestaId, titulo);
+    setSavingTitulo(false);
+
+    if (res.success) {
+      router.push(`?id=${propuestaId}&step=2`);
+    } else {
+      alert(res.error || "Error al actualizar el título.");
+    }
+  };
 
   // Modal Datos Erróneos
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -59,8 +81,6 @@ export default function ProyectoPortadaForm({
   const [modalSaving, setModalSaving] = useState(false);
   const [modalSuccess, setModalSuccess] = useState<string | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
-
-  const isReadOnly = isLocked || !isLeader;
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,6 +208,29 @@ export default function ProyectoPortadaForm({
       )}
 
       <div className="space-y-6">
+        {/* Campo Título de la Propuesta (EDITABLE) */}
+        <div className="bg-amber-50/70 border-2 border-amber-300 rounded-xl p-4 space-y-2">
+          <label className="block text-sm font-extrabold text-amber-900 uppercase tracking-wide flex items-center justify-between">
+            <span>Título de la Propuesta <span className="text-red-600">*</span></span>
+            <span className="text-[11px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md uppercase">
+              {isReadOnly ? "Modo Lectura" : "Campo Editable"}
+            </span>
+          </label>
+          <textarea 
+            rows={2}
+            readOnly={isReadOnly}
+            value={titulo} 
+            onChange={(e) => setTitulo(e.target.value)} 
+            placeholder="Ingresa el título oficial de tu propuesta..."
+            className={`w-full px-4 py-2.5 rounded-lg border border-amber-300 font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors resize-none ${
+              isReadOnly ? "bg-slate-100 text-slate-700 cursor-not-allowed" : "bg-white text-card-dark"
+            }`} 
+          />
+          <p className="text-xs text-amber-800 font-medium">
+            💡 Este es el título oficial que aparecerá en la portada de tu Hoja de Inscripción.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-sm font-bold text-card-dark mb-2">Nombres y Apellidos del Egresado</label>
@@ -253,6 +296,20 @@ export default function ProyectoPortadaForm({
             </svg>
             ¿Datos erróneos?
           </button>
+
+          {!isReadOnly && (
+            <button
+              type="button"
+              disabled={savingTitulo}
+              onClick={handleSaveTituloAndContinue}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#b90000] hover:bg-[#a00000] text-white font-bold text-sm transition-colors shadow-sm disabled:opacity-50"
+            >
+              {savingTitulo ? "Guardando..." : "Guardar y Continuar"}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 

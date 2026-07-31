@@ -145,8 +145,8 @@ export default async function EgresadoLandingPage() {
                     return (
                       <tr key={p.id} className="hover:bg-slate-50">
                         <td className="px-6 py-4 font-bold text-brand-red">Propuesta #{p.numero}</td>
-                        <td className="px-6 py-4 font-medium text-foreground max-w-[300px] truncate">
-                          Propuesta de Trabajo de Graduación ({p.tipo.toUpperCase()})
+                        <td className="px-6 py-4 font-medium text-foreground max-w-[300px] truncate" title={p.titulo || ""}>
+                          {p.titulo || `Propuesta de Trabajo de Graduación (${p.tipo.toUpperCase()})`}
                         </td>
                         <td className="px-6 py-4 uppercase text-xs font-bold text-muted">{p.tipo}</td>
                         <td className="px-6 py-4">

@@ -171,6 +171,7 @@ export async function initPropuesta(tipo: string) {
     }
 
     const nextNumero = props.length + 1;
+    const defaultTitulo = `Propuesta de ${tipo === 'pasantia' ? 'Pasantía' : tipo === 'proyecto' ? 'Proyecto Específico' : 'Investigación'} #${nextNumero}`;
 
     const [newProp] = await db
       .insert(propuestas)
@@ -179,6 +180,7 @@ export async function initPropuesta(tipo: string) {
         periodoId: periodo.id,
         tipo,
         numero: nextNumero,
+        titulo: defaultTitulo,
         estado: "redactando",
       })
       .returning();
@@ -190,6 +192,24 @@ export async function initPropuesta(tipo: string) {
     console.error("Error initPropuesta:", error);
     return { success: false, error: "Error interno del servidor al crear la propuesta: " + error.message };
   }
+}
+
+export async function updateTituloPropuesta(propuestaId: number, titulo: string) {
+  const session = await getSession();
+  if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
+
+  if (!titulo || !titulo.trim()) {
+    return { success: false, error: "El título de la propuesta no puede estar vacío." };
+  }
+
+  await db
+    .update(propuestas)
+    .set({ titulo: titulo.trim() })
+    .where(eq(propuestas.id, propuestaId));
+
+  revalidatePath("/egresado");
+  revalidatePath("/egresado/redactar");
+  return { success: true };
 }
 
 export async function updateEmpresa(propuestaId: number, empresaId: number | null, sucursalId: number | null = null) {

@@ -137,9 +137,18 @@ export default async function PrintPropuestaPage({
           <h2 className="text-xl font-bold uppercase tracking-wider mb-2">
             HOJA DE INSCRIPCIÓN DE TRABAJO DE GRADUACIÓN
           </h2>
-          <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-8">
-            MODALIDAD: {propuesta.tipo.toUpperCase()}
+          <p className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-6">
+            MODALIDAD: {propuesta.tipo.toUpperCase()} (PROPUESTA #{propuesta.numero})
           </p>
+
+          <div className="mb-8 p-4 bg-gray-50 border border-gray-300 rounded-lg max-w-xl mx-auto w-full">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">
+              TÍTULO DE LA PROPUESTA:
+            </p>
+            <h3 className="text-base font-extrabold text-gray-900 uppercase leading-snug">
+              {propuesta.titulo || `Propuesta #${propuesta.numero}`}
+            </h3>
+          </div>
 
           <div className="mb-12 space-y-3">
             <h3 className="text-lg font-bold text-gray-900 uppercase">

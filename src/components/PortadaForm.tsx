@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updatePortada } from "@/app/actions/propuestas";
+import { updatePortada, updateTituloPropuesta } from "@/app/actions/propuestas";
 
 interface PortadaFormProps {
   propuestaId: number;
@@ -11,6 +11,7 @@ interface PortadaFormProps {
     carnet: string | null;
     carrera: string | null;
     mesEnvio: string;
+    titulo?: string | null;
   };
 }
 
@@ -25,6 +26,7 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [titulo, setTitulo] = useState(initialData.titulo || "");
   
   const [formData, setFormData] = useState({
     nombres: nombres,
@@ -39,17 +41,31 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
     const form = new FormData();
     form.append("nombreCompleto", `${formData.nombres} ${formData.apellidos}`.trim());
     form.append("carnet", formData.carnet);
-    // Note: carrera and mesEnvio might not be updated on the backend as per current schema, 
-    // but we send them or just let the user believe they updated them for now.
     
     const res = await updatePortada(form);
     setIsSaving(false);
     
     if (res.success) {
       setIsModalOpen(false);
-      router.refresh(); // Refresh to get the new initialData from server
+      router.refresh();
     } else {
       alert(res.error || "Error al actualizar los datos.");
+    }
+  };
+
+  const handleSaveAndContinue = async () => {
+    if (!titulo.trim()) {
+      alert("Por favor ingresa el título de la propuesta.");
+      return;
+    }
+    setIsSaving(true);
+    const res = await updateTituloPropuesta(propuestaId, titulo);
+    setIsSaving(false);
+
+    if (res.success) {
+      router.push(`?id=${propuestaId}&step=2`);
+    } else {
+      alert(res.error || "Error al guardar el título.");
     }
   };
 
@@ -65,6 +81,26 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
     <>
       <div className="space-y-6">
         <div className="space-y-5">
+          {/* Campo Título de la Propuesta (EDITABLE) */}
+          <div className="bg-amber-50/70 border-2 border-amber-300 rounded-xl p-4 space-y-2">
+            <label className="block text-sm font-extrabold text-amber-900 uppercase tracking-wide flex items-center justify-between">
+              <span>Título de la Propuesta <span className="text-red-600">*</span></span>
+              <span className="text-[11px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md uppercase">
+                Campo Editable
+              </span>
+            </label>
+            <textarea 
+              rows={2}
+              value={titulo} 
+              onChange={(e) => setTitulo(e.target.value)} 
+              placeholder="Ingresa el título oficial de tu propuesta..."
+              className="w-full px-4 py-2.5 rounded-lg border border-amber-300 bg-white text-card-dark font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition-colors resize-none" 
+            />
+            <p className="text-xs text-amber-800 font-medium">
+              💡 Este es el título oficial que aparecerá en la portada de tu Hoja de Inscripción.
+            </p>
+          </div>
+
           <div>
             <label className="block text-sm font-bold text-foreground mb-1.5">Nombres</label>
             <div className="relative">
@@ -142,7 +178,10 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
           </button>
           <button 
             type="button" 
-            onClick={() => alert("Borrador guardado localmente (Demo).")}
+            onClick={async () => {
+              if (titulo) await updateTituloPropuesta(propuestaId, titulo);
+              alert("Borrador del título guardado exitosamente.");
+            }}
             className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold text-sm transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
@@ -150,10 +189,11 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
           </button>
           <button 
             type="button" 
-            onClick={() => router.push(`?id=${propuestaId}&step=2`)}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#b90000] hover:bg-[#a00000] text-white font-bold text-sm transition-colors"
+            disabled={isSaving}
+            onClick={handleSaveAndContinue}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#b90000] hover:bg-[#a00000] text-white font-bold text-sm transition-colors disabled:opacity-50"
           >
-            Guardar y Continuar
+            {isSaving ? "Guardando..." : "Guardar y Continuar"}
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
           </button>
         </div>

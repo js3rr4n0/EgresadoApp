@@ -424,6 +424,7 @@ export default async function EgresadoPage({
                   teamMembers={teamMembers}
                   memberInfo={memberInfo}
                   isInvestigacion={true}
+                  initialTitulo={propuesta.titulo}
                 />
               )}
 
@@ -498,6 +499,7 @@ export default async function EgresadoPage({
                   isLeader={isLeader}
                   teamMembers={teamMembers}
                   memberInfo={memberInfo}
+                  initialTitulo={propuesta.titulo}
                 />
               )}
 
@@ -578,6 +580,7 @@ export default async function EgresadoPage({
                       carnet: userDetails.carnet,
                       carrera: userDetails.carrera,
                       mesEnvio,
+                      titulo: propuesta.titulo,
                     }}
                   />
                 </>
