@@ -34,56 +34,59 @@ export default function MediaZoomViewer({
         {isSignature ? (
           <div
             onClick={() => setIsOpen(true)}
-            className="p-4 flex items-center justify-center bg-slate-50 hover:bg-slate-100 transition-colors relative min-h-[120px]"
+            className="p-3 flex items-center justify-center bg-slate-50 hover:bg-slate-100 transition-colors relative min-h-[90px]"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={url}
               alt={alt}
-              className="max-h-36 w-auto object-contain filter drop-shadow-sm mix-blend-multiply transition-transform group-hover:scale-105"
+              className="max-h-24 w-auto object-contain filter drop-shadow-xs mix-blend-multiply"
             />
-            <div className="absolute top-2 right-2 opacity-80 group-hover:opacity-100 bg-white/90 p-1.5 rounded-lg shadow-xs border border-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            {/* Lupa overlay on hover */}
+            <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white font-bold text-xs backdrop-blur-2xs">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
               </svg>
-              <span>Ampliar</span>
+              <span>Ampliar Firma</span>
             </div>
           </div>
         ) : isPdf ? (
           <div className="flex flex-col">
-            <div className="flex items-center justify-between p-3 bg-slate-100 border-b border-slate-200">
+            <div className="flex items-center justify-between p-2.5 bg-slate-100 border-b border-slate-200">
               <span className="text-xs font-bold text-slate-700 truncate">{title}</span>
               <button
                 type="button"
                 onClick={() => setIsOpen(true)}
-                className="px-2.5 py-1 bg-white hover:bg-slate-200 text-indigo-700 text-xs font-bold rounded-lg border border-slate-300 flex items-center gap-1 shadow-2xs"
+                className="px-2 py-1 bg-white hover:bg-slate-200 text-indigo-700 text-xs font-bold rounded-lg border border-slate-300 flex items-center gap-1 shadow-2xs"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
                 </svg>
-                Vista Completa / Zoom
+                🔍 Lupa / Zoom
               </button>
             </div>
             <iframe
               src={url}
               title={title}
-              className="w-full h-96 border-none"
+              className="w-full h-80 border-none"
             />
           </div>
         ) : (
-          <div onClick={() => setIsOpen(true)} className="relative bg-slate-50 flex items-center justify-center p-2 min-h-[200px]">
+          <div onClick={() => setIsOpen(true)} className="relative bg-slate-50 flex items-center justify-center p-2 min-h-[160px] max-h-[380px] overflow-hidden">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={url}
               alt={alt}
-              className="max-h-96 w-full object-contain transition-transform group-hover:scale-[1.01]"
+              className="max-h-[360px] w-auto object-contain"
             />
-            <div className="absolute top-3 right-3 bg-slate-900/75 text-white px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 shadow-md backdrop-blur-xs">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
-              </svg>
-              <span>Ver Zoom</span>
+            {/* Lupa overlay on hover */}
+            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 text-white font-bold text-xs backdrop-blur-2xs">
+              <div className="bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded-xl shadow-xl flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />
+                </svg>
+                <span>Click para Zoom 🔍</span>
+              </div>
             </div>
           </div>
         )}
@@ -91,9 +94,9 @@ export default function MediaZoomViewer({
 
       {/* FULLSCREEN LIGHTBOX / ZOOM MODAL */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-between p-4 sm:p-6 animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex flex-col items-center justify-between p-4 sm:p-6 animate-in fade-in duration-150">
           {/* Header Controls */}
-          <div className="w-full max-w-5xl flex items-center justify-between bg-slate-900/90 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-xl">
+          <div className="w-full max-w-5xl flex items-center justify-between bg-slate-900/95 text-white px-5 py-3 rounded-2xl border border-slate-700 shadow-2xl">
             <span className="text-sm font-bold truncate pr-4">{title}</span>
 
             <div className="flex items-center gap-3">
@@ -136,7 +139,7 @@ export default function MediaZoomViewer({
                 rel="noreferrer"
                 className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1"
               >
-                Abrir Pestaña ↗
+                Pestaña Nueva ↗
               </a>
 
               <button
@@ -163,13 +166,13 @@ export default function MediaZoomViewer({
                 className="w-full max-w-5xl h-full rounded-2xl shadow-2xl border border-slate-700 bg-white"
               />
             ) : (
-              <div className="overflow-auto max-w-5xl max-h-[80vh] flex items-center justify-center p-4">
+              <div className="overflow-auto max-w-5xl max-h-[82vh] flex items-center justify-center p-4">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={url}
                   alt={alt}
                   style={{ transform: `scale(${zoomLevel})` }}
-                  className="object-contain transition-transform duration-150 origin-center max-h-[75vh] rounded-lg shadow-2xl"
+                  className="object-contain transition-transform duration-150 origin-center max-h-[78vh] rounded-lg shadow-2xl"
                 />
               </div>
             )}
