@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { db } from "@/lib/db";
 import {
   empresas,
@@ -104,8 +105,17 @@ export default async function PrintPropuestaPage() {
   return (
     <div className="bg-white min-h-screen text-black">
       <div className="mx-auto bg-white p-8 print:p-0" style={{ maxWidth: "800px" }}>
-        {/* Helper print button */}
-        <div className="mb-8 flex justify-end print:hidden">
+        {/* Helper print and navigation buttons */}
+        <div className="mb-8 flex justify-between items-center print:hidden">
+          <Link
+            href="/egresado"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all shadow-xs"
+          >
+            <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Volver al Panel Principal
+          </Link>
           <PrintButton />
         </div>
 

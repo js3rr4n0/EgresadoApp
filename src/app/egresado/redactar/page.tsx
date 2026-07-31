@@ -234,6 +234,18 @@ export default async function EgresadoPage({
 
   return (
     <div>
+      <div className="mb-6">
+        <Link
+          href="/egresado"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:border-brand-red hover:text-brand-red text-slate-700 font-bold text-xs rounded-xl shadow-xs transition-all group"
+        >
+          <svg className="w-4 h-4 text-slate-500 group-hover:text-brand-red transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Volver al Panel Principal
+        </Link>
+      </div>
+
       <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Mi Trabajo de Graduación</h1>
