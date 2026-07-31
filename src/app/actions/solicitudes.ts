@@ -103,43 +103,76 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       
       const targetSucursalId = data.empresa?.targetSucursalId;
       
-      const updateData: any = {
-        area: data.empresa.area,
-        organigramaUrl: data.empresa.organigramaUrl || null,
-        verificada: true,
-        habilitada: true
-      };
-      
-      if (!targetSucursalId) {
-        updateData.descripcion = data.empresa.descripcion;
-        updateData.antecedentes = data.empresa.antecedentes;
-        updateData.direccion = data.empresa.direccion;
-        updateData.mapaUrl = data.empresa.mapaUrl || null;
-      }
-      
-      await db.update(empresas).set(updateData).where(eq(empresas.id, targetEmpresaId));
+      // Update company fields if company data is provided in request
+      if (data.empresa && (data.empresa.nombre || data.empresa.area || data.empresa.direccion || data.empresa.descripcion)) {
+        const updateData: any = {
+          verificada: true,
+          habilitada: true,
+          actualizadaEn: new Date()
+        };
+        if (data.empresa.nombre) updateData.nombre = data.empresa.nombre;
+        if (data.empresa.area !== undefined) updateData.area = data.empresa.area || null;
+        if (data.empresa.organigramaUrl !== undefined) updateData.organigramaUrl = data.empresa.organigramaUrl || null;
+        
+        if (!targetSucursalId) {
+          if (data.empresa.descripcion !== undefined) updateData.descripcion = data.empresa.descripcion || null;
+          if (data.empresa.antecedentes !== undefined) updateData.antecedentes = data.empresa.antecedentes || null;
+          if (data.empresa.direccion !== undefined) updateData.direccion = data.empresa.direccion || null;
+          if (data.empresa.mapaUrl !== undefined) updateData.mapaUrl = data.empresa.mapaUrl || null;
+        }
+        
+        await db.update(empresas).set(updateData).where(eq(empresas.id, targetEmpresaId));
 
-      if (targetSucursalId) {
-        const { sucursales } = await import("@/lib/schema");
-        await db.update(sucursales).set({
-          direccion: data.empresa.direccion,
-          mapaUrl: data.empresa.mapaUrl || null,
-          descripcion: data.empresa.descripcion,
-          antecedentes: data.empresa.antecedentes,
-        }).where(eq(sucursales.id, targetSucursalId));
+        if (targetSucursalId) {
+          const { sucursales } = await import("@/lib/schema");
+          const sucursalUpdate: any = {};
+          if (data.empresa.direccion !== undefined) sucursalUpdate.direccion = data.empresa.direccion;
+          if (data.empresa.mapaUrl !== undefined) sucursalUpdate.mapaUrl = data.empresa.mapaUrl || null;
+          if (data.empresa.descripcion !== undefined) sucursalUpdate.descripcion = data.empresa.descripcion || null;
+          if (data.empresa.antecedentes !== undefined) sucursalUpdate.antecedentes = data.empresa.antecedentes || null;
+          
+          if (Object.keys(sucursalUpdate).length > 0) {
+            await db.update(sucursales).set(sucursalUpdate).where(eq(sucursales.id, targetSucursalId));
+          }
+        }
       }
 
-      const newSupervisores = await db.insert(supervisores).values({
-        empresaId: targetEmpresaId,
-        sucursalId: targetSucursalId || null,
-        nombres: data.supervisor.nombres,
-        apellidos: data.supervisor.apellidos,
-        cargo: data.supervisor.cargo,
-        especialidad: data.supervisor.especialidad,
-        telefono: data.supervisor.telefono,
-        correo: data.supervisor.correo,
-      }).returning({ id: supervisores.id });
-      targetSupervisorId = newSupervisores[0].id;
+      // Supervisor handling (update existing vs create new vs keep untouched)
+      const existingSupId = data.supervisor?.targetSupervisorId;
+
+      if (existingSupId) {
+        // Update existing supervisor in-place
+        const updateSupObj: any = {
+          actualizadoEn: new Date(),
+        };
+        if (data.supervisor.nombres !== undefined) updateSupObj.nombres = data.supervisor.nombres;
+        if (data.supervisor.apellidos !== undefined) updateSupObj.apellidos = data.supervisor.apellidos;
+        if (data.supervisor.cargo !== undefined) updateSupObj.cargo = data.supervisor.cargo || null;
+        if (data.supervisor.especialidad !== undefined) updateSupObj.especialidad = data.supervisor.especialidad || null;
+        if (data.supervisor.telefono !== undefined) updateSupObj.telefono = data.supervisor.telefono || null;
+        if (data.supervisor.correo !== undefined) updateSupObj.correo = data.supervisor.correo || null;
+        if (data.supervisor.titulo !== undefined) updateSupObj.titulo = data.supervisor.titulo || null;
+        if (targetSucursalId || data.supervisor.targetSucursalId) {
+          updateSupObj.sucursalId = targetSucursalId || data.supervisor.targetSucursalId || null;
+        }
+
+        await db.update(supervisores).set(updateSupObj).where(eq(supervisores.id, existingSupId));
+        targetSupervisorId = existingSupId;
+      } else if (data.supervisor && data.supervisor.nombres && data.supervisor.nombres.trim() !== "") {
+        // Insert new supervisor
+        const newSupervisores = await db.insert(supervisores).values({
+          empresaId: targetEmpresaId,
+          sucursalId: targetSucursalId || data.supervisor.targetSucursalId || null,
+          nombres: data.supervisor.nombres,
+          apellidos: data.supervisor.apellidos || "",
+          cargo: data.supervisor.cargo || null,
+          especialidad: data.supervisor.especialidad || null,
+          telefono: data.supervisor.telefono || null,
+          correo: data.supervisor.correo || null,
+          titulo: data.supervisor.titulo || null,
+        }).returning({ id: supervisores.id });
+        targetSupervisorId = newSupervisores[0].id;
+      }
 
       const cambiosPayload = JSON.parse(JSON.stringify({ type: "update", before: existingEmpresa, after: data, targetSucursalId }));
       await db.insert(historialEmpresas).values({
@@ -163,13 +196,17 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         }).where(eq(propuestas.id, solicitud.propuestaId));
       } else {
         const targetSucursalId = data.empresa?.targetSucursalId;
-        await db.update(propuestas).set({
+        const updatePropObj: any = {
           empresaId: targetEmpresaId,
           sucursalId: targetSucursalId || null,
-          supervisorId: targetSupervisorId,
           bloqueada: false,
           estado: "redactando"
-        }).where(eq(propuestas.id, solicitud.propuestaId));
+        };
+        if (targetSupervisorId) {
+          updatePropObj.supervisorId = targetSupervisorId;
+        }
+
+        await db.update(propuestas).set(updatePropObj).where(eq(propuestas.id, solicitud.propuestaId));
       }
 
       // Notify egresado

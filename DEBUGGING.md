@@ -318,4 +318,27 @@ Permitir a los egresados redactar hasta **3 propuestas de trabajo de graduación
 - **TypeScript:** Validado mediante `npx tsc --noEmit` obteniendo 0 errores.
 - **Git Push:** Sincronizado en la rama `main` en GitHub.
 
+---
+
+## 7. ERROR: Duplicación de Supervisor al Aprobar Solicitud de Edición
+
+### 7.1. Descripción del Problema
+Cuando el egresado solicitaba una edición de datos de un supervisor existente (`edit_existing`) y la Administración/Decanato aprobaba dicha solicitud, el sistema creaba un nuevo registro de supervisor en la base de datos en lugar de actualizar el supervisor ya existente, generando duplicados en la tabla de supervisores de la empresa.
+
+### 7.2. Diagnóstico y Causa Raíz
+En `src/app/actions/solicitudes.ts` (`aprobarSolicitudEmpresa`), el bloque `else` (solicitudes de tipo `"actualizacion"`) ejecutaba incondicionalmente un `db.insert(supervisores)` en lugar de evaluar si los datos de la solicitud especificaban un `targetSupervisorId` existente. Además, cuando solo se enviaba actualización de empresa, se insertaba un supervisor vacío `("", "")`.
+
+### 7.3. Solución Aplicada
+1. **Edición in-place en `src/app/actions/solicitudes.ts`:**
+   - Se evaluó la presencia de `data.supervisor.targetSupervisorId`. Si está presente, la acción ejecuta un `db.update(supervisores).set(...).where(eq(supervisores.id, targetSupervisorId))` para actualizar los datos en el supervisor existente.
+   - Solo si no existe `targetSupervisorId` y los campos de `nombres` vienen diligenciados se realiza un `db.insert(supervisores)` para registrar uno nuevo.
+2. **Actualización Selectiva de Empresa y Propuesta:**
+   - La actualización de `empresas` ahora solo modifica campos si la solicitud incluyó datos de la empresa.
+   - La propuesta conserva su referencia al supervisor existente o se actualiza al ID del supervisor editado/creado.
+
+### 7.4. Verificación y Calidad
+- **TypeScript:** `npx tsc --noEmit` ejecutado sin errores (0 errors).
+- **Git Push:** Sincronizado en la rama `main` de GitHub.
+
+
 
