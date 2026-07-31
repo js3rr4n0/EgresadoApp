@@ -237,3 +237,32 @@ Se creó el componente cliente `NotificationBell.tsx` con un temporizador de son
 2. **Comprobación de Tipado y Compilación:** Se ejecutó `npx tsc --noEmit` confirmando 0 errores de TypeScript y compilación satisfactoria.
 
 ---
+
+## 4. ERROR 3 & ERROR 4: Inmutabilidad de Documentos, Flujo de Revisión y Vista de Impresión
+
+### 4.1. Descripción de las Incidencias
+1. **ERROR 3 (Falta de botón de retorno):** Al visualizar la propuesta en las etapas de redacción o impresión, el egresado carecía de un botón para regresar al panel principal dashboard (`/egresado`).
+2. **ERROR 4 (Falta de bloqueo de documentos y visualización de propuesta):** Una vez que el egresado enviaba su propuesta (estado `"enviada"`), aún le era posible reemplazar o eliminar sus documentos obligatorios (`servicio_social`, `certificacion_notas`, `pago_tg`). Además, en la tabla de propuestas la acción continuaba diciendo "Continuar" en lugar de "Ver Propuesta".
+3. **Disparo Automático del Cuadro de Impresión (`window.print()`):** Al abrir la vista del PDF/propuesta (`/egresado/redactar/imprimir`), un script cliente ejecutaba `window.print()` de forma automática a los 2.5 segundos, bloqueando la pantalla con la ventana flotante nativa de impresión del navegador.
+
+### 4.2. Diagnóstico y Causas Raíz
+1. **Inexistencia de Validación de Estado en Carga de Archivos:** Las server actions `uploadDocumento` y `deleteDocumento` (`src/app/actions/documentos.ts`) no verificaban si la propuesta del estudiante ya se encontraba en estado `"enviada"` o `"aprobada"`.
+2. **Falta de Desactivación de Controles en la UI:** El componente `DocumentGate.tsx` no recibía la propiedad `isLocked` para ocultar los botones de reemplazo y eliminación cuando la propuesta estuviese enviada.
+3. **Script Inyectado en `imprimir/page.tsx`:** La página `/egresado/redactar/imprimir/page.tsx` contenía un bloque `<script dangerouslySetInnerHTML={{ __html: 'setTimeout(() => window.print(), 2500)' }} />` que forzaba el despliegue del menú de impresión nativo del navegador al abrir la página.
+
+### 4.3. Solución Aplicada
+1. **Eliminación del Auto-Print (`imprimir/page.tsx`):**
+   Se removió por completo el script cliente con `setTimeout` y `window.print()`. Ahora la página se renderiza limpia en pantalla para su lectura. La impresión solo se activa si el usuario presiona explícitamente el botón **"Imprimir / Guardar PDF"** (`PrintButton.tsx`).
+2. **Inmutabilidad y Bloqueo Servidor/Cliente (`documentos.ts` & `DocumentGate.tsx`):**
+   - En `documentos.ts`, se agregaron comprobaciones `if (hasSubmitted) return { success: false, error: 'No puedes modificar tus documentos...' }`.
+   - En `DocumentGate.tsx`, se añadió la propiedad `isLocked` que oculta los inputs de archivo y botones de borrado cuando la propuesta está enviada.
+3. **Navegación y Estados de UI (`page.tsx` Egresado y Redacción):**
+   - Se añadió un botón **"Volver al Panel Principal"** en la navegación.
+   - En la tabla "Mis Propuestas", la acción cambia a **"Ver Propuesta"** cuando el estado es `"enviada"`, `"aprobada"` o `"rechazada"`.
+   - En la pantalla de redacción (`/egresado/redactar`), se muestra una tarjeta informativa indicando que la propuesta se encuentra en revisión administrativa con un botón para **"Ver PDF / Vista Previa"**.
+4. **Visualización de PDF para Administradores (`/admin/propuestas/[id]/imprimir`):**
+   Se creó la vista de impresión/PDF para el rol administrativo, permitiendo consultar la propuesta en un documento unificado sin auto-print.
+
+### 4.4. Verificación y Calidad
+- **TypeScript:** Se ejecutó `npx tsc --noEmit` obteniendo 0 errores.
+- **Sincronización:** Cambios confirmados y subidos a la rama `main` en GitHub.
