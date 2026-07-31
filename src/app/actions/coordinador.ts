@@ -393,6 +393,42 @@ export async function getDetallePropuestaCoordinador(propuestaId: number) {
     const [detalles] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId)).limit(1);
     const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, prop.propuesta.egresadoId));
 
+    // Fetch team members if multi-user
+    let teamMembers: any[] = [];
+    if (prop.propuesta.tipo === "proyecto" || prop.propuesta.tipo === "investigacion") {
+      const teamRows = await db
+        .select({
+          id: usuarios.id,
+          carnet: usuarios.carnet,
+          nombreCompleto: usuarios.nombreCompleto,
+          correo: usuarios.correo,
+        })
+        .from(integrantesProyecto)
+        .innerJoin(usuarios, eq(integrantesProyecto.egresadoId, usuarios.id))
+        .where(
+          and(
+            eq(integrantesProyecto.propuestaId, propuestaId),
+            eq(integrantesProyecto.estado, "aceptado")
+          )
+        );
+      teamMembers = teamRows;
+    }
+
+    // Fetch status change history
+    const historialList = await db
+      .select({
+        id: historialEstados.id,
+        de: historialEstados.de,
+        a: historialEstados.a,
+        creadoEn: historialEstados.creadoEn,
+        usuarioNombre: usuarios.nombreCompleto,
+        usuarioRol: usuarios.rol,
+      })
+      .from(historialEstados)
+      .leftJoin(usuarios, eq(historialEstados.usuarioId, usuarios.id))
+      .where(eq(historialEstados.propuestaId, propuestaId))
+      .orderBy(asc(historialEstados.creadoEn));
+
     return {
       success: true,
       data: {
@@ -403,6 +439,7 @@ export async function getDetallePropuestaCoordinador(propuestaId: number) {
           correo: prop.estudiante.correo,
           carrera: prop.carreraNombre || "Sin Carrera",
         },
+        teamMembers,
         asesor: asesorObj,
         empresa,
         supervisor,
@@ -410,6 +447,7 @@ export async function getDetallePropuestaCoordinador(propuestaId: number) {
         actividades: actividadesList,
         detallesProyecto: detalles || null,
         documentos: docs,
+        historial: historialList,
       },
     };
   } catch (error: any) {

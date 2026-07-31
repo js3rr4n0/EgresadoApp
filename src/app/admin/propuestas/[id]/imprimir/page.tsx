@@ -102,6 +102,7 @@ export default async function AdminPrintPropuestaPage({
 
   const today = new Date();
   const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
+  const formattedDate = `SANTA ANA, ${today.toLocaleDateString("es-SV", options).toUpperCase()}`;
   const backUrl = session.rol === "coordinador" ? "/coordinador" : (session.rol === "decanato" ? "/decanato/propuestas" : `/admin/propuestas/${propuesta.id}`);
 
   return (
