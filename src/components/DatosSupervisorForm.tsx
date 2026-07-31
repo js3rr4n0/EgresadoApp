@@ -179,7 +179,7 @@ export default function DatosSupervisorForm({
         apellidos: revData.supervisor.apellidos.trim(),
       }
     };
-    const res = await solicitarRevisionEmpresa(propuestaId, dataToSend, problemMode || "create_new");
+    const res = await solicitarRevisionEmpresa(propuestaId, dataToSend, "edit_existing");
     setIsSubmittingRevision(false);
 
     if (res.success) {
