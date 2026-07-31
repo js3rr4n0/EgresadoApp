@@ -82,6 +82,18 @@ export default async function AdminPropuestaReviewPage({
       .orderBy(asc(actividades.periodo), asc(actividades.semana), asc(actividades.numero));
   }
 
+  const displayMembers =
+    teamMembers.length > 0
+      ? teamMembers
+      : [
+          {
+            id: estudiante?.id || 0,
+            carnet: estudiante?.carnet,
+            nombreCompleto: estudiante?.nombreCompleto,
+            correo: estudiante?.correo,
+          },
+        ];
+
   const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuesta.id)).limit(1);
   const docs = propuesta.egresadoId
     ? await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId))
@@ -100,8 +112,6 @@ export default async function AdminPropuestaReviewPage({
   const coordRes = await getCoordinadoresConEstadisticas();
   const coordinadoresList = coordRes.success ? coordRes.data : [];
 
-  const dateForMonth = propuesta.enviadaEn ? new Date(propuesta.enviadaEn) : new Date();
-  const mesEnvioStr = new Intl.DateTimeFormat("es-SV", { month: "long" }).format(dateForMonth).toUpperCase();
   const today = new Date();
   const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
   const formattedDate = `SANTA ANA, ${today.toLocaleDateString("es-SV", options).toUpperCase()}`;
@@ -191,20 +201,24 @@ export default async function AdminPropuestaReviewPage({
 
               {isMultiUserFlow ? (
                 <div className="space-y-4">
-                  {teamMembers.map((member, idx) => (
-                    <div key={member.id} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
-                      <div className="flex items-center justify-between font-bold border-b border-slate-200 pb-2">
-                        <span className="text-indigo-900 font-black">ESTUDIANTE #{idx + 1}</span>
-                        <span className="bg-white px-2 py-0.5 rounded border border-slate-300 font-mono">{member.usuario?.carnet}</span>
+                  {displayMembers.map((member, idx) => {
+                    const nombre = member.nombreCompleto || member.usuario?.nombreCompleto || "N/A";
+                    const carnet = member.carnet || member.usuario?.carnet || "N/A";
+                    const correo = member.correo || member.usuario?.correo || "N/A";
+                    return (
+                      <div key={member.id || idx} className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
+                        <div className="flex items-center justify-between font-bold border-b border-slate-200 pb-2">
+                          <span className="text-indigo-900 font-black">ESTUDIANTE #{idx + 1}</span>
+                          <span className="bg-white px-2 py-0.5 rounded border border-slate-300 font-mono">{carnet}</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <p><strong className="text-slate-700">Nombre:</strong> {nombre}</p>
+                          <p><strong className="text-slate-700">Correo:</strong> {correo}</p>
+                          <p><strong className="text-slate-700">Carrera:</strong> {carreraNombre}</p>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <p><strong className="text-slate-700">Nombre:</strong> {member.usuario?.nombreCompleto}</p>
-                        <p><strong className="text-slate-700">Correo:</strong> {member.usuario?.correo}</p>
-                        <p><strong className="text-slate-700">Teléfono:</strong> {member.usuario?.telefono || "N/A"}</p>
-                        <p><strong className="text-slate-700">Carrera:</strong> {carreraNombre}</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl border border-slate-200">
@@ -228,25 +242,46 @@ export default async function AdminPropuestaReviewPage({
                 </div>
 
                 {isMultiUserFlow && detallesProj && (
-                  <div className="space-y-2 pt-2 border-t border-slate-200">
+                  <div className="space-y-3 pt-3 border-t border-slate-200">
                     <div>
                       <strong className="text-slate-700 block font-bold text-[11px]">Objetivo General:</strong>
-                      <p className="text-slate-800">{detallesProj.objetivoGeneral || "N/A"}</p>
+                      <p className="text-slate-800 mt-0.5">{detallesProj.objetivoGeneral || "N/A"}</p>
                     </div>
+
                     <div>
                       <strong className="text-slate-700 block font-bold text-[11px]">Objetivos Específicos:</strong>
-                      <p className="text-slate-800 whitespace-pre-line">{detallesProj.objetivosEspecificos || "N/A"}</p>
+                      {Array.isArray(detallesProj.objetivosEspecificos) ? (
+                        <ul className="list-disc pl-4 space-y-1 text-slate-800 mt-1">
+                          {detallesProj.objetivosEspecificos.map((obj: any, idx: number) => (
+                            <li key={idx}>
+                              {typeof obj === "object" && obj !== null ? (
+                                <span>
+                                  {obj.titulo && <strong>{obj.titulo}: </strong>}
+                                  {obj.descripcion || JSON.stringify(obj)}
+                                </span>
+                              ) : (
+                                String(obj)
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : typeof detallesProj.objetivosEspecificos === "object" && detallesProj.objetivosEspecificos !== null ? (
+                        <p className="text-slate-800 mt-0.5">{JSON.stringify(detallesProj.objetivosEspecificos)}</p>
+                      ) : (
+                        <p className="text-slate-800 whitespace-pre-line mt-0.5">{String(detallesProj.objetivosEspecificos || "N/A")}</p>
+                      )}
                     </div>
+
                     {detallesProj.alcance && (
                       <div>
                         <strong className="text-slate-700 block font-bold text-[11px]">Alcance:</strong>
-                        <p className="text-slate-800">{detallesProj.alcance}</p>
+                        <p className="text-slate-800 mt-0.5">{detallesProj.alcance}</p>
                       </div>
                     )}
                     {detallesProj.limitaciones && (
                       <div>
                         <strong className="text-slate-700 block font-bold text-[11px]">Limitaciones:</strong>
-                        <p className="text-slate-800">{detallesProj.limitaciones}</p>
+                        <p className="text-slate-800 mt-0.5">{detallesProj.limitaciones}</p>
                       </div>
                     )}
                   </div>
