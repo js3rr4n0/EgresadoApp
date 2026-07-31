@@ -4,6 +4,8 @@ import { useState } from "react";
 import { updateActividadAsesor } from "@/app/actions/asesor";
 import Link from "next/link";
 
+import { solicitarBajaProyectoAsesor } from "@/app/actions/coordinador";
+
 interface PropuestaProgresoClientProps {
   data: {
     propuesta: any;
@@ -25,6 +27,28 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
   const { propuesta, estudiante, empresa, supervisor, carta, actividades } = data;
 
   const [activeTab, setActiveTab] = useState<"datos" | "plan" | "primer_contacto">("datos");
+
+  // State for Dar de Baja Modal
+  const [showBajaModal, setShowBajaModal] = useState(false);
+  const [motivoBaja, setMotivoBaja] = useState("");
+  const [sendingBaja, setSendingBaja] = useState(false);
+
+  const handleSolicitarBaja = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!motivoBaja.trim()) return;
+
+    setSendingBaja(true);
+    const res = await solicitarBajaProyectoAsesor(propuesta.id, motivoBaja.trim());
+    setSendingBaja(false);
+
+    if (res.success) {
+      alert(res.message);
+      setShowBajaModal(false);
+      setMotivoBaja("");
+    } else {
+      alert(res.error || "Error al solicitar la baja.");
+    }
+  };
 
   // State for modifying activity descriptions
   const [editingActId, setEditingActId] = useState<number | null>(null);
@@ -106,13 +130,76 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
           </div>
         </div>
 
-        <Link
-          href="/asesor"
-          className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-colors shadow-sm self-start sm:self-auto"
-        >
-          <span>← Regresar a “Mis propuestas”</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowBajaModal(true)}
+            className="inline-flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
+          >
+            <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            Solicitar Dar de Baja Proyecto
+          </button>
+
+          <Link
+            href="/asesor"
+            className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-colors shadow-sm self-start sm:self-auto"
+          >
+            <span>← Regresar a “Mis propuestas”</span>
+          </Link>
+        </div>
       </div>
+
+      {/* Modal Solicitar Dar de Baja Proyecto */}
+      {showBajaModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+            <h3 className="text-lg font-bold text-rose-800 flex items-center gap-2">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              Solicitar Dar de Baja Proyecto al Coordinador
+            </h3>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Esta solicitud será enviada al coordinador de facultad encargado del proyecto para anular el proceso por motivos de fuerza mayor.
+            </p>
+
+            <form onSubmit={handleSolicitarBaja} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Motivo de la Solicitud de Baja:
+                </label>
+                <textarea
+                  required
+                  rows={4}
+                  value={motivoBaja}
+                  onChange={(e) => setMotivoBaja(e.target.value)}
+                  placeholder="Describa detalladamente las razones por las cuales se solicita dar de baja el proyecto..."
+                  className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowBajaModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingBaja || !motivoBaja.trim()}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md transition-colors"
+                >
+                  {sendingBaja ? "Enviando Solicitud..." : "Enviar Solicitud al Coordinador"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Tabs Control Header */}
       <div className="bg-white rounded-2xl border border-border shadow-sm p-2 flex flex-wrap gap-2">

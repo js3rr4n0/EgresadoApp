@@ -54,7 +54,7 @@ export const usuarios = pgTable(
   (table) => [
     check(
       "rol_check",
-      sql`${table.rol} IN ('admin', 'decanato', 'asesor', 'egresado')`
+      sql`${table.rol} IN ('admin', 'decanato', 'coordinador', 'asesor', 'egresado')`
     ),
   ]
 );
@@ -206,9 +206,11 @@ export const propuestas = pgTable(
     supervisorId: integer("supervisor_id").references(() => supervisores.id),
     justificacionProceso: text("justificacion_proceso"),
     asesorId: integer("asesor_id").references(() => usuarios.id),
+    coordinadorId: integer("coordinador_id").references(() => usuarios.id),
     observaciones: text("observaciones"),
     titulo: text("titulo"),
     enviadaEn: timestamp("enviada_en", { withTimezone: true }),
+    fechaAprobacion: timestamp("fecha_aprobacion", { withTimezone: true }),
     bloqueada: boolean("bloqueada").notNull().default(false),
   },
   (table) => [
@@ -219,7 +221,7 @@ export const propuestas = pgTable(
     ),
     check(
       "tipo_propuesta_check",
-      sql`${table.tipo} IN ('pasantia', 'proyecto')`
+      sql`${table.tipo} IN ('pasantia', 'proyecto', 'investigacion')`
     ),
     check(
       "numero_propuesta_check",
@@ -227,7 +229,7 @@ export const propuestas = pgTable(
     ),
     check(
       "estado_propuesta_check",
-      sql`${table.estado} IN ('redactando', 'pend_empresa_nueva', 'pend_revision_datos', 'empresa_aprobada', 'empresa_rechazada', 'datos_aprobados', 'datos_rechazados', 'enviada', 'aprobada', 'rechazada')`
+      sql`${table.estado} IN ('redactando', 'pend_empresa_nueva', 'pend_revision_datos', 'empresa_aprobada', 'empresa_rechazada', 'datos_aprobados', 'datos_rechazados', 'enviada', 'aprobada', 'rechazada', 'anulada')`
     ),
   ]
 );
@@ -312,6 +314,7 @@ export const solicitudesAsesor = pgTable(
     asesorId: integer("asesor_id")
       .notNull()
       .references(() => usuarios.id, { onDelete: "cascade" }),
+    coordinadorId: integer("coordinador_id").references(() => usuarios.id),
     estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // 'pendiente', 'aceptada', 'rechazada'
     justificacionRechazo: text("justificacion_rechazo"),
     respondidoEn: timestamp("respondido_en", { withTimezone: true }),
@@ -321,6 +324,35 @@ export const solicitudesAsesor = pgTable(
     check(
       "estado_solicitud_asesor_check",
       sql`${table.estado} IN ('pendiente', 'aceptada', 'rechazada')`
+    ),
+  ]
+);
+
+// ─────────────────────────── Solicitudes de Baja de Proyecto ───────────────────────────
+
+export const solicitudesBaja = pgTable(
+  "solicitudes_baja",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    asesorId: integer("asesor_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    coordinadorId: integer("coordinador_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    motivo: text("motivo").notNull(),
+    estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // 'pendiente', 'aprobada', 'rechazada'
+    respuestaCoordinador: text("respuesta_coordinador"),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    respondidoEn: timestamp("respondido_en", { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      "estado_solicitud_baja_check",
+      sql`${table.estado} IN ('pendiente', 'aprobada', 'rechazada')`
     ),
   ]
 );

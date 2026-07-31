@@ -3,6 +3,8 @@ import { propuestas, usuarios, carreras } from "@/lib/schema";
 import { eq, desc, isNotNull } from "drizzle-orm";
 import PropuestasTable from "./PropuestasTable";
 
+import { getCoordinadoresConEstadisticas } from "@/app/actions/adminPropuestas";
+
 export const dynamic = "force-dynamic";
 
 export default async function AdminPropuestasPage() {
@@ -12,6 +14,8 @@ export default async function AdminPropuestasPage() {
     estado: propuestas.estado,
     enviadaEn: propuestas.enviadaEn,
     tipo: propuestas.tipo,
+    titulo: propuestas.titulo,
+    numero: propuestas.numero,
     estudiante: usuarios.nombreCompleto,
     carnet: usuarios.carnet,
     carrera: carreras.nombre
@@ -22,6 +26,9 @@ export default async function AdminPropuestasPage() {
   .where(isNotNull(propuestas.enviadaEn))
   .orderBy(desc(propuestas.enviadaEn));
 
+  const coordRes = await getCoordinadoresConEstadisticas();
+  const coordinadores = coordRes.success ? coordRes.data : [];
+
   return (
     <div className="space-y-6">
       <div>
@@ -29,11 +36,11 @@ export default async function AdminPropuestasPage() {
           Gestión de Propuestas
         </h1>
         <p className="text-muted mt-2">
-          Revisa, aprueba o rechaza las propuestas enviadas por los estudiantes.
+          Revisa y asigna las propuestas a los coordinadores de facultad correspondientes.
         </p>
       </div>
 
-      <PropuestasTable data={list} />
+      <PropuestasTable data={list} coordinadores={coordinadores} />
     </div>
   );
 }

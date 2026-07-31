@@ -11,10 +11,12 @@ import {
   carreras,
 } from "@/lib/schema";
 import { getEquipoProyecto, getDetallesProyecto } from "@/app/actions/proyecto";
+import { getCoordinadoresConEstadisticas } from "@/app/actions/adminPropuestas";
 import { eq, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import ReviewForm from "./ReviewForm";
+import PdfToImagesViewer from "@/components/PdfToImagesViewer";
 
 export default async function AdminPropuestaReviewPage({ params }: { params: { id: string } }) {
   const pId = parseInt(params.id);
@@ -74,7 +76,10 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
 
   const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuesta.id)).limit(1);
   const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId));
+
   const asesoresList = await db.select().from(usuarios).where(eq(usuarios.rol, "asesor"));
+  const coordRes = await getCoordinadoresConEstadisticas();
+  const coordinadoresList = coordRes.success ? coordRes.data : [];
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -82,7 +87,7 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
         <div className="flex items-center gap-4">
           <Link
             href="/admin/propuestas"
-            className="w-10 h-10 rounded-full bg-white border border-border flex items-center justify-center text-muted hover:text-card-dark hover:border-card-dark transition-colors"
+            className="w-10 h-10 rounded-full bg-white border border-border flex items-center justify-center text-muted hover:text-card-dark hover:border-card-dark transition-colors shadow-xs"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -101,18 +106,6 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
             </p>
           </div>
         </div>
-
-        <Link
-          href={`/admin/propuestas/${propuesta.id}/imprimir`}
-          target="_blank"
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-sm transition-all shrink-0"
-        >
-          <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
-          Ver Documento PDF
-        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -335,24 +328,34 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
                 </>
               )}
 
-              <section>
-                <h3 className="text-sm font-bold text-muted mb-2 uppercase">Documentos Obligatorios del Estudiante</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {docs.map((d) => (
-                    <a
-                      key={d.id}
-                      href={d.archivoUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg border border-border hover:border-brand-red transition-colors"
-                    >
-                      <svg className="w-5 h-5 text-brand-red shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span className="text-sm font-bold uppercase truncate">{d.tipo.replace("_", " ")}</span>
-                    </a>
-                  ))}
-                </div>
+              <section className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider border-b border-slate-200 pb-2">
+                  Documentos Anexos del Estudiante
+                </h3>
+                {docs.length > 0 ? (
+                  <div className="space-y-6">
+                    {docs.map((d) => (
+                      <div key={d.id} className="border border-slate-200 rounded-xl p-4 bg-slate-50 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold uppercase text-slate-800 tracking-wider">
+                            📄 {d.tipo.replace("_", " ")}
+                          </span>
+                          <a
+                            href={d.archivoUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs font-bold text-indigo-700 hover:underline"
+                          >
+                            Abrir en nueva pestaña ↗
+                          </a>
+                        </div>
+                        <PdfToImagesViewer url={d.archivoUrl} title={d.tipo.toUpperCase().replace("_", " ")} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic">No hay documentos anexos cargados.</p>
+                )}
               </section>
             </div>
           </div>
@@ -364,7 +367,9 @@ export default async function AdminPropuestaReviewPage({ params }: { params: { i
             propuestaId={propuesta.id}
             estadoActual={propuesta.estado}
             asesores={asesoresList}
+            coordinadores={coordinadoresList}
             initialAsesorId={propuesta.asesorId}
+            initialCoordinadorId={propuesta.coordinadorId}
             initialObservaciones={propuesta.observaciones}
           />
         </div>

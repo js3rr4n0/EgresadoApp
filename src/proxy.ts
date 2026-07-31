@@ -18,11 +18,12 @@ const encodedKey = new TextEncoder().encode(process.env.AUTH_SECRET!);
 const ROLE_PATHS: Record<string, string> = {
   admin: "/admin",
   decanato: "/decanato",
+  coordinador: "/coordinador",
   asesor: "/asesor",
   egresado: "/egresado",
 };
 
-const PROTECTED_PREFIXES = ["/admin", "/decanato", "/asesor", "/egresado"];
+const PROTECTED_PREFIXES = ["/admin", "/decanato", "/coordinador", "/asesor", "/egresado"];
 const PUBLIC_PATHS = ["/login", "/"];
 
 async function getSessionFromCookie(

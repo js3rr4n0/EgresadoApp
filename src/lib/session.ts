@@ -6,7 +6,7 @@ import "server-only";
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 
-export type UserRole = "admin" | "decanato" | "asesor" | "egresado";
+export type UserRole = "admin" | "decanato" | "coordinador" | "asesor" | "egresado";
 
 export interface SessionPayload {
   userId: number;
@@ -90,6 +90,7 @@ export function getDashboardPath(rol: UserRole): string {
   const paths: Record<UserRole, string> = {
     admin: "/admin",
     decanato: "/decanato",
+    coordinador: "/coordinador",
     asesor: "/asesor",
     egresado: "/egresado",
   };

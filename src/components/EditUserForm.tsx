@@ -124,6 +124,7 @@ export default function EditUserForm({ user, carreras, periodos = [] }: { user: 
             >
               <option value="admin">admin</option>
               <option value="decanato">decanato</option>
+              <option value="coordinador">coordinador</option>
               <option value="asesor">asesor</option>
               <option value="egresado">egresado</option>
             </select>

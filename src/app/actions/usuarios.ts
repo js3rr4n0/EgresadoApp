@@ -55,9 +55,9 @@ export async function crearUsuario(formData: FormData) {
       rol,
       carnet: rol === "egresado" ? carnet : null,
       cohorte: rol === "egresado" ? cohorte : null,
-      carreraId: rol === "egresado" ? carreraId : null,
-      facultadId: rol === "egresado" ? facultadId : null,
-      cohortesAsignadas: (rol === "asesor" || rol === "decanato") && cohortesAsignadasRaw ? JSON.parse(cohortesAsignadasRaw) : null,
+      carreraId: (rol === "egresado" || rol === "coordinador" || rol === "asesor") ? carreraId : null,
+      facultadId: (rol === "egresado" || rol === "coordinador" || rol === "asesor") ? facultadId : null,
+      cohortesAsignadas: (rol === "asesor" || rol === "decanato" || rol === "coordinador") && cohortesAsignadasRaw ? JSON.parse(cohortesAsignadasRaw) : null,
       activo,
     });
 
@@ -156,9 +156,9 @@ export async function updateUsuario(id: number, formData: FormData) {
       rol,
       carnet: rol === "egresado" ? carnet : null,
       cohorte: rol === "egresado" ? cohorte : null,
-      carreraId: rol === "egresado" ? carreraId : null,
-      facultadId: rol === "egresado" ? facultadId : null,
-      cohortesAsignadas: (rol === "asesor" || rol === "decanato") && cohortesAsignadasRaw ? JSON.parse(cohortesAsignadasRaw) : null,
+      carreraId: (rol === "egresado" || rol === "coordinador" || rol === "asesor") ? carreraId : null,
+      facultadId: (rol === "egresado" || rol === "coordinador" || rol === "asesor") ? facultadId : null,
+      cohortesAsignadas: (rol === "asesor" || rol === "decanato" || rol === "coordinador") && cohortesAsignadasRaw ? JSON.parse(cohortesAsignadasRaw) : null,
       activo,
     }).where(eq(usuarios.id, id));
 
