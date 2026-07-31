@@ -104,21 +104,21 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       const targetSucursalId = data.empresa?.targetSucursalId;
       
       // Update company fields if company data is provided in request
-      if (data.empresa && (data.empresa.nombre || data.empresa.area || data.empresa.direccion || data.empresa.descripcion)) {
+      if (data.empresa && (data.empresa.nombre || data.empresa.area || data.empresa.direccion || data.empresa.descripcion || data.empresa.mapaUrl)) {
         const updateData: any = {
           verificada: true,
           habilitada: true,
           actualizadaEn: new Date()
         };
         if (data.empresa.nombre) updateData.nombre = data.empresa.nombre;
-        if (data.empresa.area !== undefined) updateData.area = data.empresa.area || null;
-        if (data.empresa.organigramaUrl !== undefined) updateData.organigramaUrl = data.empresa.organigramaUrl || null;
+        if (data.empresa.area && data.empresa.area.trim() !== "") updateData.area = data.empresa.area;
+        if (data.empresa.organigramaUrl && data.empresa.organigramaUrl.trim() !== "") updateData.organigramaUrl = data.empresa.organigramaUrl;
         
         if (!targetSucursalId) {
-          if (data.empresa.descripcion !== undefined) updateData.descripcion = data.empresa.descripcion || null;
-          if (data.empresa.antecedentes !== undefined) updateData.antecedentes = data.empresa.antecedentes || null;
-          if (data.empresa.direccion !== undefined) updateData.direccion = data.empresa.direccion || null;
-          if (data.empresa.mapaUrl !== undefined) updateData.mapaUrl = data.empresa.mapaUrl || null;
+          if (data.empresa.descripcion && data.empresa.descripcion.trim() !== "") updateData.descripcion = data.empresa.descripcion;
+          if (data.empresa.antecedentes && data.empresa.antecedentes.trim() !== "") updateData.antecedentes = data.empresa.antecedentes;
+          if (data.empresa.direccion && data.empresa.direccion.trim() !== "") updateData.direccion = data.empresa.direccion;
+          if (data.empresa.mapaUrl && data.empresa.mapaUrl.trim() !== "") updateData.mapaUrl = data.empresa.mapaUrl;
         }
         
         await db.update(empresas).set(updateData).where(eq(empresas.id, targetEmpresaId));
@@ -126,10 +126,10 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         if (targetSucursalId) {
           const { sucursales } = await import("@/lib/schema");
           const sucursalUpdate: any = {};
-          if (data.empresa.direccion !== undefined) sucursalUpdate.direccion = data.empresa.direccion;
-          if (data.empresa.mapaUrl !== undefined) sucursalUpdate.mapaUrl = data.empresa.mapaUrl || null;
-          if (data.empresa.descripcion !== undefined) sucursalUpdate.descripcion = data.empresa.descripcion || null;
-          if (data.empresa.antecedentes !== undefined) sucursalUpdate.antecedentes = data.empresa.antecedentes || null;
+          if (data.empresa.direccion && data.empresa.direccion.trim() !== "") sucursalUpdate.direccion = data.empresa.direccion;
+          if (data.empresa.mapaUrl && data.empresa.mapaUrl.trim() !== "") sucursalUpdate.mapaUrl = data.empresa.mapaUrl;
+          if (data.empresa.descripcion && data.empresa.descripcion.trim() !== "") sucursalUpdate.descripcion = data.empresa.descripcion;
+          if (data.empresa.antecedentes && data.empresa.antecedentes.trim() !== "") sucursalUpdate.antecedentes = data.empresa.antecedentes;
           
           if (Object.keys(sucursalUpdate).length > 0) {
             await db.update(sucursales).set(sucursalUpdate).where(eq(sucursales.id, targetSucursalId));

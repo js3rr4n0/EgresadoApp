@@ -375,12 +375,16 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
               <p className="text-sm text-gray-600 line-clamp-2">{emp.descripcion}</p>
               
               <div className="flex gap-2 pt-2">
-                {emp.mapaUrl && (
-                  <a href={`https://www.google.com/maps/search/?api=1&query=${emp.mapaUrl}`} target="_blank" rel="noreferrer" className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 flex items-center gap-1 hover:bg-blue-100 transition">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                    Ver Mapa
-                  </a>
-                )}
+                {(() => {
+                  const mapa = emp.mapaUrl || emp.sucursales?.find((s: any) => s.mapaUrl)?.mapaUrl;
+                  if (!mapa) return null;
+                  return (
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${mapa}`} target="_blank" rel="noreferrer" className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 flex items-center gap-1 hover:bg-blue-100 transition">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                      Ver Mapa
+                    </a>
+                  );
+                })()}
                 {(emp.organigramas && emp.organigramas.length > 0) ? (
                   <button onClick={() => handleOpenOrganigrama(emp.organigramas[0].url)} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100 flex items-center gap-1 hover:bg-purple-100 transition">
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>

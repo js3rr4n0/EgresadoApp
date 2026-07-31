@@ -383,6 +383,28 @@ En `src/app/actions/empresas.ts`, `deleteEmpresa()` ejecutaba directamente un `D
 - **TypeScript:** Validado con `npx tsc --noEmit` obteniendo 0 errores.
 - **Git Push:** Cambios confirmados e integrados.
 
+---
+
+## 10. ERROR: Pérdida del Mapa de Ubicación al Aprobar Solicitudes de Edición de Empresa
+
+### 10.1. Descripción del Problema
+Cuando el egresado solicitaba una edición o actualización de datos de empresa y el administrador la aprobaba desde el panel de solicitudes (`/admin/empresas/solicitudes`), el enlace/mapa de ubicación dejaba de mostrarse en la vista del administrador (`/admin/empresas`), aunque en la vista del egresado continuaba apareciendo.
+
+### 10.2. Diagnóstico y Causa Raíz
+1. **Sobrescritura por Cadena Vacía:** En `src/app/actions/solicitudes.ts` (`aprobarSolicitudEmpresa`), el código ejecutaba `updateData.mapaUrl = data.empresa.mapaUrl || null`. Al ser enviada la solicitud con una cadena vacía `""` en el campo `mapaUrl`, la Server Action evaluaba `"" || null` como `null`, sobrescribiendo la coordenada existente en la base de datos a `NULL`.
+2. **Visualización en Catálogo Admin (`EmpresasManager.tsx`):** El componente `EmpresasManager` solo consultaba `emp.mapaUrl` de la matriz principal. Si el mapa pertenecía a una sucursal o si la matriz tenía `mapaUrl = null`, el botón "Ver Mapa" desaparecía en el panel de administrador, a diferencia de la vista de egresado que usaba `sucursal.mapaUrl || empresa.mapaUrl`.
+
+### 10.3. Solución Aplicada
+1. **Preservación de Datos Existentes en `aprobarSolicitudEmpresa`:**
+   - Se modificó la actualización en `src/app/actions/solicitudes.ts` para que únicamente modifique `mapaUrl` (así como `direccion`, `descripcion`, `antecedentes`, etc.) cuando la solicitud contenga un texto no vacío (`data.empresa.mapaUrl && data.empresa.mapaUrl.trim() !== ""`).
+2. **Visualización Unificada en `EmpresasManager.tsx`:**
+   - Se actualizó la tarjeta de empresa en el catálogo administrativo para buscar el mapa tanto en la matriz principal como en sus sucursales (`emp.mapaUrl || emp.sucursales?.find((s) => s.mapaUrl)?.mapaUrl`).
+
+### 10.4. Verificación y Calidad
+- **TypeScript:** Validado con `npx tsc --noEmit` obteniendo 0 errores.
+- **Git Push:** Sincronizado en la rama `main`.
+
+
 
 
 
