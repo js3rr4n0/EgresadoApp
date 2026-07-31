@@ -58,10 +58,12 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       return { success: true };
     }
 
-    let targetEmpresaId = solicitud.empresaId;
+    let targetEmpresaId = solicitud.empresaId || data?.empresa?.targetEmpresaId;
     let targetSupervisorId = null;
 
-    if (solicitud.tipo === "nueva") {
+    const isUpdate = solicitud.tipo === "actualizacion" || !!targetEmpresaId;
+
+    if (!isUpdate) {
       // 1. Create company
       const newEmpresas = await db.insert(empresas).values({
         nombre: data.empresa.nombre,

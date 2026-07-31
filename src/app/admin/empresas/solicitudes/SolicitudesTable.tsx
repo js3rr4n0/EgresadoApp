@@ -70,12 +70,14 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                   {s.creadaEn ? new Date(s.creadaEn).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : "-"}
                 </td>
                 <td className="px-6 py-4">
-                  {s.tipo === "nueva" ? (
+                  {s.tipo === "nueva" && !data?.empresa?.targetEmpresaId ? (
                     <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">Nueva Empresa</span>
                   ) : s.tipo === "datos_alumno" ? (
                     <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold">Datos Alumno</span>
                   ) : (
-                    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold">Actualización</span>
+                    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold">
+                      {data?.supervisor && !data?.empresa?.nombre ? "Nuevo Supervisor" : "Actualización"}
+                    </span>
                   )}
                 </td>
                 <td className="px-6 py-4">{s.egresado || "Desconocido"}</td>
@@ -92,11 +94,11 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                   ) : (
                     <>
                       <div className="font-bold text-foreground">
-                        {data?.empresa?.nombre || "N/A"}
+                        {data?.empresa?.nombre || s.empresaTarget || "Empresa Existente"}
                       </div>
-                      {s.tipo === "actualizacion" && s.empresaTarget && (
+                      {s.empresaTarget && (
                         <div className="text-xs text-muted">
-                          Objetivo: {s.empresaTarget}
+                          Empresa: {s.empresaTarget}
                         </div>
                       )}
                     </>

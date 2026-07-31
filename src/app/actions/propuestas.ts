@@ -236,11 +236,14 @@ export async function solicitarRevisionEmpresa(propuestaId: number, data: any, m
   try {
     const { solicitudesEmpresa, notificaciones, usuarios } = await import("@/lib/schema");
 
+    // Force mode to "edit_existing" if targetEmpresaId is present
+    const effectiveMode = (data?.empresa?.targetEmpresaId || mode === "edit_existing") ? "edit_existing" : "create_new";
+
     // 1. Insert request into solicitudes_empresa
     await db.insert(solicitudesEmpresa).values({
       propuestaId,
       empresaId: data.empresa?.targetEmpresaId || null,
-      tipo: mode === "edit_existing" ? "actualizacion" : "nueva",
+      tipo: effectiveMode === "edit_existing" ? "actualizacion" : "nueva",
       datos: data,
       estado: "pendiente"
     });
@@ -248,7 +251,7 @@ export async function solicitarRevisionEmpresa(propuestaId: number, data: any, m
     // 2. Update propuesta state and block it
     await db.update(propuestas)
       .set({
-        estado: mode === "edit_existing" ? "pend_revision_datos" : "pend_empresa_nueva",
+        estado: effectiveMode === "edit_existing" ? "pend_revision_datos" : "pend_empresa_nueva",
         bloqueada: true
       })
       .where(and(eq(propuestas.id, propuestaId), eq(propuestas.egresadoId, session.userId)));
@@ -263,13 +266,13 @@ export async function solicitarRevisionEmpresa(propuestaId: number, data: any, m
       where: eq(usuarios.id, session.userId)
     });
 
-    const tipoNombre = mode === "edit_existing" ? "corrección de datos de empresa/supervisor" : "registro de nueva empresa/supervisor";
+    const tipoNombre = effectiveMode === "edit_existing" ? "corrección de datos de empresa/supervisor" : "registro de nueva empresa/supervisor";
     const empresaNombre = data.empresa?.nombre ? ` (${data.empresa.nombre})` : "";
 
     for (const u of adminOrDecanatoUsers) {
       await db.insert(notificaciones).values({
         usuarioId: u.id,
-        tipo: mode === "edit_existing" ? "solicitud_empresa_actualizacion" : "solicitud_empresa_nueva",
+        tipo: effectiveMode === "edit_existing" ? "solicitud_empresa_actualizacion" : "solicitud_empresa_nueva",
         mensaje: `El egresado ${currentUser?.nombreCompleto || "Egresado"} (Carnet: ${currentUser?.carnet || "N/A"}) ha enviado una solicitud de ${tipoNombre}${empresaNombre}.`,
       });
     }
