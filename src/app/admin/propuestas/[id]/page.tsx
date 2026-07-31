@@ -18,8 +18,13 @@ import Link from "next/link";
 import ReviewForm from "./ReviewForm";
 import PdfToImagesViewer from "@/components/PdfToImagesViewer";
 
-export default async function AdminPropuestaReviewPage({ params }: { params: { id: string } }) {
-  const pId = parseInt(params.id);
+export default async function AdminPropuestaReviewPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const p = await params;
+  const pId = parseInt(p.id, 10);
   if (isNaN(pId)) redirect("/admin/propuestas");
 
   const [propuestaInfo] = await db

@@ -5,9 +5,10 @@ import PropuestaProgresoClient from "./PropuestaProgresoClient";
 export default async function AsesorPropuestaProgresoPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const pId = parseInt(params.id);
+  const p = await params;
+  const pId = parseInt(p.id, 10);
   if (isNaN(pId)) redirect("/asesor");
 
   const res = await getDetallePropuestaAsesor(pId);

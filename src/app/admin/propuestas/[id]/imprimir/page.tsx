@@ -23,13 +23,18 @@ const getStaticMapUrl = (coords: string | null) => {
   return `/api/map?coords=${coords}`;
 };
 
-export default async function AdminPrintPropuestaPage({ params }: { params: { id: string } }) {
+export default async function AdminPrintPropuestaPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const session = await getSession();
   if (!session || (session.rol !== "admin" && session.rol !== "decanato")) {
     redirect("/login");
   }
 
-  const pId = parseInt(params.id, 10);
+  const p = await params;
+  const pId = parseInt(p.id, 10);
   if (isNaN(pId)) return notFound();
 
   const [propData] = await db.select().from(propuestas).where(eq(propuestas.id, pId)).limit(1);

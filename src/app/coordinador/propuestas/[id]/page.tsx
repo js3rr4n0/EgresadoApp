@@ -5,9 +5,10 @@ import CoordinadorProgresoClient from "./CoordinadorProgresoClient";
 export default async function CoordinadorPropuestaProgresoPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const pId = parseInt(params.id);
+  const p = await params;
+  const pId = parseInt(p.id, 10);
   if (isNaN(pId)) redirect("/coordinador");
 
   const res = await getDetallePropuestaCoordinador(pId);
