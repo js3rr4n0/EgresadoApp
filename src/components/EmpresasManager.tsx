@@ -121,8 +121,8 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert("El archivo es muy pesado. El límite es 2MB.");
+    if (file.size > 10 * 1024 * 1024) {
+      alert("El archivo es muy pesado. El límite es 10MB.");
       e.target.value = "";
       return;
     }
@@ -507,7 +507,7 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
                         className="w-full border-gray-300 border p-2.5 rounded-lg focus:ring-brand-red text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-brand-red hover:file:bg-red-100" 
                         onChange={handleFileUpload} 
                       />
-                      <p className="text-xs text-gray-500 mt-1 mb-2">Límite: 2MB. Sube uno nuevo para agregarlo al historial.</p>
+                      <p className="text-xs text-gray-500 mt-1 mb-2">Límite: 10MB. Sube uno nuevo para agregarlo al historial.</p>
                       
                       {/* Historial de Organigramas */}
                       {formData.organigramas.length > 0 && (

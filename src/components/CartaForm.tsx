@@ -128,6 +128,10 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
     if (!e.target.files || e.target.files.length === 0) return;
     
     const file = e.target.files[0];
+    if (file.size > 10 * 1024 * 1024) {
+      setError("El archivo no debe superar los 10MB.");
+      return;
+    }
     const formData = new FormData();
     formData.append("propuestaId", propuestaId.toString());
     formData.append(fieldName, file);

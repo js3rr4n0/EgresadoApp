@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { updateEmpresa, solicitarRevisionEmpresa } from "@/app/actions/propuestas";
+
+const MapSelector = dynamic(() => import("./MapSelector"), { ssr: false });
 
 interface Empresa {
   id: number;
@@ -175,9 +178,30 @@ export default function DatosEmpresarialesForm({
         alert("Borrador guardado exitosamente.");
         router.refresh();
       }
-    } else {
-      alert(res.error || "Error al guardar los datos empresariales.");
     }
+  };
+
+  const handleOrganigramaFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 10 * 1024 * 1024) {
+      alert("El archivo es muy pesado. El límite permitido es 10MB.");
+      e.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setRevData(p => ({
+        ...p,
+        empresa: {
+          ...p.empresa,
+          organigramaUrl: event.target?.result as string
+        }
+      }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleProblemSelection = (mode: "edit_existing" | "create_new") => {
@@ -588,14 +612,56 @@ export default function DatosEmpresarialesForm({
                   <textarea rows={10} value={revData.empresa.antecedentes} onChange={e => setRevData(p => ({...p, empresa: {...p.empresa, antecedentes: e.target.value}}))} className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red resize-y min-h-[150px]" />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-6 pt-2 border-t border-border mt-4">
                   <div>
-                    <label className="block text-sm font-bold text-card-dark mb-1.5">URL Mapa (Opcional)</label>
-                    <input type="url" value={revData.empresa.mapaUrl} onChange={e => setRevData(p => ({...p, empresa: {...p.empresa, mapaUrl: e.target.value}}))} className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red" />
+                    <label className="block text-sm font-bold text-card-dark mb-1.5 flex justify-between items-center">
+                      <span>Ubicación GPS (Mapa)</span>
+                      {revData.empresa.mapaUrl && (
+                        <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                          Marcador asignado
+                        </span>
+                      )}
+                    </label>
+                    <MapSelector
+                      value={revData.empresa.mapaUrl || ""}
+                      onChange={(val) => setRevData(p => ({ ...p, empresa: { ...p.empresa, mapaUrl: val } }))}
+                    />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-bold text-card-dark mb-1.5">URL Organigrama (Opcional)</label>
-                    <input type="url" value={revData.empresa.organigramaUrl} onChange={e => setRevData(p => ({...p, empresa: {...p.empresa, organigramaUrl: e.target.value}}))} className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red" />
+                    <label className="block text-sm font-bold text-card-dark mb-1.5">Organigrama de la Empresa (Imagen o PDF)</label>
+                    <input 
+                      type="file" 
+                      accept="image/*,application/pdf"
+                      onChange={handleOrganigramaFileUpload} 
+                      className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 border border-border rounded-lg p-1.5 bg-white cursor-pointer"
+                    />
+                    <p className="text-xs text-muted mt-1">Sube un archivo de imagen o PDF de hasta 10MB.</p>
+
+                    {revData.empresa.organigramaUrl && (
+                      <div className="mt-2 flex items-center gap-3 bg-purple-50 border border-purple-200 p-2.5 rounded-lg">
+                        <svg className="w-5 h-5 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span className="text-xs font-bold text-purple-900 flex-1 truncate">Organigrama adjuntado correctamente</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const win = window.open();
+                            if (win) {
+                              if (revData.empresa.organigramaUrl?.startsWith("data:image")) {
+                                win.document.write(`<img src="${revData.empresa.organigramaUrl}" style="max-width:100%;height:auto;" />`);
+                              } else {
+                                win.document.write(`<iframe src="${revData.empresa.organigramaUrl}" width="100%" height="100%" style="border:none;"></iframe>`);
+                              }
+                            }
+                          }}
+                          className="text-xs bg-purple-600 text-white font-bold px-3 py-1 rounded hover:bg-purple-700 transition"
+                        >
+                          Ver Archivo
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

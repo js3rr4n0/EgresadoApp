@@ -125,6 +125,10 @@ export default function CartaProyectoForm({
     formData.append("supCargo", supCargo);
 
     if (pdfFile) {
+      if (pdfFile.size > 10 * 1024 * 1024) {
+        setError("El archivo no debe superar los 10MB.");
+        return;
+      }
       formData.append("archivoPdf", pdfFile);
     }
 

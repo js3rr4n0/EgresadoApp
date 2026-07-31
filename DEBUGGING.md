@@ -427,6 +427,27 @@ Faltaba una validación de campos obligatorios (`nombres` y `apellidos` limpios 
 - **TypeScript:** Validado con `npx tsc --noEmit` obteniendo 0 errores.
 - **Git Push:** Sincronizado en la rama `main`.
 
+---
+
+## 12. ERROR 6 & Carga de Archivos > 1MB (Ubicación GPS y Organigrama del lado del Egresado)
+
+### 12.1. Descripción del Problema
+1. **Petición de URL en vista del egresado:** Al registrar una nueva empresa o modificar una existente desde el formulario del egresado (`DatosEmpresarialesForm.tsx`), el sistema solicitaba escribir URLs en texto plano para el mapa de ubicación y el organigrama, en lugar de permitir seleccionar la ubicación GPS en un mapa interactivo y adjuntar el organigrama como archivo (PDF o Imagen).
+2. **Fallo en archivos > 1MB:** Al intentar subir archivos PDF o imágenes superiores a 1MB en cualquier módulo (Admin o Egresado), las peticiones fallaban por la restricción predeterminada del tamaño de payload en Server Actions de Next.js (`1MB`).
+
+### 12.2. Solución Aplicada
+1. **Integración de `MapSelector` y Carga de Archivo de Organigrama (`DatosEmpresarialesForm.tsx`):**
+   - Se reemplazó el campo de texto de URL Mapa por el componente interactivo `MapSelector` de Leaflet (igual al del panel administrativo).
+   - Se reemplazó el campo de texto de URL Organigrama por un control de subida de archivos que acepta imágenes y documentos PDF (`accept="image/*,application/pdf"`), convirtiéndolos a Data URLs Base64 con vista previa e inspector.
+2. **Ampliación del Límite de Payload en Server Actions (`next.config.ts`):**
+   - Se configuró `experimental.serverActions.bodySizeLimit: '15mb'` en `next.config.ts` para habilitar el envío de cargas de hasta 15MB a través de Server Actions.
+   - Se actualizaron las comprobaciones de tamaño en los componentes del cliente (`DatosEmpresarialesForm.tsx`, `EmpresasManager.tsx`, `DocumentosEstudianteForm.tsx`, `CartaForm.tsx`, `CartaProyectoForm.tsx`) para permitir archivos de hasta 10MB.
+
+### 12.3. Verificación y Calidad
+- **TypeScript:** Compilado exitosamente con `npx tsc --noEmit` (0 errores).
+- **Git Push:** Sincronizado en la rama `main`.
+
+
 
 
 

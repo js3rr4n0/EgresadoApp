@@ -40,8 +40,8 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError("El archivo no debe superar los 5MB.");
+    if (file.size > 10 * 1024 * 1024) {
+      setError("El archivo no debe superar los 10MB.");
       return;
     }
 
