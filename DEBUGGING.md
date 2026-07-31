@@ -93,3 +93,75 @@ const [propuestaInfo] = await db
 2. **Build de Producción:** Se ejecutó `npm run build` confirmando que la compilación de TypeScript y Turbopack finalizó con exitcode `0` sin advertencias ni errores.
 
 ---
+
+## 🛠️ ERROR 2: Edición No Autorizada de Parámetros Institucionales en la Portada (Proyecto e Investigación) y Flujo de Corrección por Decanato
+
+### 2.1. Ubicación del Incidente
+* **Ruta de la App:** `/egresado/redactar` (Etapa 1: Portada en modalidades Proyecto e Investigación)
+* **Componentes Afectados:** `src/components/proyecto/ProyectoPortadaForm.tsx`, `src/lib/schema.ts` y `src/app/actions/propuestas.ts`
+
+### 2.2. Descripción Técnica del Incidente
+En el formulario de la Portada de las propuestas de **Proyecto** e **Investigación**, los campos de **Nombre Completo del Egresado** y **Número de Carnet** se presentaban como cajas de texto editables (`<input type="text">`). Esto permitía que el usuario modificara libremente sus datos personales e identificadores universitarios sin la correspondiente validación académica institucional.
+
+El requerimiento exige que los datos institucionales del estudiante permanezcan **bloqueados / de solo lectura** (`readOnly`). En caso de existir discrepancias o errores en su nombre o carnet, el egresado debe disponer del flujo oficial **"¿Datos erróneos?"**, el cual genera una **Solicitud de Corrección de Datos de Estudiante** dirigida al **Decanato** para su debida revisión y aprobación oficial.
+
+### 2.3. Análisis de Causa Raíz (Root Cause Analysis - RCA)
+1. **Inputs Editables Directamente:** El componente `ProyectoPortadaForm.tsx` utilizaba variables de estado mutable (`nombreCompleto`, `carnet`) vinculadas a inputs HTML sin la restricción `readOnly`, permitiendo su alteración directa y envío al servidor mediante la acción `updatePortada`.
+2. **Inexistencia del Esquema de Solicitudes al Decanato:** No existía en el esquema de base de datos (`schema.ts`) una entidad destinada a registrar solicitudes de corrección de datos personales/institucionales para el rol de Decanato.
+
+### 2.4. Solución Aplicada y Cambios en el Código
+
+#### A) Bloqueo de Campos Institucionales e Ícono de Candado en `ProyectoPortadaForm.tsx`
+Se modificaron los inputs del formulario para que utilicen la propiedad `readOnly` e incluyan un indicador visual de bloqueo (Candado `<InputLock />`):
+
+```tsx
+<div className="relative">
+  <input
+    type="text"
+    readOnly
+    value={nombreCompleto}
+    className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-700 text-sm cursor-not-allowed focus:outline-none"
+  />
+  <InputLock />
+</div>
+```
+
+#### B) Creación de la Entidad de BD `solicitudes_correccion_datos` en `src/lib/schema.ts`
+Se añadió la tabla para registrar las solicitudes enviadas por los egresados al Decanato:
+
+```typescript
+export const solicitudesCorreccionDatos = pgTable("solicitudes_correccion_datos", {
+  id: serial("id").primaryKey(),
+  egresadoId: integer("egresado_id").notNull().references(() => usuarios.id, { onDelete: "cascade" }),
+  propuestaId: integer("propuesta_id").references(() => propuestas.id, { onDelete: "cascade" }),
+  nombrePropuesto: varchar("nombre_propuesto", { length: 255 }),
+  carnetPropuesto: varchar("carnet_propuesto", { length: 50 }),
+  justificacion: text("justificacion"),
+  estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
+  revisadoPor: integer("revisado_por").references(() => usuarios.id),
+  revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+  creadaEn: timestamp("creada_en", { withTimezone: true }).defaultNow(),
+});
+```
+
+#### C) Server Action `solicitarCorreccionDatosDecanato` en `src/app/actions/propuestas.ts`
+Se creó la Server Action para procesar las solicitudes y notificar automáticamente a los usuarios con rol `decanato`:
+
+```typescript
+export async function solicitarCorreccionDatosDecanato(formData: FormData) {
+  // Registra la solicitud en solicitudes_correccion_datos y notifica a los Decanos
+  ...
+}
+```
+
+#### D) Implementación del Modal Interactivo "¿Datos erróneos?" en `ProyectoPortadaForm.tsx`
+Se integró el botón oficial **"¿Datos erróneos?"** y un modal responsivo con desenfoque de fondo (`backdrop-blur`) donde el egresado ingresa el nombre/carnet correcto y la justificación correspondiente, enviándola directamente al Decanato.
+
+### 2.5. Verificación de la Solución (Quality Assurance)
+1. **Verificación Visual e Interactiva:**
+   - Los campos de Nombre, Carnet, Carrera y Mes de Envío ahora se muestran bloqueados con ícono de candado en Proyecto e Investigación.
+   - El botón **"¿Datos erróneos?"** despliega el modal para solicitar la corrección oficial al Decanato.
+2. **Build de Producción:** Se ejecutó `npm run build` confirmando que la compilación de TypeScript finalizó con exitcode `0` sin fallas.
+
+---
+

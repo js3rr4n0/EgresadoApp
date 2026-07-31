@@ -245,3 +245,47 @@ export async function enviarPropuesta(id: number) {
   revalidatePath("/egresado/redactar");
   return { success: true };
 }
+
+export async function solicitarCorreccionDatosDecanato(formData: FormData) {
+  const session = await getSession();
+  if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
+
+  const pIdStr = formData.get("propuestaId") as string;
+  const propuestaId = pIdStr ? parseInt(pIdStr) : null;
+  const nombrePropuesto = formData.get("nombrePropuesto") as string;
+  const carnetPropuesto = formData.get("carnetPropuesto") as string;
+  const justificacion = formData.get("justificacion") as string;
+
+  if (!nombrePropuesto || !carnetPropuesto) {
+    return { success: false, error: "Debes especificar el Nombre y Carnet solicitados." };
+  }
+
+  try {
+    const { solicitudesCorreccionDatos, notificaciones, usuarios } = await import("@/lib/schema");
+
+    await db.insert(solicitudesCorreccionDatos).values({
+      egresadoId: session.userId,
+      propuestaId: propuestaId && !isNaN(propuestaId) ? propuestaId : null,
+      nombrePropuesto,
+      carnetPropuesto,
+      justificacion,
+      estado: "pendiente",
+    });
+
+    // Notify Decanato users
+    const decanatoUsers = await db.select().from(usuarios).where(eq(usuarios.rol, "decanato"));
+    for (const dec of decanatoUsers) {
+      await db.insert(notificaciones).values({
+        usuarioId: dec.id,
+        tipo: "solicitud_correccion_datos",
+        mensaje: `El egresado (ID: ${session.userId}) ha enviado una solicitud de corrección de datos institucionales (Nombre: ${nombrePropuesto}, Carnet: ${carnetPropuesto}).`,
+      });
+    }
+
+    revalidatePath("/egresado/redactar");
+    return { success: true, message: "Solicitud enviada al Decanato exitosamente para su revisión." };
+  } catch (error: any) {
+    console.error("Error al solicitar corrección de datos:", error);
+    return { success: false, error: error.message || "Error al procesar la solicitud." };
+  }
+}
