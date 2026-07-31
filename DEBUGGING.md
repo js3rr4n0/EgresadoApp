@@ -266,3 +266,27 @@ Se creó el componente cliente `NotificationBell.tsx` con un temporizador de son
 ### 4.4. Verificación y Calidad
 - **TypeScript:** Se ejecutó `npx tsc --noEmit` obteniendo 0 errores.
 - **Sincronización:** Cambios confirmados y subidos a la rama `main` en GitHub.
+
+---
+
+## 5. ERROR 5: Bloqueo de Edición de Fecha de Inicio en Descripción de Actividades
+
+### 5.1. Descripción del Problema
+En la Etapa 5 (**Descripción de Actividades**), el campo `fechaInicio` (Inicio de Pasantía) se mostraba editable a través de un control `<input type="date">`, permitiendo que el egresado alterara la fecha de inicio previamente calculada y validada en la Etapa 4 (**Carta de Aceptación**).
+
+### 5.2. Diagnóstico y Causa Raíz
+En `src/components/ActividadesForm.tsx`, el campo `fechaInicio` utilizaba un control de entrada reactivo (`onChange={(e) => handleDateChange(e.target.value)}`) en lugar de mantenerse como un campo informativo de solo lectura (`readOnly`). La fecha de inicio debe provenir exclusivamente de los cálculos automáticos de la Carta de Aceptación (Etapa 4).
+
+### 5.3. Solución Aplicada
+1. **Configuración Read-Only en `ActividadesForm.tsx`:**
+   - Se estableció la propiedad `readOnly` en el campo `fechaInicio`, aplicando estilos de deshabilitado (`bg-slate-100 cursor-not-allowed text-slate-700`).
+   - Se removió el manejador `onChange` de `fechaInicio` en esta etapa para evitar modificaciones manuales.
+2. **Sincronización Automática con `initialFechas`:**
+   - Se añadió un efecto de sincronización `useEffect` para garantizar que `fechaInicio` y `fechaFin` se mantengan fielmente atados a las fechas establecidas en `CartaForm.tsx` (Etapa 4).
+3. **Claridad Visual:**
+   - Se renombró la sección a **"Fechas de Ejecución (Calculadas en Carta de Aceptación)"** y la etiqueta del campo a **"Inicio de Pasantía (Establecida en Carta de Aceptación)"**.
+
+### 5.4. Verificación y Calidad
+- **TypeScript:** Se ejecutó `npx tsc --noEmit` confirmando 0 errores.
+- **Sincronización:** Cambios confirmados y sincronizados en la rama `main` de GitHub.
+
