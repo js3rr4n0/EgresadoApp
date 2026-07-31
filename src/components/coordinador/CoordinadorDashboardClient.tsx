@@ -74,6 +74,9 @@ export default function CoordinadorDashboardClient({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"pendientes" | "asignadas" | "bajas">("pendientes");
 
+  // Modal para ver documento de la propuesta en 1 click sin recargar
+  const [viewingDocPropuesta, setViewingDocPropuesta] = useState<PropuestaPendiente | null>(null);
+
   // Modal para asignar propuesta
   const [selectedPropuesta, setSelectedPropuesta] = useState<PropuestaPendiente | null>(null);
   const [selectedAsesorId, setSelectedAsesorId] = useState<string>("");
@@ -172,31 +175,31 @@ export default function CoordinadorDashboardClient({
   return (
     <div className="space-y-8">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-950 text-white rounded-2xl p-6 sm:p-8 shadow-lg border border-indigo-700">
+      <div className="bg-gradient-to-r from-brand-red via-red-800 to-rose-950 text-white rounded-2xl p-6 sm:p-8 shadow-lg border border-rose-800">
         <div className="max-w-4xl">
-          <span className="px-3 py-1 bg-indigo-700/60 rounded-full text-xs font-bold uppercase tracking-wider text-indigo-200 border border-indigo-500/50 mb-3 inline-block">
+          <span className="px-3 py-1 bg-rose-950/60 rounded-full text-xs font-bold uppercase tracking-wider text-rose-200 border border-rose-700/50 mb-3 inline-block">
             Panel de Gestión Académica
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
             Coordinación de Trabajos de Graduación
           </h1>
-          <p className="text-indigo-200 text-sm mt-2 leading-relaxed">
+          <p className="text-rose-100 text-sm mt-2 leading-relaxed">
             Asigna las propuestas aprobadas por administración a los asesores de tu facultad, realiza el seguimiento del progreso de los proyectos y gestiona solicitudes de baja.
           </p>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-indigo-700/80">
+        <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-rose-700/60">
           <button
             onClick={() => setActiveTab("pendientes")}
             className={`px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
               activeTab === "pendientes"
-                ? "bg-white text-indigo-950 shadow-md scale-[1.02]"
-                : "bg-indigo-950/40 text-indigo-200 hover:bg-indigo-700/50"
+                ? "bg-white text-brand-red shadow-md scale-[1.02]"
+                : "bg-rose-950/40 text-rose-100 hover:bg-rose-900/50"
             }`}
           >
             <span>Ver Solicitudes / Propuestas a Asignar</span>
-            <span className="px-2 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-900 font-extrabold">
+            <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-brand-red font-extrabold">
               {pendientes.length}
             </span>
           </button>
@@ -205,12 +208,12 @@ export default function CoordinadorDashboardClient({
             onClick={() => setActiveTab("asignadas")}
             className={`px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
               activeTab === "asignadas"
-                ? "bg-white text-indigo-950 shadow-md scale-[1.02]"
-                : "bg-indigo-950/40 text-indigo-200 hover:bg-indigo-700/50"
+                ? "bg-white text-brand-red shadow-md scale-[1.02]"
+                : "bg-rose-950/40 text-rose-100 hover:bg-rose-900/50"
             }`}
           >
             <span>Mis Propuestas Asignadas</span>
-            <span className="px-2 py-0.5 rounded-full text-xs bg-indigo-100 text-indigo-900 font-extrabold">
+            <span className="px-2 py-0.5 rounded-full text-xs bg-rose-100 text-brand-red font-extrabold">
               {asignadas.length}
             </span>
           </button>
@@ -219,13 +222,13 @@ export default function CoordinadorDashboardClient({
             onClick={() => setActiveTab("bajas")}
             className={`px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
               activeTab === "bajas"
-                ? "bg-white text-indigo-950 shadow-md scale-[1.02]"
-                : "bg-indigo-950/40 text-indigo-200 hover:bg-indigo-700/50"
+                ? "bg-white text-brand-red shadow-md scale-[1.02]"
+                : "bg-rose-950/40 text-rose-100 hover:bg-rose-900/50"
             }`}
           >
             <span>Solicitudes de Baja</span>
             {solicitudesBaja.filter((s) => s.estado === "pendiente").length > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-xs bg-rose-500 text-white font-extrabold animate-pulse">
+              <span className="px-2 py-0.5 rounded-full text-xs bg-amber-400 text-slate-900 font-extrabold animate-pulse">
                 {solicitudesBaja.filter((s) => s.estado === "pendiente").length}
               </span>
             )}
@@ -281,7 +284,7 @@ export default function CoordinadorDashboardClient({
                           {fechaStr}
                         </td>
                         <td className="p-4">
-                          <span className="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          <span className="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase bg-rose-50 text-brand-red border border-rose-200">
                             {prop.tipo}
                           </span>
                         </td>
@@ -293,17 +296,16 @@ export default function CoordinadorDashboardClient({
                           {prop.titulo}
                         </td>
                         <td className="p-4 text-center">
-                          <a
-                            href={`/admin/propuestas/${prop.id}/imprimir`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors"
+                          <button
+                            type="button"
+                            onClick={() => setViewingDocPropuesta(prop)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-brand-red text-xs font-bold rounded-lg border border-rose-200 transition-all cursor-pointer shadow-xs active:scale-95"
                           >
-                            <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
                             Ver Documento
-                          </a>
+                          </button>
                         </td>
                         <td className="p-4 text-center">
                           {prop.solicitudActual ? (
@@ -357,7 +359,7 @@ export default function CoordinadorDashboardClient({
                             </button>
                             <button
                               onClick={() => handleOpenAssignModal(prop)}
-                              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1"
+                              className="px-3.5 py-1.5 bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -436,7 +438,7 @@ export default function CoordinadorDashboardClient({
                       <td className="p-4 text-right">
                         <Link
                           href={`/coordinador/propuestas/${item.id}`}
-                          className="px-4 py-2 bg-indigo-900 hover:bg-indigo-950 text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
+                          className="px-4 py-2 bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -539,13 +541,66 @@ export default function CoordinadorDashboardClient({
         </div>
       )}
 
+      {/* ────────────────── MODAL: VER DOCUMENTO EN 1 CLICK SIN RECARGAR ────────────────── */}
+      {viewingDocPropuesta && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
+          <div className="bg-white rounded-2xl max-w-5xl w-full h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 bg-brand-red text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center font-bold">
+                  📄
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base leading-tight">
+                    Documento Oficial - Propuesta #{viewingDocPropuesta.numero}
+                  </h3>
+                  <p className="text-xs text-white/80 truncate max-w-md">
+                    {viewingDocPropuesta.titulo}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/admin/propuestas/${viewingDocPropuesta.id}/imprimir`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Nueva Pestaña
+                </a>
+                <button
+                  onClick={() => setViewingDocPropuesta(null)}
+                  className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white font-bold text-sm"
+                  title="Cerrar Documento"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body iframe */}
+            <div className="flex-1 w-full bg-slate-100 relative">
+              <iframe
+                src={`/admin/propuestas/${viewingDocPropuesta.id}/imprimir`}
+                className="w-full h-full border-none"
+                title={`Documento Propuesta ${viewingDocPropuesta.id}`}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ────────────────── MODAL: ASIGNAR ASESOR ────────────────── */}
       {selectedPropuesta && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in duration-150">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
                 Asignar Asesor a la Propuesta
@@ -578,7 +633,7 @@ export default function CoordinadorDashboardClient({
                   required
                   value={selectedAsesorId}
                   onChange={(e) => setSelectedAsesorId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red bg-white"
                 >
                   <option value="">-- Elige un asesor --</option>
                   {asesores.map((ase) => (
@@ -605,7 +660,7 @@ export default function CoordinadorDashboardClient({
                 <button
                   type="submit"
                   disabled={assigning || !selectedAsesorId}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center gap-2"
+                  className="px-5 py-2 bg-brand-red hover:bg-brand-red-dark disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center gap-2"
                 >
                   {assigning ? "Enviando..." : "Enviar Solicitud a Asesor"}
                 </button>
@@ -651,7 +706,7 @@ export default function CoordinadorDashboardClient({
                   setViewingRejection(null);
                   handleOpenAssignModal(prop);
                 }}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors"
+                className="px-4 py-2 bg-brand-red hover:bg-brand-red-dark text-white font-bold text-sm rounded-xl shadow-md transition-colors"
               >
                 Reasignar a otro Asesor
               </button>
@@ -685,7 +740,7 @@ export default function CoordinadorDashboardClient({
                 onChange={(e) => setRespuestaBaja(e.target.value)}
                 rows={3}
                 placeholder="Escribe comentarios o motivos institucionales para el historial..."
-                className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
               />
             </div>
 

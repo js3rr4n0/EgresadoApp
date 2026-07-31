@@ -57,7 +57,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
               <h1 className="text-xl md:text-2xl font-extrabold text-slate-900">
                 Progreso del Trabajo de Graduación
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-indigo-100 text-indigo-900 border border-indigo-200">
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-50 text-brand-red border border-rose-200">
                 {getTipoLabel(propuesta.tipo)} #{propuesta.numero}
               </span>
             </div>
@@ -69,7 +69,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
 
         <Link
           href="/coordinador"
-          className="inline-flex items-center gap-2 bg-indigo-900 hover:bg-indigo-950 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-colors shadow-sm self-start sm:self-auto"
+          className="inline-flex items-center gap-2 bg-brand-red hover:bg-brand-red-dark text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-colors shadow-sm self-start sm:self-auto"
         >
           <span>← Regresar al Panel de Coordinador</span>
         </Link>
@@ -81,7 +81,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
           onClick={() => setActiveTab("datos")}
           className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
             activeTab === "datos"
-              ? "bg-indigo-900 text-white shadow-sm"
+              ? "bg-brand-red text-white shadow-sm"
               : "text-slate-600 hover:bg-slate-100"
           }`}
         >
@@ -95,7 +95,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
           onClick={() => setActiveTab("plan")}
           className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
             activeTab === "plan"
-              ? "bg-indigo-900 text-white shadow-sm"
+              ? "bg-brand-red text-white shadow-sm"
               : "text-slate-600 hover:bg-slate-100"
           }`}
         >
@@ -110,11 +110,11 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
       {activeTab === "datos" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
           {/* Título de la propuesta */}
-          <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-5 space-y-1">
-            <span className="text-xs font-bold text-indigo-700 uppercase tracking-widest block">
+          <div className="bg-rose-50/70 border border-rose-200 rounded-xl p-5 space-y-1">
+            <span className="text-xs font-bold text-brand-red uppercase tracking-widest block">
               Título de la Propuesta
             </span>
-            <h2 className="text-lg font-extrabold text-indigo-950">
+            <h2 className="text-lg font-extrabold text-slate-900">
               {propuesta.titulo || `Propuesta #${propuesta.numero}`}
             </h2>
           </div>
@@ -133,7 +133,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
 
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1">
               <span className="text-xs text-slate-500 font-bold block uppercase">Asesor Encargado</span>
-              <p className="font-bold text-indigo-900 text-base">{asesor?.nombreCompleto || "Sin Asesor"}</p>
+              <p className="font-bold text-brand-red text-base">{asesor?.nombreCompleto || "Sin Asesor"}</p>
               <p className="text-xs text-slate-500">{asesor?.correo}</p>
             </div>
           </div>
@@ -148,7 +148,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                 href={`/admin/propuestas/${propuesta.id}/imprimir`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-1.5"
+                className="bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-1.5"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -159,21 +159,21 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
 
             {carta?.archivoUrl ? (
               <div className="space-y-4">
-                <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 p-4 rounded-xl">
-                  <svg className="w-8 h-8 text-indigo-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="flex items-center gap-3 bg-rose-50 border border-rose-200 p-4 rounded-xl">
+                  <svg className="w-8 h-8 text-brand-red shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                   </svg>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-indigo-900 truncate">
+                    <p className="text-sm font-bold text-slate-900 truncate">
                       Carta de Aceptación / Documento Adjunto
                     </p>
-                    <p className="text-xs text-indigo-700">Archivo subido por el estudiante</p>
+                    <p className="text-xs text-brand-red font-medium">Archivo subido por el estudiante</p>
                   </div>
                   <a
                     href={carta.archivoUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-indigo-900 hover:bg-indigo-950 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shrink-0"
+                    className="bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shrink-0"
                   >
                     Abrir Archivo
                   </a>
@@ -227,7 +227,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
           <div>
             <h2 className="text-lg font-bold text-slate-900 flex items-center justify-between border-b border-slate-200 pb-3">
               <span>Cronograma y Plan de Trabajo por Mes (Modo Lectura)</span>
-              <span className="text-xs bg-indigo-100 text-indigo-800 font-bold px-3 py-1 rounded-full">
+              <span className="text-xs bg-rose-50 text-brand-red font-bold px-3 py-1 rounded-full border border-rose-200">
                 {actividades.length} actividades registradas
               </span>
             </h2>
@@ -253,7 +253,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                   >
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-indigo-900 text-white flex items-center justify-center font-extrabold text-sm">
+                        <div className="w-8 h-8 rounded-lg bg-brand-red text-white flex items-center justify-center font-extrabold text-sm">
                           M{periodoNum}
                         </div>
                         <div>
@@ -279,7 +279,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                         <tbody className="divide-y divide-slate-100">
                           {actsMonth.map((act) => (
                             <tr key={act.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="py-3 px-3 text-center font-bold text-indigo-900 bg-indigo-50/50">
+                              <td className="py-3 px-3 text-center font-bold text-brand-red bg-rose-50/50">
                                 Sem {act.semana}
                               </td>
                               <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">
