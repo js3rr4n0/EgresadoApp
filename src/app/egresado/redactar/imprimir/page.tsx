@@ -512,18 +512,6 @@ export default async function PrintPropuestaPage() {
           )
         )}
       </div>
-
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-        if (typeof window !== 'undefined') {
-          setTimeout(() => {
-            window.print();
-          }, 2500);
-        }
-      `,
-        }}
-      />
     </div>
   );
 }
