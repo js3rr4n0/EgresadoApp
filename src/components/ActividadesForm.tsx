@@ -47,8 +47,14 @@ export default function ActividadesForm({
   // Parse initial activities
   useEffect(() => {
     if (initialActividades && initialActividades.length > 0) {
+      const sorted = [...initialActividades].sort((a, b) => {
+        if (a.periodo !== b.periodo) return a.periodo - b.periodo;
+        if (a.semana !== b.semana) return a.semana - b.semana;
+        return (a.numero || 0) - (b.numero || 0);
+      });
+
       setActividades(
-        initialActividades.map((a) => ({
+        sorted.map((a) => ({
           id: crypto.randomUUID(),
           periodo: a.periodo,
           semana: a.semana,
@@ -134,20 +140,37 @@ export default function ActividadesForm({
   }, [fechaInicio]);
 
   const addRow = () => {
-    setActividades([
-      ...actividades,
-      {
-        id: crypto.randomUUID(),
-        periodo: selectedPeriodo,
-        semana: 1,
-        titulo: "",
-        descripcion: "",
-      },
-    ]);
+    const periodActs = actividades.filter((a) => a.periodo === selectedPeriodo);
+    const lastSemana = periodActs.length > 0 ? periodActs[periodActs.length - 1].semana : 1;
+
+    const newAct: Actividad = {
+      id: crypto.randomUUID(),
+      periodo: selectedPeriodo,
+      semana: lastSemana,
+      titulo: "",
+      descripcion: "",
+    };
+
+    setActividades((prev) => {
+      const updated = [...prev, newAct];
+      return updated.sort((a, b) => {
+        if (a.periodo !== b.periodo) return a.periodo - b.periodo;
+        return a.semana - b.semana;
+      });
+    });
   };
 
   const updateRow = (id: string, field: keyof Actividad, value: any) => {
-    setActividades(actividades.map((a) => (a.id === id ? { ...a, [field]: value } : a)));
+    setActividades((prev) => {
+      const updated = prev.map((a) => (a.id === id ? { ...a, [field]: value } : a));
+      if (field === "semana") {
+        return updated.sort((a, b) => {
+          if (a.periodo !== b.periodo) return a.periodo - b.periodo;
+          return a.semana - b.semana;
+        });
+      }
+      return updated;
+    });
   };
 
   const deleteRow = (id: string) => {
@@ -244,7 +267,9 @@ export default function ActividadesForm({
     }
   };
 
-  const currentPeriodActs = actividades.filter((a) => a.periodo === selectedPeriodo);
+  const currentPeriodActs = actividades
+    .filter((a) => a.periodo === selectedPeriodo)
+    .sort((a, b) => a.semana - b.semana);
   const currentPeriodDef = periodos.find((p) => p.num === selectedPeriodo);
   const maxWeeks = currentPeriodDef ? currentPeriodDef.weeks : 4;
 
@@ -378,7 +403,7 @@ export default function ActividadesForm({
               <div>
                 <h4 className="font-bold text-card-dark">Actividades del Período {selectedPeriodo} ({currentPeriodDef?.name})</h4>
                 <p className="text-xs text-muted">
-                  Este período contiene {maxWeeks} semanas. Registra el título y descripción de cada actividad.
+                  Este período contiene {maxWeeks} semanas. Registra el título y descripción de cada actividad en orden secuencial.
                 </p>
               </div>
               <button
@@ -414,6 +439,7 @@ export default function ActividadesForm({
                     </tr>
                   ) : (
                     currentPeriodActs.map((act, idx) => {
+                      const minWeek = idx > 0 ? currentPeriodActs[idx - 1].semana : 1;
                       const numero = idx + 1;
                       const codigo = `${act.periodo}.${act.semana}.${numero}`;
                       return (
@@ -424,11 +450,15 @@ export default function ActividadesForm({
                               onChange={(e) => updateRow(act.id, "semana", parseInt(e.target.value))}
                               className="w-full bg-white border border-border rounded-lg px-2.5 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-red outline-none"
                             >
-                              {Array.from({ length: maxWeeks }).map((_, i) => (
-                                <option key={i + 1} value={i + 1}>
-                                  Semana {i + 1}
-                                </option>
-                              ))}
+                              {Array.from({ length: maxWeeks }).map((_, i) => {
+                                const weekNum = i + 1;
+                                const isDisabled = weekNum < minWeek;
+                                return (
+                                  <option key={weekNum} value={weekNum} disabled={isDisabled}>
+                                    Semana {weekNum} {isDisabled ? `(S${minWeek}+)` : ""}
+                                  </option>
+                                );
+                              })}
                             </select>
                           </td>
                           <td className="px-3 py-3 text-center">
