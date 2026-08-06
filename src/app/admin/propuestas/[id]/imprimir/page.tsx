@@ -408,15 +408,16 @@ export default async function AdminPrintPropuestaPage({
             {/* PLAN DE ACTIVIDADES */}
             {actividadesList.length > 0 && (
               <div style={{ pageBreakAfter: "always" }} className="pt-8">
-                <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">PLAN DE ACTIVIDADES</h2>
+                <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">PLAN DE ACTIVIDADES Y CRONOGRAMA</h2>
 
-                <table className="w-full text-sm border-collapse border border-gray-300">
-                  <thead className="bg-gray-100 font-bold text-gray-900">
+                <table className="w-full text-xs border-collapse border border-gray-300 mb-8">
+                  <thead className="bg-gray-100 font-bold text-gray-900 uppercase">
                     <tr>
-                      <th className="border border-gray-300 p-2.5 text-center w-16">Mes</th>
-                      <th className="border border-gray-300 p-2.5 text-center w-24">Semana</th>
-                      <th className="border border-gray-300 p-2.5 text-center w-20">Código</th>
-                      <th className="border border-gray-300 p-2.5 text-left">Actividad a desarrollar</th>
+                      <th className="border border-gray-300 p-2 text-center w-14">Mes</th>
+                      <th className="border border-gray-300 p-2 text-center w-20">Semana</th>
+                      <th className="border border-gray-300 p-2 text-center w-16">Código</th>
+                      <th className="border border-gray-300 p-2 text-left w-1/3">Título de Actividad</th>
+                      <th className="border border-gray-300 p-2 text-left">Descripción</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -426,20 +427,83 @@ export default async function AdminPrintPropuestaPage({
                         <tr key={a.id}>
                           {idx === 0 && (
                             <td
-                              className="border border-gray-300 p-2.5 font-bold text-center align-top bg-white"
+                              className="border border-gray-300 p-2 font-bold text-center align-top bg-white"
                               rowSpan={actsMes.length}
                             >
                               Mes {mes}
                             </td>
                           )}
-                          <td className="border border-gray-300 p-2.5 text-center">Semana {a.semana}</td>
-                          <td className="border border-gray-300 p-2.5 text-center font-mono text-xs">{`${a.periodo}.${a.semana}.${a.numero || idx + 1}`}</td>
-                          <td className="border border-gray-300 p-2.5 text-gray-800">{a.descripcion}</td>
+                          <td className="border border-gray-300 p-2 text-center">Semana {a.semana}</td>
+                          <td className="border border-gray-300 p-2 text-center font-mono text-xs">{`${a.periodo}.${a.semana}.${a.numero || idx + 1}`}</td>
+                          <td className="border border-gray-300 p-2 font-bold text-gray-900">{a.titulo || "Sin título"}</td>
+                          <td className="border border-gray-300 p-2 text-gray-800">{a.descripcion}</td>
                         </tr>
                       ));
                     })}
                   </tbody>
                 </table>
+
+                {/* DIAGRAMA DE GANTT IMPRESO */}
+                <div className="pt-4 print:break-inside-avoid">
+                  <h3 className="text-md font-bold uppercase mb-3 text-gray-800 border-b border-gray-300 pb-1">
+                    Diagrama de Gantt de Actividades
+                  </h3>
+
+                  <table className="w-full text-[11px] border-collapse border border-gray-300">
+                    <thead>
+                      <tr className="bg-gray-800 text-white font-bold">
+                        <th className="border border-gray-400 p-1.5 text-center w-14">Cód.</th>
+                        <th className="border border-gray-400 p-1.5 text-left w-1/3">Actividad</th>
+                        {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((pNum) => (
+                          <th key={pNum} colSpan={4} className="border border-gray-400 p-1.5 text-center bg-gray-900">
+                            Mes {pNum}
+                          </th>
+                        ))}
+                      </tr>
+                      <tr className="bg-gray-100 font-bold text-gray-700 text-[10px]">
+                        <th className="border border-gray-300 p-1" colSpan={2}>Semanas</th>
+                        {Array.from(new Set(actividadesList.map((a) => a.periodo))).flatMap((pNum) =>
+                          [1, 2, 3, 4].map((sNum) => (
+                            <th key={`${pNum}-${sNum}`} className="border border-gray-300 p-1 text-center font-mono">
+                              S{sNum}
+                            </th>
+                          ))
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {actividadesList.map((a) => {
+                        const allPeriods = Array.from(new Set(actividadesList.map((act) => act.periodo)));
+                        return (
+                          <tr key={a.id} className="border-b border-gray-300">
+                            <td className="border border-gray-300 p-1.5 text-center font-mono font-bold text-xs">
+                              {a.periodo}.{a.semana}
+                            </td>
+                            <td className="border border-gray-300 p-1.5 font-medium">
+                              <span className="font-bold text-gray-900 block">{a.titulo || a.descripcion}</span>
+                              {a.titulo && <span className="text-[10px] text-gray-600 block">{a.descripcion}</span>}
+                            </td>
+                            {allPeriods.flatMap((pNum) =>
+                              [1, 2, 3, 4].map((sNum) => {
+                                const active = a.periodo === pNum && a.semana === sNum;
+                                return (
+                                  <td
+                                    key={`${a.id}-${pNum}-${sNum}`}
+                                    className={`border border-gray-300 p-1 text-center ${
+                                      active ? "bg-red-700 text-white font-bold" : "bg-white"
+                                    }`}
+                                  >
+                                    {active ? "■" : ""}
+                                  </td>
+                                );
+                              })
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </>

@@ -270,6 +270,7 @@ export const actividades = pgTable(
     periodo: smallint("periodo").notNull(),
     semana: smallint("semana").notNull(),
     numero: smallint("numero").notNull(),
+    titulo: text("titulo"),
     descripcion: text("descripcion").notNull(),
   },
   (table) => [

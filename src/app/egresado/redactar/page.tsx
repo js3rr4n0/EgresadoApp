@@ -285,7 +285,16 @@ export default async function EgresadoPage({
 
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* Left Column - Stepper */}
-        <div className="w-full lg:w-72 shrink-0 bg-white border border-border rounded-xl p-5">
+        <div className="w-full lg:w-72 shrink-0 bg-white border border-border rounded-xl p-5 shadow-xs">
+          {/* Estado Actual Badge */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-[10px] font-extrabold text-amber-800 uppercase tracking-wider">Estado Actual</p>
+              <p className="text-xs font-bold text-amber-900">{estadosLabel[propuesta.estado] || propuesta.estado}</p>
+            </div>
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${propuesta.estado === "redactando" ? "bg-amber-500 animate-pulse" : "bg-brand-red"}`}></span>
+          </div>
+
           <h2 className="font-bold text-foreground mb-6">Progreso de la Propuesta #{propuesta.numero}</h2>
 
           <div className="space-y-0 relative before:absolute before:inset-y-0 before:left-4 before:-ml-px before:w-0.5 before:bg-border">
@@ -369,10 +378,25 @@ export default async function EgresadoPage({
             </svg>
             Vista Previa
           </Link>
+
+          {/* Criterios de Aprobación */}
+          <div className="mt-6 bg-card-dark text-white rounded-xl p-5 relative overflow-hidden shadow-sm">
+            <svg className="absolute -right-4 -top-4 w-20 h-20 text-white/5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+            </svg>
+            <h3 className="font-bold mb-3 relative z-10 text-xs sm:text-sm uppercase tracking-wider text-slate-200">
+              Criterios de Aprobación
+            </h3>
+            <ul className="space-y-2 text-xs text-slate-300 relative z-10">
+              <li className="flex gap-2"><span className="text-brand-red font-bold">•</span> Completar todos los campos obligatorios.</li>
+              <li className="flex gap-2"><span className="text-brand-red font-bold">•</span> Adjuntar todos los documentos requeridos.</li>
+              <li className="flex gap-2"><span className="text-brand-red font-bold">•</span> Información clara, coherente y verificable.</li>
+            </ul>
+          </div>
         </div>
 
         {/* Right Column - Step Form Content */}
-        <div className="flex-1">
+        <div className="flex-1 w-full min-w-0">
           {propuesta.estado === "enviada" ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm text-center py-16 space-y-6">
               <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto text-blue-600 shadow-inner">
@@ -663,29 +687,6 @@ export default async function EgresadoPage({
               )}
             </div>
           )}
-        </div>
-
-        {/* Right Sidebar Status */}
-        <div className="w-full lg:w-80 shrink-0 space-y-6">
-          <div className="bg-card-yellow rounded-xl p-5 border border-yellow-200 shadow-sm">
-            <p className="text-xs font-bold text-yellow-800 tracking-wider mb-2 uppercase">Estado Actual</p>
-            <div className="flex items-center gap-2">
-              <span className={`w-3 h-3 rounded-full shrink-0 ${propuesta.estado === "redactando" ? "bg-amber-500" : "bg-brand-red"}`}></span>
-              <p className="text-amber-700 font-bold">{estadosLabel[propuesta.estado] || propuesta.estado}</p>
-            </div>
-          </div>
-
-          <div className="bg-card-dark text-white rounded-xl p-6 relative overflow-hidden shadow-sm">
-            <svg className="absolute -right-4 -top-4 w-24 h-24 text-white/5" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-            </svg>
-            <h3 className="font-bold mb-4 relative z-10">Criterios de Aprobación</h3>
-            <ul className="space-y-3 text-sm text-slate-300 relative z-10">
-              <li className="flex gap-2"><span className="text-brand-red font-bold mt-0.5">•</span> Completar todos los campos obligatorios.</li>
-              <li className="flex gap-2"><span className="text-brand-red font-bold mt-0.5">•</span> Adjuntar todos los documentos requeridos.</li>
-              <li className="flex gap-2"><span className="text-brand-red font-bold mt-0.5">•</span> Información clara, coherente y verificable.</li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>

@@ -48,7 +48,8 @@ export async function saveActividades(propuestaId: number, actividadesData: any[
         periodo: a.periodo,
         semana: a.semana,
         numero: a.numero,
-        descripcion: a.descripcion
+        titulo: a.titulo ? a.titulo.trim() : null,
+        descripcion: a.descripcion ? a.descripcion.trim() : ""
       }));
       await db.insert(actividades).values(toInsert);
     }
