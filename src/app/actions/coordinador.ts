@@ -28,20 +28,14 @@ import { revalidatePath } from "next/cache";
 export async function getPropuestasPendientesCoordinador() {
   try {
     const session = await getSession();
-    if (!session || session.rol !== "coordinador") {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
       return { success: false, error: "No autorizado" };
     }
 
-    const userCoord = await db
-      .select()
-      .from(usuarios)
-      .where(eq(usuarios.id, session.userId))
-      .limit(1);
+    const isAdmin = session.rol === "admin";
 
-    const coordFacultadId = userCoord[0]?.facultadId;
-
-    // Fetch proposals assigned to coordinator (or matching coordinator's faculty if not explicitly assigned)
-    const rawPropuestas = await db
+    // Fetch proposals assigned to coordinator (or all proposals in coordinator_asignado/aprobada for admin if none explicitly assigned)
+    let rawPropuestas = await db
       .select({
         propuesta: propuestas,
         estudiante: usuarios,
@@ -57,6 +51,20 @@ export async function getPropuestasPendientesCoordinador() {
         )
       )
       .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
+
+    if (isAdmin && rawPropuestas.length === 0) {
+      rawPropuestas = await db
+        .select({
+          propuesta: propuestas,
+          estudiante: usuarios,
+          carreraNombre: carreras.nombre,
+        })
+        .from(propuestas)
+        .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+        .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
+        .where(inArray(propuestas.estado, ["coordinador_asignado", "aprobada"]))
+        .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
+    }
 
     const result = await Promise.all(
       rawPropuestas.map(async (row) => {
@@ -126,9 +134,11 @@ export async function getPropuestasPendientesCoordinador() {
 export async function getAsesoresFacultad() {
   try {
     const session = await getSession();
-    if (!session || session.rol !== "coordinador") {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
       return { success: false, error: "No autorizado" };
     }
+
+    const isAdmin = session.rol === "admin";
 
     const [userCoord] = await db
       .select()
@@ -139,7 +149,7 @@ export async function getAsesoresFacultad() {
     const coordFacultadId = userCoord?.facultadId;
 
     let asesoresList;
-    if (coordFacultadId) {
+    if (coordFacultadId && !isAdmin) {
       asesoresList = await db
         .select({
           id: usuarios.id,
@@ -178,7 +188,7 @@ export async function getAsesoresFacultad() {
 export async function asignarAsesorCoordinador(propuestaId: number, asesorId: number) {
   try {
     const session = await getSession();
-    if (!session || session.rol !== "coordinador") {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
       return { success: false, error: "No autorizado" };
     }
 
@@ -268,12 +278,14 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
 export async function getPropuestasAsignadasCoordinador() {
   try {
     const session = await getSession();
-    if (!session || session.rol !== "coordinador") {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
       return { success: false, error: "No autorizado" };
     }
 
-    // Fetch accepted advisor requests made by this coordinator (or proposals assigned to this coordinator with an advisor)
-    const acceptedRows = await db
+    const isAdmin = session.rol === "admin";
+
+    // Fetch accepted advisor requests made by this coordinator (or all approved proposals if admin)
+    let acceptedRows = await db
       .select({
         propuesta: propuestas,
         asesor: usuarios,
@@ -287,6 +299,18 @@ export async function getPropuestasAsignadasCoordinador() {
         )
       )
       .orderBy(desc(propuestas.fechaAprobacion));
+
+    if (isAdmin && acceptedRows.length === 0) {
+      acceptedRows = await db
+        .select({
+          propuesta: propuestas,
+          asesor: usuarios,
+        })
+        .from(propuestas)
+        .innerJoin(usuarios, eq(propuestas.asesorId, usuarios.id))
+        .where(eq(propuestas.estado, "aprobada"))
+        .orderBy(desc(propuestas.fechaAprobacion));
+    }
 
     const result = await Promise.all(
       acceptedRows.map(async (row) => {
@@ -533,11 +557,13 @@ export async function solicitarBajaProyectoAsesor(propuestaId: number, motivo: s
 export async function getSolicitudesBajaCoordinador() {
   try {
     const session = await getSession();
-    if (!session || session.rol !== "coordinador") {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
       return { success: false, error: "No autorizado" };
     }
 
-    const rows = await db
+    const isAdmin = session.rol === "admin";
+
+    let rows = await db
       .select({
         solicitud: solicitudesBaja,
         propuesta: propuestas,
@@ -548,6 +574,19 @@ export async function getSolicitudesBajaCoordinador() {
       .innerJoin(usuarios, eq(solicitudesBaja.asesorId, usuarios.id))
       .where(eq(solicitudesBaja.coordinadorId, session.userId))
       .orderBy(desc(solicitudesBaja.creadaEn));
+
+    if (isAdmin && rows.length === 0) {
+      rows = await db
+        .select({
+          solicitud: solicitudesBaja,
+          propuesta: propuestas,
+          asesor: usuarios,
+        })
+        .from(solicitudesBaja)
+        .innerJoin(propuestas, eq(solicitudesBaja.propuestaId, propuestas.id))
+        .innerJoin(usuarios, eq(solicitudesBaja.asesorId, usuarios.id))
+        .orderBy(desc(solicitudesBaja.creadaEn));
+    }
 
     const result = await Promise.all(
       rows.map(async (r) => {
@@ -584,18 +623,22 @@ export async function responderSolicitudBajaCoordinador(
 ) {
   try {
     const session = await getSession();
-    if (!session || session.rol !== "coordinador") {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
       return { success: false, error: "No autorizado" };
     }
+
+    const isAdmin = session.rol === "admin";
 
     const [solBaja] = await db
       .select()
       .from(solicitudesBaja)
       .where(
-        and(
-          eq(solicitudesBaja.id, solicitudBajaId),
-          eq(solicitudesBaja.coordinadorId, session.userId)
-        )
+        isAdmin
+          ? eq(solicitudesBaja.id, solicitudBajaId)
+          : and(
+              eq(solicitudesBaja.id, solicitudBajaId),
+              eq(solicitudesBaja.coordinadorId, session.userId)
+            )
       )
       .limit(1);
 
@@ -659,7 +702,7 @@ export async function responderAsignacionCoordinador(
 ) {
   try {
     const session = await getSession();
-    if (!session || session.rol !== "coordinador") {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
       return { success: false, error: "No autorizado" };
     }
 

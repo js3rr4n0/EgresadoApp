@@ -143,17 +143,29 @@ export default function ReviewForm({
             className="w-full px-4 py-2.5 rounded-xl border border-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-900 font-medium text-sm"
           >
             <option value="">-- Elige un Coordinador --</option>
-            {filteredCoordinadores.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombreCompleto} ({c.facultadNombre || "General"})
-              </option>
-            ))}
+            {filteredCoordinadores.map((c) => {
+              const hasCompanyExp = (c.proyectosEmpresaCount ?? 0) > 0;
+              return (
+                <option key={c.id} value={c.id}>
+                  {hasCompanyExp ? "⭐ [Prioritario] " : ""}
+                  {c.nombreCompleto} ({c.facultadNombre || "General"})
+                  {hasCompanyExp ? ` — Trabaja con esta empresa (${c.proyectosEmpresaCount} previas)` : ""}
+                </option>
+              );
+            })}
           </select>
 
           {/* Coordinador Info Box: Facultad & Proyectos Asignados */}
           {selectedCoordObj && (
             <div className="bg-white p-3.5 rounded-xl border border-indigo-200 space-y-1.5 text-xs text-slate-700 shadow-2xs">
-              <p className="font-extrabold text-indigo-950 text-sm">{selectedCoordObj.nombreCompleto}</p>
+              <p className="font-extrabold text-indigo-950 text-sm flex items-center justify-between">
+                <span>{selectedCoordObj.nombreCompleto}</span>
+                {selectedCoordObj.proyectosEmpresaCount > 0 && (
+                  <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold">
+                    ⭐ Trabaja con esta empresa
+                  </span>
+                )}
+              </p>
               <p className="flex items-center justify-between">
                 <span className="font-semibold text-slate-500">Facultad:</span>
                 <span className="font-bold text-slate-800">{selectedCoordObj.facultadNombre}</span>
@@ -164,6 +176,12 @@ export default function ReviewForm({
                   {selectedCoordObj.proyectosAsignadosCount ?? 0} asignados
                 </span>
               </p>
+              {selectedCoordObj.proyectosEmpresaCount > 0 && (
+                <p className="flex items-center justify-between pt-1 border-t border-indigo-100 text-amber-800 font-bold">
+                  <span>Experiencia en esta empresa:</span>
+                  <span>{selectedCoordObj.proyectosEmpresaCount} propuesta(s)</span>
+                </p>
+              )}
             </div>
           )}
         </div>

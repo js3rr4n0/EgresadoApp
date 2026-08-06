@@ -12,7 +12,7 @@ export default async function CoordinadorLayout({
   children: React.ReactNode;
 }) {
   const session = await getSession();
-  if (!session || session.rol !== "coordinador") {
+  if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
     redirect("/login");
   }
 

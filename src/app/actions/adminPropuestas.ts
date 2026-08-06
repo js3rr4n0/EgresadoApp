@@ -86,7 +86,7 @@ export async function reviewPropuesta(
   }
 }
 
-export async function getCoordinadoresConEstadisticas() {
+export async function getCoordinadoresConEstadisticas(empresaId?: number | null) {
   try {
     const coords = await db
       .select({
@@ -112,15 +112,38 @@ export async function getCoordinadoresConEstadisticas() {
             )
           );
 
+        let proyectosEmpresaCount = 0;
+        if (empresaId) {
+          const empResult = await db
+            .select({ id: propuestas.id })
+            .from(propuestas)
+            .where(
+              and(
+                eq(propuestas.coordinadorId, c.id),
+                eq(propuestas.empresaId, empresaId)
+              )
+            );
+          proyectosEmpresaCount = empResult.length;
+        }
+
         return {
           id: c.id,
           nombreCompleto: c.nombreCompleto,
           correo: c.correo,
           facultadNombre: c.facultadNombre || "Sin Facultad",
           proyectosAsignadosCount: result.length,
+          proyectosEmpresaCount,
         };
       })
     );
+
+    // Prioritize coordinators who have worked with the company, then sort by lower workload
+    coordinadoresConStats.sort((a, b) => {
+      if (b.proyectosEmpresaCount !== a.proyectosEmpresaCount) {
+        return b.proyectosEmpresaCount - a.proyectosEmpresaCount;
+      }
+      return a.proyectosAsignadosCount - b.proyectosAsignadosCount;
+    });
 
     return { success: true, data: coordinadoresConStats };
   } catch (error: any) {

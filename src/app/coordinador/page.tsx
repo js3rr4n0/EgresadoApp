@@ -10,7 +10,7 @@ import CoordinadorDashboardClient from "@/components/coordinador/CoordinadorDash
 
 export default async function CoordinadorPage() {
   const session = await getSession();
-  if (!session || session.rol !== "coordinador") {
+  if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
     redirect("/login");
   }
 
@@ -32,6 +32,7 @@ export default async function CoordinadorPage() {
       asignadas={asignadas}
       asesores={asesores}
       solicitudesBaja={solicitudesBaja}
+      isAdmin={session.rol === "admin"}
     />
   );
 }

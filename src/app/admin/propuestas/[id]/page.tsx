@@ -109,7 +109,7 @@ export default async function AdminPropuestaReviewPage({
     .where(eq(historialEstados.propuestaId, propuesta.id))
     .orderBy(asc(historialEstados.creadoEn));
 
-  const coordRes = await getCoordinadoresConEstadisticas();
+  const coordRes = await getCoordinadoresConEstadisticas(propuesta.empresaId);
   const coordinadoresList = coordRes.success ? coordRes.data : [];
 
   const today = new Date();
