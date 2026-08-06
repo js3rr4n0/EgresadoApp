@@ -8,8 +8,19 @@ interface CoordinadorStat {
   id: number;
   nombreCompleto: string;
   correo: string;
+  rol?: string;
   facultadNombre: string;
   proyectosAsignadosCount: number;
+  proyectosEmpresaCount?: number;
+  proyectosDetalle?: {
+    id: number;
+    numero: number;
+    titulo: string;
+    tipo: string;
+    estado: string;
+    empresaId?: number | null;
+    empresaNombre?: string | null;
+  }[];
 }
 
 export default function PropuestasTable({
@@ -26,6 +37,7 @@ export default function PropuestasTable({
   const [selectedPropuesta, setSelectedPropuesta] = useState<any | null>(null);
   const [coordSearch, setCoordSearch] = useState("");
   const [selectedCoord, setSelectedCoord] = useState<CoordinadorStat | null>(null);
+  const [expandedCoordId, setExpandedCoordId] = useState<number | null>(null);
   const [assigning, setAssigning] = useState(false);
 
   const isDraftState = (estado: string) =>
@@ -63,10 +75,28 @@ export default function PropuestasTable({
     );
   });
 
+  const getEmpresaExp = (c: CoordinadorStat) => {
+    if (selectedPropuesta?.empresaId && c.proyectosDetalle) {
+      return c.proyectosDetalle.filter(
+        (p) => p.empresaId === selectedPropuesta.empresaId
+      ).length;
+    }
+    return c.proyectosEmpresaCount ?? 0;
+  };
+
+  const sortedCoordinadores = [...filteredCoordinadores].sort((a, b) => {
+    const expA = getEmpresaExp(a);
+    const expB = getEmpresaExp(b);
+    if (expA > 0 && expB === 0) return -1;
+    if (expB > 0 && expA === 0) return 1;
+    return b.proyectosAsignadosCount - a.proyectosAsignadosCount;
+  });
+
   const handleOpenAssignModal = (propuesta: any) => {
     setSelectedPropuesta(propuesta);
     setCoordSearch("");
     setSelectedCoord(null);
+    setExpandedCoordId(null);
   };
 
   const handleConfirmAssign = async () => {
@@ -291,39 +321,110 @@ export default function PropuestasTable({
               </div>
             </div>
 
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {filteredCoordinadores.length > 0 ? (
-                filteredCoordinadores.map((c) => {
+            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+              {sortedCoordinadores.length > 0 ? (
+                sortedCoordinadores.map((c) => {
                   const isSelected = selectedCoord?.id === c.id;
+                  const expCount = getEmpresaExp(c);
+                  const isExpanded = expandedCoordId === c.id;
+
                   return (
                     <div
                       key={c.id}
                       onClick={() => setSelectedCoord(c)}
-                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-4 ${
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
                         isSelected
-                          ? "bg-indigo-50 border-indigo-500 shadow-xs"
-                          : "bg-slate-50 hover:bg-slate-100 border-slate-200"
+                          ? "bg-indigo-50/90 border-indigo-500 shadow-xs ring-2 ring-indigo-500/20"
+                          : "bg-slate-50 hover:bg-slate-100/90 border-slate-200"
                       }`}
                     >
-                      <div>
-                        <p className="font-bold text-slate-900 text-sm">{c.nombreCompleto}</p>
-                        <p className="text-xs text-slate-500">{c.correo}</p>
-                        <div className="mt-1 flex items-center gap-2">
-                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-900 border border-indigo-200">
-                            🏛️ {c.facultadNombre}
-                          </span>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-extrabold text-slate-900 text-sm">{c.nombreCompleto}</p>
+                            {c.rol === "admin" && (
+                              <span className="text-[10px] bg-purple-100 text-purple-900 border border-purple-200 px-1.5 py-0.2 rounded font-extrabold">
+                                🛡️ ADMIN
+                              </span>
+                            )}
+                            {expCount > 0 && (
+                              <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold animate-pulse">
+                                ⭐ Prioritario ({expCount} previas en esta empresa)
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500">{c.correo}</p>
+                          <div className="flex items-center gap-2 pt-0.5">
+                            <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-900 border border-indigo-200">
+                              🏛️ {c.facultadNombre}
+                            </span>
+                          </div>
                         </div>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedCoordId(isExpanded ? null : c.id);
+                          }}
+                          className="text-xs font-extrabold px-2.5 py-1.5 rounded-lg bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition-colors flex items-center gap-1.5 shadow-2xs shrink-0"
+                          title="Clic para ver detalle de proyectos y empresas asignadas"
+                        >
+                          <span>{c.proyectosAsignadosCount} asignados</span>
+                          <span className="text-[10px]">{isExpanded ? "▲" : "▼"}</span>
+                        </button>
                       </div>
-                      <div className="text-right">
-                        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-200 text-slate-800">
-                          {c.proyectosAsignadosCount} asignados
-                        </span>
-                      </div>
+
+                      {/* Expandable breakdown drawer of assigned projects and companies */}
+                      {isExpanded && (
+                        <div
+                          className="pt-3 border-t border-slate-200 space-y-2 text-xs text-slate-700 bg-white p-3 rounded-xl border shadow-inner"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <p className="font-bold text-[11px] text-indigo-950 uppercase tracking-wider flex items-center justify-between">
+                            <span>Proyectos y Empresas Actuales</span>
+                            <span className="text-[10px] font-normal text-slate-500">
+                              ({c.proyectosDetalle?.length || 0})
+                            </span>
+                          </p>
+                          {c.proyectosDetalle && c.proyectosDetalle.length > 0 ? (
+                            <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                              {c.proyectosDetalle.map((p) => (
+                                <div
+                                  key={p.id}
+                                  className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] flex flex-col gap-1"
+                                >
+                                  <div className="flex items-center justify-between font-bold text-slate-900">
+                                    <span>Propuesta #{p.numero} ({p.tipo})</span>
+                                    <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-extrabold">
+                                      {p.estado}
+                                    </span>
+                                  </div>
+                                  <p className="text-slate-700 font-medium line-clamp-1">{p.titulo}</p>
+                                  {p.empresaNombre ? (
+                                    <p className="text-amber-900 font-bold text-[10px] flex items-center gap-1 bg-amber-50 p-1 rounded border border-amber-200/60">
+                                      <span>🏢 Empresa:</span> {p.empresaNombre}
+                                    </p>
+                                  ) : (
+                                    <p className="text-slate-400 italic text-[10px]">Sin empresa registrada</p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-slate-500 italic text-[11px] text-center p-2 bg-slate-50 rounded border border-dashed border-slate-200">
+                              No tiene proyectos asignados actualmente.
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })
               ) : (
-                <p className="text-xs text-slate-400 text-center py-4">No se encontraron coordinadores con ese término de búsqueda.</p>
+                <p className="text-xs text-slate-400 text-center py-4">
+                  No se encontraron coordinadores con ese término de búsqueda.
+                </p>
               )}
             </div>
 

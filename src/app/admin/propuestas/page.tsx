@@ -19,6 +19,7 @@ export default async function AdminPropuestasPage() {
       estudiante: usuarios.nombreCompleto,
       carnet: usuarios.carnet,
       carrera: carreras.nombre,
+      empresaId: propuestas.empresaId,
     })
     .from(propuestas)
     .leftJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))

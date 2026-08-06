@@ -111,6 +111,7 @@ export async function getCoordinadoresConEstadisticas(empresaId?: number | null)
             titulo: propuestas.titulo,
             tipo: propuestas.tipo,
             estado: propuestas.estado,
+            empresaId: propuestas.empresaId,
             empresaNombre: empresas.nombre,
           })
           .from(propuestas)
@@ -128,6 +129,7 @@ export async function getCoordinadoresConEstadisticas(empresaId?: number | null)
           titulo: p.titulo || `Propuesta #${p.numero}`,
           tipo: p.tipo,
           estado: p.estado,
+          empresaId: p.empresaId,
           empresaNombre: p.empresaNombre || null,
         }));
 
