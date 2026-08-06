@@ -253,26 +253,31 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-card-dark mb-1.5">Título al que se quiere optar <span className="text-brand-red">*</span></label>
+                <label className="block text-sm font-bold text-card-dark mb-1.5 flex justify-between items-center">
+                  <span>Título al que se quiere optar</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-1.5 py-0.5 rounded">No editable</span>
+                </label>
                 <input 
                   type="text" 
+                  readOnly
                   value={formData.carrera}
-                  onChange={(e) => setFormData({...formData, carrera: e.target.value})}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-colors"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-100 text-slate-500 font-medium cursor-not-allowed outline-none"
+                  title="Este campo no se puede modificar desde la solicitud de datos erróneos."
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-card-dark mb-1.5">Mes de envío <span className="text-brand-red">*</span></label>
-                <select 
+                <label className="block text-sm font-bold text-card-dark mb-1.5 flex justify-between items-center">
+                  <span>Mes de envío</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase bg-slate-100 px-1.5 py-0.5 rounded">No editable</span>
+                </label>
+                <input 
+                  type="text" 
+                  readOnly
                   value={formData.mesEnvio}
-                  onChange={(e) => setFormData({...formData, mesEnvio: e.target.value})}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-colors bg-white appearance-none"
-                >
-                  {["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"].map((mes) => (
-                    <option key={mes} value={mes} className="capitalize">{mes}</option>
-                  ))}
-                </select>
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-100 text-slate-500 font-medium cursor-not-allowed capitalize outline-none"
+                  title="Este campo no se puede modificar desde la solicitud de datos erróneos."
+                />
               </div>
             </div>
 
