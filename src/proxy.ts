@@ -64,6 +64,9 @@ export async function proxy(request: NextRequest) {
 
   // Protected route with session → check role
   if (isProtected && session) {
+    if (session.rol === "admin") {
+      return NextResponse.next();
+    }
     const allowedPrefix = ROLE_PATHS[session.rol];
     if (!allowedPrefix || !path.startsWith(allowedPrefix)) {
       // Wrong role → redirect to their own dashboard
