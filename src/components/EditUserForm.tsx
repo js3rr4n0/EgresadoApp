@@ -8,6 +8,12 @@ import Link from "next/link";
 interface Carrera {
   id: number;
   nombre: string;
+  facultadId?: number;
+}
+
+interface Facultad {
+  id: number;
+  nombre: string;
 }
 
 interface Periodo {
@@ -23,18 +29,58 @@ interface UsuarioData {
   rol: string;
   carnet: string | null;
   cohorte: string | null;
-  cohortesAsignadas?: { cohorte: string, activa: boolean }[] | null;
+  cohortesAsignadas?: { cohorte: string; activa: boolean }[] | null;
+  carrerasAsignadas?: number[] | null;
   carreraId: number | null;
+  facultadId?: number | null;
   activo: boolean;
 }
 
-export default function EditUserForm({ user, carreras, periodos = [] }: { user: UsuarioData; carreras: Carrera[], periodos?: Periodo[] }) {
+export default function EditUserForm({
+  user,
+  carreras,
+  periodos = [],
+  facultades = [],
+}: {
+  user: UsuarioData;
+  carreras: Carrera[];
+  periodos?: Periodo[];
+  facultades?: Facultad[];
+}) {
   const router = useRouter();
   const [rol, setRol] = useState(user.rol);
+  const [facultadId, setFacultadId] = useState<string>(user.facultadId ? String(user.facultadId) : "");
+  const [selectedCarreras, setSelectedCarreras] = useState<number[]>(
+    Array.isArray(user.carrerasAsignadas) ? user.carrerasAsignadas : []
+  );
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cohortesList, setCohortesList] = useState<{ cohorte: string, activa: boolean }[]>(user.cohortesAsignadas || []);
+  const [cohortesList, setCohortesList] = useState<{ cohorte: string; activa: boolean }[]>(
+    user.cohortesAsignadas || []
+  );
   const [newCohorte, setNewCohorte] = useState("");
+
+  const filteredCarreras = facultadId
+    ? carreras.filter((c) => String(c.facultadId) === facultadId)
+    : carreras;
+
+  const handleSelectAllFacultyCarreras = () => {
+    const ids = filteredCarreras.map((c) => c.id);
+    const unique = Array.from(new Set([...selectedCarreras, ...ids]));
+    setSelectedCarreras(unique);
+  };
+
+  const handleClearCarreraSelection = () => {
+    setSelectedCarreras([]);
+  };
+
+  const toggleCarrera = (id: number) => {
+    if (selectedCarreras.includes(id)) {
+      setSelectedCarreras(selectedCarreras.filter((cId) => cId !== id));
+    } else {
+      setSelectedCarreras([...selectedCarreras, id]);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -43,6 +89,7 @@ export default function EditUserForm({ user, carreras, periodos = [] }: { user: 
 
     const formData = new FormData(e.currentTarget);
     formData.append("cohortesAsignadas", JSON.stringify(cohortesList));
+    formData.append("carrerasAsignadas", JSON.stringify(selectedCarreras));
     const result = await updateUsuario(user.id, formData);
 
     if (result.success) {
@@ -56,6 +103,7 @@ export default function EditUserForm({ user, carreras, periodos = [] }: { user: 
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <input type="hidden" name="carrerasAsignadas" value={JSON.stringify(selectedCarreras)} />
       {error && (
         <div className="p-3 bg-red-50 text-brand-red rounded-lg text-sm border border-red-200">
           {error}
@@ -110,8 +158,8 @@ export default function EditUserForm({ user, carreras, periodos = [] }: { user: 
       </div>
 
       {/* Rol y Adscripción */}
-      <div className="bg-white border border-border rounded-xl p-6 shadow-sm">
-        <h3 className="text-sm font-semibold text-card-dark mb-6">Rol y Adscripción</h3>
+      <div className="bg-white border border-border rounded-xl p-6 shadow-sm space-y-6">
+        <h3 className="text-sm font-semibold text-card-dark">Rol y Adscripción Académica</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -130,16 +178,102 @@ export default function EditUserForm({ user, carreras, periodos = [] }: { user: 
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-bold text-foreground mb-1.5">Carrera Principal</label>
-            <select name="carreraId" defaultValue={user.carreraId || ""} className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all">
-              <option value="">Ninguna / No Aplica</option>
-              {carreras.map(c => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
-          </div>
+          {/* Facultad selector para coordinadores, decanato o asesores */}
+          {(rol === "coordinador" || rol === "decanato" || rol === "asesor") && (
+            <div>
+              <label className="block text-sm font-bold text-foreground mb-1.5">
+                Facultad Asignada
+              </label>
+              <select
+                name="facultadId"
+                value={facultadId}
+                onChange={(e) => setFacultadId(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all"
+              >
+                <option value="">-- Seleccionar Facultad --</option>
+                {facultades.map((f) => (
+                  <option key={f.id} value={f.id}>{f.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Carrera Principal */}
+          {(rol === "egresado" || rol === "asesor") && (
+            <div>
+              <label className="block text-sm font-bold text-foreground mb-1.5">Carrera Principal</label>
+              <select name="carreraId" defaultValue={user.carreraId || ""} className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all">
+                <option value="">Ninguna / No Aplica</option>
+                {carreras.map(c => (
+                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
+
+        {/* Multi-selección de Carreras Asignadas para Coordinadores y Asesores */}
+        {(rol === "coordinador" || rol === "asesor" || rol === "decanato") && (
+          <div className="pt-6 border-t border-border space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <label className="block text-sm font-bold text-card-dark">
+                  Carreras Asignadas ({rol === "coordinador" ? "Coordinación por Facultad" : rol === "asesor" ? "Asesoría por Carrera" : "Decanato"})
+                </label>
+                <p className="text-xs text-muted">
+                  Selecciona las carreras específicas que {rol === "coordinador" ? "coordina este usuario" : "atiende este asesor"}.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSelectAllFacultyCarreras}
+                  className="text-xs px-2.5 py-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded font-bold border border-indigo-200 transition-colors"
+                >
+                  Seleccionar {facultadId ? "de esta facultad" : "todas"}
+                </button>
+                {selectedCarreras.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearCarreraSelection}
+                    className="text-xs px-2 py-1 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded font-medium border border-slate-200 transition-colors"
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-56 overflow-y-auto p-3 bg-slate-50 border border-border rounded-xl">
+              {filteredCarreras.map((c) => {
+                const isChecked = selectedCarreras.includes(c.id);
+                return (
+                  <label
+                    key={c.id}
+                    className={`flex items-center gap-3 p-2.5 rounded-lg border text-xs font-medium cursor-pointer transition-all ${
+                      isChecked
+                        ? "bg-white border-indigo-500 text-indigo-950 font-bold shadow-2xs"
+                        : "bg-white/60 border-border text-slate-700 hover:bg-white"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleCarrera(c.id)}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span className="truncate">{c.nombre}</span>
+                  </label>
+                );
+              })}
+              {filteredCarreras.length === 0 && (
+                <p className="text-xs text-muted italic col-span-2 text-center py-4">
+                  No hay carreras disponibles {facultadId ? "para la facultad seleccionada" : ""}.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Cohortes Asignadas (Historial) - Solo para Asesor o Decanato */}
         {(rol === "asesor" || rol === "decanato") && (

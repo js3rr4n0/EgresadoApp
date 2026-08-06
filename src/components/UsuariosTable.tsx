@@ -12,6 +12,7 @@ type Usuario = {
   carnet: string | null;
   cohorte: string | null;
   cohortesAsignadas: { cohorte: string; activa: boolean }[] | null;
+  carrerasAsignadasNombres?: string[];
   carrera: string | null;
   facultad: string | null;
   activo: boolean;
@@ -242,8 +243,15 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                       <span className="text-slate-400 italic text-[11px]">-</span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 max-w-[160px]">
-                    {user.carrera ? (
+                  <td className="px-3 py-2.5 max-w-[170px]">
+                    {user.carrerasAsignadasNombres && user.carrerasAsignadasNombres.length > 0 ? (
+                      <span
+                        className="block font-semibold text-slate-800 truncate text-xs cursor-help"
+                        title={`Carreras asignadas: ${user.carrerasAsignadasNombres.join(", ")}`}
+                      >
+                        🎓 {user.carrerasAsignadasNombres.join(", ")}
+                      </span>
+                    ) : user.carrera ? (
                       <span className="block text-slate-600 truncate text-xs" title={user.carrera}>
                         {user.carrera}
                       </span>

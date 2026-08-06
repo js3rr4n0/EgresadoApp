@@ -1,18 +1,20 @@
 import { getCarreras } from "@/app/actions/usuarios";
 import { db } from "@/lib/db";
-import { periodos } from "@/lib/schema";
+import { periodos, facultades } from "@/lib/schema";
 import { desc } from "drizzle-orm";
 import UserForm from "@/components/UserForm";
 import Link from "next/link";
 
 export default async function NuevoUsuarioPage() {
-  const res = await getCarreras();
-  const carreras = res.success && res.data ? res.data : [];
+  const [res, periodosData, facultadesData] = await Promise.all([
+    getCarreras(),
+    db.select({ id: periodos.id, nombre: periodos.nombre, activo: periodos.activo })
+      .from(periodos)
+      .orderBy(desc(periodos.id)),
+    db.select({ id: facultades.id, nombre: facultades.nombre }).from(facultades),
+  ]);
 
-  const periodosData = await db
-    .select({ id: periodos.id, nombre: periodos.nombre, activo: periodos.activo })
-    .from(periodos)
-    .orderBy(desc(periodos.id));
+  const carreras = res.success && res.data ? res.data : [];
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -28,7 +30,7 @@ export default async function NuevoUsuarioPage() {
         <h1 className="text-2xl font-bold text-card-dark">Crear Usuario</h1>
       </div>
 
-      <UserForm carreras={carreras} periodos={periodosData} />
+      <UserForm carreras={carreras} periodos={periodosData} facultades={facultadesData} />
     </div>
   );
 }

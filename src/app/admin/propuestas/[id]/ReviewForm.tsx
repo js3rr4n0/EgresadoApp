@@ -24,7 +24,9 @@ export default function ReviewForm({
   const [message, setMessage] = useState("");
   const [coordSearch, setCoordSearch] = useState("");
 
-  const selectedCoordObj = coordinadores.find((c) => c.id === Number(coordinadorId));
+  const [showProjectsList, setShowProjectsList] = useState(false);
+
+  const selectedCoordObj = coordinadores.find((c) => String(c.id) === coordinadorId);
 
   const filteredCoordinadores = coordinadores.filter((c) => {
     if (!coordSearch.trim()) return true;
@@ -125,7 +127,7 @@ export default function ReviewForm({
         {/* Sección de Asignación de Coordinador con Búsqueda y Autocompletado */}
         <div className="space-y-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
           <label className="block text-xs font-bold text-indigo-950 uppercase">
-            Seleccionar Coordinador de Facultad
+            Seleccionar Coordinador de Facultad / Admin
           </label>
 
           <input
@@ -138,16 +140,21 @@ export default function ReviewForm({
 
           <select
             value={coordinadorId}
-            onChange={(e) => setCoordinadorId(e.target.value)}
+            onChange={(e) => {
+              setCoordinadorId(e.target.value);
+              setShowProjectsList(false);
+            }}
             required
             className="w-full px-4 py-2.5 rounded-xl border border-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-900 font-medium text-sm"
           >
-            <option value="">-- Elige un Coordinador --</option>
+            <option value="">-- Elige un Coordinador o Administrador --</option>
             {filteredCoordinadores.map((c) => {
               const hasCompanyExp = (c.proyectosEmpresaCount ?? 0) > 0;
+              const isAdminRole = c.rol === "admin";
               return (
                 <option key={c.id} value={c.id}>
                   {hasCompanyExp ? "⭐ [Prioritario] " : ""}
+                  {isAdminRole ? "🛡️ [ADMIN] " : ""}
                   {c.nombreCompleto} ({c.facultadNombre || "General"})
                   {hasCompanyExp ? ` — Trabaja con esta empresa (${c.proyectosEmpresaCount} previas)` : ""}
                 </option>
@@ -157,9 +164,16 @@ export default function ReviewForm({
 
           {/* Coordinador Info Box: Facultad & Proyectos Asignados */}
           {selectedCoordObj && (
-            <div className="bg-white p-3.5 rounded-xl border border-indigo-200 space-y-1.5 text-xs text-slate-700 shadow-2xs">
+            <div className="bg-white p-3.5 rounded-xl border border-indigo-200 space-y-2 text-xs text-slate-700 shadow-2xs">
               <p className="font-extrabold text-indigo-950 text-sm flex items-center justify-between">
-                <span>{selectedCoordObj.nombreCompleto}</span>
+                <span className="flex items-center gap-1.5">
+                  {selectedCoordObj.nombreCompleto}
+                  {selectedCoordObj.rol === "admin" && (
+                    <span className="text-[10px] bg-purple-100 text-purple-900 border border-purple-200 px-1.5 py-0.2 rounded font-extrabold">
+                      ADMIN
+                    </span>
+                  )}
+                </span>
                 {selectedCoordObj.proyectosEmpresaCount > 0 && (
                   <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold">
                     ⭐ Trabaja con esta empresa
@@ -170,12 +184,55 @@ export default function ReviewForm({
                 <span className="font-semibold text-slate-500">Facultad:</span>
                 <span className="font-bold text-slate-800">{selectedCoordObj.facultadNombre}</span>
               </p>
-              <p className="flex items-center justify-between">
+              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                 <span className="font-semibold text-slate-500">Proyectos Activos:</span>
-                <span className="font-extrabold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100">
-                  {selectedCoordObj.proyectosAsignadosCount ?? 0} asignados
-                </span>
-              </p>
+                <button
+                  type="button"
+                  onClick={() => setShowProjectsList(!showProjectsList)}
+                  className="font-extrabold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Clic para ver detalle de proyectos y empresas"
+                >
+                  <span>{selectedCoordObj.proyectosAsignadosCount ?? 0} asignados</span>
+                  <span className="text-[10px]">{showProjectsList ? "▲" : "▼"}</span>
+                </button>
+              </div>
+
+              {/* Projects Breakdown List */}
+              {showProjectsList && (
+                <div className="mt-2 pt-2 border-t border-indigo-100 space-y-2">
+                  <p className="font-bold text-[11px] text-indigo-950 uppercase tracking-wider flex items-center justify-between">
+                    <span>Proyectos y Empresas Actuales</span>
+                    <span className="text-[10px] font-normal text-slate-500">({selectedCoordObj.proyectosDetalle?.length || 0})</span>
+                  </p>
+                  {selectedCoordObj.proyectosDetalle && selectedCoordObj.proyectosDetalle.length > 0 ? (
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                      {selectedCoordObj.proyectosDetalle.map((p: any) => (
+                        <div key={p.id} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] flex flex-col gap-1">
+                          <div className="flex items-center justify-between font-bold text-slate-900">
+                            <span>Propuesta #{p.numero} ({p.tipo})</span>
+                            <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-extrabold">
+                              {p.estado}
+                            </span>
+                          </div>
+                          <p className="text-slate-700 font-medium line-clamp-1">{p.titulo}</p>
+                          {p.empresaNombre ? (
+                            <p className="text-amber-900 font-bold text-[10px] flex items-center gap-1 bg-amber-50 p-1 rounded border border-amber-200/60">
+                              <span>🏢 Empresa:</span> {p.empresaNombre}
+                            </p>
+                          ) : (
+                            <p className="text-slate-400 italic text-[10px]">Sin empresa registrada</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-slate-500 italic text-[11px] text-center p-2 bg-slate-50 rounded border border-dashed border-slate-200">
+                      No tiene proyectos asignados actualmente.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {selectedCoordObj.proyectosEmpresaCount > 0 && (
                 <p className="flex items-center justify-between pt-1 border-t border-indigo-100 text-amber-800 font-bold">
                   <span>Experiencia en esta empresa:</span>

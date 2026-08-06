@@ -30,20 +30,28 @@ export async function crearUsuario(formData: FormData) {
     const carnet = formData.get("carnet") as string | null;
     const cohorte = formData.get("cohorte") as string | null;
     const cohortesAsignadasRaw = formData.get("cohortesAsignadas") as string | null;
+    const carrerasAsignadasRaw = formData.get("carrerasAsignadas") as string | null;
     const carreraId = formData.get("carreraId") ? Number(formData.get("carreraId")) : null;
+    let facultadId = formData.get("facultadId") ? Number(formData.get("facultadId")) : null;
     const activo = formData.get("activo") === "on";
 
     if (!nombreCompleto || !correo || !password || !rol) {
       return { success: false, error: "Faltan campos obligatorios" };
     }
 
-    // Determine facultadId if a carrera is selected
-    let facultadId: number | null = null;
-    if (carreraId) {
+    // Determine facultadId if a carrera is selected and facultadId not explicitly set
+    if (!facultadId && carreraId) {
       const carrera = await db.select().from(carreras).where(eq(carreras.id, carreraId)).limit(1);
       if (carrera.length > 0) {
         facultadId = carrera[0].facultadId;
       }
+    }
+
+    let carrerasAsignadasParsed = null;
+    if (carrerasAsignadasRaw) {
+      try {
+        carrerasAsignadasParsed = JSON.parse(carrerasAsignadasRaw);
+      } catch (e) {}
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -56,8 +64,9 @@ export async function crearUsuario(formData: FormData) {
       carnet: rol === "egresado" ? carnet : null,
       cohorte: rol === "egresado" ? cohorte : null,
       carreraId: (rol === "egresado" || rol === "coordinador" || rol === "asesor") ? carreraId : null,
-      facultadId: (rol === "egresado" || rol === "coordinador" || rol === "asesor") ? facultadId : null,
+      facultadId: (rol === "egresado" || rol === "coordinador" || rol === "asesor" || rol === "decanato") ? facultadId : null,
       cohortesAsignadas: (rol === "asesor" || rol === "decanato" || rol === "coordinador") && cohortesAsignadasRaw ? JSON.parse(cohortesAsignadasRaw) : null,
+      carrerasAsignadas: (rol === "coordinador" || rol === "asesor" || rol === "decanato") ? carrerasAsignadasParsed : null,
       activo,
     });
 
@@ -83,16 +92,35 @@ export async function getUsuarios() {
         carnet: usuarios.carnet,
         cohorte: usuarios.cohorte,
         cohortesAsignadas: usuarios.cohortesAsignadas,
+        carrerasAsignadas: usuarios.carrerasAsignadas,
         activo: usuarios.activo,
         carrera: carreras.nombre,
         facultad: facultades.nombre,
+        facultadId: usuarios.facultadId,
+        carreraId: usuarios.carreraId,
       })
       .from(usuarios)
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .leftJoin(facultades, eq(usuarios.facultadId, facultades.id))
       .orderBy(desc(usuarios.id));
 
-    return { success: true, data };
+    const allCarreras = await db.select().from(carreras);
+    const carrerasMap = new Map(allCarreras.map((c) => [c.id, c.nombre]));
+
+    const result = data.map((u) => {
+      let carrerasAsignadasNombres: string[] = [];
+      if (Array.isArray(u.carrerasAsignadas)) {
+        carrerasAsignadasNombres = (u.carrerasAsignadas as number[])
+          .map((id) => carrerasMap.get(id))
+          .filter((name): name is string => Boolean(name));
+      }
+      return {
+        ...u,
+        carrerasAsignadasNombres,
+      };
+    });
+
+    return { success: true, data: result };
   } catch (error) {
     console.error("Error fetching users:", error);
     return { success: false, error: "Error al cargar los usuarios" };
@@ -135,19 +163,27 @@ export async function updateUsuario(id: number, formData: FormData) {
     const carnet = formData.get("carnet") as string | null;
     const cohorte = formData.get("cohorte") as string | null;
     const cohortesAsignadasRaw = formData.get("cohortesAsignadas") as string | null;
+    const carrerasAsignadasRaw = formData.get("carrerasAsignadas") as string | null;
     const carreraId = formData.get("carreraId") ? Number(formData.get("carreraId")) : null;
+    let facultadId = formData.get("facultadId") ? Number(formData.get("facultadId")) : null;
     const activo = formData.get("activo") === "on";
 
     if (!nombreCompleto || !correo || !rol) {
       return { success: false, error: "Faltan campos obligatorios" };
     }
 
-    let facultadId: number | null = null;
-    if (carreraId) {
+    if (!facultadId && carreraId) {
       const carrera = await db.select().from(carreras).where(eq(carreras.id, carreraId)).limit(1);
       if (carrera.length > 0) {
         facultadId = carrera[0].facultadId;
       }
+    }
+
+    let carrerasAsignadasParsed = null;
+    if (carrerasAsignadasRaw) {
+      try {
+        carrerasAsignadasParsed = JSON.parse(carrerasAsignadasRaw);
+      } catch (e) {}
     }
 
     await db.update(usuarios).set({
@@ -157,8 +193,9 @@ export async function updateUsuario(id: number, formData: FormData) {
       carnet: rol === "egresado" ? carnet : null,
       cohorte: rol === "egresado" ? cohorte : null,
       carreraId: (rol === "egresado" || rol === "coordinador" || rol === "asesor") ? carreraId : null,
-      facultadId: (rol === "egresado" || rol === "coordinador" || rol === "asesor") ? facultadId : null,
+      facultadId: (rol === "egresado" || rol === "coordinador" || rol === "asesor" || rol === "decanato") ? facultadId : null,
       cohortesAsignadas: (rol === "asesor" || rol === "decanato" || rol === "coordinador") && cohortesAsignadasRaw ? JSON.parse(cohortesAsignadasRaw) : null,
+      carrerasAsignadas: (rol === "coordinador" || rol === "asesor" || rol === "decanato") ? carrerasAsignadasParsed : null,
       activo,
     }).where(eq(usuarios.id, id));
 

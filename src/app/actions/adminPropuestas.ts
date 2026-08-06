@@ -13,8 +13,9 @@ import {
   cartasAceptacion,
   detallesProyecto,
   integrantesProyecto,
+  empresas,
 } from "@/lib/schema";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
@@ -93,24 +94,42 @@ export async function getCoordinadoresConEstadisticas(empresaId?: number | null)
         id: usuarios.id,
         nombreCompleto: usuarios.nombreCompleto,
         correo: usuarios.correo,
+        rol: usuarios.rol,
         facultadId: usuarios.facultadId,
         facultadNombre: facultades.nombre,
       })
       .from(usuarios)
       .leftJoin(facultades, eq(usuarios.facultadId, facultades.id))
-      .where(eq(usuarios.rol, "coordinador"));
+      .where(inArray(usuarios.rol, ["coordinador", "admin"]));
 
     const coordinadoresConStats = await Promise.all(
       coords.map(async (c) => {
         const result = await db
-          .select({ id: propuestas.id })
+          .select({
+            id: propuestas.id,
+            numero: propuestas.numero,
+            titulo: propuestas.titulo,
+            tipo: propuestas.tipo,
+            estado: propuestas.estado,
+            empresaNombre: empresas.nombre,
+          })
           .from(propuestas)
+          .leftJoin(empresas, eq(propuestas.empresaId, empresas.id))
           .where(
             and(
               eq(propuestas.coordinadorId, c.id),
-              eq(propuestas.estado, "coordinador_asignado")
+              inArray(propuestas.estado, ["coordinador_asignado", "aprobada", "enviada"])
             )
           );
+
+        const proyectosDetalle = result.map((p) => ({
+          id: p.id,
+          numero: p.numero,
+          titulo: p.titulo || `Propuesta #${p.numero}`,
+          tipo: p.tipo,
+          estado: p.estado,
+          empresaNombre: p.empresaNombre || null,
+        }));
 
         let proyectosEmpresaCount = 0;
         if (empresaId) {
@@ -130,9 +149,11 @@ export async function getCoordinadoresConEstadisticas(empresaId?: number | null)
           id: c.id,
           nombreCompleto: c.nombreCompleto,
           correo: c.correo,
-          facultadNombre: c.facultadNombre || "Sin Facultad",
+          rol: c.rol,
+          facultadNombre: c.facultadNombre || (c.rol === "admin" ? "Administración Central" : "Sin Facultad"),
           proyectosAsignadosCount: result.length,
           proyectosEmpresaCount,
+          proyectosDetalle,
         };
       })
     );
