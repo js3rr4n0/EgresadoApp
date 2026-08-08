@@ -510,20 +510,22 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
    - **Causa Raíz:** En `DatosEmpresarialesForm.tsx`, la selección de empresa asignaba `opt.label` (que contenía `"${emp.nombre} (Matriz)"`) al campo `nombre` del estado de solicitud. Al aprobar cada solicitud, `empresas.nombre` acumulaba `(Matriz)` de forma iterativa en la base de datos.
    - **Solución:** Se corrigió el formulario para utilizar la propiedad limpia `emp.nombre`, y en las Server Actions (`solicitudes.ts` y `empresas.ts`) se agregó una sanitización regex `replace(/(\s*\((Matriz|Sucursal[^)]*)\))+$/gi, "")` que elimina y limpia automáticamente cualquier etiqueta `(Matriz)` duplicada existente en la DB.
 
-### 15.3. Rediseño Estético del Diagrama de Gantt y Captura de Mapa con Pin Rojo (PDF / Previews)
+### 15.3. Rediseño Estético y Compactación del Diagrama de Gantt y Ajuste de Mapa Panorámico (PDF / Previews)
 
-1. **Captura de Mapa Geográfico Zoom-Out con Marcador de Pin Rojo (`/api/map`):**
-   - **Requisito:** Mostrar la ubicación de la empresa con una vista más alejada (nivel ciudad/municipio) y un marcador rojo evidente sobre la coordenada.
-   - **Solución:** Se reestructuró la API de mapas (`src/app/api/map/route.ts`) a un nivel de Zoom 14. Se implementó una composición SVG que descarga en paralelo un grid 3x3 de teselas de OpenStreetMap (768x768px), calculando la posición vectorial exacta de las coordenadas GPS y posicionando un pin rojo con sombra, brillo envolvente y punto central blanco.
-   - **Resultado:** En todas las impresiones PDF (`/imprimir`), los mapas de empresas y sucursales muestran un mapa contextual claro de la ciudad con un marcador rojo exacto.
+1. **Ajuste de Mapa Panorámico Regional (Zoom Level 12 & `object-contain`):**
+   - **Causa del acercamiento anterior:** El nivel de zoom 14 era aún muy cercano (nivel barrio/calle) y la propiedad CSS `object-cover` en las imágenes de impresión recortaba los bordes superior/inferior del SVG expandiéndolo visualmente.
+   - **Solución:**
+     - En `src/app/api/map/route.ts`, se cambió el nivel de zoom por defecto a **Zoom 12** (cobertura panorámica regional/ciudad completa) y se incorporó soporte para parámetro `zoom` personalizado.
+     - Se añadió un anillo concéntrico de objetivo militar/GPS (`Ground Target Ring`) alrededor de las coordenadas para resaltar la ubicación sin importar la escala.
+     - En las vistas de impresión PDF (`imprimir/page.tsx` y `PrintView.tsx`), se reemplazó `object-cover` por `object-contain` sobre contenedores ajustados a `h-[220px]`, evitando que CSS recorte el mapa y garantizando la visualización del área geográfica completa.
 
-2. **Rediseño del Diagrama de Gantt (Vista Digital e Impresiones PDF):**
-   - **Requisito:** Transformar la representación del Diagrama de Gantt a un diseño moderno, estético y profesional para revisión administrativa e impresión.
-   - **Solución:** 
-     - Se reemplazaron las celdas simples de texto `■` por barras contenedoras tipo *pill* con degradados (`bg-gradient-to-r from-red-600 to-red-700`) e indicadores de punto brillante interior.
-     - Se agregó una barra de encabezado superior con gradiente borgoña/negro (`from-red-900 via-red-800 to-slate-900`) e icono descriptivo 📊.
-     - Se añadieron etiquetas visuales formateadas para códigos de actividades (`1.1`, `1.2`, etc.) y una leyenda en el pie del gráfico indicando las semanas de ejecución vs. períodos sin actividad.
-   - **Archivos actualizados:** `src/app/egresado/redactar/imprimir/page.tsx`, `src/app/admin/propuestas/[id]/imprimir/page.tsx`, `src/components/ActividadesForm.tsx`.
+2. **Compactación Vertical del Diagrama de Gantt (PDFs y Formularios):**
+   - **Problema anterior:** Cada fila del Gantt incluía la descripción completa multilínea de la actividad, haciendo que un plan de 15 actividades ocupara una altura excesiva (~900px) y rompiera de forma brusca en las páginas del PDF.
+   - **Solución:**
+     - Se eliminó la descripción redundante de las filas del Gantt (ya presente en la tabla principal de actividades) dejando únicamente el **título/nombre corto en una sola línea** con truncado elegante (`truncate max-w-[200px]`).
+     - Se redujo la altura de cada fila a `h-5` / `h-6` con paddings ultra compactos (`py-0.5 px-1.5`, `text-[9px]`/`text-[10px]`).
+     - **Resultado:** La altura total del Gantt se redujo en más del 60% (~320px para 15 actividades), encajando perfectamente de forma estética y estructurada en una sola hoja.
+   - **Archivos actualizados:** `src/app/egresado/redactar/imprimir/page.tsx`, `src/app/admin/propuestas/[id]/imprimir/page.tsx`, `src/app/admin/empresas/[id]/imprimir/PrintView.tsx`, `src/components/ActividadesForm.tsx`, `src/app/api/map/route.ts`.
 
 
 

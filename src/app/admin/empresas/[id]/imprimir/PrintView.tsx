@@ -156,12 +156,12 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
               {empresa.mapaUrl && (
                 <div className="pt-4 border-t border-gray-200 mt-4">
                   <span className="font-bold block mb-2">Ubicación (Sede Central):</span>
-                  <div className="border border-gray-300 p-1 rounded bg-gray-50 h-[300px] flex items-center justify-center overflow-hidden">
+                  <div className="border border-gray-300 p-1 rounded bg-slate-50 h-[220px] flex items-center justify-center overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img 
                       src={getStaticMapUrl(empresa.mapaUrl) || ""} 
                       alt="Mapa Sede Central" 
-                      className="w-full h-full object-cover rounded"
+                      className="w-full h-full object-contain rounded"
                       crossOrigin="anonymous"
                     />
                   </div>
@@ -194,12 +194,12 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
                     {suc.mapaUrl && (
                       <div className="border-t border-gray-200 pt-4 mt-2">
                         <span className="font-bold block mb-2 text-sm">Mapa de Sucursal:</span>
-                        <div className="border border-gray-300 p-1 rounded bg-gray-50 h-[250px] flex items-center justify-center overflow-hidden">
+                        <div className="border border-gray-300 p-1 rounded bg-slate-50 h-[220px] flex items-center justify-center overflow-hidden">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img 
                             src={getStaticMapUrl(suc.mapaUrl) || ""} 
                             alt={`Mapa Sucursal ${suc.nombre}`} 
-                            className="w-full h-full object-cover rounded"
+                            className="w-full h-full object-contain rounded"
                             crossOrigin="anonymous"
                           />
                         </div>

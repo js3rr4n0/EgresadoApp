@@ -560,14 +560,13 @@ export default function ActividadesForm({
                       const isEven = idx % 2 === 0;
                       return (
                         <tr key={act.id} className={isEven ? "bg-white hover:bg-slate-50" : "bg-slate-50/60 hover:bg-slate-100/70"}>
-                          <td className="p-2 text-center font-mono font-bold text-slate-800 border-r border-slate-200">
-                            <span className="inline-block bg-slate-100 text-red-900 border border-slate-300 px-1.5 py-0.5 rounded font-extrabold text-[11px]">
+                          <td className="py-1 px-1.5 text-center font-mono font-bold text-slate-800 border-r border-slate-200">
+                            <span className="inline-block bg-slate-100 text-red-900 border border-slate-300 px-1 py-0.2 rounded font-black text-[10px]">
                               {act.periodo}.{act.semana}
                             </span>
                           </td>
-                          <td className="p-2 font-medium text-slate-900 border-r border-slate-200">
-                            <span className="font-bold text-slate-900 text-xs block leading-tight">{act.titulo || "Sin Título"}</span>
-                            <span className="text-[10px] text-slate-500 truncate block mt-0.5 leading-tight">{act.descripcion}</span>
+                          <td className="py-1 px-2 font-medium text-slate-900 border-r border-slate-200 truncate max-w-[220px]" title={act.titulo || act.descripcion}>
+                            <span className="font-bold text-slate-900 text-xs truncate block leading-tight">{act.titulo || act.descripcion}</span>
                           </td>
                           {periodos.flatMap((p) =>
                             Array.from({ length: p.weeks }).map((_, wIdx) => {
@@ -576,11 +575,11 @@ export default function ActividadesForm({
                               return (
                                 <td
                                   key={`${act.id}-${p.num}-${weekNum}`}
-                                  className="p-0.5 border-r border-slate-200/60 text-center align-middle h-9"
+                                  className="p-0 border-r border-slate-200/60 text-center align-middle h-6"
                                 >
                                   {isActiveCell && (
-                                    <div className="bg-gradient-to-r from-red-600 to-red-700 text-white text-[10px] font-extrabold py-1.5 px-1 rounded-md shadow-xs flex items-center justify-center border border-red-500 gap-1 animate-in fade-in">
-                                      <span className="w-1.5 h-1.5 rounded-full bg-white shadow-xs"></span>
+                                    <div className="mx-0.5 my-0.5 bg-gradient-to-r from-red-600 to-red-700 text-white text-[9px] font-extrabold py-0.5 px-1 rounded shadow-2xs flex items-center justify-center border border-red-500 gap-1 animate-in fade-in">
+                                      <span className="w-1 h-1 rounded-full bg-white"></span>
                                       <span>S{weekNum}</span>
                                     </div>
                                   )}

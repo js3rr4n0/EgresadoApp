@@ -30,8 +30,9 @@ export async function GET(request: Request) {
     return new NextResponse("Invalid coords", { status: 400 });
   }
 
-  // Zoom level 14 for wider, zoomed-out city view
-  const zoom = 14;
+  // Zoom level 12 for wide, zoomed-out city/regional view
+  const zoomParam = searchParams.get("zoom");
+  const zoom = zoomParam ? Math.max(1, Math.min(18, parseInt(zoomParam, 10))) : 12;
   const tileXFloat = lon2tileFloat(lng, zoom);
   const tileYFloat = lat2tileFloat(lat, zoom);
 
@@ -88,10 +89,13 @@ export async function GET(request: Request) {
     ${tilesSvgContent}
     <!-- Red Pin Location Marker -->
     <g transform="translate(${px}, ${py})">
+      <!-- Ground Target Crosshair Ring -->
+      <circle cx="0" cy="0" r="16" fill="rgba(239, 68, 68, 0.15)" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 2"/>
+      <circle cx="0" cy="0" r="4" fill="#dc2626"/>
       <!-- Drop Shadow -->
       <ellipse cx="0" cy="3" rx="10" ry="4" fill="rgba(0,0,0,0.35)"/>
       <!-- Outer Pulsing Glow -->
-      <circle cx="0" cy="-34" r="22" fill="#ef4444" opacity="0.2"/>
+      <circle cx="0" cy="-34" r="22" fill="#ef4444" opacity="0.3"/>
       <!-- Pin Body -->
       <path d="M 0 0 C -14 -14 -20 -24 -20 -34 A 20 20 0 1 1 20 -34 C 20 -24 14 -14 0 0 Z" fill="#dc2626" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
       <!-- Inner White Ring -->

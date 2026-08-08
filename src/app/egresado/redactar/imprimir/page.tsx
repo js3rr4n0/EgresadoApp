@@ -363,9 +363,9 @@ export default async function PrintPropuestaPage({
                         {sucursal.mapaUrl && getStaticMapUrl(sucursal.mapaUrl) && (
                           <div className="mt-2 border-t border-gray-200 pt-4">
                             <span className="font-bold block mb-2">Captura de Mapa (Sucursal):</span>
-                            <div className="border border-gray-300 p-1 rounded bg-white h-[300px] flex items-center justify-center overflow-hidden">
+                            <div className="border border-gray-300 p-1 rounded bg-slate-50 h-[220px] flex items-center justify-center overflow-hidden">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={getStaticMapUrl(sucursal.mapaUrl)!} alt="Mapa Sucursal" className="w-full h-full object-cover rounded" />
+                              <img src={getStaticMapUrl(sucursal.mapaUrl)!} alt="Mapa Sucursal" className="w-full h-full object-contain rounded" />
                             </div>
                           </div>
                         )}
@@ -380,9 +380,9 @@ export default async function PrintPropuestaPage({
                         {empresa.mapaUrl && getStaticMapUrl(empresa.mapaUrl) && (
                           <div className="mt-2 border-t border-gray-200 pt-4">
                             <span className="font-bold block mb-2">Captura de Mapa (Matriz):</span>
-                            <div className="border border-gray-300 p-1 rounded bg-white h-[300px] flex items-center justify-center overflow-hidden">
+                            <div className="border border-gray-300 p-1 rounded bg-slate-50 h-[220px] flex items-center justify-center overflow-hidden">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={getStaticMapUrl(empresa.mapaUrl)!} alt="Mapa Matriz" className="w-full h-full object-cover rounded" />
+                              <img src={getStaticMapUrl(empresa.mapaUrl)!} alt="Mapa Matriz" className="w-full h-full object-contain rounded" />
                             </div>
                           </div>
                         )}
@@ -479,45 +479,41 @@ export default async function PrintPropuestaPage({
                     </tbody>
                   </table>
 
-                  {/* DIAGRAMA DE GANTT IMPRESO RE-DISEÑADO */}
-                  <div className="pt-4 print:break-inside-avoid">
-                    <div className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white">
+                  {/* DIAGRAMA DE GANTT IMPRESO RE-DISEÑADO (COMPACTO VERTICALMENTE) */}
+                  <div className="pt-2 print:break-inside-avoid">
+                    <div className="border border-slate-300 rounded-lg overflow-hidden shadow-2xs bg-white">
                       {/* Header Title Bar */}
-                      <div className="bg-gradient-to-r from-red-900 via-red-800 to-slate-900 text-white px-4 py-2.5 flex items-center justify-between">
+                      <div className="bg-gradient-to-r from-red-900 via-red-800 to-slate-900 text-white px-3 py-1.5 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-base">📊</span>
-                          <h3 className="text-xs font-extrabold uppercase tracking-wider">
-                            Diagrama de Gantt y Cronograma de Ejecución
+                          <span className="text-sm">📊</span>
+                          <h3 className="text-[11px] font-extrabold uppercase tracking-wider">
+                            Diagrama de Gantt - Cronograma de Ejecución
                           </h3>
                         </div>
-                        <div className="flex items-center gap-3 text-[10px]">
+                        <div className="flex items-center gap-2 text-[9px]">
                           <span className="flex items-center gap-1 font-medium bg-red-700/60 px-2 py-0.5 rounded-full border border-red-500/40">
-                            <span className="w-2 h-2 rounded-full bg-red-300"></span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-300"></span>
                             Semana Programada
                           </span>
                         </div>
                       </div>
 
-                      <table className="w-full text-[11px] border-collapse">
+                      <table className="w-full text-[10px] border-collapse">
                         <thead>
-                          <tr className="bg-slate-800 text-white text-[10px] uppercase font-bold tracking-wider">
-                            <th className="p-2 text-center w-14 border-r border-slate-700">Cód.</th>
-                            <th className="p-2 text-left w-1/3 border-r border-slate-700">Descripción de Actividad</th>
+                          <tr className="bg-slate-800 text-white text-[9px] uppercase font-bold tracking-wider">
+                            <th className="py-1 px-1.5 text-center w-12 border-r border-slate-700">Cód.</th>
+                            <th className="py-1 px-2 text-left w-2/5 border-r border-slate-700">Actividad</th>
                             {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((pNum) => (
-                              <th key={pNum} colSpan={4} className="p-1.5 text-center border-r border-slate-700 bg-slate-900/90">
-                                <span className="inline-block bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold text-red-200">
-                                  MES {pNum}
-                                </span>
+                              <th key={pNum} colSpan={4} className="py-1 text-center border-r border-slate-700 bg-slate-900">
+                                <span className="text-red-200 font-bold">MES {pNum}</span>
                               </th>
                             ))}
                           </tr>
-                          <tr className="bg-slate-100 font-bold text-slate-600 text-[10px] border-b border-slate-300">
-                            <th className="p-1 border-r border-slate-300" colSpan={2}>
-                              Semanas de Planificación
-                            </th>
+                          <tr className="bg-slate-100 font-bold text-slate-600 text-[9px] border-b border-slate-300">
+                            <th className="py-0.5 px-1 border-r border-slate-300" colSpan={2}>Semanas</th>
                             {Array.from(new Set(actividadesList.map((a) => a.periodo))).flatMap((pNum) =>
                               [1, 2, 3, 4].map((sNum) => (
-                                <th key={`${pNum}-${sNum}`} className="p-1 text-center font-mono border-r border-slate-200 bg-slate-50 text-[10px]">
+                                <th key={`${pNum}-${sNum}`} className="py-0.5 text-center font-mono border-r border-slate-200 bg-slate-50 w-5">
                                   S{sNum}
                                 </th>
                               ))
@@ -529,15 +525,16 @@ export default async function PrintPropuestaPage({
                             const allPeriods = Array.from(new Set(actividadesList.map((act) => act.periodo)));
                             const isEven = idx % 2 === 0;
                             return (
-                              <tr key={a.id} className={isEven ? "bg-white" : "bg-slate-50/70"}>
-                                <td className="p-2 text-center border-r border-slate-200 font-mono font-bold text-[10px]">
-                                  <span className="inline-block bg-slate-100 text-red-900 border border-slate-300 px-1.5 py-0.5 rounded font-extrabold">
+                              <tr key={a.id} className={`${isEven ? "bg-white" : "bg-slate-50/70"} hover:bg-slate-100/50`}>
+                                <td className="py-0.5 px-1 text-center border-r border-slate-200 font-mono font-bold text-[9px]">
+                                  <span className="inline-block bg-slate-100 text-red-900 border border-slate-300 px-1 py-0.2 rounded font-black">
                                     {a.periodo}.{a.semana}
                                   </span>
                                 </td>
-                                <td className="p-2 border-r border-slate-200">
-                                  <span className="font-bold text-slate-900 text-xs block leading-tight">{a.titulo || a.descripcion}</span>
-                                  {a.titulo && <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">{a.descripcion}</span>}
+                                <td className="py-0.5 px-2 border-r border-slate-200 truncate max-w-[200px]" title={a.titulo || a.descripcion}>
+                                  <span className="font-bold text-slate-800 text-[10px] truncate block leading-tight">
+                                    {a.titulo || a.descripcion}
+                                  </span>
                                 </td>
                                 {allPeriods.flatMap((pNum) =>
                                   [1, 2, 3, 4].map((sNum) => {
@@ -545,15 +542,13 @@ export default async function PrintPropuestaPage({
                                     return (
                                       <td
                                         key={`${a.id}-${pNum}-${sNum}`}
-                                        className="p-0.5 text-center border-r border-slate-200/60 h-8 vertical-align-middle"
+                                        className="p-0 text-center border-r border-slate-200/50 h-5 align-middle"
                                       >
                                         {active ? (
-                                          <div className="bg-gradient-to-r from-red-600 to-red-700 text-white font-bold text-[10px] rounded-md py-1.5 shadow-xs flex items-center justify-center border border-red-500">
-                                            <span className="w-1.5 h-1.5 rounded-full bg-white shadow-xs"></span>
+                                          <div className="mx-0.5 my-0.5 bg-gradient-to-r from-red-600 to-red-700 text-white font-bold text-[8px] rounded py-0.5 shadow-2xs flex items-center justify-center border border-red-500">
+                                            <span className="w-1 h-1 rounded-full bg-white"></span>
                                           </div>
-                                        ) : (
-                                          <div className="h-full w-full"></div>
-                                        )}
+                                        ) : null}
                                       </td>
                                     );
                                   })
@@ -564,15 +559,15 @@ export default async function PrintPropuestaPage({
                         </tbody>
                       </table>
                       
-                      <div className="bg-slate-50 border-t border-slate-200 px-4 py-2 flex items-center justify-between text-[10px] text-slate-600 font-medium">
-                        <span>Total de Actividades: <strong>{actividadesList.length}</strong></span>
-                        <div className="flex items-center gap-4">
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded bg-gradient-to-r from-red-600 to-red-700 border border-red-500 inline-block"></span>
+                      <div className="bg-slate-50 border-t border-slate-200 px-3 py-1 flex items-center justify-between text-[9px] text-slate-600 font-medium">
+                        <span>Actividades: <strong>{actividadesList.length}</strong></span>
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded bg-gradient-to-r from-red-600 to-red-700 border border-red-500 inline-block"></span>
                             Ejecución Programada
                           </span>
-                          <span className="flex items-center gap-1.5">
-                            <span className="w-2.5 h-2.5 rounded bg-white border border-slate-300 inline-block"></span>
+                          <span className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded bg-white border border-slate-300 inline-block"></span>
                             Sin Actividad
                           </span>
                         </div>
