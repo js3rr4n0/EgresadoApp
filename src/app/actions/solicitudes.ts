@@ -78,7 +78,7 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
     if (!isUpdate) {
       // 1. Create company
       const newEmpresas = await db.insert(empresas).values({
-        nombre: data.empresa.nombre,
+        nombre: (data.empresa.nombre || "").replace(/(\s*\((Matriz|Sucursal[^)]*)\))+$/gi, "").trim(),
         area: data.empresa.area,
         descripcion: data.empresa.descripcion,
         antecedentes: data.empresa.antecedentes,
@@ -133,7 +133,10 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
           habilitada: true,
           actualizadaEn: new Date()
         };
-        if (data.empresa.nombre) updateData.nombre = data.empresa.nombre;
+        if (data.empresa.nombre) {
+          const cleanNombre = data.empresa.nombre.replace(/(\s*\((Matriz|Sucursal[^)]*)\))+$/gi, "").trim();
+          if (cleanNombre) updateData.nombre = cleanNombre;
+        }
         if (data.empresa.area && data.empresa.area.trim() !== "") updateData.area = data.empresa.area;
         if (data.empresa.organigramaUrl && data.empresa.organigramaUrl.trim() !== "") {
           updateData.organigramaUrl = data.empresa.organigramaUrl;

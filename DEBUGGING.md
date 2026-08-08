@@ -506,6 +506,10 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
      - **Cambios Propuestos (Después):** Detecta archivos Data URL (`data:`) o URLs distintas para activar el botón **"Ver Organigrama Propuesto (Nuevo)"**. Si no adjuntó archivo nuevo, muestra **"Sin cambios de organigrama"**.
    - En la Server Action `aprobarSolicitudEmpresa`, se actualiza la tabla `empresas` Y ADEMÁS se inserta el registro histórico en `organigramas_empresa`, garantizando consistencia absoluta entre la tabla de solicitudes y el Catálogo de Empresas (`/admin/empresas`).
 
+4. **Corrección de Duplicación de Etiqueta "(Matriz)" en Nombre de Empresa:**
+   - **Causa Raíz:** En `DatosEmpresarialesForm.tsx`, la selección de empresa asignaba `opt.label` (que contenía `"${emp.nombre} (Matriz)"`) al campo `nombre` del estado de solicitud. Al aprobar cada solicitud, `empresas.nombre` acumulaba `(Matriz)` de forma iterativa en la base de datos.
+   - **Solución:** Se corrigió el formulario para utilizar la propiedad limpia `emp.nombre`, y en las Server Actions (`solicitudes.ts` y `empresas.ts`) se agregó una sanitización regex `replace(/(\s*\((Matriz|Sucursal[^)]*)\))+$/gi, "")` que elimina y limpia automáticamente cualquier etiqueta `(Matriz)` duplicada existente en la DB.
+
 ### 15.2. Verificación y Calidad
 - **Build de Producción:** Verificado exitosamente con `npm run build` (`Exit code: 0`).
 - **Control de Versiones:** Sincronizado en la rama principal.

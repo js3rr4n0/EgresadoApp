@@ -67,12 +67,19 @@ export async function getEmpresas() {
     const orgs = await db.select().from(organigramasEmpresa).orderBy(desc(organigramasEmpresa.id));
     const sucs = await db.select().from(sucursales).orderBy(desc(sucursales.id));
     
-    const nestedData = data.map(emp => ({
-      ...emp,
-      supervisores: sups.filter(s => s.empresaId === emp.id),
-      firmantes: firms.filter(f => f.empresaId === emp.id),
-      organigramas: orgs.filter(o => o.empresaId === emp.id),
-      sucursales: sucs.filter(s => s.empresaId === emp.id)
+    const nestedData = await Promise.all(data.map(async (emp) => {
+      const cleanNombre = emp.nombre ? emp.nombre.replace(/(\s*\((Matriz|Sucursal[^)]*)\))+$/gi, "").trim() : emp.nombre;
+      if (cleanNombre !== emp.nombre) {
+        await db.update(empresas).set({ nombre: cleanNombre }).where(eq(empresas.id, emp.id));
+      }
+      return {
+        ...emp,
+        nombre: cleanNombre,
+        supervisores: sups.filter(s => s.empresaId === emp.id),
+        firmantes: firms.filter(f => f.empresaId === emp.id),
+        organigramas: orgs.filter(o => o.empresaId === emp.id),
+        sucursales: sucs.filter(s => s.empresaId === emp.id)
+      };
     }));
 
     return { success: true, data: nestedData };

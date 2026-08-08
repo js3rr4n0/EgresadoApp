@@ -238,7 +238,7 @@ export default function DatosEmpresarialesForm({
       setRevData(prev => ({
         ...prev,
         empresa: {
-          nombre: opt.label,
+          nombre: emp?.nombre ? emp.nombre.replace(/(\s*\((Matriz|Sucursal[^)]*)\))+$/gi, "").trim() : "",
           area: emp?.area || "",
           descripcion: emp?.descripcion || "",
           antecedentes: emp?.antecedentes || "",
