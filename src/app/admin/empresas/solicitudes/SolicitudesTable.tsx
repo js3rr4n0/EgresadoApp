@@ -300,7 +300,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                       
                       const oldOrgUrl = targetEmpresa?.organigramaUrl || "";
                       const newOrgUrl = viewDetails.datos.empresa?.organigramaUrl || "";
-                      const orgChanged = !!(newOrgUrl && newOrgUrl !== oldOrgUrl);
+                      const orgChanged = !!(newOrgUrl && (newOrgUrl.startsWith("data:") || newOrgUrl !== oldOrgUrl));
 
                       const oldMapUrl = targetSucursal?.mapaUrl || targetEmpresa?.mapaUrl || "";
                       const newMapUrl = viewDetails.datos.empresa?.mapaUrl || "";

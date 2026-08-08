@@ -20,6 +20,17 @@ export default async function SolicitudesEmpresaPage() {
     .leftJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
     .orderBy(desc(solicitudesEmpresa.creadaEn));
 
+  const rawEmpresas = await db.select().from(empresas);
+  const { organigramasEmpresa } = await import("@/lib/schema");
+  const orgs = await db.select().from(organigramasEmpresa).orderBy(desc(organigramasEmpresa.id));
+  const allEmpresas = rawEmpresas.map(emp => {
+    const latestOrg = orgs.find(o => o.empresaId === emp.id);
+    return {
+      ...emp,
+      organigramaUrl: latestOrg ? latestOrg.url : emp.organigramaUrl
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div>
@@ -32,7 +43,7 @@ export default async function SolicitudesEmpresaPage() {
       <div className="bg-white border border-border rounded-xl shadow-sm p-1">
         <SolicitudesTable 
           solicitudes={solicitudes} 
-          allEmpresas={await db.select().from(empresas)} 
+          allEmpresas={allEmpresas} 
           allSucursales={await db.select().from(sucursales)}
           allSupervisores={await db.select().from((await import("@/lib/schema")).supervisores)}
         />

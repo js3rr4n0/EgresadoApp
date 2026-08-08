@@ -90,6 +90,14 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       }).returning({ id: empresas.id });
       targetEmpresaId = newEmpresas[0].id;
 
+      if (data.empresa.organigramaUrl) {
+        const { organigramasEmpresa } = await import("@/lib/schema");
+        await db.insert(organigramasEmpresa).values({
+          empresaId: targetEmpresaId,
+          url: data.empresa.organigramaUrl,
+        });
+      }
+
       // 2. Insert Supervisor
       const newSupervisores = await db.insert(supervisores).values({
         empresaId: targetEmpresaId,
@@ -129,6 +137,11 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         if (data.empresa.area && data.empresa.area.trim() !== "") updateData.area = data.empresa.area;
         if (data.empresa.organigramaUrl && data.empresa.organigramaUrl.trim() !== "" && data.empresa.organigramaUrl !== existingEmpresa?.organigramaUrl) {
           updateData.organigramaUrl = data.empresa.organigramaUrl;
+          const { organigramasEmpresa } = await import("@/lib/schema");
+          await db.insert(organigramasEmpresa).values({
+            empresaId: targetEmpresaId,
+            url: data.empresa.organigramaUrl,
+          });
         }
         
         if (!targetSucursalId) {

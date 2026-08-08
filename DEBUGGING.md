@@ -499,12 +499,12 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
 2. **Comparador de Ubicación GPS / Mapa (Antes vs. Después):**
    - Muestra accesos directos al mapa para comparar la geolocalización actual (**"Ver Mapa Actual (Viejo)"**) frente a la ubicación GPS o enlace propuesto (**"Ver Mapa Propuesto (Nuevo)"**).
    - Resalta visualmente con distintivos verdes los campos que sufrieron modificaciones.
-3. **Flujo Estricto de Aprobación de Organigrama:**
-   - La subida de organigrama por parte del alumno no modifica la BD directamente bajo ningún concepto; se empaqueta como una solicitud en `solicitudes_empresa`.
+3. **Flujo Estricto de Aprobación y Sincronización de Organigramas:**
+   - La subida de organigrama por parte del alumno no modifica la BD directamente bajo ningún concepto; se empaqueta como una solicitud en `solicitudes_empresa` con un Data URL (`data:`).
    - En la vista de "Detalles de Solicitud":
-     - **Datos Actuales (Antes):** Carga siempre el organigrama actual almacenado en la base de datos para esa empresa (`targetEmpresa.organigramaUrl`).
-     - **Cambios Propuestos (Después):** Solo muestra **"Ver Organigrama Propuesto (Nuevo)"** si el estudiante adjuntó explícitamente un nuevo archivo. Si no adjuntó archivo nuevo, muestra **"Sin cambios de organigrama"**.
-   - En la acción `aprobarSolicitudEmpresa`, se valida que `data.empresa.organigramaUrl` exista y sea diferente al guardado en DB para efectuar el `UPDATE`. Si no se modificó, la base de datos permanece intacta.
+     - **Datos Actuales (Antes):** Carga el organigrama actual almacenado en la base de datos para esa empresa (sincronizando `empresas` y `organigramas_empresa`).
+     - **Cambios Propuestos (Después):** Detecta archivos Data URL (`data:`) o URLs distintas para activar el botón **"Ver Organigrama Propuesto (Nuevo)"**. Si no adjuntó archivo nuevo, muestra **"Sin cambios de organigrama"**.
+   - En la Server Action `aprobarSolicitudEmpresa`, se actualiza la tabla `empresas` Y ADEMÁS se inserta el registro histórico en `organigramas_empresa`, garantizando consistencia absoluta entre la tabla de solicitudes y el Catálogo de Empresas (`/admin/empresas`).
 
 ### 15.2. Verificación y Calidad
 - **Build de Producción:** Verificado exitosamente con `npm run build` (`Exit code: 0`).
