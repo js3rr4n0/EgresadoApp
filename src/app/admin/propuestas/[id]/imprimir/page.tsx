@@ -449,7 +449,6 @@ export default async function AdminPrintPropuestaPage({
                     {/* Header Title Bar */}
                     <div className="bg-gradient-to-r from-red-900 via-red-800 to-slate-900 text-white px-3 py-1.5 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm">📊</span>
                         <h3 className="text-[11px] font-extrabold uppercase tracking-wider">
                           Diagrama de Gantt - Cronograma de Ejecución
                         </h3>

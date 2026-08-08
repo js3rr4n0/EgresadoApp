@@ -510,22 +510,16 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
    - **Causa Raíz:** En `DatosEmpresarialesForm.tsx`, la selección de empresa asignaba `opt.label` (que contenía `"${emp.nombre} (Matriz)"`) al campo `nombre` del estado de solicitud. Al aprobar cada solicitud, `empresas.nombre` acumulaba `(Matriz)` de forma iterativa en la base de datos.
    - **Solución:** Se corrigió el formulario para utilizar la propiedad limpia `emp.nombre`, y en las Server Actions (`solicitudes.ts` y `empresas.ts`) se agregó una sanitización regex `replace(/(\s*\((Matriz|Sucursal[^)]*)\))+$/gi, "")` que elimina y limpia automáticamente cualquier etiqueta `(Matriz)` duplicada existente en la DB.
 
-### 15.3. Rediseño Estético y Compactación del Diagrama de Gantt y Ajuste de Mapa Panorámico (PDF / Previews)
+### 15.3. Rediseño Estético del Diagrama de Gantt (Sin Emojis) y Mapa Urbano con Pin de Ubicación (PDF / Previews)
 
-1. **Ajuste de Mapa Panorámico Regional (Zoom Level 12 & `object-contain`):**
-   - **Causa del acercamiento anterior:** El nivel de zoom 14 era aún muy cercano (nivel barrio/calle) y la propiedad CSS `object-cover` en las imágenes de impresión recortaba los bordes superior/inferior del SVG expandiéndolo visualmente.
-   - **Solución:**
-     - En `src/app/api/map/route.ts`, se cambió el nivel de zoom por defecto a **Zoom 12** (cobertura panorámica regional/ciudad completa) y se incorporó soporte para parámetro `zoom` personalizado.
-     - Se añadió un anillo concéntrico de objetivo militar/GPS (`Ground Target Ring`) alrededor de las coordenadas para resaltar la ubicación sin importar la escala.
-     - En las vistas de impresión PDF (`imprimir/page.tsx` y `PrintView.tsx`), se reemplazó `object-cover` por `object-contain` sobre contenedores ajustados a `h-[220px]`, evitando que CSS recorte el mapa y garantizando la visualización del área geográfica completa.
+1. **Eliminación de Emojis del Diagrama de Gantt:**
+   - Se removieron los iconos de emojis (`📊`, etc.) de todos los botones y barras de encabezado del Diagrama de Gantt en vistas públicas, administrativas e imprimibles PDF (`ActividadesForm.tsx`, `egresado/imprimir/page.tsx` y `admin/imprimir/page.tsx`) para mantener una estética sobria y profesional.
 
-2. **Compactación Vertical del Diagrama de Gantt (PDFs y Formularios):**
-   - **Problema anterior:** Cada fila del Gantt incluía la descripción completa multilínea de la actividad, haciendo que un plan de 15 actividades ocupara una altura excesiva (~900px) y rompiera de forma brusca en las páginas del PDF.
-   - **Solución:**
-     - Se eliminó la descripción redundante de las filas del Gantt (ya presente en la tabla principal de actividades) dejando únicamente el **título/nombre corto en una sola línea** con truncado elegante (`truncate max-w-[200px]`).
-     - Se redujo la altura de cada fila a `h-5` / `h-6` con paddings ultra compactos (`py-0.5 px-1.5`, `text-[9px]`/`text-[10px]`).
-     - **Resultado:** La altura total del Gantt se redujo en más del 60% (~320px para 15 actividades), encajando perfectamente de forma estética y estructurada en una sola hoja.
-   - **Archivos actualizados:** `src/app/egresado/redactar/imprimir/page.tsx`, `src/app/admin/propuestas/[id]/imprimir/page.tsx`, `src/app/admin/empresas/[id]/imprimir/PrintView.tsx`, `src/components/ActividadesForm.tsx`, `src/app/api/map/route.ts`.
+2. **Mapa Geográfico Urbano Panorámico (Zoom 15 con Malla 5x3 y Marcador de Punto Rojo):**
+   - **Corrección de Vista:** El nivel de Zoom 12 generaba teselas rurales/montañosas (ej. "Zacate Grande 656m") sin trazado urbano o nombres de calles. Se ajustó el nivel de zoom a **Zoom 15**, el cual despliega con nitidez la red de calles, avenidas, nombres de barrios y la trama de la ciudad.
+   - **Malla de Teselas Extendida (5x3):** Se amplió la descarga paralela de teselas de OpenStreetMap a un grid horizontal 5x3 (1280px x 768px), abarcando un radio urbano amplio (~2.5 km) alrededor de la ubicación.
+   - **Marcador de Punto Rojo y Pin:** Se diseñó un punto rojo central brillante (`#dc2626`) con anillos concéntricos de pulso translúcido y un pin superior de localización sobre las coordenadas exactas.
+   - **Formato Contenedor Ancho:** Se adaptaron los contenedores de mapas en los reportes PDF (`w-full h-[240px] object-cover`) para expandir el mapa de borde a borde sin franjas blancas laterales.
 
 
 

@@ -363,9 +363,9 @@ export default async function PrintPropuestaPage({
                         {sucursal.mapaUrl && getStaticMapUrl(sucursal.mapaUrl) && (
                           <div className="mt-2 border-t border-gray-200 pt-4">
                             <span className="font-bold block mb-2">Captura de Mapa (Sucursal):</span>
-                            <div className="border border-gray-300 p-1 rounded bg-slate-50 h-[220px] flex items-center justify-center overflow-hidden">
+                            <div className="border border-gray-300 p-1 rounded bg-slate-50 overflow-hidden w-full h-[240px]">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={getStaticMapUrl(sucursal.mapaUrl)!} alt="Mapa Sucursal" className="w-full h-full object-contain rounded" />
+                              <img src={getStaticMapUrl(sucursal.mapaUrl)!} alt="Mapa Sucursal" className="w-full h-full object-cover rounded" />
                             </div>
                           </div>
                         )}
@@ -380,9 +380,9 @@ export default async function PrintPropuestaPage({
                         {empresa.mapaUrl && getStaticMapUrl(empresa.mapaUrl) && (
                           <div className="mt-2 border-t border-gray-200 pt-4">
                             <span className="font-bold block mb-2">Captura de Mapa (Matriz):</span>
-                            <div className="border border-gray-300 p-1 rounded bg-slate-50 h-[220px] flex items-center justify-center overflow-hidden">
+                            <div className="border border-gray-300 p-1 rounded bg-slate-50 overflow-hidden w-full h-[240px]">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={getStaticMapUrl(empresa.mapaUrl)!} alt="Mapa Matriz" className="w-full h-full object-contain rounded" />
+                              <img src={getStaticMapUrl(empresa.mapaUrl)!} alt="Mapa Matriz" className="w-full h-full object-cover rounded" />
                             </div>
                           </div>
                         )}
@@ -485,7 +485,6 @@ export default async function PrintPropuestaPage({
                       {/* Header Title Bar */}
                       <div className="bg-gradient-to-r from-red-900 via-red-800 to-slate-900 text-white px-3 py-1.5 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">📊</span>
                           <h3 className="text-[11px] font-extrabold uppercase tracking-wider">
                             Diagrama de Gantt - Cronograma de Ejecución
                           </h3>

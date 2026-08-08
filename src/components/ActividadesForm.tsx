@@ -334,7 +334,7 @@ export default function ActividadesForm({
                 onClick={() => setShowGantt(!showGantt)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-colors"
               >
-                📊 {showGantt ? "Ocultar Gantt" : "Ver Diagrama de Gantt"}
+                {showGantt ? "Ocultar Diagrama de Gantt" : "Ver Diagrama de Gantt"}
               </button>
             </div>
 
@@ -517,7 +517,6 @@ export default function ActividadesForm({
             <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-sm space-y-0">
               <div className="bg-gradient-to-r from-red-900 via-red-800 to-slate-900 text-white p-4 flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">📊</span>
                   <div>
                     <h4 className="font-extrabold text-white text-base">Diagrama de Gantt del Plan de Pasantía</h4>
                     <p className="text-xs text-red-200">Cronograma cronológico generado dinámicamente según las semanas de cada período.</p>

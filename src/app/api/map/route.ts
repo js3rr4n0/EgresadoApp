@@ -30,20 +30,20 @@ export async function GET(request: Request) {
     return new NextResponse("Invalid coords", { status: 400 });
   }
 
-  // Zoom level 12 for wide, zoomed-out city/regional view
+  // Zoom level 15 for clear city street grid, neighborhood labels, and prominent location pin
   const zoomParam = searchParams.get("zoom");
-  const zoom = zoomParam ? Math.max(1, Math.min(18, parseInt(zoomParam, 10))) : 12;
+  const zoom = zoomParam ? Math.max(1, Math.min(18, parseInt(zoomParam, 10))) : 15;
   const tileXFloat = lon2tileFloat(lng, zoom);
   const tileYFloat = lat2tileFloat(lat, zoom);
 
   const baseX = Math.floor(tileXFloat);
   const baseY = Math.floor(tileYFloat);
 
-  // Fetch 3x3 tiles centered around (baseX, baseY)
+  // Fetch 5x3 tiles centered around (baseX, baseY) for wide horizontal city view
   const tilePromises: Promise<{ dx: number; dy: number; dataUrl: string | null }>[] = [];
 
   for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
+    for (let dx = -2; dx <= 2; dx++) {
       const tx = baseX + dx;
       const ty = baseY + dy;
       const tileUrl = `https://tile.openstreetmap.org/${zoom}/${tx}/${ty}.png`;
@@ -65,12 +65,12 @@ export async function GET(request: Request) {
 
   const tileResults = await Promise.all(tilePromises);
 
-  // Target coordinates relative to top-left tile (baseX - 1, baseY - 1)
-  const px = (tileXFloat - (baseX - 1)) * 256;
+  // Target coordinates relative to top-left tile (baseX - 2, baseY - 1)
+  const px = (tileXFloat - (baseX - 2)) * 256;
   const py = (tileYFloat - (baseY - 1)) * 256;
 
-  const width = 640;
-  const height = 320;
+  const width = 800;
+  const height = 360;
 
   const minX = px - width / 2;
   const minY = py - height / 2;
@@ -78,30 +78,31 @@ export async function GET(request: Request) {
   let tilesSvgContent = "";
   tileResults.forEach(({ dx, dy, dataUrl }) => {
     if (dataUrl) {
-      const xPos = (dx + 1) * 256;
+      const xPos = (dx + 2) * 256;
       const yPos = (dy + 1) * 256;
       tilesSvgContent += `<image href="${dataUrl}" x="${xPos}" y="${yPos}" width="256" height="256"/>\n`;
     }
   });
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${minX} ${minY} ${width} ${height}">
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${minX} ${minY} ${width} ${height}" preserveAspectRatio="xMidYMid slice">
     <rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="#e5e3df"/>
     ${tilesSvgContent}
-    <!-- Red Pin Location Marker -->
+    <!-- Red Location Dot & Pin Marker -->
     <g transform="translate(${px}, ${py})">
-      <!-- Ground Target Crosshair Ring -->
-      <circle cx="0" cy="0" r="16" fill="rgba(239, 68, 68, 0.15)" stroke="#ef4444" stroke-width="2" stroke-dasharray="4 2"/>
-      <circle cx="0" cy="0" r="4" fill="#dc2626"/>
-      <!-- Drop Shadow -->
-      <ellipse cx="0" cy="3" rx="10" ry="4" fill="rgba(0,0,0,0.35)"/>
-      <!-- Outer Pulsing Glow -->
-      <circle cx="0" cy="-34" r="22" fill="#ef4444" opacity="0.3"/>
-      <!-- Pin Body -->
-      <path d="M 0 0 C -14 -14 -20 -24 -20 -34 A 20 20 0 1 1 20 -34 C 20 -24 14 -14 0 0 Z" fill="#dc2626" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/>
-      <!-- Inner White Ring -->
-      <circle cx="0" cy="-34" r="7" fill="#ffffff"/>
-      <!-- Inner Red Dot -->
-      <circle cx="0" cy="-34" r="3" fill="#990000"/>
+      <!-- Outer Glowing Pulse Rings -->
+      <circle cx="0" cy="0" r="28" fill="#ef4444" opacity="0.18"/>
+      <circle cx="0" cy="0" r="18" fill="#ef4444" opacity="0.3"/>
+      <circle cx="0" cy="0" r="10" fill="#dc2626" opacity="0.5"/>
+      <!-- Bright Central Red Dot -->
+      <circle cx="0" cy="0" r="7" fill="#dc2626" stroke="#ffffff" stroke-width="2.5"/>
+      <circle cx="0" cy="0" r="2.5" fill="#ffffff"/>
+      <!-- Red Pin Body above the dot -->
+      <g transform="translate(0, -6)">
+        <ellipse cx="0" cy="0" rx="8" ry="3" fill="rgba(0,0,0,0.35)"/>
+        <path d="M 0 0 C -12 -12 -18 -20 -18 -28 A 18 18 0 1 1 18 -28 C 18 -20 12 -12 0 0 Z" fill="#dc2626" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+        <circle cx="0" cy="-28" r="6" fill="#ffffff"/>
+        <circle cx="0" cy="-28" r="2.5" fill="#990000"/>
+      </g>
     </g>
   </svg>`;
 
