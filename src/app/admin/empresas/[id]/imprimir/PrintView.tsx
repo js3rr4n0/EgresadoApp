@@ -154,18 +154,32 @@ export default function PrintView({ empresa }: { empresa: EmpresaData }) {
                 <span className="col-span-3">{empresa.direccion || "No especificada"}</span>
               </div>
               {empresa.mapaUrl && (
-                <div className="pt-4 border-t border-gray-200 mt-4">
-                  <span className="font-bold block mb-2">Ubicación (Sede Central):</span>
-                  <div className="border border-gray-300 p-1 rounded bg-slate-50 overflow-hidden w-full h-[240px]">
+                <div className="pt-4 border-t border-gray-200 mt-4 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                    <span className="font-bold text-gray-800">Ubicación (Sede Central):</span>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-red-50 text-red-700 font-mono font-bold px-2 py-0.5 rounded border border-red-200">
+                        📍 GPS: {empresa.mapaUrl}
+                      </span>
+                      <a 
+                        href={`https://www.google.com/maps?q=${empresa.mapaUrl}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-red-700 font-bold hover:underline"
+                      >
+                        Ver en Google Maps ↗
+                      </a>
+                    </div>
+                  </div>
+                  <div className="border border-gray-300 rounded-lg overflow-hidden w-full h-[220px] bg-slate-100 relative">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img 
                       src={getStaticMapUrl(empresa.mapaUrl) || ""} 
                       alt="Mapa Sede Central" 
-                      className="w-full h-full object-cover rounded"
+                      className="w-full h-full object-cover"
                       crossOrigin="anonymous"
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1 text-center">Coordenadas: {empresa.mapaUrl}</p>
                 </div>
               )}
               

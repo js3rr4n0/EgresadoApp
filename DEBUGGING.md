@@ -515,12 +515,12 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
 1. **Eliminación de Emojis del Diagrama de Gantt:**
    - Se removieron los iconos de emojis (`📊`, etc.) de todos los botones y barras de encabezado del Diagrama de Gantt en vistas públicas, administrativas e imprimibles PDF (`ActividadesForm.tsx`, `egresado/imprimir/page.tsx` y `admin/imprimir/page.tsx`) para mantener una estética sobria y profesional.
 
-2. **Réplica Fiel de Interfaz de Mapa Leaflet (`/api/map` en Zoom 16):**
-   - **Requisito:** El mapa generado en los PDFs debe coincidir visualmente con el componente interactivo de Leaflet mostrado al seleccionar la ubicación en el formulario web.
-   - **Solución:**
-     - En `src/app/api/map/route.ts`, se estableció el nivel de zoom predeterminado en **Zoom 16** (zoom nativo de selección Leaflet que muestra carreteras como CA-1W, ríos, calles y lotes).
-     - Se incorporó la simbología oficial de Leaflet: **Pin marcador azul clásico (`#2b82cb`)** con sombra proyectada, cuadro de controles de zoom superior izquierdo (`+` / `-`) y barra de atribución en la esquina inferior derecha (`Leaflet | © OpenStreetMap contributors`).
-     - Se configuró el renderizado a ancho completo sin márgenes blancos en los PDFs (`w-full h-[240px] object-cover`).
+2. **Ficha Ejecutiva de Geolocalización GPS con Enlace Interactivo a Google Maps:**
+   - **Causa Raíz de Desviación de Mapa:** Al seleccionar coordenadas por defecto en `MapSelector.tsx` (`13.9782, -89.5668`), el mapa apuntaba a una zona boscosa/montañosa en las afueras al sur de Santa Ana. Se actualizó el punto central por defecto a **Santa Ana Centro (`13.9945, -89.5562`)**.
+   - **Nueva Presentación de Ubicación:** Se reestructuró la sección de ubicación en todos los reportes de impresión (`egresado/imprimir/page.tsx`, `admin/propuestas/[id]/imprimir/page.tsx`, `PrintView.tsx`) convirtiéndola en una **Ficha Ejecutiva de Geolocalización**:
+     - **Distintivo GPS**: Badge visible con las coordenadas numéricas exactas (`📍 Coordenadas GPS: 13.9945, -89.5562`).
+     - **Enlace Interactivo Directo**: Botón/enlace que abre la ubicación exacta directamente en **Google Maps** (`https://www.google.com/maps?q=...`) con un solo clic.
+     - **Visualización de Mapa Leaflet Zoom 16**: Renderizado con pin azul clásico de Leaflet, controles `+`/`-` y marco ajustado de borde a borde.
 
 
 

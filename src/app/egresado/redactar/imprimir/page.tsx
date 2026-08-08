@@ -352,38 +352,66 @@ export default async function PrintPropuestaPage({
 
                 <section className="print:break-inside-avoid mb-6">
                   <h3 className="text-lg font-bold text-gray-800 mb-2 uppercase">2. Ubicación y Sucursal</h3>
-                  <div className="text-sm border p-4 rounded bg-gray-50">
+                  <div className="text-sm border border-gray-300 p-4 rounded-xl bg-gray-50/80 space-y-3">
                     {sucursal ? (
                       <>
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <p><span className="font-bold">Sucursal:</span> {sucursal.nombre}</p>
-                          <p><span className="font-bold">Teléfono:</span> {sucursal.telefono || "No especificado"}</p>
-                          <p className="col-span-2"><span className="font-bold">Dirección:</span> {sucursal.direccion || "No especificada"}</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <p><span className="font-bold text-gray-900">Sucursal:</span> {sucursal.nombre}</p>
+                          <p><span className="font-bold text-gray-900">Teléfono:</span> {sucursal.telefono || "No especificado"}</p>
+                          <p className="col-span-2"><span className="font-bold text-gray-900">Dirección:</span> {sucursal.direccion || "No especificada"}</p>
                         </div>
-                        {sucursal.mapaUrl && getStaticMapUrl(sucursal.mapaUrl) && (
-                          <div className="mt-2 border-t border-gray-200 pt-4">
-                            <span className="font-bold block mb-2">Captura de Mapa (Sucursal):</span>
-                            <div className="border border-gray-300 p-1 rounded bg-slate-50 overflow-hidden w-full h-[240px]">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={getStaticMapUrl(sucursal.mapaUrl)!} alt="Mapa Sucursal" className="w-full h-full object-cover rounded" />
+                        {sucursal.mapaUrl && (
+                          <div className="pt-3 border-t border-gray-200 space-y-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                              <span className="bg-red-50 text-red-700 font-mono font-bold px-2.5 py-1 rounded border border-red-200">
+                                📍 Coordenadas GPS: {sucursal.mapaUrl}
+                              </span>
+                              <a 
+                                href={`https://www.google.com/maps?q=${sucursal.mapaUrl}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="text-red-700 font-bold hover:underline"
+                              >
+                                Ver en Google Maps ↗
+                              </a>
                             </div>
+                            {getStaticMapUrl(sucursal.mapaUrl) && (
+                              <div className="border border-gray-300 rounded-lg overflow-hidden w-full h-[220px] bg-slate-100 relative">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={getStaticMapUrl(sucursal.mapaUrl)!} alt="Mapa Sucursal" className="w-full h-full object-cover" />
+                              </div>
+                            )}
                           </div>
                         )}
                       </>
                     ) : empresa ? (
                       <>
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <p><span className="font-bold">Sucursal:</span> Matriz / Sede Central</p>
-                          <p><span className="font-bold">Teléfono:</span> No especificado</p>
-                          <p className="col-span-2"><span className="font-bold">Dirección:</span> {empresa.direccion || "No especificada"}</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <p><span className="font-bold text-gray-900">Sucursal:</span> Matriz / Sede Central</p>
+                          <p><span className="font-bold text-gray-900">Teléfono:</span> No especificado</p>
+                          <p className="col-span-2"><span className="font-bold text-gray-900">Dirección:</span> {empresa.direccion || "No especificada"}</p>
                         </div>
-                        {empresa.mapaUrl && getStaticMapUrl(empresa.mapaUrl) && (
-                          <div className="mt-2 border-t border-gray-200 pt-4">
-                            <span className="font-bold block mb-2">Captura de Mapa (Matriz):</span>
-                            <div className="border border-gray-300 p-1 rounded bg-slate-50 overflow-hidden w-full h-[240px]">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={getStaticMapUrl(empresa.mapaUrl)!} alt="Mapa Matriz" className="w-full h-full object-cover rounded" />
+                        {empresa.mapaUrl && (
+                          <div className="pt-3 border-t border-gray-200 space-y-2">
+                            <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                              <span className="bg-red-50 text-red-700 font-mono font-bold px-2.5 py-1 rounded border border-red-200">
+                                📍 Coordenadas GPS: {empresa.mapaUrl}
+                              </span>
+                              <a 
+                                href={`https://www.google.com/maps?q=${empresa.mapaUrl}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="text-red-700 font-bold hover:underline"
+                              >
+                                Ver en Google Maps ↗
+                              </a>
                             </div>
+                            {getStaticMapUrl(empresa.mapaUrl) && (
+                              <div className="border border-gray-300 rounded-lg overflow-hidden w-full h-[220px] bg-slate-100 relative">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={getStaticMapUrl(empresa.mapaUrl)!} alt="Mapa Matriz" className="w-full h-full object-cover" />
+                              </div>
+                            )}
                           </div>
                         )}
                       </>

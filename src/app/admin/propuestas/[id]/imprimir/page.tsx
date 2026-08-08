@@ -354,10 +354,36 @@ export default async function AdminPrintPropuestaPage({
 
                 <section className="print:break-inside-avoid mb-6">
                   <h3 className="text-lg font-bold text-gray-800 mb-2 uppercase">2. Ubicación y Sucursal</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm border p-4 rounded bg-gray-50">
-                    <p><span className="font-bold">Sucursal:</span> {sucursal?.nombre || "Matriz / Sede Central"}</p>
-                    <p><span className="font-bold">Teléfono:</span> {sucursal?.telefono || "No especificado"}</p>
-                    <p className="col-span-2"><span className="font-bold">Dirección:</span> {sucursal?.direccion || "No especificada"}</p>
+                  <div className="text-sm border border-gray-300 p-4 rounded-xl bg-gray-50/80 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <p><span className="font-bold text-gray-900">Sucursal:</span> {sucursal?.nombre || "Matriz / Sede Central"}</p>
+                      <p><span className="font-bold text-gray-900">Teléfono:</span> {sucursal?.telefono || "No especificado"}</p>
+                      <p className="col-span-2"><span className="font-bold text-gray-900">Dirección:</span> {sucursal?.direccion || empresa?.direccion || "No especificada"}</p>
+                    </div>
+
+                    {(sucursal?.mapaUrl || empresa?.mapaUrl) && (
+                      <div className="pt-3 border-t border-gray-200 space-y-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                          <span className="bg-red-50 text-red-700 font-mono font-bold px-2.5 py-1 rounded border border-red-200">
+                            📍 Coordenadas GPS: {sucursal?.mapaUrl || empresa?.mapaUrl}
+                          </span>
+                          <a 
+                            href={`https://www.google.com/maps?q=${sucursal?.mapaUrl || empresa?.mapaUrl}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="text-red-700 font-bold hover:underline"
+                          >
+                            Ver en Google Maps ↗
+                          </a>
+                        </div>
+                        {getStaticMapUrl(sucursal?.mapaUrl || empresa?.mapaUrl || "") && (
+                          <div className="border border-gray-300 rounded-lg overflow-hidden w-full h-[220px] bg-slate-100 relative">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={getStaticMapUrl(sucursal?.mapaUrl || empresa?.mapaUrl || "")!} alt="Mapa Ubicación" className="w-full h-full object-cover" />
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </section>
 

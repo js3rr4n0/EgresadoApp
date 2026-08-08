@@ -59,8 +59,8 @@ export default function MapSelector({
   return (
     <div className="h-[250px] w-full rounded-lg overflow-hidden border border-gray-300 relative z-0">
       <MapContainer
-        center={position || [13.9782, -89.5668]} // Default a Santa Ana, El Salvador (UNICAES)
-        zoom={position ? 15 : 12}
+        center={position || [13.9945, -89.5562]} // Santa Ana Centro, El Salvador
+        zoom={position ? 16 : 14}
         scrollWheelZoom={true}
         style={{ height: "100%", width: "100%", zIndex: 1 }}
       >
