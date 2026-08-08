@@ -243,7 +243,7 @@ export default function DatosEmpresarialesForm({
           descripcion: emp?.descripcion || "",
           antecedentes: emp?.antecedentes || "",
           direccion: suc?.direccion || emp?.direccion || "",
-          organigramaUrl: emp?.organigramaUrl || "",
+          organigramaUrl: "",
           mapaUrl: suc?.mapaUrl || emp?.mapaUrl || "",
           targetEmpresaId: opt.empresaId,
           targetSucursalId: type === 'sucursal' ? id : undefined,

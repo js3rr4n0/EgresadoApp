@@ -412,23 +412,19 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
 
                                   <div>
                                     <span className="font-bold block mb-1">Organigrama Propuesto:</span>
-                                    {newOrgUrl ? (
+                                    {orgChanged && newOrgUrl ? (
                                       <div className="flex items-center gap-2">
                                         <button
                                           type="button"
                                           onClick={() => handleViewOrganigrama(newOrgUrl)}
-                                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition ${
-                                            orgChanged 
-                                              ? 'bg-purple-600 text-white hover:bg-purple-700 border-purple-700 shadow-sm' 
-                                              : 'bg-purple-50 text-purple-800 hover:bg-purple-100 border-purple-200'
-                                          }`}
+                                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition bg-purple-600 text-white hover:bg-purple-700 border-purple-700 shadow-sm"
                                         >
                                           🟣 Ver Organigrama Propuesto (Nuevo)
                                         </button>
-                                        {orgChanged && <span className="text-[10px] bg-purple-200 text-purple-900 px-1.5 py-0.5 rounded font-extrabold">Nuevo Adjunto</span>}
+                                        <span className="text-[10px] bg-purple-200 text-purple-900 px-1.5 py-0.5 rounded font-extrabold">Nuevo Adjunto</span>
                                       </div>
                                     ) : (
-                                      <span className="text-xs text-slate-400 italic">Sin organigrama propuesto</span>
+                                      <span className="text-xs text-slate-400 italic">Sin cambios de organigrama</span>
                                     )}
                                   </div>
 

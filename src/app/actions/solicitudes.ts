@@ -127,7 +127,9 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         };
         if (data.empresa.nombre) updateData.nombre = data.empresa.nombre;
         if (data.empresa.area && data.empresa.area.trim() !== "") updateData.area = data.empresa.area;
-        if (data.empresa.organigramaUrl && data.empresa.organigramaUrl.trim() !== "") updateData.organigramaUrl = data.empresa.organigramaUrl;
+        if (data.empresa.organigramaUrl && data.empresa.organigramaUrl.trim() !== "" && data.empresa.organigramaUrl !== existingEmpresa?.organigramaUrl) {
+          updateData.organigramaUrl = data.empresa.organigramaUrl;
+        }
         
         if (!targetSucursalId) {
           if (data.empresa.descripcion && data.empresa.descripcion.trim() !== "") updateData.descripcion = data.empresa.descripcion;

@@ -499,9 +499,12 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
 2. **Comparador de Ubicación GPS / Mapa (Antes vs. Después):**
    - Muestra accesos directos al mapa para comparar la geolocalización actual (**"Ver Mapa Actual (Viejo)"**) frente a la ubicación GPS o enlace propuesto (**"Ver Mapa Propuesto (Nuevo)"**).
    - Resalta visualmente con distintivos verdes los campos que sufrieron modificaciones.
-3. **Corrección en Back-end (`aprobarSolicitudEmpresa`):**
-   - Se actualizó la condición `if` en `src/app/actions/solicitudes.ts` para evaluar explícitamente `data.empresa.organigramaUrl` y `data.empresa.antecedentes`.
-   - Garantiza que si el estudiante únicamente modifica el organigrama o antecedentes de la empresa, el backend actualice los campos correspondientes en la tabla `empresas` / `sucursales` en la base de datos al momento de aprobar.
+3. **Flujo Estricto de Aprobación de Organigrama:**
+   - La subida de organigrama por parte del alumno no modifica la BD directamente bajo ningún concepto; se empaqueta como una solicitud en `solicitudes_empresa`.
+   - En la vista de "Detalles de Solicitud":
+     - **Datos Actuales (Antes):** Carga siempre el organigrama actual almacenado en la base de datos para esa empresa (`targetEmpresa.organigramaUrl`).
+     - **Cambios Propuestos (Después):** Solo muestra **"Ver Organigrama Propuesto (Nuevo)"** si el estudiante adjuntó explícitamente un nuevo archivo. Si no adjuntó archivo nuevo, muestra **"Sin cambios de organigrama"**.
+   - En la acción `aprobarSolicitudEmpresa`, se valida que `data.empresa.organigramaUrl` exista y sea diferente al guardado en DB para efectuar el `UPDATE`. Si no se modificó, la base de datos permanece intacta.
 
 ### 15.2. Verificación y Calidad
 - **Build de Producción:** Verificado exitosamente con `npm run build` (`Exit code: 0`).
