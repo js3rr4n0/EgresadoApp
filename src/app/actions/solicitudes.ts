@@ -135,7 +135,7 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         };
         if (data.empresa.nombre) updateData.nombre = data.empresa.nombre;
         if (data.empresa.area && data.empresa.area.trim() !== "") updateData.area = data.empresa.area;
-        if (data.empresa.organigramaUrl && data.empresa.organigramaUrl.trim() !== "" && data.empresa.organigramaUrl !== existingEmpresa?.organigramaUrl) {
+        if (data.empresa.organigramaUrl && data.empresa.organigramaUrl.trim() !== "") {
           updateData.organigramaUrl = data.empresa.organigramaUrl;
           const { organigramasEmpresa } = await import("@/lib/schema");
           await db.insert(organigramasEmpresa).values({
@@ -257,9 +257,13 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       }
     }
 
+    revalidatePath("/admin/empresas");
     revalidatePath("/admin/empresas/solicitudes");
     revalidatePath("/egresado");
     revalidatePath("/egresado/redactar");
+    revalidatePath("/coordinador");
+    revalidatePath("/decanato");
+    revalidatePath("/asesor");
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
@@ -318,13 +322,13 @@ export async function rechazarSolicitudEmpresa(solicitudId: number, justificacio
       }).where(eq(propuestas.id, solicitud.propuestaId));
     }
 
+    revalidatePath("/admin/empresas");
     revalidatePath("/admin/empresas/solicitudes");
     revalidatePath("/egresado");
     revalidatePath("/egresado/redactar");
     revalidatePath("/coordinador");
     revalidatePath("/decanato");
     revalidatePath("/asesor");
-    revalidatePath("/egresado/redactar");
     return { success: true };
   } catch (e: any) {
     return { success: false, error: e.message };
