@@ -483,6 +483,9 @@ Se actualizó el flujo de corrección de datos personales/carnet en la vista de 
    - La acción Server `solicitarCorreccionDatosDecanato` en `src/app/actions/propuestas.ts` establece `bloqueada: true` y `estado: "pend_revision_datos"` en la propuesta.
    - El trabajo del estudiante entra inmediatamente en estado de pausa y solo lectura (**"En espera de aprobación administrativa"**), impidiendo avanzar en las actividades o pasos de redacción hasta que el Decanato o la Administración aprueben o rechacen la solicitud.
 3. **Notificación Transparente en la Interfaz:** Se incorporó un aviso informativo destacado dentro de los modales (`PortadaForm.tsx` y `ProyectoPortadaForm.tsx`) alertando al estudiante que al guardar los cambios, la propuesta quedará pausada temporalmente.
+4. **Validación Condicional de Modificación en la Base de Datos:**
+   - **En Caso de Aprobación (`aprobarSolicitudEmpresa`):** Se ejecuta el `UPDATE` a la tabla `usuarios` en la base de datos con los nuevos valores de Nombre Completo y/o Carnet. Al estar la tabla `usuarios` vinculada mediante relaciones a todo el sistema (paneles de Egresado, Coordinador, Decanato, Asesor y vistas PDF), la actualización se proyecta de forma inmediata en toda la DB.
+   - **En Caso de Rechazo (`rechazarSolicitudEmpresa`):** La base de datos permance intacta (no se altera ningún campo en `usuarios`), se desbloquea la propuesta para que el graduando pueda continuar y se notifica la razón del rechazo.
 
 ### 14.2. Verificación y Calidad
 - **Build de Producción:** Ejecutado `npm run build` con resultado exitoso (`Exit code: 0`).

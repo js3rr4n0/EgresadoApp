@@ -23,22 +23,30 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
     const data = solicitud.datos as any;
 
     if (solicitud.tipo === "datos_alumno") {
-      const egresadoId = data?.egresadoId;
+      let egresadoId = data?.egresadoId;
+      if (!egresadoId && solicitud.propuestaId) {
+        const prop = await db.query.propuestas.findFirst({ where: eq(propuestas.id, solicitud.propuestaId) });
+        if (prop) egresadoId = prop.egresadoId;
+      }
+
       const nuevosNombre = data?.nuevos?.nombreCompleto || data?.nombrePropuesto;
       const nuevosCarnet = data?.nuevos?.carnet || data?.carnetPropuesto;
 
       if (egresadoId && (nuevosNombre || nuevosCarnet)) {
         const updateObj: any = {};
-        if (nuevosNombre) updateObj.nombreCompleto = nuevosNombre;
-        if (nuevosCarnet) updateObj.carnet = nuevosCarnet;
+        if (nuevosNombre && nuevosNombre.trim()) updateObj.nombreCompleto = nuevosNombre.trim();
+        if (nuevosCarnet && nuevosCarnet.trim()) updateObj.carnet = nuevosCarnet.trim();
 
-        await db.update(usuarios).set(updateObj).where(eq(usuarios.id, egresadoId));
+        if (Object.keys(updateObj).length > 0) {
+          // Update the central usuarios table so the change reflects everywhere across the entire database
+          await db.update(usuarios).set(updateObj).where(eq(usuarios.id, egresadoId));
+        }
 
         // Create notification for student
         await db.insert(notificaciones).values({
           usuarioId: egresadoId,
           tipo: "solicitud_aprobada",
-          mensaje: `¡Buenas noticias! Tu solicitud de corrección de datos personales (${nuevosNombre || ""}, ${nuevosCarnet || ""}) fue APROBADA por el Decanato/Administración.`,
+          mensaje: `¡Buenas noticias! Tu solicitud de corrección de datos personales (${nuevosNombre || ""}, ${nuevosCarnet || ""}) fue APROBADA por el Decanato/Administración. Tus nuevos datos ya fueron aplicados en todo el sistema.`,
         });
       }
 
@@ -48,13 +56,17 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
 
       if (solicitud.propuestaId) {
         await db.update(propuestas).set({
-          bloqueada: false
+          bloqueada: false,
+          estado: "redactando"
         }).where(eq(propuestas.id, solicitud.propuestaId));
       }
 
       revalidatePath("/admin/empresas/solicitudes");
       revalidatePath("/egresado");
       revalidatePath("/egresado/redactar");
+      revalidatePath("/coordinador");
+      revalidatePath("/decanato");
+      revalidatePath("/asesor");
       return { success: true };
     }
 
@@ -273,11 +285,13 @@ export async function rechazarSolicitudEmpresa(solicitudId: number, justificacio
     }
 
     if (egresadoId) {
-      const tipoTexto = solicitud.tipo === "datos_alumno" ? "corrección de datos personales" : "empresa / supervisor";
+      const isDatos = solicitud.tipo === "datos_alumno";
+      const tipoTexto = isDatos ? "corrección de datos personales" : "empresa / supervisor";
+      const detalleTexto = isDatos ? " No se realizó ningún cambio a tus datos personales." : "";
       await db.insert(notificaciones).values({
         usuarioId: egresadoId,
         tipo: "solicitud_rechazada",
-        mensaje: `Tu solicitud de ${tipoTexto} fue RECHAZADA. Motivo: "${justificacion}".`,
+        mensaje: `Tu solicitud de ${tipoTexto} fue RECHAZADA.${detalleTexto} Motivo: "${justificacion}".`,
       });
     }
 
@@ -291,6 +305,10 @@ export async function rechazarSolicitudEmpresa(solicitudId: number, justificacio
 
     revalidatePath("/admin/empresas/solicitudes");
     revalidatePath("/egresado");
+    revalidatePath("/egresado/redactar");
+    revalidatePath("/coordinador");
+    revalidatePath("/decanato");
+    revalidatePath("/asesor");
     revalidatePath("/egresado/redactar");
     return { success: true };
   } catch (e: any) {
