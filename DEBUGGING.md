@@ -472,6 +472,23 @@ Faltaba una validación de campos obligatorios (`nombres` y `apellidos` limpios 
 - **TypeScript:** Validado exitosamente con `npx tsc --noEmit` (0 errores).
 - **Git Push:** Sincronizado en la rama `main`.
 
+---
+
+## 14. Pausa de Trabajo de Graduación y Envío a Revisión al Editar Datos Erróneos (Pasantía, Trabajo e Investigación)
+
+### 14.1. Descripción de la Funcionalidad
+Se actualizó el flujo de corrección de datos personales/carnet en la vista de Egresado para todas las modalidades (Pasantía, Trabajo de Graduación e Investigación):
+1. **Envío Oficial a Revisión:** Al modificar la información en el modal de **"Datos erróneos"**, el botón principal de confirmación se cambió a **"Guardar y Enviar a revisión"**.
+2. **Bloqueo y Pausa Automática del Trabajo:**
+   - La acción Server `solicitarCorreccionDatosDecanato` en `src/app/actions/propuestas.ts` establece `bloqueada: true` y `estado: "pend_revision_datos"` en la propuesta.
+   - El trabajo del estudiante entra inmediatamente en estado de pausa y solo lectura (**"En espera de aprobación administrativa"**), impidiendo avanzar en las actividades o pasos de redacción hasta que el Decanato o la Administración aprueben o rechacen la solicitud.
+3. **Notificación Transparente en la Interfaz:** Se incorporó un aviso informativo destacado dentro de los modales (`PortadaForm.tsx` y `ProyectoPortadaForm.tsx`) alertando al estudiante que al guardar los cambios, la propuesta quedará pausada temporalmente.
+
+### 14.2. Verificación y Calidad
+- **Build de Producción:** Ejecutado `npm run build` con resultado exitoso (`Exit code: 0`).
+- **Git Push:** Cambios confirmados y sincronizados en el repositorio GitHub `js3rr4n0/EgresadoApp`.
+
+
 
 
 

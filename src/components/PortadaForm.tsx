@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { updatePortada, updateTituloPropuesta } from "@/app/actions/propuestas";
+import { updatePortada, updateTituloPropuesta, solicitarCorreccionDatosDecanato } from "@/app/actions/propuestas";
 
 interface PortadaFormProps {
   propuestaId: number;
@@ -37,19 +37,27 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
   });
 
   const handleSave = async () => {
+    if (!formData.nombres.trim() || !formData.apellidos.trim() || !formData.carnet.trim()) {
+      alert("Por favor completa los campos de nombres, apellidos y carnet.");
+      return;
+    }
+
     setIsSaving(true);
     const form = new FormData();
-    form.append("nombreCompleto", `${formData.nombres} ${formData.apellidos}`.trim());
-    form.append("carnet", formData.carnet);
+    form.append("propuestaId", propuestaId.toString());
+    form.append("nombrePropuesto", `${formData.nombres} ${formData.apellidos}`.trim());
+    form.append("carnetPropuesto", formData.carnet.trim());
+    form.append("justificacion", "Corrección de datos personales/carnet solicitada desde portada.");
     
-    const res = await updatePortada(form);
+    const res = await solicitarCorreccionDatosDecanato(form);
     setIsSaving(false);
     
     if (res.success) {
       setIsModalOpen(false);
+      alert(res.message || "Solicitud de corrección enviada a revisión. El proceso quedará pausado hasta ser aprobado por las autoridades.");
       router.refresh();
     } else {
-      alert(res.error || "Error al actualizar los datos.");
+      alert(res.error || "Error al enviar la solicitud de corrección.");
     }
   };
 
@@ -279,6 +287,16 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
                   title="Este campo no se puede modificar desde la solicitud de datos erróneos."
                 />
               </div>
+
+              {/* Informative warning notice */}
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 font-medium">
+                <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <p>
+                  <strong>Importante:</strong> Al enviar estos cambios a revisión, tu propuesta se enviará a evaluación y quedará <strong>pausada</strong> hasta ser aprobada por las autoridades.
+                </p>
+              </div>
             </div>
 
             <div className="p-6 border-t border-border flex justify-end gap-3 bg-slate-50/50">
@@ -295,10 +313,10 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
                 onClick={handleSave}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold bg-[#f59e0b] hover:bg-[#d97706] text-white shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSaving ? "Guardando..." : (
+                {isSaving ? "Enviando a revisión..." : (
                   <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                    Guardar cambios
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                    Guardar y Enviar a revisión
                   </>
                 )}
               </button>

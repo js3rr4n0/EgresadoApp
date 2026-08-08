@@ -490,6 +490,16 @@ export default function ProyectoPortadaForm({
                     className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-red focus:outline-none"
                   />
                 </div>
+
+                {/* Informative warning notice */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 font-medium">
+                  <svg className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p>
+                    <strong>Importante:</strong> Al enviar estos cambios a revisión, tu propuesta quedará <strong>pausada</strong> y en modo solo lectura hasta que el Decanato o la Administración aprueben los datos.
+                  </p>
+                </div>
               </div>
 
               <div className="p-6 border-t border-border flex justify-end gap-3 bg-slate-50/50">
@@ -503,9 +513,9 @@ export default function ProyectoPortadaForm({
                 <button
                   type="submit"
                   disabled={modalSaving}
-                  className="flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition-colors disabled:opacity-50"
                 >
-                  {modalSaving ? "Enviando..." : "Enviar a Decanato"}
+                  {modalSaving ? "Enviando a revisión..." : "Guardar y Enviar a revisión"}
                 </button>
               </div>
             </form>

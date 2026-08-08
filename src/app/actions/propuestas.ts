@@ -365,7 +365,7 @@ export async function solicitarCorreccionDatosDecanato(formData: FormData) {
     // Lock proposal waiting for approval
     await db
       .update(propuestas)
-      .set({ bloqueada: true })
+      .set({ bloqueada: true, estado: "pend_revision_datos" })
       .where(eq(propuestas.id, propuestaId));
 
     // Notify Decanato and Admin users
