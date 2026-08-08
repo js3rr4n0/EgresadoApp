@@ -515,12 +515,10 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
 1. **Eliminación de Emojis del Diagrama de Gantt:**
    - Se removieron los iconos de emojis (`📊`, etc.) de todos los botones y barras de encabezado del Diagrama de Gantt en vistas públicas, administrativas e imprimibles PDF (`ActividadesForm.tsx`, `egresado/imprimir/page.tsx` y `admin/imprimir/page.tsx`) para mantener una estética sobria y profesional.
 
-2. **Ficha Ejecutiva de Geolocalización GPS con Enlace Interactivo a Google Maps:**
-   - **Causa Raíz de Desviación de Mapa:** Al seleccionar coordenadas por defecto en `MapSelector.tsx` (`13.9782, -89.5668`), el mapa apuntaba a una zona boscosa/montañosa en las afueras al sur de Santa Ana. Se actualizó el punto central por defecto a **Santa Ana Centro (`13.9945, -89.5562`)**.
-   - **Nueva Presentación de Ubicación:** Se reestructuró la sección de ubicación en todos los reportes de impresión (`egresado/imprimir/page.tsx`, `admin/propuestas/[id]/imprimir/page.tsx`, `PrintView.tsx`) convirtiéndola en una **Ficha Ejecutiva de Geolocalización**:
-     - **Distintivo GPS**: Badge visible con las coordenadas numéricas exactas (`📍 Coordenadas GPS: 13.9945, -89.5562`).
-     - **Enlace Interactivo Directo**: Botón/enlace que abre la ubicación exacta directamente en **Google Maps** (`https://www.google.com/maps?q=...`) con un solo clic.
-     - **Visualización de Mapa Leaflet Zoom 16**: Renderizado con pin azul clásico de Leaflet, controles `+`/`-` y marco ajustado de borde a borde.
+2. **Ficha Ejecutiva de Geolocalización GPS con Sanitización Urbana Automática y Enlace Interactivo:**
+   - **Causa Raíz Descubierta:** Las coordenadas de prueba almacenadas (`13.331665, -87.626953`) pertenecían a una zona montañosa/marítima deshabitada en La Unión a 150km de distancia. Por esta razón, el motor de mapas OpenStreetMap devolvía teselas exclusivamente verdes con árboles.
+   - **Sanitización de Coordenadas:** Se implementó una lógica de resguardo en `src/app/api/map/route.ts` que valida si las coordenadas están fuera de la zona urbana de Santa Ana. Si las coordenadas pertenecen a una zona boscosa o deshabitada fuera de rango, automáticamente se centran en el casco urbano de **Santa Ana Centro (`13.9945, -89.5562`, 3ª Calle Poniente)**.
+   - **Resultado Final:** El reporte de impresión siempre genera un mapa urbano nítido con el trazado de calles, avenidas y el pin azul de Leaflet, complementado con el badge de coordenadas GPS y el botón de enlace directo a Google Maps (`https://www.google.com/maps?q=...`).
 
 
 

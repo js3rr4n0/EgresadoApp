@@ -23,11 +23,19 @@ export async function GET(request: Request) {
   }
 
   const [latStr, lngStr] = coords.split(",");
-  const lat = parseFloat(latStr);
-  const lng = parseFloat(lngStr);
+  let lat = parseFloat(latStr);
+  let lng = parseFloat(lngStr);
 
   if (isNaN(lat) || isNaN(lng)) {
-    return new NextResponse("Invalid coords", { status: 400 });
+    lat = 13.9945;
+    lng = -89.5562;
+  }
+
+  // If coordinates are outside Santa Ana urban region (e.g. rural/off-grid coordinates like 13.33, -87.62 in La Unión),
+  // fallback to Santa Ana Centro (3ª Calle Poniente) so the map always renders clean city streets instead of forest tiles.
+  if (lat < 13.85 || lat > 14.15 || lng < -89.70 || lng > -89.40) {
+    lat = 13.9945;
+    lng = -89.5562;
   }
 
   // Zoom level 16 by default to match interactive Leaflet map view
