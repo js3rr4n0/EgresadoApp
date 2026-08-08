@@ -119,7 +119,7 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
       const targetSucursalId = data.empresa?.targetSucursalId;
       
       // Update company fields if company data is provided in request
-      if (data.empresa && (data.empresa.nombre || data.empresa.area || data.empresa.direccion || data.empresa.descripcion || data.empresa.mapaUrl)) {
+      if (data.empresa && (data.empresa.nombre || data.empresa.area || data.empresa.direccion || data.empresa.descripcion || data.empresa.mapaUrl || data.empresa.organigramaUrl || data.empresa.antecedentes)) {
         const updateData: any = {
           verificada: true,
           habilitada: true,

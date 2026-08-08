@@ -487,9 +487,26 @@ Se actualizó el flujo de corrección de datos personales/carnet en la vista de 
    - **En Caso de Aprobación (`aprobarSolicitudEmpresa`):** Se ejecuta el `UPDATE` a la tabla `usuarios` en la base de datos con los nuevos valores de Nombre Completo y/o Carnet. Al estar la tabla `usuarios` vinculada mediante relaciones a todo el sistema (paneles de Egresado, Coordinador, Decanato, Asesor y vistas PDF), la actualización se proyecta de forma inmediata en toda la DB.
    - **En Caso de Rechazo (`rechazarSolicitudEmpresa`):** La base de datos permance intacta (no se altera ningún campo en `usuarios`), se desbloquea la propuesta para que el graduando pueda continuar y se notifica la razón del rechazo.
 
-### 14.2. Verificación y Calidad
-- **Build de Producción:** Ejecutado `npm run build` con resultado exitoso (`Exit code: 0`).
-- **Git Push:** Cambios confirmados y sincronizados en el repositorio GitHub `js3rr4n0/EgresadoApp`.
+---
+
+## 15. Comparación Visual de Organigrama y Mapa GPS en Revision de Solicitudes de Empresa
+
+### 15.1. Descripción de la Funcionalidad
+Se reforzó la revisión administrativa de solicitudes de corrección de datos de empresa y registro de nuevas empresas en el módulo de Administrador y Decanato (`/admin/empresas/solicitudes`):
+1. **Visor y Comparador de Organigramas (Antes vs. Después):**
+   - Se integraron botones interactivos en la vista de detalles para inspeccionar el organigrama actual registradas en la DB (**"Ver Organigrama Actual (Viejo)"**) y el organigrama subido por el egresado (**"Ver Organigrama Propuesto (Nuevo)"**).
+   - Soporta imágenes y documentos PDF en formato Data URL / Base64 o URL remota, abriéndolos en una pestaña limpia del navegador para su auditoría visual antes de autorizar el cambio.
+2. **Comparador de Ubicación GPS / Mapa (Antes vs. Después):**
+   - Muestra accesos directos al mapa para comparar la geolocalización actual (**"Ver Mapa Actual (Viejo)"**) frente a la ubicación GPS o enlace propuesto (**"Ver Mapa Propuesto (Nuevo)"**).
+   - Resalta visualmente con distintivos verdes los campos que sufrieron modificaciones.
+3. **Corrección en Back-end (`aprobarSolicitudEmpresa`):**
+   - Se actualizó la condición `if` en `src/app/actions/solicitudes.ts` para evaluar explícitamente `data.empresa.organigramaUrl` y `data.empresa.antecedentes`.
+   - Garantiza que si el estudiante únicamente modifica el organigrama o antecedentes de la empresa, el backend actualice los campos correspondientes en la tabla `empresas` / `sucursales` en la base de datos al momento de aprobar.
+
+### 15.2. Verificación y Calidad
+- **Build de Producción:** Verificado exitosamente con `npm run build` (`Exit code: 0`).
+- **Control de Versiones:** Sincronizado en la rama principal.
+
 
 
 

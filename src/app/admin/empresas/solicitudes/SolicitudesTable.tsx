@@ -40,6 +40,35 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
     }
   };
 
+  const handleViewOrganigrama = (url: string) => {
+    if (!url) return;
+    try {
+      if (url.startsWith('data:')) {
+        const parts = url.split(',');
+        const contentType = parts[0].split(':')[1].split(';')[0];
+        const raw = window.atob(parts[1]);
+        const rawLength = raw.length;
+        const uInt8Array = new Uint8Array(rawLength);
+        for (let i = 0; i < rawLength; ++i) {
+          uInt8Array[i] = raw.charCodeAt(i);
+        }
+        const blob = new Blob([uInt8Array], { type: contentType });
+        const objectUrl = URL.createObjectURL(blob);
+        window.open(objectUrl, '_blank');
+      } else {
+        window.open(url, '_blank');
+      }
+    } catch (e) {
+      window.open(url, '_blank');
+    }
+  };
+
+  const handleViewMap = (val: string) => {
+    if (!val) return;
+    const url = val.startsWith('http') ? val : `https://www.google.com/maps?q=${val}`;
+    window.open(url, '_blank');
+  };
+
   return (
     <>
     <div className="overflow-x-auto">
@@ -181,7 +210,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
     {/* View Details Modal */}
     {viewDetails && (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-        <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95">
           <div className="p-6 border-b border-border flex justify-between items-center shrink-0">
             <div>
               <h3 className="text-xl font-bold text-card-dark">Detalles de Solicitud</h3>
@@ -268,19 +297,71 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                     (() => {
                       const targetEmpresa = allEmpresas?.find(e => e.id === viewDetails.datos.empresa?.targetEmpresaId);
                       const targetSucursal = allSucursales?.find(s => s.id === viewDetails.datos.empresa?.targetSucursalId);
-                      const hasEmpresaChanges = !!(viewDetails.datos.empresa?.nombre || viewDetails.datos.empresa?.area || viewDetails.datos.empresa?.direccion);
+                      
+                      const oldOrgUrl = targetEmpresa?.organigramaUrl || "";
+                      const newOrgUrl = viewDetails.datos.empresa?.organigramaUrl || "";
+                      const orgChanged = !!(newOrgUrl && newOrgUrl !== oldOrgUrl);
+
+                      const oldMapUrl = targetSucursal?.mapaUrl || targetEmpresa?.mapaUrl || "";
+                      const newMapUrl = viewDetails.datos.empresa?.mapaUrl || "";
+                      const mapChanged = !!(newMapUrl && newMapUrl !== oldMapUrl);
+
+                      const oldDireccion = targetSucursal?.direccion || targetEmpresa?.direccion || "";
+                      const newDireccion = viewDetails.datos.empresa?.direccion || "";
+                      const dirChanged = !!(newDireccion && newDireccion !== oldDireccion);
+
+                      const hasEmpresaChanges = !!(
+                        viewDetails.datos.empresa?.nombre ||
+                        viewDetails.datos.empresa?.area ||
+                        viewDetails.datos.empresa?.direccion ||
+                        viewDetails.datos.empresa?.descripcion ||
+                        viewDetails.datos.empresa?.antecedentes ||
+                        viewDetails.datos.empresa?.mapaUrl ||
+                        viewDetails.datos.empresa?.organigramaUrl
+                      );
                       
                       return (
                         <div className="space-y-6">
                           <div>
                             {hasEmpresaChanges ? (
-                              <div className="grid grid-cols-2 gap-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* BEFORE */}
                                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-                                  <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2">Datos Actuales (Antes)</h5>
-                                  <div><span className="font-bold">Nombre:</span> {targetSucursal ? `${targetSucursal.nombre} (Sucursal)` : targetEmpresa?.nombre}</div>
-                                  <div><span className="font-bold">Área:</span> {targetEmpresa?.area}</div>
-                                  <div><span className="font-bold block mb-1">Dirección:</span> <div className="text-xs">{targetSucursal ? targetSucursal.direccion : targetEmpresa?.direccion}</div></div>
+                                  <h5 className="font-bold text-xs uppercase tracking-wider text-slate-500 mb-2 border-b border-slate-200 pb-1">Datos Actuales (Antes)</h5>
+                                  <div><span className="font-bold">Nombre:</span> {targetSucursal ? `${targetSucursal.nombre} (Sucursal)` : targetEmpresa?.nombre || "N/A"}</div>
+                                  <div><span className="font-bold">Área:</span> {targetEmpresa?.area || "N/A"}</div>
+                                  <div><span className="font-bold block mb-1">Dirección:</span> <div className="text-xs">{oldDireccion || "Sin dirección"}</div></div>
+                                  
+                                  <div>
+                                    <span className="font-bold block mb-1">Ubicación GPS (Mapa):</span>
+                                    {oldMapUrl ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleViewMap(oldMapUrl)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-xs font-bold border border-blue-200"
+                                      >
+                                        📍 Ver Mapa Actual (Viejo)
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 italic">Sin mapa registrado</span>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <span className="font-bold block mb-1">Organigrama de la Empresa:</span>
+                                    {oldOrgUrl ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleViewOrganigrama(oldOrgUrl)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded text-xs font-bold border border-purple-200"
+                                      >
+                                        🟣 Ver Organigrama Actual (Viejo)
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 italic">Sin organigrama registrado</span>
+                                    )}
+                                  </div>
+
                                   <div>
                                     <span className="font-bold block mb-1">Descripción:</span>
                                     <div className="bg-white p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
@@ -297,10 +378,60 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
 
                                 {/* AFTER */}
                                 <div className="bg-emerald-50/50 border border-emerald-100 rounded-lg p-4 space-y-3">
-                                  <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-600 mb-2">Cambios Propuestos (Después)</h5>
+                                  <h5 className="font-bold text-xs uppercase tracking-wider text-emerald-600 mb-2 border-b border-emerald-200 pb-1">Cambios Propuestos (Después)</h5>
                                   <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa.nombre}</div>
                                   <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa.area}</div>
-                                  <div><span className="font-bold block mb-1">Dirección:</span> <div className="text-xs">{viewDetails.datos.empresa.direccion}</div></div>
+                                  <div>
+                                    <span className="font-bold block mb-1">Dirección:</span>
+                                    <div className={`text-xs p-1 rounded ${dirChanged ? 'bg-emerald-100 text-emerald-900 font-bold' : ''}`}>
+                                      {newDireccion || "Sin dirección"}
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <span className="font-bold block mb-1">Ubicación GPS (Mapa Propuesto):</span>
+                                    {newMapUrl ? (
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleViewMap(newMapUrl)}
+                                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition ${
+                                            mapChanged 
+                                              ? 'bg-emerald-600 text-white hover:bg-emerald-700 border-emerald-700 shadow-sm' 
+                                              : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-200'
+                                          }`}
+                                        >
+                                          📍 Ver Mapa Propuesto (Nuevo)
+                                        </button>
+                                        {mapChanged && <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-extrabold">Modificado</span>}
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 italic">Sin mapa propuesto</span>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <span className="font-bold block mb-1">Organigrama Propuesto:</span>
+                                    {newOrgUrl ? (
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleViewOrganigrama(newOrgUrl)}
+                                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition ${
+                                            orgChanged 
+                                              ? 'bg-purple-600 text-white hover:bg-purple-700 border-purple-700 shadow-sm' 
+                                              : 'bg-purple-50 text-purple-800 hover:bg-purple-100 border-purple-200'
+                                          }`}
+                                        >
+                                          🟣 Ver Organigrama Propuesto (Nuevo)
+                                        </button>
+                                        {orgChanged && <span className="text-[10px] bg-purple-200 text-purple-900 px-1.5 py-0.5 rounded font-extrabold">Nuevo Adjunto</span>}
+                                      </div>
+                                    ) : (
+                                      <span className="text-xs text-slate-400 italic">Sin organigrama propuesto</span>
+                                    )}
+                                  </div>
+
                                   <div>
                                     <span className="font-bold block mb-1">Descripción:</span>
                                     <div className="bg-white p-2 rounded border border-emerald-50 whitespace-pre-wrap max-h-32 overflow-y-auto text-xs">
@@ -328,19 +459,50 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                       );
                     })()
                   ) : (
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div><span className="font-bold">Nombre:</span> {viewDetails.datos.empresa?.nombre || "N/A"}</div>
                       <div><span className="font-bold">Área:</span> {viewDetails.datos.empresa?.area || "N/A"}</div>
                       <div className="col-span-2"><span className="font-bold">Dirección:</span> {viewDetails.datos.empresa?.direccion || "N/A"}</div>
+                      
+                      <div>
+                        <span className="font-bold block mb-1">Ubicación GPS (Mapa):</span>
+                        {viewDetails.datos.empresa?.mapaUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => handleViewMap(viewDetails.datos.empresa.mapaUrl)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs font-bold shadow-sm"
+                          >
+                            📍 Abrir Ubicación en Mapa GPS
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Sin mapa registrado</span>
+                        )}
+                      </div>
+
+                      <div>
+                        <span className="font-bold block mb-1">Organigrama de la Empresa:</span>
+                        {viewDetails.datos.empresa?.organigramaUrl ? (
+                          <button
+                            type="button"
+                            onClick={() => handleViewOrganigrama(viewDetails.datos.empresa.organigramaUrl)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white hover:bg-purple-700 rounded text-xs font-bold shadow-sm"
+                          >
+                            🟣 Ver Organigrama Adjunto
+                          </button>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Sin organigrama adjunto</span>
+                        )}
+                      </div>
+
                       <div className="col-span-2">
                         <span className="font-bold block mb-1">Descripción:</span>
-                        <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                        <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto text-xs">
                           {viewDetails.datos.empresa?.descripcion || "Sin descripción"}
                         </div>
                       </div>
                       <div className="col-span-2">
                         <span className="font-bold block mb-1">Antecedentes:</span>
-                        <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto">
+                        <div className="bg-slate-50 p-2 rounded border border-slate-100 whitespace-pre-wrap max-h-40 overflow-y-auto text-xs">
                           {viewDetails.datos.empresa?.antecedentes || "Sin antecedentes"}
                         </div>
                       </div>
