@@ -515,11 +515,12 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
 1. **Eliminación de Emojis del Diagrama de Gantt:**
    - Se removieron los iconos de emojis (`📊`, etc.) de todos los botones y barras de encabezado del Diagrama de Gantt en vistas públicas, administrativas e imprimibles PDF (`ActividadesForm.tsx`, `egresado/imprimir/page.tsx` y `admin/imprimir/page.tsx`) para mantener una estética sobria y profesional.
 
-2. **Mapa Geográfico Urbano Panorámico (Zoom 15 con Malla 5x3 y Marcador de Punto Rojo):**
-   - **Corrección de Vista:** El nivel de Zoom 12 generaba teselas rurales/montañosas (ej. "Zacate Grande 656m") sin trazado urbano o nombres de calles. Se ajustó el nivel de zoom a **Zoom 15**, el cual despliega con nitidez la red de calles, avenidas, nombres de barrios y la trama de la ciudad.
-   - **Malla de Teselas Extendida (5x3):** Se amplió la descarga paralela de teselas de OpenStreetMap a un grid horizontal 5x3 (1280px x 768px), abarcando un radio urbano amplio (~2.5 km) alrededor de la ubicación.
-   - **Marcador de Punto Rojo y Pin:** Se diseñó un punto rojo central brillante (`#dc2626`) con anillos concéntricos de pulso translúcido y un pin superior de localización sobre las coordenadas exactas.
-   - **Formato Contenedor Ancho:** Se adaptaron los contenedores de mapas en los reportes PDF (`w-full h-[240px] object-cover`) para expandir el mapa de borde a borde sin franjas blancas laterales.
+2. **Réplica Fiel de Interfaz de Mapa Leaflet (`/api/map` en Zoom 16):**
+   - **Requisito:** El mapa generado en los PDFs debe coincidir visualmente con el componente interactivo de Leaflet mostrado al seleccionar la ubicación en el formulario web.
+   - **Solución:**
+     - En `src/app/api/map/route.ts`, se estableció el nivel de zoom predeterminado en **Zoom 16** (zoom nativo de selección Leaflet que muestra carreteras como CA-1W, ríos, calles y lotes).
+     - Se incorporó la simbología oficial de Leaflet: **Pin marcador azul clásico (`#2b82cb`)** con sombra proyectada, cuadro de controles de zoom superior izquierdo (`+` / `-`) y barra de atribución en la esquina inferior derecha (`Leaflet | © OpenStreetMap contributors`).
+     - Se configuró el renderizado a ancho completo sin márgenes blancos en los PDFs (`w-full h-[240px] object-cover`).
 
 
 

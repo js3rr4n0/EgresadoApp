@@ -30,16 +30,16 @@ export async function GET(request: Request) {
     return new NextResponse("Invalid coords", { status: 400 });
   }
 
-  // Zoom level 15 for clear city street grid, neighborhood labels, and prominent location pin
+  // Zoom level 16 by default to match interactive Leaflet map view
   const zoomParam = searchParams.get("zoom");
-  const zoom = zoomParam ? Math.max(1, Math.min(18, parseInt(zoomParam, 10))) : 15;
+  const zoom = zoomParam ? Math.max(1, Math.min(18, parseInt(zoomParam, 10))) : 16;
   const tileXFloat = lon2tileFloat(lng, zoom);
   const tileYFloat = lat2tileFloat(lat, zoom);
 
   const baseX = Math.floor(tileXFloat);
   const baseY = Math.floor(tileYFloat);
 
-  // Fetch 5x3 tiles centered around (baseX, baseY) for wide horizontal city view
+  // Fetch 5x3 tiles centered around (baseX, baseY)
   const tilePromises: Promise<{ dx: number; dy: number; dataUrl: string | null }>[] = [];
 
   for (let dy = -1; dy <= 1; dy++) {
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
   const py = (tileYFloat - (baseY - 1)) * 256;
 
   const width = 800;
-  const height = 360;
+  const height = 380;
 
   const minX = px - width / 2;
   const minY = py - height / 2;
@@ -87,22 +87,29 @@ export async function GET(request: Request) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${minX} ${minY} ${width} ${height}" preserveAspectRatio="xMidYMid slice">
     <rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="#e5e3df"/>
     ${tilesSvgContent}
-    <!-- Red Location Dot & Pin Marker -->
+
+    <!-- Leaflet Top-Left Zoom Controls (+ / -) -->
+    <g transform="translate(${minX + 16}, ${minY + 16})">
+      <rect x="0" y="0" width="30" height="54" rx="4" fill="#ffffff" stroke="#cccccc" stroke-width="1"/>
+      <line x1="0" y1="27" x2="30" y2="27" stroke="#e0e0e0" stroke-width="1"/>
+      <text x="15" y="18" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="#333333" text-anchor="middle" dominant-baseline="middle">+</text>
+      <text x="15" y="40" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="22" font-weight="bold" fill="#333333" text-anchor="middle" dominant-baseline="middle">−</text>
+    </g>
+
+    <!-- Leaflet Bottom-Right Attribution -->
+    <g transform="translate(${minX + width - 235}, ${minY + height - 22})">
+      <rect x="0" y="0" width="225" height="18" rx="2" fill="rgba(255, 255, 255, 0.85)"/>
+      <text x="112" y="12" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="9" fill="#0078A8" text-anchor="middle">🇺🇦 Leaflet | © OpenStreetMap contributors</text>
+    </g>
+
+    <!-- Leaflet Blue Location Pin Marker -->
     <g transform="translate(${px}, ${py})">
-      <!-- Outer Glowing Pulse Rings -->
-      <circle cx="0" cy="0" r="28" fill="#ef4444" opacity="0.18"/>
-      <circle cx="0" cy="0" r="18" fill="#ef4444" opacity="0.3"/>
-      <circle cx="0" cy="0" r="10" fill="#dc2626" opacity="0.5"/>
-      <!-- Bright Central Red Dot -->
-      <circle cx="0" cy="0" r="7" fill="#dc2626" stroke="#ffffff" stroke-width="2.5"/>
-      <circle cx="0" cy="0" r="2.5" fill="#ffffff"/>
-      <!-- Red Pin Body above the dot -->
-      <g transform="translate(0, -6)">
-        <ellipse cx="0" cy="0" rx="8" ry="3" fill="rgba(0,0,0,0.35)"/>
-        <path d="M 0 0 C -12 -12 -18 -20 -18 -28 A 18 18 0 1 1 18 -28 C 18 -20 12 -12 0 0 Z" fill="#dc2626" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
-        <circle cx="0" cy="-28" r="6" fill="#ffffff"/>
-        <circle cx="0" cy="-28" r="2.5" fill="#990000"/>
-      </g>
+      <!-- Pin Drop Shadow -->
+      <ellipse cx="6" cy="2" rx="10" ry="4" fill="rgba(0, 0, 0, 0.3)"/>
+      <!-- Leaflet Classic Blue Pin Body -->
+      <path d="M 0 0 C -12 -12 -16 -20 -16 -27 A 16 16 0 1 1 16 -27 C 16 -20 12 -12 0 0 Z" fill="#2b82cb" stroke="#1c65a4" stroke-width="1.5" stroke-linejoin="round"/>
+      <!-- Inner White Circle -->
+      <circle cx="0" cy="-27" r="6" fill="#ffffff"/>
     </g>
   </svg>`;
 
