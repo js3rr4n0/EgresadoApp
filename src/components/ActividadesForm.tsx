@@ -512,58 +512,62 @@ export default function ActividadesForm({
             </div>
           </div>
 
-          {/* ────────────────── DIAGRAMA DE GANTT DINO ────────────────── */}
+          {/* ────────────────── DIAGRAMA DE GANTT RE-DISEÑADO ────────────────── */}
           {showGantt && actividades.length > 0 && (
-            <div className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">📊</span>
+            <div className="bg-white border border-slate-300 rounded-xl overflow-hidden shadow-sm space-y-0">
+              <div className="bg-gradient-to-r from-red-900 via-red-800 to-slate-900 text-white p-4 flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">📊</span>
                   <div>
-                    <h4 className="font-extrabold text-card-dark text-base">Diagrama de Gantt del Plan de Pasantía</h4>
-                    <p className="text-xs text-muted">Cronograma cronológico generado dinámicamente según las semanas de cada período.</p>
+                    <h4 className="font-extrabold text-white text-base">Diagrama de Gantt del Plan de Pasantía</h4>
+                    <p className="text-xs text-red-200">Cronograma cronológico generado dinámicamente según las semanas de cada período.</p>
                   </div>
                 </div>
-                <span className="text-xs font-bold bg-brand-red/10 text-brand-red px-3 py-1 rounded-full">
-                  {actividades.length} Actividades Totales
+                <span className="text-xs font-extrabold bg-white/10 text-white border border-white/20 px-3 py-1 rounded-full">
+                  {actividades.length} Actividades Registradas
                 </span>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs border-collapse min-w-[700px]">
+              <div className="overflow-x-auto p-4 bg-slate-50/50">
+                <table className="w-full text-xs border-collapse min-w-[700px] bg-white rounded-lg overflow-hidden border border-slate-200 shadow-2xs">
                   <thead>
-                    <tr className="bg-slate-800 text-white">
-                      <th className="p-2.5 text-left border border-slate-700 w-24">Código</th>
-                      <th className="p-2.5 text-left border border-slate-700 w-48">Título / Actividad</th>
+                    <tr className="bg-slate-800 text-white text-[11px] uppercase tracking-wider font-bold">
+                      <th className="p-2.5 text-center border-r border-slate-700 w-24">Código</th>
+                      <th className="p-2.5 text-left border-r border-slate-700 w-52">Título / Actividad</th>
                       {periodos.map((p) => (
-                        <th key={p.num} colSpan={p.weeks} className="p-2 text-center border border-slate-700 bg-slate-900 font-bold">
-                          {p.name} (Período {p.num})
+                        <th key={p.num} colSpan={p.weeks} className="p-2 text-center border-r border-slate-700 bg-slate-900/90 font-bold">
+                          <span className="inline-block bg-slate-800 px-2 py-0.5 rounded text-[10px] text-red-200">
+                            {p.name} (MES {p.num})
+                          </span>
                         </th>
                       ))}
                     </tr>
-                    <tr className="bg-slate-100 text-slate-700 font-bold text-[11px]">
-                      <th className="p-2 border border-slate-200" colSpan={2}>
+                    <tr className="bg-slate-100 text-slate-700 font-bold text-[10px] border-b border-slate-300">
+                      <th className="p-2 border-r border-slate-200" colSpan={2}>
                         Semanas por Período
                       </th>
                       {periodos.flatMap((p) =>
                         Array.from({ length: p.weeks }).map((_, wIdx) => (
-                          <th key={`${p.num}-${wIdx + 1}`} className="p-1.5 text-center border border-slate-200 w-12 font-mono">
+                          <th key={`${p.num}-${wIdx + 1}`} className="p-1.5 text-center border-r border-slate-200 w-10 font-mono bg-slate-50">
                             S{wIdx + 1}
                           </th>
                         ))
                       )}
                     </tr>
                   </thead>
-                  <tbody>
-                    {actividades.map((act) => {
-                      const codigo = `${act.periodo}.${act.semana}.${act.titulo ? act.id.substring(0, 2) : "1"}`;
+                  <tbody className="divide-y divide-slate-200">
+                    {actividades.map((act, idx) => {
+                      const isEven = idx % 2 === 0;
                       return (
-                        <tr key={act.id} className="hover:bg-slate-50 border-b border-slate-200">
-                          <td className="p-2 font-mono font-bold text-slate-800 border border-slate-200 bg-slate-50">
-                            {act.periodo}.{act.semana}
+                        <tr key={act.id} className={isEven ? "bg-white hover:bg-slate-50" : "bg-slate-50/60 hover:bg-slate-100/70"}>
+                          <td className="p-2 text-center font-mono font-bold text-slate-800 border-r border-slate-200">
+                            <span className="inline-block bg-slate-100 text-red-900 border border-slate-300 px-1.5 py-0.5 rounded font-extrabold text-[11px]">
+                              {act.periodo}.{act.semana}
+                            </span>
                           </td>
-                          <td className="p-2 font-medium text-slate-900 border border-slate-200">
-                            <span className="font-bold text-brand-red block truncate">{act.titulo || "Sin Título"}</span>
-                            <span className="text-[11px] text-slate-500 truncate block">{act.descripcion}</span>
+                          <td className="p-2 font-medium text-slate-900 border-r border-slate-200">
+                            <span className="font-bold text-slate-900 text-xs block leading-tight">{act.titulo || "Sin Título"}</span>
+                            <span className="text-[10px] text-slate-500 truncate block mt-0.5 leading-tight">{act.descripcion}</span>
                           </td>
                           {periodos.flatMap((p) =>
                             Array.from({ length: p.weeks }).map((_, wIdx) => {
@@ -572,13 +576,12 @@ export default function ActividadesForm({
                               return (
                                 <td
                                   key={`${act.id}-${p.num}-${weekNum}`}
-                                  className={`p-1 border border-slate-200 text-center align-middle ${
-                                    isActiveCell ? "bg-red-50/60" : "bg-white"
-                                  }`}
+                                  className="p-0.5 border-r border-slate-200/60 text-center align-middle h-9"
                                 >
                                   {isActiveCell && (
-                                    <div className="bg-brand-red text-white text-[10px] font-extrabold py-1 px-1 rounded shadow-2xs flex items-center justify-center animate-in fade-in">
-                                      ■ S{weekNum}
+                                    <div className="bg-gradient-to-r from-red-600 to-red-700 text-white text-[10px] font-extrabold py-1.5 px-1 rounded-md shadow-xs flex items-center justify-center border border-red-500 gap-1 animate-in fade-in">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-white shadow-xs"></span>
+                                      <span>S{weekNum}</span>
                                     </div>
                                   )}
                                 </td>
@@ -590,6 +593,20 @@ export default function ActividadesForm({
                     })}
                   </tbody>
                 </table>
+              </div>
+
+              <div className="bg-slate-100 px-4 py-2 flex items-center justify-between text-xs text-slate-600 font-semibold border-t border-slate-200">
+                <span>Total Actividades Programadas: {actividades.length}</span>
+                <div className="flex items-center gap-4 text-[11px]">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-gradient-to-r from-red-600 to-red-700 border border-red-500 inline-block"></span>
+                    Semana de Ejecución Programada
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-3 rounded bg-white border border-slate-300 inline-block"></span>
+                    Sin Actividad
+                  </span>
+                </div>
               </div>
             </div>
           )}

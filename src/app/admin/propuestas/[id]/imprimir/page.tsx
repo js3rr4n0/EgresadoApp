@@ -443,66 +443,105 @@ export default async function AdminPrintPropuestaPage({
                   </tbody>
                 </table>
 
-                {/* DIAGRAMA DE GANTT IMPRESO */}
+                {/* DIAGRAMA DE GANTT IMPRESO RE-DISEÑADO */}
                 <div className="pt-4 print:break-inside-avoid">
-                  <h3 className="text-md font-bold uppercase mb-3 text-gray-800 border-b border-gray-300 pb-1">
-                    Diagrama de Gantt de Actividades
-                  </h3>
+                  <div className="border border-slate-300 rounded-xl overflow-hidden shadow-xs bg-white">
+                    {/* Header Title Bar */}
+                    <div className="bg-gradient-to-r from-red-900 via-red-800 to-slate-900 text-white px-4 py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📊</span>
+                        <h3 className="text-xs font-extrabold uppercase tracking-wider">
+                          Diagrama de Gantt y Cronograma de Ejecución
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-3 text-[10px]">
+                        <span className="flex items-center gap-1 font-medium bg-red-700/60 px-2 py-0.5 rounded-full border border-red-500/40">
+                          <span className="w-2 h-2 rounded-full bg-red-300"></span>
+                          Semana Programada
+                        </span>
+                      </div>
+                    </div>
 
-                  <table className="w-full text-[11px] border-collapse border border-gray-300">
-                    <thead>
-                      <tr className="bg-gray-800 text-white font-bold">
-                        <th className="border border-gray-400 p-1.5 text-center w-14">Cód.</th>
-                        <th className="border border-gray-400 p-1.5 text-left w-1/3">Actividad</th>
-                        {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((pNum) => (
-                          <th key={pNum} colSpan={4} className="border border-gray-400 p-1.5 text-center bg-gray-900">
-                            Mes {pNum}
-                          </th>
-                        ))}
-                      </tr>
-                      <tr className="bg-gray-100 font-bold text-gray-700 text-[10px]">
-                        <th className="border border-gray-300 p-1" colSpan={2}>Semanas</th>
-                        {Array.from(new Set(actividadesList.map((a) => a.periodo))).flatMap((pNum) =>
-                          [1, 2, 3, 4].map((sNum) => (
-                            <th key={`${pNum}-${sNum}`} className="border border-gray-300 p-1 text-center font-mono">
-                              S{sNum}
+                    <table className="w-full text-[11px] border-collapse">
+                      <thead>
+                        <tr className="bg-slate-800 text-white text-[10px] uppercase font-bold tracking-wider">
+                          <th className="p-2 text-center w-14 border-r border-slate-700">Cód.</th>
+                          <th className="p-2 text-left w-1/3 border-r border-slate-700">Descripción de Actividad</th>
+                          {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((pNum) => (
+                            <th key={pNum} colSpan={4} className="p-1.5 text-center border-r border-slate-700 bg-slate-900/90">
+                              <span className="inline-block bg-slate-800 px-2 py-0.5 rounded text-[10px] font-bold text-red-200">
+                                MES {pNum}
+                              </span>
                             </th>
-                          ))
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {actividadesList.map((a) => {
-                        const allPeriods = Array.from(new Set(actividadesList.map((act) => act.periodo)));
-                        return (
-                          <tr key={a.id} className="border-b border-gray-300">
-                            <td className="border border-gray-300 p-1.5 text-center font-mono font-bold text-xs">
-                              {a.periodo}.{a.semana}
-                            </td>
-                            <td className="border border-gray-300 p-1.5 font-medium">
-                              <span className="font-bold text-gray-900 block">{a.titulo || a.descripcion}</span>
-                              {a.titulo && <span className="text-[10px] text-gray-600 block">{a.descripcion}</span>}
-                            </td>
-                            {allPeriods.flatMap((pNum) =>
-                              [1, 2, 3, 4].map((sNum) => {
-                                const active = a.periodo === pNum && a.semana === sNum;
-                                return (
-                                  <td
-                                    key={`${a.id}-${pNum}-${sNum}`}
-                                    className={`border border-gray-300 p-1 text-center ${
-                                      active ? "bg-red-700 text-white font-bold" : "bg-white"
-                                    }`}
-                                  >
-                                    {active ? "■" : ""}
-                                  </td>
-                                );
-                              })
-                            )}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                          ))}
+                        </tr>
+                        <tr className="bg-slate-100 font-bold text-slate-600 text-[10px] border-b border-slate-300">
+                          <th className="p-1 border-r border-slate-300" colSpan={2}>
+                            Semanas de Planificación
+                          </th>
+                          {Array.from(new Set(actividadesList.map((a) => a.periodo))).flatMap((pNum) =>
+                            [1, 2, 3, 4].map((sNum) => (
+                              <th key={`${pNum}-${sNum}`} className="p-1 text-center font-mono border-r border-slate-200 bg-slate-50 text-[10px]">
+                                S{sNum}
+                              </th>
+                            ))
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {actividadesList.map((a, idx) => {
+                          const allPeriods = Array.from(new Set(actividadesList.map((act) => act.periodo)));
+                          const isEven = idx % 2 === 0;
+                          return (
+                            <tr key={a.id} className={isEven ? "bg-white" : "bg-slate-50/70"}>
+                              <td className="p-2 text-center border-r border-slate-200 font-mono font-bold text-[10px]">
+                                <span className="inline-block bg-slate-100 text-red-900 border border-slate-300 px-1.5 py-0.5 rounded font-extrabold">
+                                  {a.periodo}.{a.semana}
+                                </span>
+                              </td>
+                              <td className="p-2 border-r border-slate-200">
+                                <span className="font-bold text-slate-900 text-xs block leading-tight">{a.titulo || a.descripcion}</span>
+                                {a.titulo && <span className="text-[10px] text-slate-500 block leading-tight mt-0.5">{a.descripcion}</span>}
+                              </td>
+                              {allPeriods.flatMap((pNum) =>
+                                [1, 2, 3, 4].map((sNum) => {
+                                  const active = a.periodo === pNum && a.semana === sNum;
+                                  return (
+                                    <td
+                                      key={`${a.id}-${pNum}-${sNum}`}
+                                      className="p-0.5 text-center border-r border-slate-200/60 h-8 vertical-align-middle"
+                                    >
+                                      {active ? (
+                                        <div className="bg-gradient-to-r from-red-600 to-red-700 text-white font-bold text-[10px] rounded-md py-1.5 shadow-xs flex items-center justify-center border border-red-500">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-white shadow-xs"></span>
+                                        </div>
+                                      ) : (
+                                        <div className="h-full w-full"></div>
+                                      )}
+                                    </td>
+                                  );
+                                })
+                              )}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    
+                    <div className="bg-slate-50 border-t border-slate-200 px-4 py-2 flex items-center justify-between text-[10px] text-slate-600 font-medium">
+                      <span>Total de Actividades: <strong>{actividadesList.length}</strong></span>
+                      <div className="flex items-center gap-4">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded bg-gradient-to-r from-red-600 to-red-700 border border-red-500 inline-block"></span>
+                          Ejecución Programada
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded bg-white border border-slate-300 inline-block"></span>
+                          Sin Actividad
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
