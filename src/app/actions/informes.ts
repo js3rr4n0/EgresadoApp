@@ -422,6 +422,11 @@ export async function uploadEvidenciaInformePrimerContacto(
     }
 
     const archivo = rawFile as File;
+
+    if (archivo.size > 12 * 1024 * 1024) {
+      return { success: false, error: "El archivo excede el tamaño máximo permitido de 12MB." };
+    }
+
     const arrayBuffer = await archivo.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     const base64 = buffer.toString("base64");

@@ -8,6 +8,7 @@ import {
   deleteEvidenciaInformePrimerContacto,
 } from "@/app/actions/informes";
 import { openDocument } from "@/lib/pdfViewer";
+import { compressImageIfNeeded } from "@/lib/imageCompressor";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -161,28 +162,40 @@ export default function InformePrimerContactoClient({
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFile = e.target.files?.[0];
+    if (!rawFile) return;
 
     setUploadingEvidencia(true);
     setErrorMsg(null);
 
-    const formData = new FormData();
-    formData.append("archivo", file);
+    try {
+      // Compresión en el cliente para imágenes (ej: foto 9MB -> ~400KB)
+      const fileToUpload = await compressImageIfNeeded(rawFile, 1920, 0.82);
 
-    const res = await uploadEvidenciaInformePrimerContacto(informeData.id, formData);
-    setUploadingEvidencia(false);
+      if (fileToUpload.size > 10 * 1024 * 1024) {
+        setErrorMsg("El archivo excede el límite máximo permitido de 10MB.");
+        return;
+      }
 
-    // Reset input
-    e.target.value = "";
+      const formData = new FormData();
+      formData.append("archivo", fileToUpload);
 
-    if (res.success && res.evidencia) {
-      setEvidenciasList((prev) => [...prev, res.evidencia]);
-      setEvidenciaUrls((prev) => [...prev, res.evidencia.archivoUrl]);
-      setSuccessMsg("✓ Archivo de evidencia subido exitosamente.");
-      setTimeout(() => setSuccessMsg(null), 3000);
-    } else {
-      setErrorMsg(res.error || "Error al subir la evidencia.");
+      const res = await uploadEvidenciaInformePrimerContacto(informeData.id, formData);
+
+      if (res.success && res.evidencia) {
+        setEvidenciasList((prev) => [...prev, res.evidencia]);
+        setEvidenciaUrls((prev) => [...prev, res.evidencia.archivoUrl]);
+        setSuccessMsg("✓ Archivo de evidencia subido exitosamente.");
+        setTimeout(() => setSuccessMsg(null), 3000);
+      } else {
+        setErrorMsg(res.error || "Error al subir la evidencia.");
+      }
+    } catch (err: any) {
+      console.error("Error al procesar/subir evidencia:", err);
+      setErrorMsg(err.message || "Error al procesar el archivo. Por favor intente nuevamente.");
+    } finally {
+      setUploadingEvidencia(false);
+      e.target.value = "";
     }
   };
 
