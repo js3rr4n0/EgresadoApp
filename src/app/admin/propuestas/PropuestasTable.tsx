@@ -50,6 +50,7 @@ export default function PropuestasTable({
   const filtered = data.filter((p) => {
     if (filterEstado === "borrador" && !isDraftState(p.estado)) return false;
     if (filterEstado === "pendiente" && p.estado !== "enviada" && p.estado !== "coordinador_asignado") return false;
+    if (filterEstado === "en_ejecucion" && p.estado !== "en_ejecucion") return false;
     if (filterEstado === "aprobada" && p.estado !== "aprobada") return false;
     if (filterEstado === "rechazada" && p.estado !== "rechazada") return false;
 
@@ -117,28 +118,32 @@ export default function PropuestasTable({
   };
 
   const getStatusBadge = (estado: string) => {
+    if (estado === "en_ejecucion") {
+      return <span className="px-3 py-1 bg-emerald-100 text-emerald-950 border border-emerald-300 rounded-md text-xs font-black uppercase tracking-wide">En Ejecución</span>;
+    }
     if (isDraftState(estado)) {
       return <span className="px-2.5 py-1 bg-slate-200 text-slate-800 rounded-md text-xs font-black uppercase">En Borrador</span>;
     }
     switch (estado) {
       case "enviada":
-        return <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-md text-xs font-black uppercase">Pendiente Revisión</span>;
+        return <span className="px-2.5 py-1 bg-blue-100 text-blue-900 border border-blue-200 rounded-md text-xs font-black uppercase">Pendiente Revisión</span>;
       case "coordinador_asignado":
-        return <span className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-black uppercase">Coordinador Asignado</span>;
+        return <span className="px-2.5 py-1 bg-purple-100 text-purple-900 border border-purple-200 rounded-md text-xs font-black uppercase">Coordinador Asignado</span>;
       case "aprobada":
-        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-md text-xs font-black uppercase">Aprobada por Asesor</span>;
+        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-md text-xs font-black uppercase">Aprobada por Asesor</span>;
       case "primer_contacto_completado":
-        return <span className="px-2.5 py-1 bg-teal-100 text-teal-900 rounded-md text-xs font-black uppercase">Primer Contacto Completado</span>;
+        return <span className="px-2.5 py-1 bg-teal-100 text-teal-900 border border-teal-200 rounded-md text-xs font-black uppercase">Primer Contacto Completado</span>;
       case "rechazada":
-        return <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-md text-xs font-black uppercase">Rechazada</span>;
+        return <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-200 rounded-md text-xs font-black uppercase">Rechazada</span>;
       default:
-        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-bold uppercase">{estado}</span>;
+        return <span className="px-2.5 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-md text-xs font-bold uppercase">{estado ? estado.replace(/_/g, " ") : "Desconocido"}</span>;
     }
   };
 
   const countTodos = data.length;
   const countPendientes = data.filter((p) => p.estado === "enviada" || p.estado === "coordinador_asignado").length;
   const countBorradores = data.filter((p) => isDraftState(p.estado)).length;
+  const countEnEjecucion = data.filter((p) => p.estado === "en_ejecucion").length;
   const countAprobadas = data.filter((p) => p.estado === "aprobada").length;
   const countRechazadas = data.filter((p) => p.estado === "rechazada").length;
 
@@ -146,6 +151,7 @@ export default function PropuestasTable({
     { key: "todos", label: "Todos los estados", count: countTodos },
     { key: "pendiente", label: "Pendientes de Revisión", count: countPendientes },
     { key: "borrador", label: "En Borrador", count: countBorradores },
+    { key: "en_ejecucion", label: "En Ejecución", count: countEnEjecucion },
     { key: "aprobada", label: "Aprobadas", count: countAprobadas },
     { key: "rechazada", label: "Rechazadas", count: countRechazadas },
   ];

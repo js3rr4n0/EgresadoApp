@@ -83,13 +83,17 @@ export default function ReviewForm({
       case "redactando":
         return "bg-slate-100 text-slate-800 border-slate-300";
       case "coordinador_asignado":
-        return "bg-indigo-100 text-indigo-800 border-indigo-300";
+        return "bg-purple-100 text-purple-900 border-purple-300 font-extrabold";
+      case "en_ejecucion":
+        return "bg-emerald-100 text-emerald-950 border-emerald-400 font-black";
       case "aprobada":
         return "bg-emerald-100 text-emerald-800 border-emerald-300";
+      case "primer_contacto_completado":
+        return "bg-teal-100 text-teal-900 border-teal-300 font-extrabold";
       case "rechazada":
         return "bg-rose-100 text-rose-800 border-rose-300";
       default:
-        return "bg-amber-100 text-amber-800 border-amber-300";
+        return "bg-blue-100 text-blue-900 border-blue-300";
     }
   };
 
@@ -100,8 +104,12 @@ export default function ReviewForm({
         return "En Borrador (No Enviada)";
       case "coordinador_asignado":
         return "Coordinador Asignado";
+      case "en_ejecucion":
+        return "🚀 En Ejecución";
       case "aprobada":
-        return "Aceptada por Coordinador";
+        return "Aprobada por Asesor";
+      case "primer_contacto_completado":
+        return "Primer Contacto Completado";
       case "rechazada":
         return "Rechazada";
       default:
