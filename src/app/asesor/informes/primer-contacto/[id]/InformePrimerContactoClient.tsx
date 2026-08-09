@@ -53,10 +53,38 @@ export default function InformePrimerContactoClient({
   const [modalidadCita, setModalidadCita] = useState<string>(
     informeData.modalidadCita || "videollamada"
   );
-  const [evidenciasList, setEvidenciasList] = useState<any[]>(evidenciasIniciales);
-  const [evidenciaUrls, setEvidenciaUrls] = useState<string[]>(
-    informeData.evidenciaUrls || evidenciasIniciales.map((e) => e.archivoUrl) || []
-  );
+  const [evidenciasList, setEvidenciasList] = useState<any[]>(() => {
+    const list: any[] = [];
+    const seenUrls = new Set<string>();
+
+    if (Array.isArray(evidenciasIniciales)) {
+      evidenciasIniciales.forEach((e) => {
+        if (e && e.archivoUrl) {
+          list.push(e);
+          seenUrls.add(e.archivoUrl);
+        }
+      });
+    }
+
+    if (Array.isArray(informeData.evidenciaUrls)) {
+      informeData.evidenciaUrls.forEach((url: string, idx: number) => {
+        if (url && !seenUrls.has(url)) {
+          list.push({
+            id: null,
+            nombreArchivo: `Evidencia #${list.length + 1}`,
+            archivoUrl: url,
+          });
+          seenUrls.add(url);
+        }
+      });
+    }
+
+    return list;
+  });
+
+  const [evidenciaUrls, setEvidenciaUrls] = useState<string[]>(() => {
+    return evidenciasList.map((e) => e.archivoUrl);
+  });
   const [uploadingEvidencia, setUploadingEvidencia] = useState(false);
 
   const [objetivosEntrevista, setObjetivosEntrevista] = useState<string[]>(
@@ -489,7 +517,7 @@ export default function InformePrimerContactoClient({
                   )}
 
                   <div className="space-y-2">
-                    {evidenciasList.length === 0 && evidenciaUrls.length === 0 ? (
+                    {evidenciasList.length === 0 ? (
                       <p className="text-xs text-slate-400 italic p-3 bg-white/70 rounded-xl border border-amber-200">
                         No se ha adjuntado ninguna evidencia aún.
                       </p>
@@ -524,6 +552,49 @@ export default function InformePrimerContactoClient({
                       ))
                     )}
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Vista Resumen de Evidencias Adjuntas (Disponible siempre que existan archivos cargados) */}
+            {contactoPrevio !== false && evidenciasList.length > 0 && (
+              <div className="p-5 bg-indigo-50/80 border-2 border-indigo-200 rounded-xl space-y-3">
+                <h4 className="text-xs font-extrabold text-indigo-950 uppercase tracking-wider flex items-center justify-between">
+                  <span>📁 Archivos de Evidencia Registrados ({evidenciasList.length})</span>
+                  {isEnviado && (
+                    <span className="px-2.5 py-1 bg-emerald-700 text-white rounded-full text-[10px] font-extrabold">
+                      ✓ Verificado
+                    </span>
+                  )}
+                </h4>
+                <div className="space-y-2">
+                  {evidenciasList.map((item, idx) => (
+                    <div key={item.id || idx} className="flex items-center justify-between p-3 bg-white border border-indigo-200 rounded-xl text-xs shadow-2xs">
+                      <div className="flex items-center gap-2 truncate pr-2">
+                        <span className="text-base">{item.nombreArchivo?.endsWith(".pdf") ? "📄" : "📷"}</span>
+                        <span className="font-bold text-slate-800 truncate">{item.nombreArchivo || `Evidencia #${idx + 1}`}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => openDocument(item.archivoUrl, item.nombreArchivo || "Evidencia")}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer shadow-2xs"
+                        >
+                          👁️ Ver Evidencia
+                        </button>
+                        {!isEnviado && !isAnulado && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEvidencia(item, idx)}
+                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-lg transition-colors border border-rose-200 cursor-pointer"
+                          >
+                            🗑️ Eliminar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
