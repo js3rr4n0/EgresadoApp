@@ -57,20 +57,27 @@ export async function saveActividades(propuestaId: number, actividadesData: any[
     if (actividadesData.length > 0) {
       const toInsert = actividadesData.map(a => {
         const descTrimmed = a.descripcion ? a.descripcion.trim() : "";
+        const titleTrimmed = a.titulo ? a.titulo.trim() : null;
         const match = existingActs.find(
           (old) => old.periodo === a.periodo && old.semana === a.semana && old.numero === a.numero
         );
 
         let descAnt: string | null = null;
+        let titAnt: string | null = null;
         let isMod = false;
         let isNew = false;
 
         if (match) {
-          if (match.descripcion !== descTrimmed) {
+          const descChanged = match.descripcion !== descTrimmed;
+          const titleChanged = (match.titulo || null) !== titleTrimmed;
+
+          if (descChanged || titleChanged) {
             descAnt = match.descripcionAnterior || match.descripcion;
+            titAnt = match.tituloAnterior || match.titulo || null;
             isMod = true;
           } else {
             descAnt = match.descripcionAnterior || null;
+            titAnt = match.tituloAnterior || null;
             isMod = match.esModificada || false;
             isNew = match.esNueva || false;
           }
@@ -83,8 +90,9 @@ export async function saveActividades(propuestaId: number, actividadesData: any[
           periodo: a.periodo,
           semana: a.semana,
           numero: a.numero,
-          titulo: a.titulo ? a.titulo.trim() : null,
+          titulo: titleTrimmed,
           descripcion: descTrimmed,
+          tituloAnterior: titAnt,
           descripcionAnterior: descAnt,
           esModificada: isMod,
           esNueva: isNew,

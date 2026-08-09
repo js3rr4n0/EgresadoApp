@@ -740,9 +740,24 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                                     {act.numero}
                                   </td>
                                   <td className="py-3 px-4">
-                                    <div className="space-y-1">
+                                    <div className="space-y-1.5">
+                                      {/* Título de actividad (Gantt) diff */}
+                                      {act.tituloAnterior && act.tituloAnterior !== act.titulo && (
+                                        <div className="text-[11px] text-red-600 font-semibold flex items-center gap-1.5 flex-wrap">
+                                          <span className="line-through text-red-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                            Título Original (Gantt): ~{act.tituloAnterior}~
+                                          </span>
+                                        </div>
+                                      )}
+                                      {act.titulo && (
+                                        <div className="text-[11px] font-extrabold text-purple-950 bg-purple-100/70 border border-purple-200 px-2.5 py-0.5 rounded-md inline-flex items-center gap-1">
+                                          <span className="text-purple-600 font-normal">Título (Gantt):</span> {act.titulo}
+                                        </div>
+                                      )}
+
+                                      {/* Descripción diff */}
                                       {isNewAct ? (
-                                        <div className="flex items-center gap-2 flex-wrap">
+                                        <div className="flex items-center gap-2 flex-wrap pt-0.5">
                                           <span className="text-[10px] bg-emerald-600 text-white font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
                                             🟢 Nueva Actividad Añadida
                                           </span>
