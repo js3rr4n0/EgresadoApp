@@ -529,6 +529,13 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
    - **Requisito:** En la vista de coordinador (tanto para usuarios con rol `coordinador` como para administradores en el módulo de coordinación), cada coordinador debe ver ÚNICAMENTE las propuestas asignadas explícitamente a su usuario (`propuestas.coordinadorId === session.userId`), eliminando el comportamiento de mostrar todas las propuestas del sistema si no tenía ninguna asignada.
    - **Solución:** En `src/app/actions/coordinador.ts`, se eliminaron los bloques de consulta de respaldo (`if (isAdmin && rawPropuestas.length === 0)`, `acceptedRows`, y `rows`) en `getPropuestasPendientesCoordinador`, `getPropuestasAsignadasCoordinador` y `getSolicitudesBajaCoordinador`. Ahora la consulta es 100% estricta por `session.userId`.
 
+5. **Botón de Reasignación y Soporte de Coordinación Administrativa (Propuesta ID 31):**
+   - **Requisito 1:** Una vez asignada una propuesta a un coordinador, cambiar el botón en la tabla administrativa de "Asignar" a "Reasignar" para permitir reasignar en caso de ser necesario.
+   - **Requisito 2:** Garantizar que al asignar una propuesta a un usuario con rol `admin` (como en la propuesta ID 31), esta aparezca correctamente en la vista de coordinación (`/coordinador`) para los administradores.
+   - **Solución:** 
+     - En `PropuestasTable.tsx`, se evaluó si la propuesta posee un `coordinadorId` o estado `coordinador_asignado`/`aprobada`. Si ya fue asignada, se muestra el botón **"Reasignar"** en color ámbar.
+     - En `src/app/actions/coordinador.ts`, se incluyeron todos los IDs de administradores (`adminUsers`) en el filtro `inArray(propuestas.coordinadorId, adminIds)` cuando la sesión corresponda a un rol `admin`, permitiendo a los administradores visualizar cualquier propuesta asignada a un administrador (como la #31) en la vista `/coordinador`.
+
 
 
 

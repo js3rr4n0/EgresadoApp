@@ -34,7 +34,14 @@ export async function getPropuestasPendientesCoordinador() {
 
     const isAdmin = session.rol === "admin";
 
-    // Fetch proposals assigned to coordinator
+    const adminUsers = await db
+      .select({ id: usuarios.id })
+      .from(usuarios)
+      .where(eq(usuarios.rol, "admin"));
+    const adminIds = adminUsers.map((u) => u.id);
+    if (!adminIds.includes(session.userId)) adminIds.push(session.userId);
+
+    // Fetch proposals assigned to coordinator (or any admin if user is admin)
     const rawPropuestas = await db
       .select({
         propuesta: propuestas,
@@ -46,7 +53,9 @@ export async function getPropuestasPendientesCoordinador() {
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .where(
         and(
-          eq(propuestas.coordinadorId, session.userId),
+          isAdmin
+            ? inArray(propuestas.coordinadorId, adminIds)
+            : eq(propuestas.coordinadorId, session.userId),
           inArray(propuestas.estado, ["coordinador_asignado", "aprobada"])
         )
       )
@@ -270,7 +279,14 @@ export async function getPropuestasAsignadasCoordinador() {
 
     const isAdmin = session.rol === "admin";
 
-    // Fetch accepted advisor requests made by this coordinator
+    const adminUsers = await db
+      .select({ id: usuarios.id })
+      .from(usuarios)
+      .where(eq(usuarios.rol, "admin"));
+    const adminIds = adminUsers.map((u) => u.id);
+    if (!adminIds.includes(session.userId)) adminIds.push(session.userId);
+
+    // Fetch accepted advisor requests made by this coordinator (or admins if admin)
     const acceptedRows = await db
       .select({
         propuesta: propuestas,
@@ -280,7 +296,9 @@ export async function getPropuestasAsignadasCoordinador() {
       .innerJoin(usuarios, eq(propuestas.asesorId, usuarios.id))
       .where(
         and(
-          eq(propuestas.coordinadorId, session.userId),
+          isAdmin
+            ? inArray(propuestas.coordinadorId, adminIds)
+            : eq(propuestas.coordinadorId, session.userId),
           eq(propuestas.estado, "aprobada")
         )
       )
@@ -537,6 +555,13 @@ export async function getSolicitudesBajaCoordinador() {
 
     const isAdmin = session.rol === "admin";
 
+    const adminUsers = await db
+      .select({ id: usuarios.id })
+      .from(usuarios)
+      .where(eq(usuarios.rol, "admin"));
+    const adminIds = adminUsers.map((u) => u.id);
+    if (!adminIds.includes(session.userId)) adminIds.push(session.userId);
+
     const rows = await db
       .select({
         solicitud: solicitudesBaja,
@@ -546,7 +571,11 @@ export async function getSolicitudesBajaCoordinador() {
       .from(solicitudesBaja)
       .innerJoin(propuestas, eq(solicitudesBaja.propuestaId, propuestas.id))
       .innerJoin(usuarios, eq(solicitudesBaja.asesorId, usuarios.id))
-      .where(eq(solicitudesBaja.coordinadorId, session.userId))
+      .where(
+        isAdmin
+          ? inArray(solicitudesBaja.coordinadorId, adminIds)
+          : eq(solicitudesBaja.coordinadorId, session.userId)
+      )
       .orderBy(desc(solicitudesBaja.creadaEn));
 
     const result = await Promise.all(
