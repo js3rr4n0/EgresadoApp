@@ -278,26 +278,6 @@ export default function ActividadesForm({
 
   return (
     <form onSubmit={handleSubmit} className="w-full space-y-8">
-      {observaciones && (
-        <div className="p-5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-3 shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-extrabold text-base">
-              💬
-            </div>
-            <div>
-              <h4 className="font-extrabold text-amber-950 text-sm">
-                Observaciones del Docente Asesor sobre el Plan de Trabajo:
-              </h4>
-              <p className="text-xs text-amber-800 font-medium">
-                Ajuste las semanas o actividades indicadas a continuación. Al terminar los cambios, haga clic en <strong>Reenviar Propuesta Ajustada</strong>.
-              </p>
-            </div>
-          </div>
-          <div className="p-4 bg-white/90 rounded-xl border border-amber-200 text-xs font-semibold text-amber-950 whitespace-pre-wrap leading-relaxed">
-            {observaciones}
-          </div>
-        </div>
-      )}
 
       {error && (
         <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-bold flex items-center gap-3 shadow-xs">

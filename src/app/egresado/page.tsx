@@ -67,6 +67,7 @@ export default async function EgresadoLandingPage() {
   let activeStatusDesc = "";
   let activeBadgeClass = "";
   let asesorNombre = "";
+  let coordinadorNombre = "";
   let activeEmpresa = null;
   let activeSupervisor = null;
 
@@ -78,6 +79,13 @@ export default async function EgresadoLandingPage() {
     if (activeSubmittedProp.supervisorId) {
       const [sup] = await db.select().from(supervisores).where(eq(supervisores.id, activeSubmittedProp.supervisorId)).limit(1);
       activeSupervisor = sup || null;
+    }
+
+    if (activeSubmittedProp.coordinadorId) {
+      const [cUser] = await db.select().from(usuarios).where(eq(usuarios.id, activeSubmittedProp.coordinadorId)).limit(1);
+      if (cUser) {
+        coordinadorNombre = cUser.nombreCompleto;
+      }
     }
 
     let hasAsesor = false;
@@ -101,23 +109,30 @@ export default async function EgresadoLandingPage() {
     }
 
     if (activeSubmittedProp.estado === "coordinador_asignado") {
-      if (hasAsesor) {
+      if (hasAsesor && asesorNombre) {
         activeStatusTitle = "Asesor asignado, en espera de revisión";
-        activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} cuenta con docente asesor asignado${asesorNombre ? ` (${asesorNombre})` : ""} y se encuentra en proceso de revisión de plan de trabajo y documentación.`;
+        activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} cuenta con docente asesor asignado (${asesorNombre})${coordinadorNombre ? ` bajo la Coordinación de ${coordinadorNombre}` : ""} y se encuentra en proceso de revisión de plan de trabajo y documentación.`;
         activeBadgeClass = "bg-blue-100 text-blue-900 border-blue-300";
       } else {
         activeStatusTitle = "En espera de ser asignado el asesor";
-        activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido asignada a la Coordinación de Facultad y se encuentra en proceso de asignación de un docente asesor.`;
+        activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido asignada a la Coordinación de Facultad${coordinadorNombre ? ` (${coordinadorNombre})` : ""} y se encuentra en proceso de asignación de un docente asesor.`;
         activeBadgeClass = "bg-amber-100 text-amber-900 border-amber-300";
       }
     } else if (activeSubmittedProp.estado === "aprobada") {
-      activeStatusTitle = "En espera de que el asesor se contacte con la empresa";
-      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada por la Coordinación de Facultad. El docente asesor${asesorNombre ? ` (${asesorNombre})` : ""} se pondrá en contacto con la institución/empresa para dar inicio al seguimiento del trabajo.`;
+      activeStatusTitle = "Propuesta aprobada — En seguimiento";
+      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada${coordinadorNombre ? ` por la Coordinación de Facultad (${coordinadorNombre})` : ""}. El docente asesor${asesorNombre ? ` (${asesorNombre})` : ""} se pondrá en contacto con la institución/empresa para dar inicio al seguimiento del trabajo.`;
       activeBadgeClass = "bg-emerald-100 text-emerald-900 border-emerald-300";
     } else if (activeSubmittedProp.estado === "enviada") {
       activeStatusTitle = "Tu propuesta está en revisión";
-      activeStatusDesc = `Has enviado tu propuesta #${activeSubmittedProp.numero}. En este momento está siendo evaluada por las autoridades académicas.`;
+      activeStatusDesc = `Has enviado tu propuesta #${activeSubmittedProp.numero}. En este momento está siendo evaluada por las autoridades académicas${coordinadorNombre ? ` y la Coordinación de ${coordinadorNombre}` : ""}.`;
       activeBadgeClass = "bg-purple-100 text-purple-900 border-purple-300";
+    } else {
+      activeStatusTitle = "Propuesta en revisión / corrección de observaciones";
+      const teamList = [];
+      if (coordinadorNombre) teamList.push(`Coordinador: ${coordinadorNombre}`);
+      if (asesorNombre) teamList.push(`Docente Asesor: ${asesorNombre}`);
+      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} se encuentra activa. ${teamList.length > 0 ? `Asignaciones actuales: ${teamList.join(" | ")}.` : "En proceso de revisión."}`;
+      activeBadgeClass = "bg-blue-100 text-blue-900 border-blue-300";
     }
   }
 
@@ -190,7 +205,7 @@ export default async function EgresadoLandingPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Propuesta Details */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
               <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
@@ -203,6 +218,27 @@ export default async function EgresadoLandingPage() {
                 <p className="text-slate-600 truncate" title={activeSubmittedProp.titulo || ""}>
                   {activeSubmittedProp.titulo || "Trabajo de Graduación"}
                 </p>
+              </div>
+            </div>
+
+            {/* Coordinador y Asesor Card */}
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
+                🎓 Coordinación y Asesoría
+              </h3>
+              <div className="text-xs space-y-1.5">
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 block">Coordinador:</span>
+                  <span className="font-bold text-slate-900 truncate block">
+                    {coordinadorNombre || "Pendiente de asignación"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold text-slate-500 block">Docente Asesor:</span>
+                  <span className="font-extrabold text-indigo-700 truncate block">
+                    {asesorNombre || "Pendiente de asignación"}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -224,17 +260,17 @@ export default async function EgresadoLandingPage() {
             {/* Supervisor & Fecha / Hora Envío (SEPARATED & CONVERTED TO EL SALVADOR TIME) */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
               <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
-                👤 Supervisor y Registro de Envío
+                👤 Supervisor y Envío
               </h3>
               <div className="text-xs space-y-1">
-                <p className="font-bold text-slate-800">
+                <p className="font-bold text-slate-800 truncate">
                   {activeSupervisor ? `${activeSupervisor.titulo || ''} ${activeSupervisor.nombres} ${activeSupervisor.apellidos}`.trim() : "Sin supervisor asignado"}
                 </p>
                 <p className="text-brand-red font-bold flex items-center gap-1 mt-1">
-                  <span>🗓️ Fecha de Envío:</span> <span className="capitalize">{fechaEnvio}</span>
+                  <span>🗓️ Envío:</span> <span className="capitalize">{fechaEnvio}</span>
                 </p>
                 <p className="text-slate-700 font-bold flex items-center gap-1">
-                  <span>⏰ Hora (El Salvador):</span> <span>{horaEnvio}</span>
+                  <span>⏰ Hora (SV):</span> <span>{horaEnvio}</span>
                 </p>
               </div>
             </div>

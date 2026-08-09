@@ -275,18 +275,18 @@ export default async function EgresadoPage({
       )}
 
       {propuesta.observaciones && (
-        <div className="mb-8 p-6 bg-amber-50 border-2 border-amber-300 rounded-2xl shadow-sm space-y-4 animate-in fade-in duration-200">
+        <div className="mb-8 p-6 bg-amber-50 border-2 border-amber-400 rounded-2xl shadow-md space-y-4 animate-in fade-in duration-200">
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-extrabold text-lg shrink-0">
-                ⚠️
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-900 flex items-center justify-center font-extrabold text-xl shrink-0 border border-amber-300">
+                📝
               </div>
               <div>
-                <h3 className="font-extrabold text-amber-950 text-base">
-                  Se han solicitado ajustes en tu propuesta
+                <h3 className="font-extrabold text-amber-950 text-base flex items-center gap-2">
+                  <span>Observaciones del Docente Asesor sobre el Plan de Trabajo</span>
                 </h3>
-                <p className="text-xs text-amber-800 font-medium mt-0.5">
-                  El docente asesor ha revisado tu propuesta y solicitó correcciones antes de aprobarla.
+                <p className="text-xs text-amber-900 font-medium mt-0.5">
+                  El docente asesor solicitó las correcciones detalladas abajo. Modifica el plan en esta pantalla y haz clic en <strong>Reenviar Propuesta Ajustada</strong> al terminar.
                 </p>
               </div>
             </div>
@@ -295,17 +295,17 @@ export default async function EgresadoPage({
               <Link
                 href={`/egresado/redactar/imprimir?id=${propuesta.id}`}
                 target="_blank"
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-100/60 transition-all shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-100/60 transition-all shadow-xs"
               >
-                📄 Ver PDF de Propuesta Original Enviada ↗
+                📄 Ver PDF Original Enviado ↗
               </Link>
               <ReenviarPropuestaAjustadaButton propuestaId={propuesta.id} />
             </div>
           </div>
 
-          <div className="p-4 bg-white/80 rounded-xl border border-amber-200 text-xs text-amber-900 leading-relaxed font-medium">
-            <strong className="block text-amber-950 uppercase text-[10px] font-extrabold mb-1">
-              Observaciones del Asesor / Literales a Corregir:
+          <div className="p-4 bg-white/90 rounded-xl border border-amber-200 text-xs text-amber-950 leading-relaxed font-semibold shadow-xs">
+            <strong className="block text-amber-950 uppercase text-[10px] font-extrabold mb-1 tracking-wider">
+              📍 Indicaciones y Actividades a Corregir:
             </strong>
             <p className="whitespace-pre-wrap">{propuesta.observaciones}</p>
           </div>
