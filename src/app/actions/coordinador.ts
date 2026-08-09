@@ -767,3 +767,4 @@ export async function responderAsignacionCoordinador(
     return { success: false, error: "Error interno: " + error.message };
   }
 }
+
