@@ -9,6 +9,7 @@ import DocumentGate from "@/components/DocumentGate";
 const navItems: NavItem[] = [
   { label: "Envío de Propuestas", href: "/egresado" },
   { label: "Historial Propuesta", href: "/egresado/historial" },
+  { label: "Reportes Mensuales", href: "/egresado/reportes" },
 ];
 
 export default async function EgresadoLayout({

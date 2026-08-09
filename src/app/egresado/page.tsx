@@ -123,7 +123,11 @@ export default async function EgresadoLandingPage() {
       isPropuestaAjustada = true;
     }
 
-    if (activeSubmittedProp.estado === "coordinador_asignado" || activeSubmittedProp.estado === "enviada") {
+    if (activeSubmittedProp.estado === "en_ejecucion") {
+      activeStatusTitle = "¡Felicidades! Su trabajo de graduación ya se encuentra en ejecución 🎉";
+      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada e iniciada oficialmente por la Coordinación de Facultad. Tu plan de trabajo y pasantía se encuentran en proceso activo de desarrollo.`;
+      activeBadgeClass = "bg-emerald-100 text-emerald-950 border-emerald-400 font-extrabold";
+    } else if (activeSubmittedProp.estado === "coordinador_asignado" || activeSubmittedProp.estado === "enviada") {
       if (isPropuestaAjustada) {
         activeStatusTitle = "En espera de revisión de propuesta ajustada";
         activeStatusDesc = `Ha enviado su propuesta #${activeSubmittedProp.numero} ajustada con las correcciones aplicadas al plan de trabajo. El docente asesor${asesorNombre ? ` (${asesorNombre})` : ""} revisará nuevamente las modificaciones realizadas.`;
@@ -321,7 +325,9 @@ export default async function EgresadoLandingPage() {
                   Propuesta #{activeSubmittedProp.numero} ({activeSubmittedProp.tipo.toUpperCase()})
                 </h2>
                 <span className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide border ${activeBadgeClass}`}>
-                  {activeSubmittedProp.estado === "primer_contacto_completado"
+                  {activeSubmittedProp.estado === "en_ejecucion"
+                    ? "EN EJECUCIÓN"
+                    : activeSubmittedProp.estado === "primer_contacto_completado"
                     ? "PRIMER CONTACTO COMPLETADO"
                     : activeSubmittedProp.estado === "aprobada"
                     ? "PROPUESTA APROBADA"
@@ -333,33 +339,56 @@ export default async function EgresadoLandingPage() {
               </p>
             </div>
 
-            {/* SINGLE BUTTON: Open PDF Document */}
-            <div className="flex items-center gap-3">
-              <a
-                href={`/egresado/redactar/imprimir?id=${activeSubmittedProp.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white font-extrabold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>📄 Ver Documento PDF</span>
-              </a>
-            </div>
+            {/* SINGLE BUTTON: Open PDF Document (Hidden when state is en_ejecucion) */}
+            {activeSubmittedProp.estado !== "en_ejecucion" && (
+              <div className="flex items-center gap-3">
+                <a
+                  href={`/egresado/redactar/imprimir?id=${activeSubmittedProp.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-brand-red hover:bg-brand-red-dark text-white font-extrabold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>📄 Ver Documento PDF</span>
+                </a>
+              </div>
+            )}
           </div>
 
-          <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-            <div className="flex items-center gap-2 text-brand-red font-extrabold text-sm sm:text-base">
-              <svg className="w-5 h-5 text-brand-red animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>{activeStatusTitle}</span>
+          {activeSubmittedProp.estado === "en_ejecucion" ? (
+            <div className="p-6 bg-emerald-50 border-2 border-emerald-300 rounded-2xl space-y-3.5 shadow-xs">
+              <div className="flex items-center gap-2 text-emerald-950 font-extrabold text-base sm:text-lg">
+                <span className="text-2xl">🎉</span>
+                <span>¡Felicidades! Su trabajo de graduación ya se encuentra en ejecución</span>
+              </div>
+              <p className="text-xs sm:text-sm text-emerald-900 leading-relaxed font-medium">
+                Su propuesta #{activeSubmittedProp.numero} ha sido aprobada oficialmente por la Coordinación de Facultad. Tu plan de trabajo y pasantía se encuentran en proceso activo de desarrollo.
+              </p>
+              <div className="pt-2">
+                <Link
+                  href="/egresado/reportes"
+                  className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
+                >
+                  <span>📊 Haz clic aquí para ingresar al seguimiento de reportes mensuales</span>
+                  <span className="text-sm">➔</span>
+                </Link>
+              </div>
             </div>
-            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
-              {activeStatusDesc}
-            </p>
-          </div>
+          ) : (
+            <div className="p-5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="flex items-center gap-2 text-brand-red font-extrabold text-sm sm:text-base">
+                <svg className="w-5 h-5 text-brand-red animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{activeStatusTitle}</span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
+                {activeStatusDesc}
+              </p>
+            </div>
+          )}
         </div>
       )}
 
