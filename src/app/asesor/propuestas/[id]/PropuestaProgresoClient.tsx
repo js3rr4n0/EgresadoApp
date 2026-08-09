@@ -251,6 +251,15 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
             📊 Exportar Gantt (PDF 1 pág)
           </a>
 
+          <a
+            href={`/asesor/propuestas/${propuesta.id}/dictamen`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
+          >
+            📜 Generar Dictamen de Plan de Trabajo
+          </a>
+
           <button
             onClick={() => setShowBajaModal(true)}
             className="inline-flex items-center gap-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"

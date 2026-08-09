@@ -26,8 +26,8 @@ export default function DictamenPropuestaClient({
   };
 
   const getDictamenLabel = (estado?: string) => {
-    if (estado === "aprobada") return "FAVORABLE (APROBADA)";
-    if (estado === "en_revision_asesor" || estado === "coordinador_asignado") return "EN REVISIÓN";
+    if (estado === "aprobada" || estado === "primer_contacto_completado") return "FAVORABLE (APROBADA)";
+    if (estado === "enviada" || estado === "en_revision_asesor" || estado === "coordinador_asignado") return "EN REVISIÓN";
     if (estado === "rechazada" || estado === "anulada") return "NO FAVORABLE";
     return "FAVORABLE";
   };
@@ -62,394 +62,373 @@ export default function DictamenPropuestaClient({
     timeZone: "America/El_Salvador",
   });
 
-  // Render 2 rows if 1-2 students, or 3 rows if 3+ students (filled or blank for manual entries)
-  const maxRows = Math.min(3, Math.max(2, students.length));
-  const rows = Array.from({ length: maxRows }, (_, i) => students[i] || null);
+  // Always 3 rows for students table
+  const rows = Array.from({ length: 3 }, (_, i) => students[i] || null);
 
   return (
     <>
       <style>{`
-        @page { size: letter portrait; margin: 0; }
-
-        :root{
-          --ink:#000;
-          --line:1px solid #000;
-          --pad:4px 6px;
+        :root {
+          --line: #000;
+          --ink: #000;
+          --pad: 5px 7px;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: #e9e9e9; }
+        body {
+          font-family: Arial, Helvetica, sans-serif;
+          color: var(--ink);
+          font-size: 10.5pt;
+        }
+        .hoja {
+          width: 216mm;
+          min-height: 279mm;
+          margin: 16px auto;
+          background: #fff;
+          padding: 12mm 12mm 10mm 12mm;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.15);
         }
 
-        html,body{ margin:0; padding:0; background:#8a8a8a; }
-
-        body{
-          font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
-          color:var(--ink);
-          -webkit-font-smoothing:antialiased;
+        /* Encabezado */
+        .encabezado {
+          display: grid;
+          grid-template-columns: 85px 1fr 85px;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        .logo-box {
+          width: 76px;
+          height: 76px;
+          border-radius: 50%;
+          border: 1px solid #999;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 7pt;
+          text-align: center;
+          color: #999;
+          overflow: hidden;
+          margin: 0 auto;
+        }
+        .logo-box img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+        }
+        .titulos {
+          text-align: center;
+          font-weight: bold;
+          font-size: 11.5pt;
+          line-height: 1.5;
         }
 
-        .page{
-          width:8.5in;
-          min-height:11in;
-          max-height:11in;
-          margin:24px auto;
-          background:#fff;
-          box-sizing:border-box;
-          padding:0.4in 0.45in 0.35in 0.45in;
-          position:relative;
-          box-shadow:0 2px 18px rgba(0,0,0,.35);
-          display:flex;
-          flex-direction:column;
-          overflow:hidden;
+        .id-doc {
+          text-align: right;
+          font-size: 10.5pt;
+          font-weight: bold;
+          margin-bottom: 4px;
+          padding-right: 2px;
         }
 
-        /* ---------- Encabezado ---------- */
-        .header{
-          display:flex;
-          align-items:flex-start;
-          justify-content:space-between;
-          margin-bottom:10px;
+        /* Tablas / bloques */
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          table-layout: fixed;
+          font-size: 10.5pt;
         }
-        .logo{
-          width:95px;
-          flex:0 0 95px;
-          text-align:center;
-          padding-top:2px;
+        .marco { border: 1px solid var(--line); }
+        td, th {
+          border: 0;
+          padding: var(--pad);
+          vertical-align: middle;
+          font-weight: normal;
+          text-align: left;
         }
-        .logo .seal{
-          width:68px; height:68px;
-          border:1.5px solid #7a1f1f;
-          border-radius:50%;
-          margin:0 auto;
-          overflow:hidden;
-          display:flex;
-          align-items:center;
-          justify-content:center;
+        .bloque { margin-bottom: 10px; }
+        .etq { font-weight: bold; }
+        .sep-v { border-right: 1px solid var(--line); }
+        .sep-h { border-bottom: 1px solid var(--line); }
+        .fila-vacia td { height: 24px; }
+
+        /* Tabla de estudiantes */
+        .t-estudiantes .cab td {
+          border-bottom: 1px solid var(--line);
+          font-weight: bold;
+          vertical-align: bottom;
         }
-        .logo .seal img {
-          max-width:100%;
-          max-height:100%;
-          object-fit:contain;
-        }
-        .logo .lema{
-          font-size:6.5px;
-          font-style:italic;
-          margin-top:4px;
-          color:#333;
-          max-width:95px;
-          line-height:1.1;
-        }
-        .titles{
-          flex:1;
-          text-align:center;
-          padding-top:8px;
-        }
-        .titles h1{
-          font-size:14px;
-          font-weight:bold;
-          margin:0 0 4px 0;
-          letter-spacing:.2px;
-        }
-        .titles h2{
-          font-size:13px;
-          font-weight:bold;
-          margin:0;
-        }
-        .spacer-logo{
-          width:95px;
-          flex:0 0 95px;
+        .t-estudiantes .col-carrera { border-left: 1px solid var(--line); }
+        .t-estudiantes .col-ciclo { border-left: 1px solid var(--line); text-align: center; }
+        .cab .col-ciclo { line-height: 1.2; }
+
+        /* Bloques con caja de escritura */
+        .caja-alta td { height: 85px; vertical-align: top; }
+
+        .linea-encabezado {
+          display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          padding: 4px 6px;
         }
 
-        .id-line{
-          text-align:right;
-          font-size:11.5px;
-          font-weight:bold;
-          margin:0 0 6px 0;
-        }
-        .id-line .fill{
-          display:inline-block;
-          min-width:100px;
-          border-bottom:var(--line);
-          padding-left:4px;
-          text-align:center;
+        /* Firma decano */
+        .firma-larga {
+          border-top: 1px solid var(--line);
+          width: 58%;
+          margin: 45px auto 0;
+          text-align: center;
+          padding-top: 4px;
+          line-height: 1.4;
+          font-size: 10.5pt;
         }
 
-        /* ---------- Tablas base ---------- */
-        table{
-          width:100%;
-          border-collapse:collapse;
-          font-size:11.5px;
-        }
-        td, th{
-          border:var(--line);
-          padding:var(--pad);
-          vertical-align:middle;
-        }
-        .no-border td{ border:none; }
-
-        .blk{ margin-bottom:9px; }
-
-        th{
-          font-weight:bold;
-          text-align:left;
+        /* Pie */
+        .pie {
+          margin-top: auto;
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-end;
+          padding-top: 16px;
+          font-size: 10pt;
         }
 
-        .th-center{ text-align:center; }
+        .campo { display: inline-block; min-width: 110px; }
 
-        /* filas vacías para llenar a mano */
-        .row-fill td{ height:22px; }
-
-        .label{ font-weight:normal; }
-
-        /* ---------- Bloques específicos ---------- */
-        .col-carrera{ width:47%; }
-        .col-ciclo{ width:13%; text-align:center; }
-
-        .tipo-label{ width:32%; }
-
-        .titulo-box td{ height:75px; vertical-align:top; }
-
-        .recom-box td{ height:65px; vertical-align:top; }
-
-        .firma-cell{ height:36px; }
-
-        .col-carnet{ width:26%; }
-        .col-firma{ width:26%; }
-
-        /* ---------- Decano ---------- */
-        .decano{
-          margin:18px auto 0 auto;
-          text-align:center;
-          width:340px;
-          font-size:11.5px;
-        }
-        .decano .rule{
-          width:100%;
-          border-top:var(--line);
-          margin-bottom:4px;
-        }
-        .decano .cargo{
-          text-align:center;
-          font-weight:bold;
-        }
-
-        /* ---------- Pie ---------- */
-        .footer{
-          margin-top:auto;
-          padding-top:12px;
-          display:flex;
-          justify-content:space-between;
-          align-items:flex-end;
-          font-size:11.5px;
-        }
-        .footer .fill{
-          display:inline-block;
-          min-width:160px;
-          border-bottom:var(--line);
-          padding-left:4px;
-        }
-
-        @media print{
-          html, body{
-            background:#fff !important;
-            margin:0 !important;
-            padding:0 !important;
-            width:100% !important;
-            height:100% !important;
-            overflow:hidden !important;
-            display:flex !important;
-            justify-content:center !important;
+        @media print {
+          html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+          .no-print { display: none !important; }
+          .hoja {
+            margin: 0 auto !important;
+            width: 100% !important;
+            min-height: 100vh !important;
+            padding: 8mm 10mm !important;
+            box-shadow: none !important;
           }
-          header, footer, nav, .no-print{
-            display:none !important;
-            height:0 !important;
-            margin:0 !important;
-            padding:0 !important;
-            visibility:hidden !important;
-          }
-          .page{
-            margin:0 auto !important;
-            box-shadow:none !important;
-            width:8.5in !important;
-            max-width:8.5in !important;
-            height:11in !important;
-            max-height:11in !important;
-            box-sizing:border-box !important;
-            padding:0.35in 0.45in 0.3in 0.45in !important;
-            page-break-after:avoid !important;
-            page-break-before:avoid !important;
-            page-break-inside:avoid !important;
-            break-after:avoid !important;
-            break-inside:avoid !important;
-            overflow:hidden !important;
-          }
+          @page { size: letter; margin: 10mm; }
         }
       `}</style>
 
-      {/* Screen Controls Bar */}
-      <div className="no-print bg-slate-900 text-white p-4 max-w-[8.5in] mx-auto my-4 rounded-2xl flex items-center justify-between shadow-xl border border-slate-700">
-        <div>
-          <h3 className="text-sm font-extrabold text-amber-400">
-            Dictamen de Propuesta — #{propuesta.id}
-          </h3>
-          <p className="text-[11px] text-slate-300">
-            Documento oficial listo para impresión o exportación a PDF.
-          </p>
+      {/* Action Header Bar for Screen */}
+      <div className="no-print bg-slate-900 text-white p-4 max-w-[216mm] mx-auto my-4 rounded-2xl flex items-center justify-between shadow-xl border border-slate-700">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">📜</span>
+          <div>
+            <h3 className="text-sm font-extrabold text-white">
+              Dictamen de Plan de Trabajo — Propuesta #{propuesta.numero || propuesta.id}
+            </h3>
+            <p className="text-[11px] text-slate-300">
+              Formato oficial UNICAES listo para impresión o descarga en PDF.
+            </p>
+          </div>
         </div>
         <button
           onClick={() => window.print()}
-          className="px-5 py-2.5 bg-rose-700 hover:bg-rose-800 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
+          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
         >
-          <span>🖨️ Imprimir / Guardar en PDF</span>
+          <span>🖨️ Imprimir / Guardar PDF</span>
         </button>
       </div>
 
-      <div className="page">
+      <div className="hoja">
         {/* Encabezado */}
-        <div className="header">
-          <div className="logo">
-            <div className="seal">
-              <img src="/unicaes-logo.png" alt="UNICAES" />
-            </div>
-            <div className="lema">"La Ciencia sin Moral es Vana"</div>
+        <div className="encabezado">
+          <div className="logo-box">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/unicaes-logo.png" alt="UNICAES" />
           </div>
-          <div className="titles">
-            <h1>UNIVERSIDAD CATÓLICA DE EL SALVADOR</h1>
-            <h2>DICTAMEN DE PROPUESTA</h2>
+          <div className="titulos">
+            UNIVERSIDAD CATÓLICA DE EL SALVADOR<br />
+            DICTAMEN DE PLAN DE TRABAJO
           </div>
-          <div className="spacer-logo"></div>
+          <div></div>
         </div>
 
-        <div className="id-line">
-          Id:<span className="fill">{propuesta.id}</span>
-        </div>
+        <div className="id-doc">Id: {propuesta.id}</div>
 
         {/* Estudiantes */}
-        <table className="blk">
-          <thead>
-            <tr>
-              <th>Estudiante</th>
-              <th className="col-carrera">Carrera</th>
-              <th className="col-ciclo">Ciclo<br />egreso</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((st, idx) => (
-              <tr key={idx} className={st ? "" : "row-fill"}>
-                <td>{st?.nombreCompleto || ""}</td>
-                <td>{st?.carrera || ""}</td>
-                <td style={{ textAlign: "center" }}>{st?.cohorte || ""}</td>
+        <div className="bloque">
+          <table className="marco t-estudiantes">
+            <colgroup>
+              <col style={{ width: "44%" }} />
+              <col style={{ width: "42%" }} />
+              <col style={{ width: "14%" }} />
+            </colgroup>
+            <tbody>
+              <tr className="cab">
+                <td className="etq">Estudiante</td>
+                <td className="etq col-carrera">Carrera</td>
+                <td className="etq col-ciclo">
+                  Ciclo
+                  <br />
+                  egreso
+                </td>
               </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Tipo de trabajo */}
-        <table className="blk">
-          <tbody>
-            <tr>
-              <td className="tipo-label">Tipo de trabajo de graduación:</td>
-              <td style={{ fontWeight: "bold" }}>{getTipoLabel(propuesta.tipo)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Título de la propuesta */}
-        <table className="blk">
-          <tbody>
-            <tr>
-              <td style={{ width: "50%" }}>Título de la propuesta:</td>
-              <td style={{ width: "28%", textAlign: "right", borderLeft: "none" }}>Fecha de presentación al asesor:</td>
-              <td style={{ width: "22%", borderLeft: "none", fontWeight: "bold" }}>{fechaPresentacion}</td>
-            </tr>
-            <tr className="titulo-box">
-              <td colSpan={3} style={{ fontWeight: "bold", fontSize: "12px", lineHeight: "1.4" }}>
-                {propuesta.titulo || propuesta.descripcion || ""}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Dictamen */}
-        <table className="blk">
-          <tbody>
-            <tr>
-              <td style={{ width: "18%" }}>Dictamen:</td>
-              <td style={{ fontWeight: "bold" }}>{getDictamenLabel(propuesta.estado)}</td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Recomendaciones */}
-        <table className="blk">
-          <tbody>
-            <tr>
-              <td>Recomendaciones:</td>
-            </tr>
-            <tr className="recom-box">
-              <td style={{ fontSize: "11.5px", lineHeight: "1.4" }}>
-                {propuesta.observaciones || ""}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Revisión */}
-        <table className="blk">
-          <tbody>
-            <tr>
-              <td style={{ width: "62%" }}>
-                Propuesta revisada por: <span style={{ fontWeight: "bold" }}>{asesorNombre || ""}</span>
-              </td>
-              <td style={{ width: "20%", borderRight: "none" }}>Fecha de revisión:</td>
-              <td style={{ width: "18%", borderLeft: "none", fontWeight: "bold" }}>{fechaRevision}</td>
-            </tr>
-            <tr className="firma-cell">
-              <td></td>
-              <td style={{ borderRight: "none" }}>Firma:</td>
-              <td style={{ borderLeft: "none" }}></td>
-            </tr>
-          </tbody>
-        </table>
-
-        {/* Recepción de dictamen */}
-        <table className="no-border" style={{ marginBottom: "4px" }}>
-          <tbody>
-            <tr>
-              <td style={{ padding: "0 0 4px 8px", width: "32%" }}>Recepción de dictamen:</td>
-              <td style={{ padding: "0 0 4px 0" }}>Fecha de notificación:</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <table className="blk">
-          <thead>
-            <tr>
-              <th className="col-carnet">Carnet</th>
-              <th>Estudiante</th>
-              <th className="col-firma th-center">Firma</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((st, idx) => (
-              <tr key={idx} className={st ? "" : "row-fill"}>
-                <td style={{ fontFamily: "monospace" }}>{st?.carnet || ""}</td>
-                <td>{st?.nombreCompleto || ""}</td>
-                <td></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Decano */}
-        <div className="decano">
-          <div className="rule"></div>
-          <div className="cargo">
-            {decanoNombre ? `Decano: ${decanoNombre}` : "Decano de la Facultad"}
-          </div>
+              {rows.map((st, idx) => (
+                <tr key={idx} className={st ? "" : "fila-vacia"}>
+                  <td className="font-bold">{st?.nombreCompleto || "\u00A0"}</td>
+                  <td className="col-carrera">{st?.carrera || "\u00A0"}</td>
+                  <td className="col-ciclo">{st?.cohorte || "\u00A0"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        {/* Pie de página */}
-        <div className="footer">
-          <div>Página 1 de 1</div>
-          <div>Fecha de impresión:<span className="fill">{fechaImpresion}</span></div>
+        {/* Tipo de trabajo */}
+        <div className="bloque">
+          <table className="marco">
+            <colgroup>
+              <col style={{ width: "27%" }} />
+              <col />
+            </colgroup>
+            <tbody>
+              <tr className="fila-vacia">
+                <td>Tipo de trabajo de graduación:</td>
+                <td style={{ borderLeft: "1px solid var(--line)", fontWeight: "bold" }}>
+                  {getTipoLabel(propuesta.tipo)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Título del plan */}
+        <div className="bloque">
+          <table className="marco">
+            <tbody>
+              <tr>
+                <td className="sep-h">
+                  <div className="linea-encabezado" style={{ padding: 0 }}>
+                    <span>Título del plan de trabajo o protocolo:</span>
+                    <span>
+                      Fecha de presentación al asesor:
+                      <span className="campo" style={{ fontWeight: "bold", marginLeft: "6px" }}>
+                        {fechaPresentacion}
+                      </span>
+                    </span>
+                  </div>
+                </td>
+              </tr>
+              <tr className="caja-alta">
+                <td style={{ fontWeight: "bold", fontSize: "10.5pt", lineHeight: "1.4" }}>
+                  {propuesta.titulo || propuesta.descripcion || "\u00A0"}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Dictamen */}
+        <div className="bloque">
+          <table className="marco">
+            <colgroup>
+              <col style={{ width: "17%" }} />
+              <col />
+            </colgroup>
+            <tbody>
+              <tr className="fila-vacia">
+                <td>Dictamen:</td>
+                <td style={{ borderLeft: "1px solid var(--line)", fontWeight: "bold" }}>
+                  {getDictamenLabel(propuesta.estado)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Recomendaciones */}
+        <div className="bloque">
+          <table className="marco">
+            <tbody>
+              <tr>
+                <td className="sep-h">Recomendaciones:</td>
+              </tr>
+              <tr className="caja-alta">
+                <td style={{ fontSize: "10.5pt", lineHeight: "1.4" }}>
+                  {propuesta.observaciones || "\u00A0"}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Revisión */}
+        <div className="bloque">
+          <table className="marco">
+            <colgroup>
+              <col style={{ width: "60%" }} />
+              <col style={{ width: "40%" }} />
+            </colgroup>
+            <tbody>
+              <tr>
+                <td className="sep-h">
+                  Plan de trabajo o protocolo revisado por:{" "}
+                  <strong style={{ marginLeft: "4px" }}>{asesorNombre}</strong>
+                </td>
+                <td className="sep-h">
+                  Fecha de revisión:
+                  <span className="campo" style={{ fontWeight: "bold", marginLeft: "6px" }}>
+                    {fechaRevision}
+                  </span>
+                </td>
+              </tr>
+              <tr style={{ height: "36px" }}>
+                <td>&nbsp;</td>
+                <td style={{ borderLeft: "1px solid var(--line)" }}>Firma:</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Recepción de dictamen */}
+        <div className="bloque">
+          <div className="linea-encabezado" style={{ padding: "0 8px 4px" }}>
+            <span>Recepción de dictamen:</span>
+            <span style={{ flex: 1 }}>
+              Fecha de notificación:
+              <span className="campo" style={{ marginLeft: "6px" }}>{fechaRevision}</span>
+            </span>
+          </div>
+          <table className="marco t-estudiantes">
+            <colgroup>
+              <col style={{ width: "22%" }} />
+              <col style={{ width: "53%" }} />
+              <col style={{ width: "25%" }} />
+            </colgroup>
+            <tbody>
+              <tr className="cab">
+                <td>Carnet</td>
+                <td className="col-carrera">Estudiante</td>
+                <td className="col-ciclo">Firma</td>
+              </tr>
+              {rows.map((st, idx) => (
+                <tr key={idx} className={st ? "" : "fila-vacia"}>
+                  <td style={{ fontFamily: "monospace" }}>{st?.carnet || "\u00A0"}</td>
+                  <td className="col-carrera">{st?.nombreCompleto || "\u00A0"}</td>
+                  <td className="col-ciclo">&nbsp;</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Firma decano */}
+        <div className="firma-larga">
+          <div style={{ fontWeight: "bold" }}>{decanoNombre || "\u00A0"}</div>
+          <div>Decano de la Facultad</div>
+        </div>
+
+        {/* Pie */}
+        <div className="pie">
+          <span>Página 1 de 1</span>
+          <span>
+            Fecha de impresión:
+            <span className="campo" style={{ fontWeight: "bold", marginLeft: "6px" }}>
+              {fechaImpresion}
+            </span>
+          </span>
         </div>
       </div>
     </>
