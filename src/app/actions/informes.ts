@@ -320,18 +320,29 @@ export async function enviarInformePrimerContacto(
 
     if (prop) {
       if (datos.resultadoValidacion === "aprobada") {
+        const estadoAnterior = prop.estado;
         await db
           .update(propuestas)
           .set({
+            estado: "primer_contacto_completado",
             observaciones: null,
           })
           .where(eq(propuestas.id, prop.id));
+
+        // Insert state history log
+        const { historialEstados } = await import("@/lib/schema");
+        await db.insert(historialEstados).values({
+          propuestaId: prop.id,
+          de: estadoAnterior,
+          a: "primer_contacto_completado",
+          usuarioId: session.userId,
+        });
 
         // Notify Egresado
         await db.insert(notificaciones).values({
           usuarioId: prop.egresadoId,
           tipo: "informe_primer_contacto_aprobado",
-          mensaje: `El Informe de Primer Contacto para la propuesta #${prop.numero} fue completado y el plan de trabajo ha sido validado por la empresa.`,
+          mensaje: `¡Felicidades! El Informe de Primer Contacto para la propuesta #${prop.numero} fue completado y el plan de trabajo ha sido validado por la empresa. Estado actualizado: Primer Contacto Completado.`,
         });
       } else if (datos.resultadoValidacion === "con_modificaciones") {
         await db

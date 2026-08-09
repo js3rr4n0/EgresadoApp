@@ -205,8 +205,38 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                 </span>
               )}
             </div>
-            <p className="text-xs text-muted mt-0.5">
-              Estudiante: <span className="font-bold text-slate-800">{estudiante.nombreCompleto}</span> ({estudiante.carnet})
+            <p className="text-xs text-muted mt-1 flex items-center gap-2 flex-wrap">
+              <span>Estudiante: <strong className="text-slate-800">{estudiante.nombreCompleto}</strong> ({estudiante.carnet})</span>
+              <span className="text-slate-300">•</span>
+              <span className="font-extrabold text-slate-700">Estado Actual:</span>
+              {(() => {
+                const getBadge = (st: string) => {
+                  switch (st) {
+                    case "redactando":
+                      return { text: "Redactando (Borrador)", cls: "bg-slate-100 text-slate-800 border-slate-300" };
+                    case "enviada":
+                      return { text: "Enviada / En Revisión", cls: "bg-blue-100 text-blue-900 border-blue-300" };
+                    case "coordinador_asignado":
+                      return { text: "Coordinador / Asesor Asignado", cls: "bg-purple-100 text-purple-900 border-purple-300" };
+                    case "aprobada":
+                      return { text: "Aprobada por Asesor (Esperando Primer Contacto)", cls: "bg-emerald-100 text-emerald-950 border-emerald-400 font-extrabold" };
+                    case "primer_contacto_completado":
+                      return { text: "✓ Primer Contacto Completado", cls: "bg-teal-100 text-teal-950 border-teal-400 font-extrabold" };
+                    case "rechazada":
+                      return { text: "Rechazada", cls: "bg-rose-100 text-rose-900 border-rose-300" };
+                    case "anulada":
+                      return { text: "Anulada / Dada de Baja", cls: "bg-gray-200 text-gray-800 border-gray-400" };
+                    default:
+                      return { text: st.replace(/_/g, " "), cls: "bg-slate-100 text-slate-800 border-slate-300" };
+                  }
+                };
+                const b = getBadge(propuesta.estado);
+                return (
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border shadow-2xs ${b.cls}`}>
+                    {b.text}
+                  </span>
+                );
+              })()}
             </p>
           </div>
         </div>

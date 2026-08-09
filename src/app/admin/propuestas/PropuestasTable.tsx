@@ -126,7 +126,9 @@ export default function PropuestasTable({
       case "coordinador_asignado":
         return <span className="px-2.5 py-1 bg-purple-100 text-purple-800 rounded-md text-xs font-black uppercase">Coordinador Asignado</span>;
       case "aprobada":
-        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-md text-xs font-black uppercase">Aprobada</span>;
+        return <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-md text-xs font-black uppercase">Aprobada por Asesor</span>;
+      case "primer_contacto_completado":
+        return <span className="px-2.5 py-1 bg-teal-100 text-teal-900 rounded-md text-xs font-black uppercase">Primer Contacto Completado</span>;
       case "rechazada":
         return <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-md text-xs font-black uppercase">Rechazada</span>;
       default:

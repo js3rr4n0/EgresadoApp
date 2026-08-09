@@ -137,6 +137,10 @@ export default async function EgresadoLandingPage() {
         activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido asignada a la Coordinación de Facultad${coordinadorNombre ? ` (${coordinadorNombre})` : ""} y se encuentra en proceso de asignación de un docente asesor.`;
         activeBadgeClass = "bg-amber-100 text-amber-900 border-amber-300";
       }
+    } else if (activeSubmittedProp.estado === "primer_contacto_completado") {
+      activeStatusTitle = "¡Primer Contacto Completado y Plan Validado! 🎉";
+      activeStatusDesc = `El docente asesor${asesorNombre ? ` (${asesorNombre})` : ""} ha completado exitosamente el Informe de Primer Contacto. La empresa ha validado tu plan de trabajo y tu propuesta avanza en el desarrollo del proyecto.`;
+      activeBadgeClass = "bg-teal-100 text-teal-950 border-teal-400 font-black";
     } else if (activeSubmittedProp.estado === "aprobada") {
       activeStatusTitle = "Propuesta Aprobada — Esperando Primer Contacto";
       activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada exitosamente por el docente asesor${asesorNombre ? ` (${asesorNombre})` : ""}. Estado actual: Esperando que el docente asesor realice el primer contacto con el supervisor empresarial.`;
@@ -296,6 +300,11 @@ export default async function EgresadoLandingPage() {
                     <span>⏳ Esperando que el asesor realice el primer contacto</span>
                   </div>
                 )}
+                {activeSubmittedProp.estado === "primer_contacto_completado" && (
+                  <div className="mt-2 p-2 bg-teal-50 border border-teal-200 rounded-lg text-[11px] font-extrabold text-teal-900 flex items-center gap-1.5 shadow-2xs">
+                    <span>✓ Primer Contacto completado y validado</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -312,7 +321,11 @@ export default async function EgresadoLandingPage() {
                   Propuesta #{activeSubmittedProp.numero} ({activeSubmittedProp.tipo.toUpperCase()})
                 </h2>
                 <span className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide border ${activeBadgeClass}`}>
-                  {activeSubmittedProp.estado === "aprobada" ? "PROPUESTA APROBADA" : activeSubmittedProp.estado.replace(/_/g, " ")}
+                  {activeSubmittedProp.estado === "primer_contacto_completado"
+                    ? "PRIMER CONTACTO COMPLETADO"
+                    : activeSubmittedProp.estado === "aprobada"
+                    ? "PROPUESTA APROBADA"
+                    : activeSubmittedProp.estado.replace(/_/g, " ")}
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-1">
@@ -461,11 +474,15 @@ export default async function EgresadoLandingPage() {
                           >
                             {hasAdvisorObservations
                               ? "Ajustes Solicitados"
+                              : p.estado === "primer_contacto_completado"
+                              ? "Primer Contacto Completado"
+                              : p.estado === "aprobada"
+                              ? "Aprobada por Asesor"
                               : p.estado === "redactando"
                               ? hasSubmittedPropuesta && !isCurrentActiveSubmitted
                                 ? "Bloqueada (En Espera)"
                                 : "Redactando (Borrador)"
-                              : p.estado}
+                              : p.estado.replace(/_/g, " ")}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">

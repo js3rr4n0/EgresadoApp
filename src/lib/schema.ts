@@ -229,7 +229,7 @@ export const propuestas = pgTable(
     ),
     check(
       "estado_propuesta_check",
-      sql`${table.estado} IN ('redactando', 'pend_empresa_nueva', 'pend_revision_datos', 'empresa_aprobada', 'empresa_rechazada', 'datos_aprobados', 'datos_rechazados', 'enviada', 'coordinador_asignado', 'aprobada', 'rechazada', 'anulada')`
+      sql`${table.estado} IN ('redactando', 'pend_empresa_nueva', 'pend_revision_datos', 'empresa_aprobada', 'empresa_rechazada', 'datos_aprobados', 'datos_rechazados', 'enviada', 'coordinador_asignado', 'aprobada', 'primer_contacto_completado', 'rechazada', 'anulada')`
     ),
   ]
 );
