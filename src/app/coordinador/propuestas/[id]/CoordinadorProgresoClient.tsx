@@ -14,44 +14,54 @@ interface CoordinadorProgresoClientProps {
       carrera: string;
     };
     teamMembers?: any[];
-    asesor: any;
-    empresa: any;
-    supervisor: any;
-    carta: any;
-    actividades: any[];
-    detallesProyecto: any;
-    documentos: any[];
+    asesor?: any;
+    empresa?: any;
+    supervisor?: any;
+    carta?: any;
+    actividades?: any[];
+    detallesProyecto?: any;
+    documentos?: any[];
     historial?: any[];
   };
 }
 
 export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoClientProps) {
-  const {
-    propuesta,
-    estudiante,
-    teamMembers = [],
-    asesor,
-    empresa,
-    supervisor,
-    carta,
-    actividades = [],
-    detallesProyecto,
-    historial = [],
-  } = data;
+  const safeData = data || {};
+  const propuesta = safeData.propuesta || {};
+  const estudiante = safeData.estudiante || {
+    nombreCompleto: "Estudiante",
+    carnet: "N/A",
+    correo: "N/A",
+    carrera: "Sin Carrera",
+  };
+  const teamMembers = Array.isArray(safeData.teamMembers) ? safeData.teamMembers : [];
+  const asesor = safeData.asesor || null;
+  const empresa = safeData.empresa || null;
+  const supervisor = safeData.supervisor || null;
+  const carta = safeData.carta || null;
+  const actividades = Array.isArray(safeData.actividades) ? safeData.actividades : [];
+  const detallesProyecto = safeData.detallesProyecto || null;
+  const historial = Array.isArray(safeData.historial) ? safeData.historial : [];
 
   const [activeTab, setActiveTab] = useState<
     "documentos" | "pdf" | "datos" | "detalles" | "plan" | "historial"
   >("documentos");
 
-  const getTipoLabel = (tipo: string) => {
+  const getTipoLabel = (tipo?: string) => {
     if (tipo === "pasantia") return "Pasantía";
     if (tipo === "proyecto") return "Proyecto Específico";
-    return "Investigación";
+    if (tipo === "investigacion") return "Investigación";
+    return "Trabajo de Graduación";
   };
 
   const periodosUnicos = Array.from(
-    new Set(actividades.map((a) => a.periodo || 1))
+    new Set(actividades.map((a) => (a && a.periodo ? a.periodo : 1)))
   ).sort((a, b) => a - b);
+
+  const propuestaId = propuesta.id || 0;
+  const propuestaNumero = propuesta.numero || 1;
+  const propuestaTipo = propuesta.tipo || "pasantia";
+  const propuestaTitulo = propuesta.titulo || `Propuesta #${propuestaNumero}`;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -70,35 +80,39 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl md:text-2xl font-extrabold text-slate-900">
-                Revisión de Propuesta #{propuesta.numero}
+                Revisión de Propuesta #{propuestaNumero}
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-50 text-brand-red border border-rose-200">
-                {getTipoLabel(propuesta.tipo)}
+                {getTipoLabel(propuestaTipo)}
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
-              Estudiante: <span className="font-bold text-slate-800">{estudiante.nombreCompleto}</span> ({estudiante.carnet}) | Asesor: <span className="font-bold text-slate-800">{asesor?.nombreCompleto || "Sin Asesor"}</span>
+              Estudiante: <span className="font-bold text-slate-800">{estudiante.nombreCompleto || "Estudiante"}</span> ({estudiante.carnet || "N/A"}) | Asesor: <span className="font-bold text-slate-800">{asesor?.nombreCompleto || "Sin Asesor"}</span>
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <a
-            href={`/coordinador/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
-          >
-            📊 Exportar Gantt (PDF 1 pág)
-          </a>
-          <a
-            href={`/coordinador/propuestas/${propuesta.id}/imprimir`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 bg-brand-red hover:bg-brand-red-dark text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
-          >
-            📄 Ver Documento PDF ↗
-          </a>
+          {propuestaId > 0 && (
+            <>
+              <a
+                href={`/coordinador/propuestas/${propuestaId}/imprimir?ganttOnly=true`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
+              >
+                📊 Exportar Gantt (PDF 1 pág)
+              </a>
+              <a
+                href={`/coordinador/propuestas/${propuestaId}/imprimir`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 bg-brand-red hover:bg-brand-red-dark text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
+              >
+                📄 Ver Documento PDF ↗
+              </a>
+            </>
+          )}
           <Link
             href="/coordinador"
             className="inline-flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition-colors border border-slate-200"
@@ -183,20 +197,20 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
       </div>
 
       {/* ────────────────── TAB 1: VALIDAR DOCUMENTOS ────────────────── */}
-      {activeTab === "documentos" && (
+      {activeTab === "documentos" && propuestaId > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <DocumentosPropuestaSection propuestaId={propuesta.id} />
+          <DocumentosPropuestaSection propuestaId={propuestaId} />
         </div>
       )}
 
       {/* ────────────────── TAB 2: DOCUMENTO PDF (VISOR OFICIAL) ────────────────── */}
-      {activeTab === "pdf" && (
+      {activeTab === "pdf" && propuestaId > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col min-h-[700px]">
           <div className="bg-slate-100 p-3.5 border-b border-slate-200 flex items-center justify-between px-6 text-xs text-slate-600">
             <span className="font-bold text-slate-800">📄 Hoja Oficial de Inscripción de Trabajo de Graduación</span>
             <div className="flex items-center gap-3">
               <a
-                href={`/coordinador/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
+                href={`/coordinador/propuestas/${propuestaId}/imprimir?ganttOnly=true`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-bold text-indigo-600 hover:underline"
@@ -204,7 +218,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                 Gantt 1 pág 📊
               </a>
               <a
-                href={`/coordinador/propuestas/${propuesta.id}/imprimir`}
+                href={`/coordinador/propuestas/${propuestaId}/imprimir`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-bold text-brand-red hover:underline flex items-center gap-1"
@@ -214,9 +228,9 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
             </div>
           </div>
           <iframe
-            src={`/coordinador/propuestas/${propuesta.id}/imprimir`}
+            src={`/coordinador/propuestas/${propuestaId}/imprimir`}
             className="w-full flex-1 border-none min-h-[700px]"
-            title={`Documento Propuesta ${propuesta.id}`}
+            title={`Documento Propuesta ${propuestaId}`}
           />
         </div>
       )}
@@ -229,27 +243,27 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
               Título de la Propuesta / Tema
             </span>
             <h2 className="text-lg font-extrabold text-slate-900">
-              {propuesta.titulo || `Propuesta #${propuesta.numero}`}
+              {propuestaTitulo}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1">
               <span className="text-xs text-slate-500 font-bold block uppercase">Estudiante Principal</span>
-              <p className="font-bold text-slate-900 text-base">{estudiante.nombreCompleto}</p>
-              <p className="text-xs text-slate-500">Carnet: {estudiante.carnet}</p>
-              <p className="text-xs text-slate-500">{estudiante.correo}</p>
-              <p className="text-xs font-bold text-brand-red mt-1">{estudiante.carrera}</p>
+              <p className="font-bold text-slate-900 text-base">{estudiante.nombreCompleto || "Estudiante"}</p>
+              <p className="text-xs text-slate-500">Carnet: {estudiante.carnet || "N/A"}</p>
+              <p className="text-xs text-slate-500">{estudiante.correo || "N/A"}</p>
+              <p className="text-xs font-bold text-brand-red mt-1">{estudiante.carrera || "Sin Carrera"}</p>
             </div>
 
             {teamMembers.length > 0 && (
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2 md:col-span-2">
                 <span className="text-xs text-slate-500 font-bold block uppercase">Integrantes del Equipo</span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {teamMembers.map((tm: any) => (
-                    <div key={tm.id} className="p-2 bg-white rounded border border-slate-200 text-xs">
-                      <p className="font-bold text-slate-900">{tm.nombreCompleto}</p>
-                      <p className="text-slate-500 font-mono">{tm.carnet} - {tm.correo}</p>
+                  {teamMembers.map((tm: any, idx: number) => (
+                    <div key={tm?.id || idx} className="p-2 bg-white rounded border border-slate-200 text-xs">
+                      <p className="font-bold text-slate-900">{tm?.nombreCompleto || "Integrante"}</p>
+                      <p className="text-slate-500 font-mono">{tm?.carnet || "N/A"} - {tm?.correo || "N/A"}</p>
                     </div>
                   ))}
                 </div>
@@ -259,7 +273,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1">
               <span className="text-xs text-slate-500 font-bold block uppercase">Asesor Encargado</span>
               <p className="font-bold text-brand-red text-base">{asesor?.nombreCompleto || "Sin Asesor"}</p>
-              <p className="text-xs text-slate-500">{asesor?.correo}</p>
+              <p className="text-xs text-slate-500">{asesor?.correo || "N/A"}</p>
             </div>
           </div>
 
@@ -272,16 +286,16 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <p className="text-xs text-slate-500 font-bold uppercase">Empresa / Institución Receptora</p>
-                  <p className="font-bold text-slate-900">{empresa.nombre}</p>
+                  <p className="font-bold text-slate-900">{empresa.nombre || "Empresa"}</p>
                   <p className="text-xs text-slate-600 mt-1">{empresa.direccion || "Sin dirección"}</p>
                 </div>
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
                   <p className="text-xs text-slate-500 font-bold uppercase">Supervisor Encargado</p>
                   <p className="font-bold text-slate-900">
-                    {supervisor ? `${supervisor.nombres || supervisor.nombreCompleto || ""} ${supervisor.apellidos || ""}` : "Sin supervisor asignado"}
+                    {supervisor ? `${supervisor.nombres || supervisor.nombreCompleto || ""} ${supervisor.apellidos || ""}`.trim() : "Sin supervisor asignado"}
                   </p>
                   {supervisor && (
-                    <p className="text-xs text-slate-600 mt-1">{supervisor.cargo} | {supervisor.correo || supervisor.telefono}</p>
+                    <p className="text-xs text-slate-600 mt-1">{supervisor.cargo || "Supervisor"} | {supervisor.correo || supervisor.telefono || "Sin contacto"}</p>
                   )}
                 </div>
               </div>
@@ -326,11 +340,11 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                 Detalles Técnicos y Objetivos de la Propuesta
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Información extraída de la Hoja de Inscripción oficial ({getTipoLabel(propuesta.tipo)})
+                Información extraída de la Hoja de Inscripción oficial ({getTipoLabel(propuestaTipo)})
               </p>
             </div>
             <span className="px-3 py-1 bg-rose-50 text-brand-red font-bold text-xs rounded-full border border-rose-200">
-              Modalidad: {getTipoLabel(propuesta.tipo)}
+              Modalidad: {getTipoLabel(propuestaTipo)}
             </span>
           </div>
 
@@ -341,14 +355,14 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                 Tema / Título Registrado
               </h3>
               <p className="text-slate-900 font-extrabold text-base leading-snug">
-                {propuesta.titulo || `Propuesta #${propuesta.numero}`}
+                {propuestaTitulo}
               </p>
             </div>
 
             {/* Justificación del Proceso (Pasantía) / Descripción del Problema */}
             <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
-                {propuesta.tipo === "pasantia"
+                {propuestaTipo === "pasantia"
                   ? "Justificación y Descripción del Proceso de Pasantía"
                   : "Planteamiento / Descripción del Problema"}
               </h3>
@@ -358,7 +372,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
             </div>
 
             {/* Justificación General */}
-            {(detallesProyecto?.justificacion || (propuesta.tipo !== "pasantia" && propuesta.justificacionProceso)) && (
+            {(detallesProyecto?.justificacion || (propuestaTipo !== "pasantia" && propuesta.justificacionProceso)) && (
               <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
                 <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
                   Justificación del Trabajo
@@ -387,7 +401,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                 Objetivo General
               </h3>
               <p className="text-slate-900 font-bold leading-relaxed">
-                {detallesProyecto?.objetivoGeneral || `Desarrollar y ejecutar la modalidad de ${getTipoLabel(propuesta.tipo)} de acuerdo con la propuesta aprobada.`}
+                {detallesProyecto?.objetivoGeneral || `Desarrollar y ejecutar la modalidad de ${getTipoLabel(propuestaTipo)} de acuerdo con la propuesta aprobada.`}
               </p>
             </div>
 
@@ -421,9 +435,9 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {actividades.slice(0, 6).map((act: any, idx: number) => (
-                      <div key={act.id || idx} className="p-3 bg-white rounded-xl border border-slate-200 text-xs flex items-start gap-2">
-                        <span className="font-bold text-brand-red">M{act.periodo}.S{act.semana}:</span>
-                        <span className="text-slate-800 font-medium">{act.descripcion}</span>
+                      <div key={act?.id || idx} className="p-3 bg-white rounded-xl border border-slate-200 text-xs flex items-start gap-2">
+                        <span className="font-bold text-brand-red">M{act?.periodo || 1}.S{act?.semana || 1}:</span>
+                        <span className="text-slate-800 font-medium">{act?.descripcion || "Actividad programada"}</span>
                       </div>
                     ))}
                   </div>
@@ -475,7 +489,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
           ) : (
             <div className="space-y-8">
               {periodosUnicos.map((periodoNum) => {
-                const actsMonth = actividades.filter((a) => (a.periodo || 1) === periodoNum);
+                const actsMonth = actividades.filter((a) => (a?.periodo || 1) === periodoNum);
                 return (
                   <div
                     key={periodoNum}
@@ -507,16 +521,16 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {actsMonth.map((act) => (
-                            <tr key={act.id} className="hover:bg-slate-50 transition-colors">
+                          {actsMonth.map((act, idx) => (
+                            <tr key={act?.id || idx} className="hover:bg-slate-50 transition-colors">
                               <td className="py-3 px-3 text-center font-bold text-brand-red bg-rose-50/50">
-                                Sem {act.semana}
+                                Sem {act?.semana || 1}
                               </td>
                               <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">
-                                {act.numero}
+                                {act?.numero || idx + 1}
                               </td>
                               <td className="py-3 px-4 text-slate-800 font-medium leading-relaxed">
-                                {act.descripcion}
+                                {act?.descripcion || "Actividad sin descripción"}
                               </td>
                             </tr>
                           ))}
@@ -545,24 +559,32 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
           ) : (
             <div className="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-rose-200 pl-6">
               {historial.map((h: any, idx: number) => {
-                const fechaStr = new Date(h.creadoEn).toLocaleDateString("es-SV", {
-                  day: "2-digit",
-                  month: "short",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
+                let fechaStr = "Fecha no disponible";
+                if (h?.creadoEn) {
+                  try {
+                    const d = new Date(h.creadoEn);
+                    if (!isNaN(d.getTime())) {
+                      fechaStr = d.toLocaleDateString("es-SV", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      });
+                    }
+                  } catch (e) {}
+                }
 
                 return (
-                  <div key={h.id || idx} className="relative flex items-start gap-3 text-xs">
+                  <div key={h?.id || idx} className="relative flex items-start gap-3 text-xs">
                     <div className="w-3 h-3 rounded-full bg-brand-red ring-4 ring-rose-50 mt-1 shrink-0 -ml-5 z-10" />
                     <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1 shadow-2xs">
                       <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                        <span className="font-bold text-slate-700">{h.usuarioNombre || "Sistema"}</span>
+                        <span className="font-bold text-slate-700">{h?.usuarioNombre || "Sistema"}</span>
                         <span>{fechaStr}</span>
                       </div>
                       <p className="font-extrabold text-slate-900">
-                        Cambio de estado: <span className="text-rose-700">{h.de}</span> → <span className="text-emerald-700">{h.a}</span>
+                        Cambio de estado: <span className="text-rose-700">{h?.de || "N/A"}</span> → <span className="text-emerald-700">{h?.a || "N/A"}</span>
                       </p>
                     </div>
                   </div>
