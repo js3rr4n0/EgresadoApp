@@ -24,7 +24,7 @@ export default function DashboardHeader({
   const pathname = usePathname();
 
   return (
-    <div className="bg-background">
+    <div className="bg-background no-print">
       {/* Top Red Header */}
       <header className="bg-brand-red text-white">
         <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between">

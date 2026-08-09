@@ -30,7 +30,7 @@ export default async function CoordinadorLayout({
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
+      <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500 no-print">
         <div className="max-w-[1400px] mx-auto px-4">
           Sistema de Seguimiento de Egresados - Universidad Católica de El Salvador (UNICAES) © {new Date().getFullYear()}
         </div>

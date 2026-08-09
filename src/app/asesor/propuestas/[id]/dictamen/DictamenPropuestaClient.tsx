@@ -248,11 +248,12 @@ export default function DictamenPropuestaClient({
             height:100% !important;
             overflow:hidden !important;
           }
-          .no-print{
+          header, footer, nav, .no-print{
             display:none !important;
             height:0 !important;
             margin:0 !important;
             padding:0 !important;
+            visibility:hidden !important;
           }
           .page{
             margin:0 !important;

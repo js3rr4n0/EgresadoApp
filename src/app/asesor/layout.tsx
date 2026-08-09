@@ -16,7 +16,7 @@ export default async function AsesorLayout({
   return (
     <div className="min-h-screen bg-muted-bg flex flex-col font-sans">
       {/* Asesor Top Header */}
-      <header className="bg-brand-red text-white shadow-md sticky top-0 z-40">
+      <header className="bg-brand-red text-white shadow-md sticky top-0 z-40 no-print">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-10 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/asesor" className="flex items-center gap-2 hover:opacity-90 transition-opacity">
@@ -71,7 +71,7 @@ export default async function AsesorLayout({
       </main>
 
       {/* Footer */}
-      <footer className="bg-white border-t border-border py-4 text-center text-xs text-muted">
+      <footer className="bg-white border-t border-border py-4 text-center text-xs text-muted no-print">
         <div className="max-w-[1400px] mx-auto px-4">
           Sistema de Seguimiento de Egresados - Universidad Católica de El Salvador (UNICAES) © {new Date().getFullYear()}
         </div>
