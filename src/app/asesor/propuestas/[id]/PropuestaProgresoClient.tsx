@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateActividadAsesor, solicitarAjustesPropuestaAsesor } from "@/app/actions/asesor";
+import { updateActividadAsesor, solicitarAjustesPropuestaAsesor, aprobarPropuestaAsesor } from "@/app/actions/asesor";
 import Link from "next/link";
 
 import { solicitarBajaProyectoAsesor } from "@/app/actions/coordinador";
@@ -37,6 +37,22 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
   const [showAjustesModal, setShowAjustesModal] = useState(false);
   const [observacionesAjuste, setObservacionesAjuste] = useState("");
   const [sendingAjustes, setSendingAjustes] = useState(false);
+  const [sendingAprobar, setSendingAprobar] = useState(false);
+
+  const handleAprobarOK = async () => {
+    if (!confirm("¿Está seguro de dar el OK y APROBAR el plan de trabajo y propuesta de este estudiante?")) {
+      return;
+    }
+    setSendingAprobar(true);
+    const res = await aprobarPropuestaAsesor(propuesta.id);
+    setSendingAprobar(false);
+    if (res.success) {
+      alert(res.message);
+      window.location.reload();
+    } else {
+      alert(res.error || "Error al aprobar la propuesta.");
+    }
+  };
 
   const handleSolicitarBaja = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -154,6 +170,15 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={handleAprobarOK}
+            disabled={sendingAprobar}
+            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+          >
+            <span>{sendingAprobar ? "Aprobando..." : "✅ Dar OK (Aprobar Plan)"}</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowAjustesModal(true)}
@@ -576,13 +601,26 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
                                 </td>
                                 <td className="py-3 px-3 text-center">
                                   {editingActId !== act.id && (
-                                    <button
-                                      onClick={() => handleStartEditAct(act)}
-                                      className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2.5 py-1.5 rounded transition-colors"
-                                      title="Modificar actividad para pasarlo al estudiante"
-                                    >
-                                      ✏️ Modificar
-                                    </button>
+                                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                      <button
+                                        onClick={() => handleStartEditAct(act)}
+                                        className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded transition-colors"
+                                        title="Modificar actividad directamente"
+                                      >
+                                        ✏️ Editar
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          const commentPrefix = `Mes ${act.periodo}, Semana ${act.semana} (Actividad #${act.numero}: "${act.descripcion || act.titulo || 'Sin descripción'}"): `;
+                                          setObservacionesAjuste((prev) => (prev ? `${prev}\n- ${commentPrefix}` : `- ${commentPrefix}`));
+                                          setShowAjustesModal(true);
+                                        }}
+                                        className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-2 py-1 rounded transition-colors border border-amber-300"
+                                        title="Añadir comentario específico para corregir al estudiante"
+                                      >
+                                        💬 Comentar
+                                      </button>
+                                    </div>
                                   )}
                                 </td>
                               </tr>

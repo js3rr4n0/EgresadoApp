@@ -31,13 +31,15 @@ export default async function EgresadoPage({
   searchParams: Promise<{ step?: string; id?: string }>;
 }) {
   const params = await searchParams;
-  const currentStep = parseInt(params.step || "1");
   const targetPropId = params.id ? parseInt(params.id, 10) : undefined;
   const data = await getActivePropuesta(targetPropId);
 
   if (!data) {
     return <div className="p-8 text-center text-muted">Error cargando sesión.</div>;
   }
+
+  const hasAdvisorObservations = !!data?.propuesta?.observaciones;
+  const currentStep = hasAdvisorObservations ? 5 : parseInt(params.step || "1");
 
   if ("error" in data) {
     return (
@@ -340,7 +342,7 @@ export default async function EgresadoPage({
             {steps.map((step) => {
               const active = step.num === currentStep;
               const completed = step.num < currentStep;
-              const locked = step.num > maxAllowedStep;
+              const locked = hasAdvisorObservations ? step.num !== 5 : step.num > maxAllowedStep;
 
               const innerContent = (
                 <>
@@ -698,6 +700,7 @@ export default async function EgresadoPage({
                     propuestaId={propuesta.id}
                     initialFechas={{ fechaInicio: cartaData?.fechaInicio || "", fechaFin: cartaData?.fechaFin || "" }}
                     initialActividades={actividadesList}
+                    observaciones={propuesta.observaciones}
                   />
                 </>
               )}

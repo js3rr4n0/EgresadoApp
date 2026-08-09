@@ -363,9 +363,9 @@ export default async function EgresadoLandingPage() {
                     let isPdf = true;
 
                     if (hasAdvisorObservations) {
-                      actionText = "✏️ Ajustar Propuesta";
-                      actionClass = "bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-sm";
-                      targetUrl = `/egresado/redactar?id=${p.id}`;
+                      actionText = "✏️ Corregir Observaciones";
+                      actionClass = "bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-sm animate-pulse";
+                      targetUrl = `/egresado/redactar?id=${p.id}&step=5`;
                       isPdf = false;
                     } else if (p.estado === "redactando" && !hasSubmittedPropuesta) {
                       actionText = "Continuar Redacción";

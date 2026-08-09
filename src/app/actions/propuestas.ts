@@ -362,12 +362,25 @@ export async function reenviarPropuestaAjustada(id: number) {
       nombreArchivo: `Propuesta_Revisada_${id}.pdf`,
       subidoEn: now,
     });
+
+    if (prop.asesorId) {
+      const { notificaciones } = await import("@/lib/schema");
+      await db.insert(notificaciones).values({
+        usuarioId: prop.asesorId,
+        tipo: "propuesta_ajustada",
+        mensaje: `El estudiante ha enviado su propuesta ajustada con las correcciones realizadas (Propuesta #${prop.numero}).`,
+        leida: false,
+        creadoEn: now,
+      });
+    }
   } catch (err) {
     console.log("Adjusted PDF snapshot record creation handled:", err);
   }
 
   revalidatePath("/egresado");
   revalidatePath("/egresado/redactar");
+  revalidatePath(`/asesor/propuestas/${id}`);
+  revalidatePath("/asesor");
   return { success: true, message: "¡Propuesta ajustada reenviada exitosamente a revisión!" };
 }
 

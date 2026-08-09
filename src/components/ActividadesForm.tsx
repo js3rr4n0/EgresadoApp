@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { saveActividades } from "@/app/actions/actividades";
 import { useRouter } from "next/navigation";
+import ReenviarPropuestaAjustadaButton from "@/components/ReenviarPropuestaAjustadaButton";
 
 interface Actividad {
   id: string; // internal id for UI
@@ -23,12 +24,14 @@ interface ActividadesFormProps {
   propuestaId: number;
   initialFechas: { fechaInicio: string; fechaFin: string };
   initialActividades: any[];
+  observaciones?: string | null;
 }
 
 export default function ActividadesForm({
   propuestaId,
   initialFechas,
   initialActividades,
+  observaciones,
 }: ActividadesFormProps) {
   const router = useRouter();
 
@@ -275,6 +278,27 @@ export default function ActividadesForm({
 
   return (
     <form onSubmit={handleSubmit} className="w-full space-y-8">
+      {observaciones && (
+        <div className="p-5 bg-amber-50 border-2 border-amber-300 rounded-2xl space-y-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-extrabold text-base">
+              💬
+            </div>
+            <div>
+              <h4 className="font-extrabold text-amber-950 text-sm">
+                Observaciones del Docente Asesor sobre el Plan de Trabajo:
+              </h4>
+              <p className="text-xs text-amber-800 font-medium">
+                Ajuste las semanas o actividades indicadas a continuación. Al terminar los cambios, haga clic en <strong>Reenviar Propuesta Ajustada</strong>.
+              </p>
+            </div>
+          </div>
+          <div className="p-4 bg-white/90 rounded-xl border border-amber-200 text-xs font-semibold text-amber-950 whitespace-pre-wrap leading-relaxed">
+            {observaciones}
+          </div>
+        </div>
+      )}
+
       {error && (
         <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-bold flex items-center gap-3 shadow-xs">
           <svg className="w-5 h-5 shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -623,24 +647,29 @@ export default function ActividadesForm({
       )}
 
       {/* Buttons */}
-      <div className="flex justify-between items-center pt-6 border-t border-border mt-8">
-        <button
-          type="button"
-          onClick={() => router.push("?step=4")}
-          className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors"
-        >
-          ← Volver a Carta de Aceptación
-        </button>
-        <button
-          type="submit"
-          disabled={pending || periodos.length === 0}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white font-bold text-sm transition-colors disabled:opacity-50 shadow-sm"
-        >
-          {pending ? "Guardando..." : "Siguiente Fase"}
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
-        </button>
+      <div className="flex justify-between items-center pt-6 border-t border-border mt-8 flex-wrap gap-4">
+        {!observaciones && (
+          <button
+            type="button"
+            onClick={() => router.push("?step=4")}
+            className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors"
+          >
+            ← Volver a Carta de Aceptación
+          </button>
+        )}
+        <div className="flex items-center gap-3 ml-auto flex-wrap">
+          <button
+            type="submit"
+            disabled={pending || periodos.length === 0}
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition-colors disabled:opacity-50 shadow-sm"
+          >
+            {pending ? "Guardando..." : "💾 Guardar Cambios del Plan"}
+          </button>
+
+          {observaciones && (
+            <ReenviarPropuestaAjustadaButton propuestaId={propuestaId} />
+          )}
+        </div>
       </div>
     </form>
   );

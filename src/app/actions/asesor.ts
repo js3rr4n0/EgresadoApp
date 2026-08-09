@@ -440,3 +440,57 @@ export async function solicitarAjustesPropuestaAsesor(propuestaId: number, obser
     return { success: false, error: "Error interno: " + error.message };
   }
 }
+
+/**
+ * Allows the advisor to approve (give OK) on the proposal & work plan.
+ */
+export async function aprobarPropuestaAsesor(propuestaId: number) {
+  try {
+    const session = await getSession();
+    if (!session || session.rol !== "asesor") {
+      return { success: false, error: "No autorizado" };
+    }
+
+    const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
+    if (!prop) return { success: false, error: "Propuesta no encontrada." };
+
+    const estadoAnterior = prop.estado;
+
+    await db
+      .update(propuestas)
+      .set({
+        estado: "aprobada",
+        observaciones: null,
+      })
+      .where(eq(propuestas.id, propuestaId));
+
+    const { historialEstados, notificaciones } = await import("@/lib/schema");
+    await db.insert(historialEstados).values({
+      propuestaId,
+      de: estadoAnterior,
+      a: "aprobada",
+      usuarioId: session.userId,
+    });
+
+    await db.insert(notificaciones).values({
+      usuarioId: prop.egresadoId,
+      tipo: "propuesta_aprobada",
+      mensaje: `¡Felicidades! El docente asesor ha aprobado tu plan de trabajo y propuesta #${prop.numero}.`,
+      leida: false,
+      creadoEn: new Date(),
+    });
+
+    revalidatePath(`/asesor/propuestas/${propuestaId}`);
+    revalidatePath(`/asesor`);
+    revalidatePath(`/egresado`);
+    revalidatePath(`/egresado/redactar`);
+
+    return {
+      success: true,
+      message: "¡Plan de Trabajo y propuesta aprobados exitosamente (OK concedido)! 🎉",
+    };
+  } catch (error: any) {
+    console.error("Error al aprobar propuesta por asesor:", error);
+    return { success: false, error: "Error interno: " + error.message };
+  }
+}
