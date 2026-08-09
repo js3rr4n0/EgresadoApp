@@ -52,12 +52,10 @@ export async function getPropuestasPendientesCoordinador() {
       .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .where(
-        isAdmin
-          ? inArray(propuestas.estado, ["coordinador_asignado", "aprobada"])
-          : and(
-              eq(propuestas.coordinadorId, session.userId),
-              inArray(propuestas.estado, ["coordinador_asignado", "aprobada"])
-            )
+        and(
+          eq(propuestas.coordinadorId, session.userId),
+          inArray(propuestas.estado, ["coordinador_asignado", "aprobada"])
+        )
       )
       .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
 
@@ -295,12 +293,10 @@ export async function getPropuestasAsignadasCoordinador() {
       .from(propuestas)
       .innerJoin(usuarios, eq(propuestas.asesorId, usuarios.id))
       .where(
-        isAdmin
-          ? eq(propuestas.estado, "aprobada")
-          : and(
-              eq(propuestas.coordinadorId, session.userId),
-              eq(propuestas.estado, "aprobada")
-            )
+        and(
+          eq(propuestas.coordinadorId, session.userId),
+          eq(propuestas.estado, "aprobada")
+        )
       )
       .orderBy(desc(propuestas.fechaAprobacion));
 
@@ -648,11 +644,7 @@ export async function getSolicitudesBajaCoordinador() {
       .from(solicitudesBaja)
       .innerJoin(propuestas, eq(solicitudesBaja.propuestaId, propuestas.id))
       .innerJoin(usuarios, eq(solicitudesBaja.asesorId, usuarios.id))
-      .where(
-        isAdmin
-          ? undefined
-          : eq(solicitudesBaja.coordinadorId, session.userId)
-      )
+      .where(eq(solicitudesBaja.coordinadorId, session.userId))
       .orderBy(desc(solicitudesBaja.creadaEn));
 
     const result = await Promise.all(
