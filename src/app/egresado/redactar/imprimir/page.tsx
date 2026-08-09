@@ -18,20 +18,9 @@ import { redirect } from "next/navigation";
 import PrintButton from "./PrintButton";
 import PdfToImagesViewer from "@/components/PdfToImagesViewer";
 
-const formatCoords = (coords: string | null) => {
-  if (!coords || !coords.includes(",")) return "13.9945, -89.5562";
-  const [latStr, lngStr] = coords.split(",");
-  const lat = parseFloat(latStr);
-  const lng = parseFloat(lngStr);
-  if (isNaN(lat) || isNaN(lng) || lat < 13.85 || lat > 14.15 || lng < -89.70 || lng > -89.40) {
-    return "13.9945, -89.5562";
-  }
-  return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-};
-
 const getStaticMapUrl = (coords: string | null) => {
-  const formatted = formatCoords(coords);
-  return `/api/map?coords=${formatted}`;
+  if (!coords || !coords.includes(",")) return null;
+  return `/api/map?coords=${encodeURIComponent(coords.trim())}`;
 };
 
 export default async function PrintPropuestaPage({
@@ -375,10 +364,10 @@ export default async function PrintPropuestaPage({
                           <div className="pt-3 border-t border-gray-200 space-y-2">
                             <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
                               <span className="bg-red-50 text-red-700 font-mono font-bold px-2.5 py-1 rounded border border-red-200">
-                                📍 Coordenadas GPS: {formatCoords(sucursal.mapaUrl)}
+                                📍 Coordenadas GPS: {sucursal.mapaUrl}
                               </span>
                               <a 
-                                href={`https://www.google.com/maps?q=${formatCoords(sucursal.mapaUrl)}`} 
+                                href={`https://www.google.com/maps?q=${encodeURIComponent(sucursal.mapaUrl)}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer" 
                                 className="text-red-700 font-bold hover:underline"
@@ -406,10 +395,10 @@ export default async function PrintPropuestaPage({
                           <div className="pt-3 border-t border-gray-200 space-y-2">
                             <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
                               <span className="bg-red-50 text-red-700 font-mono font-bold px-2.5 py-1 rounded border border-red-200">
-                                📍 Coordenadas GPS: {formatCoords(empresa.mapaUrl)}
+                                📍 Coordenadas GPS: {empresa.mapaUrl}
                               </span>
                               <a 
-                                href={`https://www.google.com/maps?q=${formatCoords(empresa.mapaUrl)}`} 
+                                href={`https://www.google.com/maps?q=${encodeURIComponent(empresa.mapaUrl)}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer" 
                                 className="text-red-700 font-bold hover:underline"

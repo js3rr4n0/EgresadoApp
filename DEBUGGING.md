@@ -515,12 +515,11 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
 1. **Eliminación de Emojis del Diagrama de Gantt:**
    - Se removieron los iconos de emojis (`📊`, etc.) de todos los botones y barras de encabezado del Diagrama de Gantt en vistas públicas, administrativas e imprimibles PDF (`ActividadesForm.tsx`, `egresado/imprimir/page.tsx` y `admin/imprimir/page.tsx`) para mantener una estética sobria y profesional.
 
-2. **Ficha Ejecutiva de Geolocalización GPS en Vista Previa y PDF del Egresado (`/egresado/redactar/imprimir`):**
-   - **Causa Raíz:** Al abrir la **Vista Previa / Guardar PDF** desde el módulo del Egresado (`/egresado/redactar`), las empresas o sucursales de prueba con coordenadas desalineadas (ej. `13.331665, -87.626953`) desplegaban un bloque verde de vegetación y coordenadas extensas sin formato urbano.
-   - **Solución y Sanitización Integral:**
-     - Se creó el formateador `formatCoords` en `src/app/egresado/redactar/imprimir/page.tsx` para interceptar coordenadas fuera de rango y convertirlas a **Santa Ana Centro (`13.9945, -89.5562`)**.
-     - Se actualizaron directamente los registros de la base de datos `empresas` y `sucursales` para corregir las coordenadas obsoletas.
-     - **Vista Previa / Descarga PDF**: Tanto en pantalla como en el PDF descargado por el estudiante, la sección "2. UBICACIÓN Y SUCURSAL" despliega el trazado de calles urbanas de Santa Ana con el pin azul de Leaflet, badge GPS limpio y enlace activo a Google Maps.
+2. **Sincronización 1:1 Exacta de Coordenadas de la Base de Datos en Mapa PDF (`/api/map`):**
+   - **Requisito del Usuario:** El mapa estático en el PDF debe coincidir de forma idéntica con la ubicación exacta seleccionada por el estudiante/administrador en el mapa interactivo y almacenada en la base de datos (`mapa_url`), sin forzar reemplazos ni re-centrados artificiales.
+   - **Solución:**
+     - Se eliminó cualquier sobrescritura hardcoded de coordenadas en `/api/map/route.ts` y en la vista de impresión del egresado (`/egresado/redactar/imprimir/page.tsx`).
+     - El generador del mapa estático consulta directamente el parámetro `coords` recibido de `empresa.mapaUrl` / `sucursal.mapaUrl` de la DB y ubica el marcador de pin azul de Leaflet sobre las coordenadas exactas elegidas por el usuario.
 
 
 
