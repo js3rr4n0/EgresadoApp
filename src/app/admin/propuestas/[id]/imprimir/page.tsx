@@ -142,8 +142,12 @@ export default async function AdminPrintPropuestaPage({
               margin: 0 !important;
               padding: 0 !important;
             }
-            .no-print {
+            header, footer, nav, .no-print {
               display: none !important;
+              visibility: hidden !important;
+              height: 0 !important;
+              margin: 0 !important;
+              padding: 0 !important;
             }
             .print-container {
               padding: 0 !important;
@@ -347,6 +351,17 @@ export default async function AdminPrintPropuestaPage({
 
   return (
     <div className="bg-white min-h-screen text-black">
+      <style>{`
+        @media print {
+          header, footer, nav, .no-print {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+        }
+      `}</style>
       <div className="mx-auto bg-white p-8 print:p-0" style={{ maxWidth: "800px" }}>
         {/* Helper navigation and print buttons */}
         <div className="mb-8 flex justify-between items-center print:hidden">

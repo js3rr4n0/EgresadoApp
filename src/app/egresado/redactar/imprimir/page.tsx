@@ -110,6 +110,17 @@ export default async function PrintPropuestaPage({
 
   return (
     <div className="bg-white min-h-screen text-black">
+      <style>{`
+        @media print {
+          header, footer, nav, .no-print {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+        }
+      `}</style>
       <div className="mx-auto bg-white p-8 print:p-0" style={{ maxWidth: "800px" }}>
         {/* Helper print and navigation buttons */}
         <div className="mb-8 flex justify-between items-center print:hidden">
