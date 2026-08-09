@@ -468,15 +468,15 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
             <div className="border-t border-border pt-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-extrabold text-card-dark flex items-center gap-2 uppercase tracking-wider text-xs">
-                  <span>📄 Archivo PDF con la información del alumno</span>
+                  <span>📄 Hoja Oficial de Inscripción de Propuesta del Estudiante</span>
                   <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300 uppercase">
-                    PDF Disponible
+                    PDF Completo
                   </span>
                 </h3>
               </div>
 
               {(() => {
-                const pdfUrl = propuesta.pdfFinalUrl || carta?.archivoUrl || `/admin/propuestas/${propuesta.id}/imprimir?ganttOnly=true`;
+                const pdfUrl = `/asesor/propuestas/${propuesta.id}/imprimir`;
                 return (
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-purple-50 border border-purple-200 p-4 rounded-xl">
@@ -486,30 +486,43 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                         </div>
                         <div>
                           <p className="text-sm font-extrabold text-purple-950">
-                            Propuesta #{propuesta.numero} — Documentación Completa del Estudiante
+                            Propuesta #{propuesta.numero} — Hoja Oficial de Inscripción y Plan de Trabajo
                           </p>
                           <p className="text-xs text-purple-700 font-medium">
-                            Documento oficial registrado por {estudiante.nombreCompleto}.
+                            Documento oficial completo con todos los datos, objetivos, empresa y cronograma registrado por {estudiante.nombreCompleto}.
                           </p>
                         </div>
                       </div>
-                      <a
-                        href={pdfUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-sm shrink-0 flex items-center gap-1.5"
-                      >
-                        <span>Abrir PDF en Nueva Pestaña</span>
-                        <span>↗</span>
-                      </a>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {carta?.archivoUrl && (
+                          <a
+                            href={carta.archivoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 text-xs font-bold px-3.5 py-2.5 rounded-xl transition-all"
+                            title="Ver adjunto de Carta de Aceptación escaneada"
+                          >
+                            📎 Ver Carta Aceptación ↗
+                          </a>
+                        )}
+                        <a
+                          href={pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                        >
+                          <span>Abrir PDF en Nueva Pestaña</span>
+                          <span>↗</span>
+                        </a>
+                      </div>
                     </div>
 
-                    {/* Embedded PDF iframe viewer */}
-                    <div className="w-full h-[600px] border-2 border-slate-300 rounded-2xl overflow-hidden shadow-inner bg-slate-100">
+                    {/* Embedded PDF iframe viewer rendering full official proposal page */}
+                    <div className="w-full h-[750px] border-2 border-slate-300 rounded-2xl overflow-hidden shadow-inner bg-slate-100">
                       <iframe
                         src={pdfUrl}
                         className="w-full h-full border-none"
-                        title="Visor PDF Propuesta Egresado"
+                        title="Visor PDF Propuesta Oficial"
                       />
                     </div>
                   </div>
