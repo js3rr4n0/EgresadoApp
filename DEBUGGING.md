@@ -525,6 +525,10 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
    - **Requisito:** Agregar el Diagrama de Gantt visual en la vista de detalle de revisión de propuestas del administrador (`/admin/propuestas/[id]`) con el mismo estándar estético profesional libre de emojis usado en los PDFs.
    - **Solución:** Se actualizó `src/app/admin/propuestas/[id]/page.tsx` para incorporar el Diagrama de Gantt interactivo dentro de la Sección 4 ("PLANIFICACIÓN DE ACTIVIDADES Y DIAGRAMA DE GANTT"), desplegando las semanas programadas por meses en una tabla ejecutiva con badges de ejecución.
 
+4. **Filtrado Estricto 1:1 de Propuestas por Coordinador en Vista de Coordinación (`/coordinador`):**
+   - **Requisito:** En la vista de coordinador (tanto para usuarios con rol `coordinador` como para administradores en el módulo de coordinación), cada coordinador debe ver ÚNICAMENTE las propuestas asignadas explícitamente a su usuario (`propuestas.coordinadorId === session.userId`), eliminando el comportamiento de mostrar todas las propuestas del sistema si no tenía ninguna asignada.
+   - **Solución:** En `src/app/actions/coordinador.ts`, se eliminaron los bloques de consulta de respaldo (`if (isAdmin && rawPropuestas.length === 0)`, `acceptedRows`, y `rows`) en `getPropuestasPendientesCoordinador`, `getPropuestasAsignadasCoordinador` y `getSolicitudesBajaCoordinador`. Ahora la consulta es 100% estricta por `session.userId`.
+
 
 
 

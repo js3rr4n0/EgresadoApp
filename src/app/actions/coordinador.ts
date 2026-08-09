@@ -34,8 +34,8 @@ export async function getPropuestasPendientesCoordinador() {
 
     const isAdmin = session.rol === "admin";
 
-    // Fetch proposals assigned to coordinator (or all proposals in coordinator_asignado/aprobada for admin if none explicitly assigned)
-    let rawPropuestas = await db
+    // Fetch proposals assigned to coordinator
+    const rawPropuestas = await db
       .select({
         propuesta: propuestas,
         estudiante: usuarios,
@@ -51,20 +51,6 @@ export async function getPropuestasPendientesCoordinador() {
         )
       )
       .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
-
-    if (isAdmin && rawPropuestas.length === 0) {
-      rawPropuestas = await db
-        .select({
-          propuesta: propuestas,
-          estudiante: usuarios,
-          carreraNombre: carreras.nombre,
-        })
-        .from(propuestas)
-        .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
-        .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
-        .where(inArray(propuestas.estado, ["coordinador_asignado", "aprobada"]))
-        .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
-    }
 
     const result = await Promise.all(
       rawPropuestas.map(async (row) => {
@@ -284,8 +270,8 @@ export async function getPropuestasAsignadasCoordinador() {
 
     const isAdmin = session.rol === "admin";
 
-    // Fetch accepted advisor requests made by this coordinator (or all approved proposals if admin)
-    let acceptedRows = await db
+    // Fetch accepted advisor requests made by this coordinator
+    const acceptedRows = await db
       .select({
         propuesta: propuestas,
         asesor: usuarios,
@@ -299,18 +285,6 @@ export async function getPropuestasAsignadasCoordinador() {
         )
       )
       .orderBy(desc(propuestas.fechaAprobacion));
-
-    if (isAdmin && acceptedRows.length === 0) {
-      acceptedRows = await db
-        .select({
-          propuesta: propuestas,
-          asesor: usuarios,
-        })
-        .from(propuestas)
-        .innerJoin(usuarios, eq(propuestas.asesorId, usuarios.id))
-        .where(eq(propuestas.estado, "aprobada"))
-        .orderBy(desc(propuestas.fechaAprobacion));
-    }
 
     const result = await Promise.all(
       acceptedRows.map(async (row) => {
@@ -563,7 +537,7 @@ export async function getSolicitudesBajaCoordinador() {
 
     const isAdmin = session.rol === "admin";
 
-    let rows = await db
+    const rows = await db
       .select({
         solicitud: solicitudesBaja,
         propuesta: propuestas,
@@ -574,19 +548,6 @@ export async function getSolicitudesBajaCoordinador() {
       .innerJoin(usuarios, eq(solicitudesBaja.asesorId, usuarios.id))
       .where(eq(solicitudesBaja.coordinadorId, session.userId))
       .orderBy(desc(solicitudesBaja.creadaEn));
-
-    if (isAdmin && rows.length === 0) {
-      rows = await db
-        .select({
-          solicitud: solicitudesBaja,
-          propuesta: propuestas,
-          asesor: usuarios,
-        })
-        .from(solicitudesBaja)
-        .innerJoin(propuestas, eq(solicitudesBaja.propuestaId, propuestas.id))
-        .innerJoin(usuarios, eq(solicitudesBaja.asesorId, usuarios.id))
-        .orderBy(desc(solicitudesBaja.creadaEn));
-    }
 
     const result = await Promise.all(
       rows.map(async (r) => {
