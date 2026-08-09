@@ -272,6 +272,9 @@ export const actividades = pgTable(
     numero: smallint("numero").notNull(),
     titulo: text("titulo"),
     descripcion: text("descripcion").notNull(),
+    descripcionAnterior: text("descripcion_anterior"),
+    esNueva: boolean("es_nueva").default(false),
+    esModificada: boolean("es_modificada").default(false),
   },
   (table) => [
     unique("actividades_codigo_unico").on(

@@ -464,6 +464,17 @@ export async function aprobarPropuestaAsesor(propuestaId: number) {
       })
       .where(eq(propuestas.id, propuestaId));
 
+    // Consolidate approved activities: clear temporary diff markers
+    const { actividades } = await import("@/lib/schema");
+    await db
+      .update(actividades)
+      .set({
+        descripcionAnterior: null,
+        esModificada: false,
+        esNueva: false,
+      })
+      .where(eq(actividades.propuestaId, propuestaId));
+
     const { historialEstados, notificaciones } = await import("@/lib/schema");
     await db.insert(historialEstados).values({
       propuestaId,

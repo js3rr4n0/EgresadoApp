@@ -7,5 +7,5 @@ import * as schema from "./schema";
  * Uses the pooled connection string from .env.local
  */
 const sql = neon(process.env.DATABASE_URL!);
-
+export const rawSql = sql;
 export const db = drizzle(sql, { schema });

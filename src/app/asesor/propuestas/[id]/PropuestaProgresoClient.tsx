@@ -668,11 +668,20 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                           <tbody className="divide-y divide-border">
                             {actsMonth.map((act) => {
                               const isSelected = selectedActIds.includes(act.id);
+                              const isNewAct = act.esNueva;
+                              const isModAct = (act.descripcionAnterior && act.descripcionAnterior !== act.descripcion) || act.esModificada;
+
                               return (
                                 <tr
                                   key={act.id}
                                   className={`transition-colors ${
-                                    isSelected ? "bg-amber-50/80 border-l-4 border-amber-500" : "hover:bg-slate-50"
+                                    isNewAct
+                                      ? "bg-emerald-50/80 border-l-4 border-emerald-500 hover:bg-emerald-100/50"
+                                      : isSelected
+                                      ? "bg-amber-50/80 border-l-4 border-amber-500"
+                                      : isModAct
+                                      ? "bg-indigo-50/40"
+                                      : "hover:bg-slate-50"
                                   }`}
                                 >
                                   <td className="py-3 px-2 text-center">
@@ -716,23 +725,36 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                                       </div>
                                     ) : (
                                       <div className="space-y-1">
-                                        {act.descripcionAnterior && act.descripcionAnterior !== act.descripcion && (
-                                          <div className="text-xs text-red-600/90 font-medium flex items-center gap-1.5 flex-wrap">
-                                            <span className="line-through text-red-500/80 bg-red-50 px-2 py-0.5 rounded border border-red-200">
-                                              ~{act.descripcionAnterior}~
+                                        {isNewAct ? (
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-[10px] bg-emerald-600 text-white font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                              🟢 Nueva Actividad Añadida
                                             </span>
+                                            <p className="text-emerald-950 font-bold leading-relaxed">
+                                              {act.descripcion}
+                                            </p>
                                           </div>
+                                        ) : (
+                                          <>
+                                            {act.descripcionAnterior && act.descripcionAnterior !== act.descripcion && (
+                                              <div className="text-xs text-red-600 font-medium flex items-center gap-1.5 flex-wrap">
+                                                <span className="line-through text-red-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                                  Original Asesor: ~{act.descripcionAnterior}~
+                                                </span>
+                                              </div>
+                                            )}
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                              <p className="text-slate-900 font-bold leading-relaxed">
+                                                {act.descripcion}
+                                              </p>
+                                              {isModAct && (
+                                                <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 font-extrabold px-2 py-0.5 rounded-full uppercase">
+                                                  ✓ (Corregido)
+                                                </span>
+                                              )}
+                                            </div>
+                                          </>
                                         )}
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                          <p className="text-slate-900 font-bold leading-relaxed">
-                                            {act.descripcion}
-                                          </p>
-                                          {(act.descripcionAnterior || act.esModificada || act.corregida) && (
-                                            <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 font-extrabold px-2 py-0.5 rounded-full uppercase">
-                                              ✓ (Corregido)
-                                            </span>
-                                          )}
-                                        </div>
                                       </div>
                                     )}
                                   </td>
