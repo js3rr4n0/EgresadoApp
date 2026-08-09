@@ -71,21 +71,21 @@ export default function DictamenPropuestaClient({
         :root {
           --line: #000;
           --ink: #000;
-          --pad: 5px 7px;
+          --pad: 4px 6px;
         }
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; background: #e9e9e9; }
         body {
           font-family: Arial, Helvetica, sans-serif;
           color: var(--ink);
-          font-size: 10.5pt;
+          font-size: 10pt;
         }
         .hoja {
           width: 216mm;
           min-height: 279mm;
           margin: 16px auto;
           background: #fff;
-          padding: 12mm 12mm 10mm 12mm;
+          padding: 10mm 12mm 8mm 12mm;
           display: flex;
           flex-direction: column;
           box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -94,13 +94,13 @@ export default function DictamenPropuestaClient({
         /* Encabezado */
         .encabezado {
           display: grid;
-          grid-template-columns: 85px 1fr 85px;
+          grid-template-columns: 75px 1fr 75px;
           align-items: center;
-          margin-bottom: 8px;
+          margin-bottom: 6px;
         }
         .logo-box {
-          width: 76px;
-          height: 76px;
+          width: 68px;
+          height: 68px;
           border-radius: 50%;
           border: 1px solid #999;
           display: flex;
@@ -120,13 +120,13 @@ export default function DictamenPropuestaClient({
         .titulos {
           text-align: center;
           font-weight: bold;
-          font-size: 11.5pt;
-          line-height: 1.5;
+          font-size: 11pt;
+          line-height: 1.4;
         }
 
         .id-doc {
           text-align: right;
-          font-size: 10.5pt;
+          font-size: 10pt;
           font-weight: bold;
           margin-bottom: 4px;
           padding-right: 2px;
@@ -137,7 +137,7 @@ export default function DictamenPropuestaClient({
           width: 100%;
           border-collapse: collapse;
           table-layout: fixed;
-          font-size: 10.5pt;
+          font-size: 10pt;
         }
         .marco { border: 1px solid var(--line); }
         td, th {
@@ -147,11 +147,11 @@ export default function DictamenPropuestaClient({
           font-weight: normal;
           text-align: left;
         }
-        .bloque { margin-bottom: 10px; }
+        .bloque { margin-bottom: 7px; }
         .etq { font-weight: bold; }
         .sep-v { border-right: 1px solid var(--line); }
         .sep-h { border-bottom: 1px solid var(--line); }
-        .fila-vacia td { height: 24px; }
+        .fila-vacia td { height: 21px; }
 
         /* Tabla de estudiantes */
         .t-estudiantes .cab td {
@@ -161,27 +161,27 @@ export default function DictamenPropuestaClient({
         }
         .t-estudiantes .col-carrera { border-left: 1px solid var(--line); }
         .t-estudiantes .col-ciclo { border-left: 1px solid var(--line); text-align: center; }
-        .cab .col-ciclo { line-height: 1.2; }
+        .cab .col-ciclo { line-height: 1.1; }
 
         /* Bloques con caja de escritura */
-        .caja-alta td { height: 85px; vertical-align: top; }
+        .caja-alta td { height: 60px; vertical-align: top; }
 
         .linea-encabezado {
           display: flex;
           justify-content: space-between;
           gap: 20px;
-          padding: 4px 6px;
+          padding: 3px 5px;
         }
 
         /* Firma decano */
         .firma-larga {
           border-top: 1px solid var(--line);
-          width: 58%;
-          margin: 45px auto 0;
+          width: 54%;
+          margin: 25px auto 0;
           text-align: center;
-          padding-top: 4px;
-          line-height: 1.4;
-          font-size: 10.5pt;
+          padding-top: 3px;
+          line-height: 1.3;
+          font-size: 10pt;
         }
 
         /* Pie */
@@ -190,23 +190,42 @@ export default function DictamenPropuestaClient({
           display: flex;
           justify-content: space-between;
           align-items: flex-end;
-          padding-top: 16px;
-          font-size: 10pt;
+          padding-top: 10px;
+          font-size: 9.5pt;
         }
 
-        .campo { display: inline-block; min-width: 110px; }
+        .campo { display: inline-block; min-width: 100px; }
 
         @media print {
-          html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-          .no-print { display: none !important; }
+          @page {
+            size: letter portrait;
+            margin: 0;
+          }
+          html, body {
+            background: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            overflow: hidden !important;
+          }
+          .no-print {
+            display: none !important;
+          }
           .hoja {
             margin: 0 auto !important;
-            width: 100% !important;
-            min-height: 100vh !important;
-            padding: 8mm 10mm !important;
+            width: 8.5in !important;
+            max-width: 8.5in !important;
+            height: 10.8in !important;
+            max-height: 10.8in !important;
+            padding: 8mm 10mm 6mm 10mm !important;
             box-shadow: none !important;
+            overflow: hidden !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            break-after: avoid !important;
+            break-inside: avoid !important;
           }
-          @page { size: letter; margin: 10mm; }
         }
       `}</style>
 
@@ -219,7 +238,7 @@ export default function DictamenPropuestaClient({
               Dictamen de Plan de Trabajo — Propuesta #{propuesta.numero || propuesta.id}
             </h3>
             <p className="text-[11px] text-slate-300">
-              Formato oficial UNICAES listo para impresión o descarga en PDF.
+              Formato oficial UNICAES listo para impresión en 1 sola página PDF.
             </p>
           </div>
         </div>
@@ -227,7 +246,7 @@ export default function DictamenPropuestaClient({
           onClick={() => window.print()}
           className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer"
         >
-          <span>🖨️ Imprimir / Guardar PDF</span>
+          <span>🖨️ Imprimir / Guardar PDF (1 pág)</span>
         </button>
       </div>
 
@@ -312,7 +331,7 @@ export default function DictamenPropuestaClient({
                 </td>
               </tr>
               <tr className="caja-alta">
-                <td style={{ fontWeight: "bold", fontSize: "10.5pt", lineHeight: "1.4" }}>
+                <td style={{ fontWeight: "bold", fontSize: "10pt", lineHeight: "1.3" }}>
                   {propuesta.titulo || propuesta.descripcion || "\u00A0"}
                 </td>
               </tr>
@@ -346,7 +365,7 @@ export default function DictamenPropuestaClient({
                 <td className="sep-h">Recomendaciones:</td>
               </tr>
               <tr className="caja-alta">
-                <td style={{ fontSize: "10.5pt", lineHeight: "1.4" }}>
+                <td style={{ fontSize: "10pt", lineHeight: "1.3" }}>
                   {propuesta.observaciones || "\u00A0"}
                 </td>
               </tr>
@@ -374,7 +393,7 @@ export default function DictamenPropuestaClient({
                   </span>
                 </td>
               </tr>
-              <tr style={{ height: "36px" }}>
+              <tr style={{ height: "30px" }}>
                 <td>&nbsp;</td>
                 <td style={{ borderLeft: "1px solid var(--line)" }}>Firma:</td>
               </tr>
@@ -384,7 +403,7 @@ export default function DictamenPropuestaClient({
 
         {/* Recepción de dictamen */}
         <div className="bloque">
-          <div className="linea-encabezado" style={{ padding: "0 8px 4px" }}>
+          <div className="linea-encabezado" style={{ padding: "0 6px 3px" }}>
             <span>Recepción de dictamen:</span>
             <span style={{ flex: 1 }}>
               Fecha de notificación:
