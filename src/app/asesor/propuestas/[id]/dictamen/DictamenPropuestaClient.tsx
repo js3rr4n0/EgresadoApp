@@ -104,12 +104,12 @@ export default function DictamenPropuestaClient({
         .header{
           display:flex;
           align-items:flex-start;
-          gap:14px;
+          justify-content:space-between;
           margin-bottom:10px;
         }
         .logo{
-          width:80px;
-          flex:0 0 80px;
+          width:95px;
+          flex:0 0 95px;
           text-align:center;
           padding-top:2px;
         }
@@ -133,11 +133,13 @@ export default function DictamenPropuestaClient({
           font-style:italic;
           margin-top:4px;
           color:#333;
+          max-width:95px;
+          line-height:1.1;
         }
         .titles{
           flex:1;
           text-align:center;
-          padding-top:10px;
+          padding-top:8px;
         }
         .titles h1{
           font-size:14px;
@@ -150,7 +152,10 @@ export default function DictamenPropuestaClient({
           font-weight:bold;
           margin:0;
         }
-        .spacer-logo{ flex:0 0 80px; }
+        .spacer-logo{
+          width:95px;
+          flex:0 0 95px;
+        }
 
         .id-line{
           text-align:right;
@@ -210,18 +215,19 @@ export default function DictamenPropuestaClient({
 
         /* ---------- Decano ---------- */
         .decano{
-          margin-top:24px;
-          text-align:left;
-          padding-left:20px;
+          margin:18px auto 0 auto;
+          text-align:center;
+          width:340px;
           font-size:11.5px;
         }
         .decano .rule{
-          width:320px;
+          width:100%;
           border-top:var(--line);
-          margin-bottom:3px;
+          margin-bottom:4px;
         }
         .decano .cargo{
-          padding-left:100px;
+          text-align:center;
+          font-weight:bold;
         }
 
         /* ---------- Pie ---------- */
@@ -245,8 +251,11 @@ export default function DictamenPropuestaClient({
             background:#fff !important;
             margin:0 !important;
             padding:0 !important;
+            width:100% !important;
             height:100% !important;
             overflow:hidden !important;
+            display:flex !important;
+            justify-content:center !important;
           }
           header, footer, nav, .no-print{
             display:none !important;
@@ -256,13 +265,14 @@ export default function DictamenPropuestaClient({
             visibility:hidden !important;
           }
           .page{
-            margin:0 !important;
+            margin:0 auto !important;
             box-shadow:none !important;
             width:8.5in !important;
+            max-width:8.5in !important;
             height:11in !important;
             max-height:11in !important;
             box-sizing:border-box !important;
-            padding:0.35in 0.4in 0.3in 0.4in !important;
+            padding:0.35in 0.45in 0.3in 0.45in !important;
             page-break-after:avoid !important;
             page-break-before:avoid !important;
             page-break-inside:avoid !important;
