@@ -36,6 +36,8 @@ export default function HistorialProyectoAccordion({
         return "Coordinador Asignado";
       case "aprobada":
         return "Aprobada";
+      case "en_ejecucion":
+        return "En Ejecución";
       case "rechazada":
         return "Rechazada";
       case "anulada":
@@ -46,7 +48,7 @@ export default function HistorialProyectoAccordion({
   };
 
   const getEventBadge = (tipo?: string, estadoA?: string | null) => {
-    if (estadoA === "asesor_acepto" || estadoA === "aprobada") {
+    if (estadoA === "en_ejecucion" || estadoA === "asesor_acepto" || estadoA === "aprobada") {
       return "bg-emerald-100 text-emerald-800 border-emerald-300";
     }
     if (estadoA?.startsWith("asesor_rechazo") || estadoA === "rechazada" || estadoA === "anulada") {

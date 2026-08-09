@@ -829,6 +829,68 @@ export async function responderAsignacionCoordinador(
 }
 
 /**
+ * Coordinator starts the work plan, changing state to 'en_ejecucion'
+ */
+export async function darInicioPlanTrabajo(propuestaId: number) {
+  try {
+    const session = await getSession();
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+      return { success: false, error: "No autorizado" };
+    }
+
+    const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
+    if (!prop) return { success: false, error: "Propuesta no encontrada." };
+
+    const estadoAnterior = prop.estado;
+
+    await db
+      .update(propuestas)
+      .set({ estado: "en_ejecucion" })
+      .where(eq(propuestas.id, propuestaId));
+
+    await db.insert(historialEstados).values({
+      propuestaId,
+      de: estadoAnterior,
+      a: "en_ejecucion",
+      usuarioId: session.userId,
+    });
+
+    // Notify Student
+    await db.insert(notificaciones).values({
+      usuarioId: prop.egresadoId,
+      tipo: "plan_trabajo_inicio",
+      mensaje: `¡El Plan de Trabajo de tu propuesta #${prop.numero} ha iniciado oficialmente! Estado actual: EN EJECUCIÓN.`,
+      leida: false,
+      creadoEn: new Date(),
+    });
+
+    // Notify Advisor if assigned
+    if (prop.asesorId) {
+      await db.insert(notificaciones).values({
+        usuarioId: prop.asesorId,
+        tipo: "plan_trabajo_inicio",
+        mensaje: `La Coordinación de Facultad ha dado INICIO OFICIAL al Plan de Trabajo de la propuesta #${prop.numero}. Estado actual: EN EJECUCIÓN.`,
+        leida: false,
+        creadoEn: new Date(),
+      });
+    }
+
+    revalidatePath(`/coordinador/propuestas/${propuestaId}`);
+    revalidatePath(`/asesor/propuestas/${propuestaId}`);
+    revalidatePath(`/egresado`);
+    revalidatePath(`/coordinador`);
+
+    return {
+      success: true,
+      message: "¡El Plan de Trabajo ha iniciado exitosamente! Estado actualizado a En Ejecución.",
+    };
+  } catch (error: any) {
+    console.error("Error al dar inicio al plan de trabajo:", error);
+    return { success: false, error: "Error interno: " + error.message };
+  }
+}
+
+/**
  * Fetch full comprehensive history timeline for a proposal (Status changes, coordinator reassignments, advisor requests, acceptances/rejections with justification, and documents).
  */
 export async function getHistorialCompletoProyecto(propuestaId: number) {
@@ -880,12 +942,19 @@ export async function getHistorialCompletoProyecto(propuestaId: number) {
         const just = parts.slice(1).join(":");
         titulo = `❌ Solicitud de Asesoría RECHAZADA por el docente${just ? `: "${just}"` : ""}`;
         tipoEvento = "asesor";
+      } else if (h.historial.a === "en_ejecucion") {
+        titulo = "🚀 Inicio Oficial del Plan de Trabajo (En Ejecución)";
+        tipoEvento = "estado";
       }
 
       events.push({
         id: `hist_${h.historial.id}`,
         fecha: d,
-        fechaStr: d.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+        fechaStr: d.toLocaleString("es-SV", {
+          timeZone: "America/El_Salvador",
+          dateStyle: "short",
+          timeStyle: "short",
+        }),
         usuarioNombre: uNombre,
         rol: uRol,
         titulo,
@@ -910,7 +979,11 @@ export async function getHistorialCompletoProyecto(propuestaId: number) {
       events.push({
         id: `sol_asesor_sent_${sa.solicitud.id}`,
         fecha: createdDate,
-        fechaStr: createdDate.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+        fechaStr: createdDate.toLocaleString("es-SV", {
+          timeZone: "America/El_Salvador",
+          dateStyle: "short",
+          timeStyle: "short",
+        }),
         usuarioNombre: "Coordinación de Facultad",
         rol: "coordinador",
         titulo: `Solicitud de asesoría enviada/asignada a ${sa.asesor.nombreCompleto}`,
@@ -926,7 +999,11 @@ export async function getHistorialCompletoProyecto(propuestaId: number) {
         events.push({
           id: `sol_asesor_resp_${sa.solicitud.id}`,
           fecha: respDate,
-          fechaStr: respDate.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+          fechaStr: respDate.toLocaleString("es-SV", {
+            timeZone: "America/El_Salvador",
+            dateStyle: "short",
+            timeStyle: "short",
+          }),
           usuarioNombre: `${sa.asesor.nombreCompleto} (asesor)`,
           rol: "asesor",
           titulo: isAceptada
@@ -957,7 +1034,11 @@ export async function getHistorialCompletoProyecto(propuestaId: number) {
       events.push({
         id: `sol_baja_created_${sb.baja.id}`,
         fecha: createdDate,
-        fechaStr: createdDate.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+        fechaStr: createdDate.toLocaleString("es-SV", {
+          timeZone: "America/El_Salvador",
+          dateStyle: "short",
+          timeStyle: "short",
+        }),
         usuarioNombre: `${sb.asesor.nombreCompleto} (asesor)`,
         rol: "asesor",
         titulo: "⚠️ Solicitud de Baja de Proyecto enviada por Asesor",
@@ -972,7 +1053,11 @@ export async function getHistorialCompletoProyecto(propuestaId: number) {
         events.push({
           id: `sol_baja_resp_${sb.baja.id}`,
           fecha: respDate,
-          fechaStr: respDate.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+          fechaStr: respDate.toLocaleString("es-SV", {
+            timeZone: "America/El_Salvador",
+            dateStyle: "short",
+            timeStyle: "short",
+          }),
           usuarioNombre: "Coordinación de Facultad",
           rol: "coordinador",
           titulo: sb.baja.estado === "aprobada" ? "🚫 Baja del Proyecto APROBADA" : "ℹ️ Solicitud de Baja RECHAZADA",

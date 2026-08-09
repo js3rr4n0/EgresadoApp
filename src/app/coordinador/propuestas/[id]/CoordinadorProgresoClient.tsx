@@ -139,14 +139,6 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                 📊 Exportar Gantt (PDF 1 pág)
               </a>
               <a
-                href={`/coordinador/propuestas/${propuestaId}/dictamen`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
-              >
-                📜 Generar Dictamen de Plan de Trabajo
-              </a>
-              <a
                 href={`/coordinador/propuestas/${propuestaId}/imprimir`}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -311,7 +303,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
       {/* ────────────────── TAB 1: VALIDAR DOCUMENTOS ────────────────── */}
       {activeTab === "documentos" && propuestaId > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <DocumentosPropuestaSection propuestaId={propuestaId} />
+          <DocumentosPropuestaSection propuestaId={propuestaId} propuestaEstado={propuesta.estado} />
         </div>
       )}
 

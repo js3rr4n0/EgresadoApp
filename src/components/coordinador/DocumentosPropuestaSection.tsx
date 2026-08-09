@@ -17,15 +17,24 @@ export const TIPOS_DOCUMENTOS_REQUERIDOS = [
 
 interface Props {
   propuestaId: number;
+  propuestaEstado?: string;
   onStatusChange?: (allUploaded: boolean) => void;
   canUpload?: boolean;
 }
 
 export default function DocumentosPropuestaSection({
   propuestaId,
+  propuestaEstado,
   onStatusChange,
   canUpload = true,
 }: Props) {
+  const [currentEstado, setCurrentEstado] = useState<string | undefined>(propuestaEstado);
+  const [startingPlan, setStartingPlan] = useState(false);
+
+  useEffect(() => {
+    setCurrentEstado(propuestaEstado);
+  }, [propuestaEstado]);
+
   const [loading, setLoading] = useState(true);
   const [docsData, setDocsData] = useState<{
     docs: Record<string, any>;
@@ -40,6 +49,29 @@ export default function DocumentosPropuestaSection({
   const [uploadingType, setUploadingType] = useState<string | null>(null);
   const [deletingType, setDeletingType] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleDarInicioPlan = async () => {
+    if (!confirm("¿Está seguro de dar inicio oficial al Plan de Trabajo? El estado cambiará a 'En ejecución'.")) return;
+    setStartingPlan(true);
+    setMessage(null);
+    try {
+      const { darInicioPlanTrabajo } = await import("@/app/actions/coordinador");
+      const res = await darInicioPlanTrabajo(Number(propuestaId));
+      if (res && res.success) {
+        setMessage({ type: "success", text: res.message || "Plan de Trabajo iniciado correctamente." });
+        setCurrentEstado("en_ejecucion");
+        if (typeof window !== "undefined") {
+          window.location.reload();
+        }
+      } else {
+        setMessage({ type: "error", text: res?.error || "Error al iniciar el Plan de Trabajo." });
+      }
+    } catch (err: any) {
+      setMessage({ type: "error", text: err?.message || "Error al procesar la solicitud." });
+    } finally {
+      setStartingPlan(false);
+    }
+  };
 
   const fetchDocs = useCallback(async () => {
     if (!propuestaId || isNaN(Number(propuestaId))) {
@@ -274,6 +306,40 @@ export default function DocumentosPropuestaSection({
           );
         })}
       </div>
+
+      {/* Botón Dar Inicio al Plan de Trabajo */}
+      {currentEstado === "en_ejecucion" ? (
+        <div className="bg-emerald-50 border-2 border-emerald-300 p-4.5 rounded-2xl text-center flex items-center justify-center gap-2 text-emerald-950 font-extrabold text-sm shadow-xs">
+          <span className="text-xl">🚀</span>
+          <span>¡El Plan de Trabajo ya se encuentra EN EJECUCIÓN!</span>
+        </div>
+      ) : (
+        <div className="bg-slate-50 border-2 border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+          <div>
+            <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+              <span>🚀 Dar Inicio al Plan de Trabajo</span>
+            </h4>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Al hacer clic en este botón, el estado de la propuesta cambiará a <strong className="text-emerald-700 font-bold">En ejecución</strong> para el egresado y el asesor.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleDarInicioPlan}
+            disabled={startingPlan}
+            className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+          >
+            {startingPlan ? (
+              <span>Procesando...</span>
+            ) : (
+              <>
+                <span>🚀</span>
+                <span>Dar Inicio al Plan de Trabajo</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
