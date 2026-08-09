@@ -564,5 +564,20 @@ export const informesPrimerContacto = pgTable(
   ]
 );
 
+// ─────────────────────────── Evidencias de Informe Primer Contacto ───────────────────────────
+
+export const evidenciasInformePrimerContacto = pgTable(
+  "evidencias_informe_primer_contacto",
+  {
+    id: serial("id").primaryKey(),
+    informeId: integer("informe_id")
+      .notNull()
+      .references(() => informesPrimerContacto.id, { onDelete: "cascade" }),
+    nombreArchivo: varchar("nombre_archivo", { length: 255 }),
+    archivoUrl: text("archivo_url").notNull(),
+    subidoEn: timestamp("subido_en", { withTimezone: true }).notNull().defaultNow(),
+  }
+);
+
 
 

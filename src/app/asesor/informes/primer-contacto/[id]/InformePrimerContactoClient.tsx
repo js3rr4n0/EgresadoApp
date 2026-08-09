@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { guardarBorradorInforme, enviarInformePrimerContacto } from "@/app/actions/informes";
+import {
+  guardarBorradorInforme,
+  enviarInformePrimerContacto,
+  uploadEvidenciaInformePrimerContacto,
+  deleteEvidenciaInformePrimerContacto,
+} from "@/app/actions/informes";
+import { openDocument } from "@/lib/pdfViewer";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -13,6 +19,7 @@ interface Props {
   empresa: any;
   carrera: any;
   actividades: any[];
+  evidenciasIniciales?: any[];
 }
 
 export default function InformePrimerContactoClient({
@@ -23,6 +30,7 @@ export default function InformePrimerContactoClient({
   empresa,
   carrera,
   actividades,
+  evidenciasIniciales = [],
 }: Props) {
   const router = useRouter();
 
@@ -44,10 +52,11 @@ export default function InformePrimerContactoClient({
   const [modalidadCita, setModalidadCita] = useState<string>(
     informeData.modalidadCita || "videollamada"
   );
+  const [evidenciasList, setEvidenciasList] = useState<any[]>(evidenciasIniciales);
   const [evidenciaUrls, setEvidenciaUrls] = useState<string[]>(
-    informeData.evidenciaUrls || []
+    informeData.evidenciaUrls || evidenciasIniciales.map((e) => e.archivoUrl) || []
   );
-  const [tempEvidenciaInput, setTempEvidenciaInput] = useState<string>("");
+  const [uploadingEvidencia, setUploadingEvidencia] = useState(false);
 
   const [objetivosEntrevista, setObjetivosEntrevista] = useState<string[]>(
     informeData.objetivosEntrevista || ["Consenso del plan de trabajo", "Tiempos de ejecución"]
@@ -151,10 +160,44 @@ export default function InformePrimerContactoClient({
     }
   };
 
-  const addEvidenciaUrl = () => {
-    if (tempEvidenciaInput.trim()) {
-      setEvidenciaUrls([...evidenciaUrls, tempEvidenciaInput.trim()]);
-      setTempEvidenciaInput("");
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingEvidencia(true);
+    setErrorMsg(null);
+
+    const formData = new FormData();
+    formData.append("archivo", file);
+
+    const res = await uploadEvidenciaInformePrimerContacto(informeData.id, formData);
+    setUploadingEvidencia(false);
+
+    // Reset input
+    e.target.value = "";
+
+    if (res.success && res.evidencia) {
+      setEvidenciasList((prev) => [...prev, res.evidencia]);
+      setEvidenciaUrls((prev) => [...prev, res.evidencia.archivoUrl]);
+      setSuccessMsg("✓ Archivo de evidencia subido exitosamente.");
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } else {
+      setErrorMsg(res.error || "Error al subir la evidencia.");
+    }
+  };
+
+  const handleDeleteEvidencia = async (item: any, idx: number) => {
+    if (item.id) {
+      const res = await deleteEvidenciaInformePrimerContacto(item.id, informeData.id);
+      if (res.success) {
+        setEvidenciasList((prev) => prev.filter((e) => e.id !== item.id));
+        setEvidenciaUrls((prev) => prev.filter((url) => url !== item.archivoUrl));
+      } else {
+        setErrorMsg(res.error || "Error al eliminar evidencia.");
+      }
+    } else {
+      setEvidenciasList((prev) => prev.filter((_, i) => i !== idx));
+      setEvidenciaUrls((prev) => prev.filter((_, i) => i !== idx));
     }
   };
 
@@ -407,43 +450,66 @@ export default function InformePrimerContactoClient({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-extrabold text-slate-800 mb-1.5">
                     3. Archivo de Evidencia (Captura de pantalla o Fotografía de la visita) *
                   </label>
-                  {!isEnviado && (
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="text"
-                        placeholder="URL de la imagen/captura de evidencia..."
-                        value={tempEvidenciaInput}
-                        onChange={(e) => setTempEvidenciaInput(e.target.value)}
-                        className="flex-1 p-2 bg-white border border-amber-300 rounded-xl text-xs"
-                      />
-                      <button
-                        type="button"
-                        onClick={addEvidenciaUrl}
-                        className="px-4 py-2 bg-amber-800 text-white rounded-xl text-xs font-bold hover:bg-amber-900"
-                      >
-                        Adjuntar
-                      </button>
+
+                  {!isEnviado && !isAnulado && (
+                    <div className="flex flex-wrap items-center gap-3 mb-3">
+                      <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-800 hover:bg-amber-900 text-white rounded-xl text-xs font-extrabold cursor-pointer transition-all shadow-xs active:scale-95">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        <span>{uploadingEvidencia ? "Subiendo archivo..." : "📁 Seleccionar y Subir Archivo"}</span>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          disabled={uploadingEvidencia}
+                          onChange={handleFileUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <span className="text-[11px] text-slate-600 font-semibold">
+                        Soporta imágenes (PNG, JPG) y documentos (PDF).
+                      </span>
                     </div>
                   )}
 
-                  <div className="space-y-1">
-                    {evidenciaUrls.map((url, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-2 bg-white border rounded-lg text-xs">
-                        <span className="truncate text-slate-700">{url}</span>
-                        {!isEnviado && (
-                          <button
-                            type="button"
-                            onClick={() => setEvidenciaUrls(evidenciaUrls.filter((_, i) => i !== idx))}
-                            className="text-red-600 font-bold text-xs"
-                          >
-                            Eliminar
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                  <div className="space-y-2">
+                    {evidenciasList.length === 0 && evidenciaUrls.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic p-3 bg-white/70 rounded-xl border border-amber-200">
+                        No se ha adjuntado ninguna evidencia aún.
+                      </p>
+                    ) : (
+                      evidenciasList.map((item, idx) => (
+                        <div key={item.id || idx} className="flex items-center justify-between p-3 bg-white border border-amber-300 rounded-xl text-xs shadow-2xs">
+                          <div className="flex items-center gap-2 truncate pr-2">
+                            <span className="text-base">{item.nombreArchivo?.endsWith(".pdf") ? "📄" : "📷"}</span>
+                            <span className="font-bold text-slate-800 truncate">{item.nombreArchivo || `Evidencia #${idx + 1}`}</span>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => openDocument(item.archivoUrl, item.nombreArchivo || "Evidencia")}
+                              className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold text-xs rounded-lg transition-colors border border-indigo-200 inline-flex items-center gap-1 cursor-pointer"
+                              title="Ver documento/imagen en visor seguro"
+                            >
+                              👁️ Ver
+                            </button>
+                            {!isEnviado && !isAnulado && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteEvidencia(item, idx)}
+                                className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-lg transition-colors border border-rose-200 cursor-pointer"
+                              >
+                                🗑️ Eliminar
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               </div>

@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import {
   informesPrimerContacto,
+  evidenciasInformePrimerContacto,
   propuestas,
   usuarios,
   supervisores,
@@ -123,6 +124,13 @@ export async function getOrCreateInformePrimerContacto(propuestaId: number) {
       .where(eq(actividades.propuestaId, propuestaId))
       .orderBy(actividades.periodo, actividades.semana, actividades.numero);
 
+    // Fetch evidence files table records
+    const evidencias = await db
+      .select()
+      .from(evidenciasInformePrimerContacto)
+      .where(eq(evidenciasInformePrimerContacto.informeId, informe.id))
+      .orderBy(evidenciasInformePrimerContacto.id);
+
     return {
       success: true,
       informe,
@@ -132,6 +140,7 @@ export async function getOrCreateInformePrimerContacto(propuestaId: number) {
       empresa,
       carrera,
       actividades: acts,
+      evidencias,
     };
   } catch (err: any) {
     console.error("Error en getOrCreateInformePrimerContacto:", err);
@@ -394,5 +403,111 @@ export async function anularInformePrimerContacto(
   } catch (err: any) {
     console.error("Error al anular informe:", err);
     return { success: false, error: err.message || "Error al anular informe" };
+  }
+}
+
+export async function uploadEvidenciaInformePrimerContacto(
+  informeId: number,
+  formData: FormData
+) {
+  try {
+    const session = await getSession();
+    if (!session || !session.userId) {
+      return { success: false, error: "No autenticado" };
+    }
+
+    const rawFile = formData.get("archivo") || formData.get("file");
+    if (!rawFile || typeof rawFile === "string") {
+      return { success: false, error: "Debe seleccionar un archivo válido." };
+    }
+
+    const archivo = rawFile as File;
+    const arrayBuffer = await archivo.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const base64 = buffer.toString("base64");
+    const mimeType = archivo.type || "application/octet-stream";
+    const archivoUrl = `data:${mimeType};base64,${base64}`;
+
+    const [newEvidencia] = await db
+      .insert(evidenciasInformePrimerContacto)
+      .values({
+        informeId,
+        nombreArchivo: archivo.name,
+        archivoUrl,
+        subidoEn: new Date(),
+      })
+      .returning();
+
+    // Actualizar también campo legacy evidenciaUrls en informesPrimerContacto para retrocompatibilidad
+    const [informe] = await db
+      .select()
+      .from(informesPrimerContacto)
+      .where(eq(informesPrimerContacto.id, informeId))
+      .limit(1);
+
+    if (informe) {
+      const currentUrls = Array.isArray(informe.evidenciaUrls)
+        ? (informe.evidenciaUrls as string[])
+        : [];
+      await db
+        .update(informesPrimerContacto)
+        .set({
+          evidenciaUrls: [...currentUrls, archivoUrl],
+          actualizadoEn: new Date(),
+        })
+        .where(eq(informesPrimerContacto.id, informeId));
+    }
+
+    return { success: true, evidencia: newEvidencia };
+  } catch (err: any) {
+    console.error("Error al subir evidencia:", err);
+    return { success: false, error: err.message || "Error al subir evidencia" };
+  }
+}
+
+export async function deleteEvidenciaInformePrimerContacto(
+  evidenciaId: number,
+  informeId: number
+) {
+  try {
+    const session = await getSession();
+    if (!session || !session.userId) {
+      return { success: false, error: "No autenticado" };
+    }
+
+    const [evidencia] = await db
+      .select()
+      .from(evidenciasInformePrimerContacto)
+      .where(eq(evidenciasInformePrimerContacto.id, evidenciaId))
+      .limit(1);
+
+    if (!evidencia) {
+      return { success: false, error: "Evidencia no encontrada." };
+    }
+
+    await db
+      .delete(evidenciasInformePrimerContacto)
+      .where(eq(evidenciasInformePrimerContacto.id, evidenciaId));
+
+    // Sincronizar campo legacy
+    const [informe] = await db
+      .select()
+      .from(informesPrimerContacto)
+      .where(eq(informesPrimerContacto.id, informeId))
+      .limit(1);
+
+    if (informe && Array.isArray(informe.evidenciaUrls)) {
+      const currentUrls = informe.evidenciaUrls as string[];
+      const updatedUrls = currentUrls.filter((url) => url !== evidencia.archivoUrl);
+      await db
+        .update(informesPrimerContacto)
+        .set({ evidenciaUrls: updatedUrls, actualizadoEn: new Date() })
+        .where(eq(informesPrimerContacto.id, informeId));
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error al eliminar evidencia:", err);
+    return { success: false, error: err.message || "Error al eliminar evidencia" };
   }
 }

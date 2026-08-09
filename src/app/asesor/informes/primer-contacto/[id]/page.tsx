@@ -36,6 +36,7 @@ export default async function InformePrimerContactoPage({
       empresa={res.empresa}
       carrera={res.carrera}
       actividades={res.actividades || []}
+      evidenciasIniciales={res.evidencias || []}
     />
   );
 }
