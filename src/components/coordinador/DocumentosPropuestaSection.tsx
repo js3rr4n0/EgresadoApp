@@ -5,8 +5,14 @@ import {
   getDocumentosPropuesta,
   uploadDocumentoPropuesta,
   deleteDocumentoPropuesta,
-  TIPOS_DOCUMENTOS_REQUERIDOS,
 } from "@/app/actions/documentosPropuesta";
+
+export const TIPOS_DOCUMENTOS_REQUERIDOS = [
+  { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
+  { tipo: "plan_trabajo_firmado", label: "Plan de Trabajo Firmado" },
+  { tipo: "dictamen_plan_trabajo", label: "Dictamen de Plan de Trabajo" },
+  { tipo: "dictamen_propuesta", label: "Dictamen de Propuesta" },
+] as const;
 
 interface Props {
   propuestaId: number;

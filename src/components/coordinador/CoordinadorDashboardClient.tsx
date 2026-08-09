@@ -238,26 +238,6 @@ export default function CoordinadorDashboardClient({
         </div>
       )}
 
-      {isAdmin && (
-        <div className="bg-amber-50 border border-amber-300 text-amber-950 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">🛡️</span>
-            <div>
-              <p className="font-extrabold text-sm text-amber-900">Modo Administrador Activo</p>
-              <p className="text-xs text-amber-800">
-                Estás visualizando la interfaz de Coordinador con privilegios completos de Administrador. Puedes probar o gestionar cualquier propuesta.
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/admin/propuestas"
-            className="px-4 py-2 bg-amber-700 hover:bg-amber-800 text-white font-bold text-xs rounded-xl shadow-xs transition-all whitespace-nowrap"
-          >
-            ← Regresar al Panel Admin
-          </Link>
-        </div>
-      )}
-
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-brand-red via-red-800 to-rose-950 text-white rounded-2xl p-6 sm:p-8 shadow-lg border border-rose-800">
         <div className="max-w-4xl">

@@ -21,10 +21,10 @@ export default async function CoordinadorPage() {
     getSolicitudesBajaCoordinador(),
   ]);
 
-  const pendientes = pendientesRes.success ? pendientesRes.data || [] : [];
-  const asignadas = asignadasRes.success ? asignadasRes.data || [] : [];
-  const asesores = asesoresRes.success ? asesoresRes.data || [] : [];
-  const solicitudesBaja = bajasRes.success ? bajasRes.data || [] : [];
+  const pendientes = pendientesRes?.success && Array.isArray(pendientesRes.data) ? pendientesRes.data : [];
+  const asignadas = asignadasRes?.success && Array.isArray(asignadasRes.data) ? asignadasRes.data : [];
+  const asesores = asesoresRes?.success && Array.isArray(asesoresRes.data) ? asesoresRes.data : [];
+  const solicitudesBaja = bajasRes?.success && Array.isArray(bajasRes.data) ? bajasRes.data : [];
 
   return (
     <CoordinadorDashboardClient

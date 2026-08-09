@@ -41,7 +41,7 @@ export async function getPropuestasPendientesCoordinador() {
     const adminIds = adminUsers.map((u) => u.id);
     if (!adminIds.includes(session.userId)) adminIds.push(session.userId);
 
-    // Fetch proposals assigned to coordinator (or any admin if user is admin)
+    // Fetch proposals assigned to coordinator (or all proposals if user is admin)
     const rawPropuestas = await db
       .select({
         propuesta: propuestas,
@@ -52,12 +52,12 @@ export async function getPropuestasPendientesCoordinador() {
       .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .where(
-        and(
-          isAdmin
-            ? inArray(propuestas.coordinadorId, adminIds)
-            : eq(propuestas.coordinadorId, session.userId),
-          inArray(propuestas.estado, ["coordinador_asignado", "aprobada"])
-        )
+        isAdmin
+          ? inArray(propuestas.estado, ["coordinador_asignado", "aprobada"])
+          : and(
+              eq(propuestas.coordinadorId, session.userId),
+              inArray(propuestas.estado, ["coordinador_asignado", "aprobada"])
+            )
       )
       .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
 
@@ -286,7 +286,7 @@ export async function getPropuestasAsignadasCoordinador() {
     const adminIds = adminUsers.map((u) => u.id);
     if (!adminIds.includes(session.userId)) adminIds.push(session.userId);
 
-    // Fetch accepted advisor requests made by this coordinator (or admins if admin)
+    // Fetch accepted advisor requests made by this coordinator (or all if admin)
     const acceptedRows = await db
       .select({
         propuesta: propuestas,
@@ -295,12 +295,12 @@ export async function getPropuestasAsignadasCoordinador() {
       .from(propuestas)
       .innerJoin(usuarios, eq(propuestas.asesorId, usuarios.id))
       .where(
-        and(
-          isAdmin
-            ? inArray(propuestas.coordinadorId, adminIds)
-            : eq(propuestas.coordinadorId, session.userId),
-          eq(propuestas.estado, "aprobada")
-        )
+        isAdmin
+          ? eq(propuestas.estado, "aprobada")
+          : and(
+              eq(propuestas.coordinadorId, session.userId),
+              eq(propuestas.estado, "aprobada")
+            )
       )
       .orderBy(desc(propuestas.fechaAprobacion));
 
@@ -335,8 +335,18 @@ export async function getPropuestasAsignadasCoordinador() {
           .where(eq(cartasAceptacion.propuestaId, row.propuesta.id))
           .limit(1);
 
-        const fechaInicio = carta?.fechaInicio || (row.propuesta.fechaAprobacion ? row.propuesta.fechaAprobacion.toISOString().split("T")[0] : "N/A");
-        const fechaFin = carta?.fechaFin || "N/A";
+        let fechaInicio = "N/A";
+        if (carta?.fechaInicio) {
+          fechaInicio = String(carta.fechaInicio);
+        } else if (row.propuesta.fechaAprobacion) {
+          try {
+            const d = new Date(row.propuesta.fechaAprobacion);
+            if (!isNaN(d.getTime())) {
+              fechaInicio = d.toISOString().split("T")[0];
+            }
+          } catch (e) {}
+        }
+        const fechaFin = carta?.fechaFin ? String(carta.fechaFin) : "N/A";
 
         return {
           id: row.propuesta.id,
@@ -640,7 +650,7 @@ export async function getSolicitudesBajaCoordinador() {
       .innerJoin(usuarios, eq(solicitudesBaja.asesorId, usuarios.id))
       .where(
         isAdmin
-          ? inArray(solicitudesBaja.coordinadorId, adminIds)
+          ? undefined
           : eq(solicitudesBaja.coordinadorId, session.userId)
       )
       .orderBy(desc(solicitudesBaja.creadaEn));
