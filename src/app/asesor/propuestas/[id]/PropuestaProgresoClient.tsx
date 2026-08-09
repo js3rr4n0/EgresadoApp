@@ -191,13 +191,18 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
             </svg>
           </Link>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl md:text-2xl font-extrabold text-card-dark">
                 Progreso de Propuesta
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-100 text-purple-800">
                 {getTipoLabel(propuesta.tipo)} #{propuesta.numero}
               </span>
+              {actividades?.some((a: any) => a.descripcionAnterior || a.esModificada || a.corregida) && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold uppercase tracking-wider bg-indigo-100 text-indigo-950 border border-indigo-300">
+                  En espera de revisión de propuesta ajustada ⏳
+                </span>
+              )}
             </div>
             <p className="text-xs text-muted mt-0.5">
               Estudiante: <span className="font-bold text-slate-800">{estudiante.nombreCompleto}</span> ({estudiante.carnet})

@@ -1,8 +1,8 @@
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { documentosEgresado, propuestas, solicitudesAsesor, usuarios, empresas, supervisores } from "@/lib/schema";
-import { eq, asc, desc } from "drizzle-orm";
+import { documentosEgresado, propuestas, solicitudesAsesor, usuarios, empresas, supervisores, historialEstados } from "@/lib/schema";
+import { eq, asc, desc, and } from "drizzle-orm";
 import DocumentGate from "@/components/DocumentGate";
 import Link from "next/link";
 import InvitationAlert from "@/components/proyecto/InvitationAlert";
@@ -108,8 +108,27 @@ export default async function EgresadoLandingPage() {
       }
     }
 
-    if (activeSubmittedProp.estado === "coordinador_asignado") {
-      if (hasAsesor && asesorNombre) {
+    let isPropuestaAjustada = false;
+    const [histAjustes] = await db
+      .select()
+      .from(historialEstados)
+      .where(
+        and(
+          eq(historialEstados.propuestaId, activeSubmittedProp.id),
+          eq(historialEstados.a, "ajustes_completados")
+        )
+      )
+      .limit(1);
+    if (histAjustes) {
+      isPropuestaAjustada = true;
+    }
+
+    if (activeSubmittedProp.estado === "coordinador_asignado" || activeSubmittedProp.estado === "enviada") {
+      if (isPropuestaAjustada) {
+        activeStatusTitle = "En espera de revisión de propuesta ajustada";
+        activeStatusDesc = `Ha enviado su propuesta #${activeSubmittedProp.numero} ajustada con las correcciones aplicadas al plan de trabajo. El docente asesor${asesorNombre ? ` (${asesorNombre})` : ""} revisará nuevamente las modificaciones realizadas.`;
+        activeBadgeClass = "bg-indigo-100 text-indigo-950 border-indigo-300 font-extrabold";
+      } else if (hasAsesor && asesorNombre) {
         activeStatusTitle = "Asesor asignado, en espera de revisión";
         activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} cuenta con docente asesor asignado (${asesorNombre})${coordinadorNombre ? ` bajo la Coordinación de ${coordinadorNombre}` : ""} y se encuentra en proceso de revisión de plan de trabajo y documentación.`;
         activeBadgeClass = "bg-blue-100 text-blue-900 border-blue-300";
