@@ -53,8 +53,14 @@ export default async function EgresadoLandingPage() {
     .where(eq(propuestas.egresadoId, session.userId))
     .orderBy(asc(propuestas.id));
 
-  // Find active proposal in evaluation pipeline
-  const activeSubmittedProp = userPropuestas.find(p => p.estado === "enviada" || p.estado === "coordinador_asignado" || p.estado === "aprobada") || acceptedTeam?.propuesta;
+  // Find active proposal in evaluation pipeline (submitted, assigned to coordinator/advisor, or approved)
+  const activeSubmittedProp =
+    userPropuestas.find(
+      (p) =>
+        p.estado !== "redactando" ||
+        p.coordinadorId !== null ||
+        p.asesorId !== null
+    ) || acceptedTeam?.propuesta;
   const hasSubmittedPropuesta = !!activeSubmittedProp;
 
   let activeStatusTitle = "";

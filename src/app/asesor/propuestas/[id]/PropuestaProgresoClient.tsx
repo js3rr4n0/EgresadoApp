@@ -39,6 +39,16 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
   const [sendingAjustes, setSendingAjustes] = useState(false);
   const [sendingAprobar, setSendingAprobar] = useState(false);
 
+  // State for Multi-select Activities & Reasons
+  const [selectedActIds, setSelectedActIds] = useState<number[]>([]);
+  const [motivosActividades, setMotivosActividades] = useState<Record<number, string>>({});
+
+  const toggleSelectAct = (actId: number) => {
+    setSelectedActIds((prev) =>
+      prev.includes(actId) ? prev.filter((id) => id !== actId) : [...prev, actId]
+    );
+  };
+
   const handleAprobarOK = async () => {
     if (!confirm("¿Está seguro de dar el OK y APROBAR el plan de trabajo y propuesta de este estudiante?")) {
       return;
@@ -73,16 +83,40 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
 
   const handleSolicitarAjustes = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!observacionesAjuste.trim()) return;
+
+    let formattedObservaciones = "";
+
+    if (selectedActIds.length > 0) {
+      formattedObservaciones += "📍 ACTIVIDADES MARCADAS PARA CORRECCIÓN EN EL PLAN DE TRABAJO:\n\n";
+      selectedActIds.forEach((actId) => {
+        const act = actividades.find((a) => a.id === actId);
+        if (act) {
+          const motivo = motivosActividades[act.id]?.trim() || "Requiere corrección por parte del estudiante.";
+          formattedObservaciones += `• Mes ${act.periodo}, Semana ${act.semana} (Actividad #${act.numero}: "${act.descripcion || act.titulo || 'Sin título'}")\n  ➡ Motivo / Por qué: ${motivo}\n\n`;
+        }
+      });
+    }
+
+    if (observacionesAjuste.trim()) {
+      if (formattedObservaciones) formattedObservaciones += "💬 INDICACIONES GENERALES:\n";
+      formattedObservaciones += observacionesAjuste.trim();
+    }
+
+    if (!formattedObservaciones.trim()) {
+      alert("Por favor ingrese al menos una observación o motivo de corrección para el estudiante.");
+      return;
+    }
 
     setSendingAjustes(true);
-    const res = await solicitarAjustesPropuestaAsesor(propuesta.id, observacionesAjuste.trim());
+    const res = await solicitarAjustesPropuestaAsesor(propuesta.id, formattedObservaciones.trim());
     setSendingAjustes(false);
 
     if (res.success) {
       alert(res.message);
       setShowAjustesModal(false);
       setObservacionesAjuste("");
+      setSelectedActIds([]);
+      setMotivosActividades({});
       window.location.reload();
     } else {
       alert(res.error || "Error al solicitar los ajustes.");
@@ -221,34 +255,81 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
       {/* Modal Solicitar Ajustes / Correcciones a la Propuesta */}
       {showAjustesModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5">
-            <h3 className="text-lg font-extrabold text-amber-900 flex items-center gap-2">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 space-y-5 max-h-[90vh] flex flex-col">
+            <h3 className="text-lg font-extrabold text-amber-900 flex items-center gap-2 shrink-0">
               <span className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-sm">
                 ✏️
               </span>
-              Solicitar Ajustes / Correcciones al Egresado
+              Solicitar Ajustes al Egresado ({selectedActIds.length > 0 ? `${selectedActIds.length} Actividades` : "General"})
             </h3>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Indique detalladamente cuáles literales o actividades del plan de trabajo/propuesta debe corregir o ajustar el estudiante:
+            <p className="text-xs text-slate-600 leading-relaxed shrink-0">
+              Indique el motivo o razón por la cual debe corregirse cada actividad seleccionada y agregue observaciones adicionales para el estudiante.
             </p>
 
-            <form onSubmit={handleSolicitarAjustes} className="space-y-4">
+            <form onSubmit={handleSolicitarAjustes} className="space-y-4 overflow-y-auto pr-1 flex-1">
+              {/* Selected Activities List & Reason Input */}
+              {selectedActIds.length > 0 && (
+                <div className="space-y-3 bg-amber-50/60 border border-amber-200 p-4 rounded-xl">
+                  <label className="block text-xs font-extrabold text-amber-950 uppercase tracking-wider">
+                    📌 Actividades Seleccionadas del Plan ({selectedActIds.length}):
+                  </label>
+                  <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    {selectedActIds.map((actId) => {
+                      const act = actividades.find((a) => a.id === actId);
+                      if (!act) return null;
+                      return (
+                        <div key={act.id} className="p-3 bg-white border border-amber-200 rounded-xl space-y-2 shadow-xs">
+                          <div className="flex items-center justify-between text-xs font-bold text-slate-900">
+                            <span className="text-amber-950">
+                              Mes {act.periodo}, Semana {act.semana} — Actividad #{act.numero}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleSelectAct(act.id)}
+                              className="text-rose-600 hover:text-rose-800 text-[11px] font-extrabold"
+                            >
+                              ✕ Quitar
+                            </button>
+                          </div>
+                          <p className="text-xs text-slate-600 italic line-clamp-2 bg-slate-50 p-1.5 rounded border border-slate-100">
+                            "{act.descripcion || act.titulo || 'Sin descripción'}"
+                          </p>
+                          <div>
+                            <label className="block text-[11px] font-bold text-amber-900 mb-1">
+                              Motivo / Por qué corregir esta actividad:
+                            </label>
+                            <textarea
+                              rows={2}
+                              value={motivosActividades[act.id] || ""}
+                              onChange={(e) =>
+                                setMotivosActividades((prev) => ({ ...prev, [act.id]: e.target.value }))
+                              }
+                              placeholder="Ej: Esta actividad no me convence porque los tiempos están muy apretados o debe pasarse al mes 2..."
+                              className="w-full p-2 border border-amber-300 rounded-lg text-xs bg-amber-50/20 focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Observaciones y Correcciones Requeridas:
+                  Indicaciones Generales u Otras Correcciones Requeridas:
                 </label>
                 <textarea
                   value={observacionesAjuste}
                   onChange={(e) => setObservacionesAjuste(e.target.value)}
-                  required
-                  rows={4}
-                  placeholder="Ej: Corregir la descripción de la actividad 3 del mes 2, y ajustar la justificación del proyecto en el apartado 5..."
+                  rows={3}
+                  placeholder="Ej: Ajustar también la redacción de la portada o revisar fechas en la carta..."
                   className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-hidden bg-amber-50/40"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowAjustesModal(false)}
@@ -259,9 +340,9 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
                 <button
                   type="submit"
                   disabled={sendingAjustes}
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs disabled:opacity-50"
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs rounded-xl transition-colors shadow-xs disabled:opacity-50 cursor-pointer"
                 >
-                  {sendingAjustes ? "Enviando..." : "Enviar Observaciones de Ajuste"}
+                  {sendingAjustes ? "Enviando..." : "Enviar Observaciones al Estudiante"}
                 </button>
               </div>
             </form>
@@ -553,78 +634,112 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
                         <table className="w-full text-left text-xs border-collapse bg-white rounded-lg border border-border overflow-hidden">
                           <thead>
                             <tr className="bg-slate-100 text-slate-700 font-bold uppercase tracking-wider">
+                              <th className="py-3 px-2 w-10 text-center">
+                                <input
+                                  type="checkbox"
+                                  checked={actsMonth.every((a) => selectedActIds.includes(a.id))}
+                                  onChange={() => {
+                                    const allMonthIds = actsMonth.map((a) => a.id);
+                                    const allSelected = allMonthIds.every((id) => selectedActIds.includes(id));
+                                    if (allSelected) {
+                                      setSelectedActIds((prev) => prev.filter((id) => !allMonthIds.includes(id)));
+                                    } else {
+                                      setSelectedActIds((prev) => Array.from(new Set([...prev, ...allMonthIds])));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
+                                  title="Seleccionar todas las actividades del mes"
+                                />
+                              </th>
                               <th className="py-3 px-3 w-16 text-center">Semana</th>
                               <th className="py-3 px-3 w-12 text-center">#</th>
                               <th className="py-3 px-4">Descripción de Actividad</th>
-                              <th className="py-3 px-3 w-28 text-center">Acciones</th>
+                              <th className="py-3 px-3 w-32 text-center">Acciones</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-border">
-                            {actsMonth.map((act) => (
-                              <tr key={act.id} className="hover:bg-slate-50 transition-colors">
-                                <td className="py-3 px-3 text-center font-bold text-purple-900 bg-purple-50/50">
-                                  Sem {act.semana}
-                                </td>
-                                <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">
-                                  {act.numero}
-                                </td>
-                                <td className="py-3 px-4">
-                                  {editingActId === act.id ? (
-                                    <div className="flex flex-col gap-2 py-1">
-                                      <textarea
-                                        rows={3}
-                                        value={editingText}
-                                        onChange={(e) => setEditingText(e.target.value)}
-                                        className="w-full p-2 border border-brand-red rounded text-xs focus:outline-none"
-                                      />
-                                      <div className="flex gap-2">
+                            {actsMonth.map((act) => {
+                              const isSelected = selectedActIds.includes(act.id);
+                              return (
+                                <tr
+                                  key={act.id}
+                                  className={`transition-colors ${
+                                    isSelected ? "bg-amber-50/80 border-l-4 border-amber-500" : "hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <td className="py-3 px-2 text-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => toggleSelectAct(act.id)}
+                                      className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
+                                    />
+                                  </td>
+                                  <td className="py-3 px-3 text-center font-bold text-purple-900 bg-purple-50/50">
+                                    Sem {act.semana}
+                                  </td>
+                                  <td className="py-3 px-3 text-center font-mono font-bold text-slate-600">
+                                    {act.numero}
+                                  </td>
+                                  <td className="py-3 px-4">
+                                    {editingActId === act.id ? (
+                                      <div className="flex flex-col gap-2 py-1">
+                                        <textarea
+                                          rows={3}
+                                          value={editingText}
+                                          onChange={(e) => setEditingText(e.target.value)}
+                                          className="w-full p-2 border border-brand-red rounded text-xs focus:outline-none"
+                                        />
+                                        <div className="flex gap-2">
+                                          <button
+                                            disabled={loadingUpdate}
+                                            onClick={() => handleSaveActividad(act.id)}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-3 py-1 rounded"
+                                          >
+                                            {loadingUpdate ? "Guardando..." : "Guardar Modificación"}
+                                          </button>
+                                          <button
+                                            onClick={() => setEditingActId(null)}
+                                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[11px] px-3 py-1 rounded"
+                                          >
+                                            Cancelar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="text-slate-800 font-medium leading-relaxed">
+                                        {act.descripcion}
+                                      </p>
+                                    )}
+                                  </td>
+                                  <td className="py-3 px-3 text-center">
+                                    {editingActId !== act.id && (
+                                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
                                         <button
-                                          disabled={loadingUpdate}
-                                          onClick={() => handleSaveActividad(act.id)}
-                                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-3 py-1 rounded"
+                                          onClick={() => handleStartEditAct(act)}
+                                          className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded transition-colors"
+                                          title="Modificar actividad directamente"
                                         >
-                                          {loadingUpdate ? "Guardando..." : "Guardar Modificación"}
+                                          ✏️ Editar
                                         </button>
                                         <button
-                                          onClick={() => setEditingActId(null)}
-                                          className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[11px] px-3 py-1 rounded"
+                                          onClick={() => {
+                                            if (!selectedActIds.includes(act.id)) {
+                                              setSelectedActIds((prev) => [...prev, act.id]);
+                                            }
+                                            setShowAjustesModal(true);
+                                          }}
+                                          className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-2 py-1 rounded transition-colors border border-amber-300 flex items-center gap-1"
+                                          title="Marcar esta actividad y añadir observación con motivo"
                                         >
-                                          Cancelar
+                                          💬 Comentar
                                         </button>
                                       </div>
-                                    </div>
-                                  ) : (
-                                    <p className="text-slate-800 font-medium leading-relaxed">
-                                      {act.descripcion}
-                                    </p>
-                                  )}
-                                </td>
-                                <td className="py-3 px-3 text-center">
-                                  {editingActId !== act.id && (
-                                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                      <button
-                                        onClick={() => handleStartEditAct(act)}
-                                        className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded transition-colors"
-                                        title="Modificar actividad directamente"
-                                      >
-                                        ✏️ Editar
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          const commentPrefix = `Mes ${act.periodo}, Semana ${act.semana} (Actividad #${act.numero}: "${act.descripcion || act.titulo || 'Sin descripción'}"): `;
-                                          setObservacionesAjuste((prev) => (prev ? `${prev}\n- ${commentPrefix}` : `- ${commentPrefix}`));
-                                          setShowAjustesModal(true);
-                                        }}
-                                        className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-2 py-1 rounded transition-colors border border-amber-300"
-                                        title="Añadir comentario específico para corregir al estudiante"
-                                      >
-                                        💬 Comentar
-                                      </button>
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
                           </tbody>
                         </table>
                       </div>
@@ -633,6 +748,37 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Floating Sticky Selection Bar for Advisor */}
+      {selectedActIds.length > 0 && activeTab === "plan" && (
+        <div className="fixed bottom-6 right-6 z-40 bg-amber-950 text-white p-4 rounded-2xl shadow-2xl flex items-center gap-5 border-2 border-amber-500 animate-in fade-in zoom-in-95 max-w-xl">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl shrink-0">
+            📌
+          </div>
+          <div className="flex-1">
+            <h4 className="font-extrabold text-amber-100 text-sm">
+              {selectedActIds.length} actividad(es) seleccionada(s)
+            </h4>
+            <p className="text-xs text-amber-300">
+              Agrega el motivo por qué corregir cada una y envíalas al estudiante.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setSelectedActIds([])}
+              className="px-3 py-2 text-xs font-bold text-amber-200 hover:text-white bg-amber-900/60 rounded-xl transition-colors"
+            >
+              Limpiar
+            </button>
+            <button
+              onClick={() => setShowAjustesModal(true)}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-amber-950 font-extrabold text-xs rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer flex items-center gap-1.5"
+            >
+              ✏️ Solicitar Ajustes ({selectedActIds.length})
+            </button>
           </div>
         </div>
       )}

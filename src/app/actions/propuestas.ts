@@ -162,12 +162,17 @@ export async function initPropuesta(tipo: string) {
       )
       .orderBy(asc(propuestas.id));
 
-    // If user has any proposal currently submitted or approved, block creating a new one
-    const activeSubmitted = props.find((p) => p.estado === "enviada" || p.estado === "aprobada");
+    // If user has any proposal currently submitted, assigned to coordinator/advisor, or approved, block creating a new one
+    const activeSubmitted = props.find(
+      (p) =>
+        p.estado !== "redactando" ||
+        p.coordinadorId !== null ||
+        p.asesorId !== null
+    );
     if (activeSubmitted) {
       return {
         success: false,
-        error: `Ya tienes la Propuesta #${activeSubmitted.numero} en estado de revisión o aprobada. No puedes crear nuevas propuestas mientras una esté en proceso.`,
+        error: `Ya tienes la Propuesta #${activeSubmitted.numero} en proceso de evaluación, con coordinador/asesor asignado o enviada. No puedes crear nuevas propuestas mientras una esté activa.`,
       };
     }
 
