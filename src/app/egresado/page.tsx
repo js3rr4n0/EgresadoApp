@@ -356,17 +356,22 @@ export default async function EgresadoLandingPage() {
                     const numeroCalculado = index + 1;
                     const isCurrentActiveSubmitted = activeSubmittedProp && p.id === activeSubmittedProp.id;
                     const hasAdvisorObservations = !!p.observaciones;
-                    const isSubmittedOrLocked = p.estado !== "redactando" || (hasSubmittedPropuesta && !isCurrentActiveSubmitted);
 
-                    let actionText = "Ver Propuesta (Solo Lectura)";
-                    let actionClass = "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300";
+                    let actionText = "📄 Ver PDF Final";
+                    let actionClass = "bg-slate-900 hover:bg-slate-800 text-white font-bold";
+                    let targetUrl = `/egresado/redactar/imprimir?id=${p.id}`;
+                    let isPdf = true;
 
                     if (hasAdvisorObservations) {
                       actionText = "✏️ Ajustar Propuesta";
                       actionClass = "bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-sm";
+                      targetUrl = `/egresado/redactar?id=${p.id}`;
+                      isPdf = false;
                     } else if (p.estado === "redactando" && !hasSubmittedPropuesta) {
                       actionText = "Continuar Redacción";
                       actionClass = "bg-brand-red text-white hover:bg-brand-red-dark font-extrabold shadow-sm";
+                      targetUrl = `/egresado/redactar?id=${p.id}`;
+                      isPdf = false;
                     }
 
                     return (
@@ -398,12 +403,23 @@ export default async function EgresadoLandingPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <Link
-                            href={`/egresado/redactar?id=${p.id}`}
-                            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs ${actionClass}`}
-                          >
-                            {actionText}
-                          </Link>
+                          {isPdf ? (
+                            <a
+                              href={targetUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs ${actionClass}`}
+                            >
+                              {actionText}
+                            </a>
+                          ) : (
+                            <Link
+                              href={targetUrl}
+                              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs ${actionClass}`}
+                            >
+                              {actionText}
+                            </Link>
+                          )}
                         </td>
                       </tr>
                     );
