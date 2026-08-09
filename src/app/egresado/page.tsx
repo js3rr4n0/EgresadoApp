@@ -7,6 +7,28 @@ import DocumentGate from "@/components/DocumentGate";
 import Link from "next/link";
 import InvitationAlert from "@/components/proyecto/InvitationAlert";
 import { getUserPendingInvitations, getUserAcceptedTeamProposal } from "@/app/actions/proyecto";
+import CrearPropuestaModalButton from "@/components/CrearPropuestaModalButton";
+
+function formatFechaHoraSV(dateInput: Date | string | null) {
+  if (!dateInput) return { fecha: "N/A", hora: "N/A" };
+  const d = new Date(dateInput);
+
+  const fecha = d.toLocaleDateString("es-SV", {
+    timeZone: "America/El_Salvador",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const hora = d.toLocaleTimeString("es-SV", {
+    timeZone: "America/El_Salvador",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  return { fecha, hora };
+}
 
 export default async function EgresadoLandingPage() {
   const session = await getSession();
@@ -93,17 +115,19 @@ export default async function EgresadoLandingPage() {
     }
   }
 
+  const { fecha: fechaEnvio, hora: horaEnvio } = formatFechaHoraSV(activeSubmittedProp?.enviadaEn || null);
+
   return (
-    <div>
+    <div className="space-y-8">
       {/* Pending Invitations Alert Banner */}
       <InvitationAlert invitations={pendingInvitations} />
 
-      <div className="mb-8">
+      <div>
         <h1 className="text-2xl font-bold text-foreground">Mi Trabajo de Graduación</h1>
         <p className="text-muted mt-1 text-sm">
           {hasSubmittedPropuesta
-            ? "Su propuesta ha sido enviada exitosamente a revisión. A continuación se detallan la información general y el estado actual."
-            : "Antes de crear tu propuesta, asegúrate de cumplir con los requisitos."}
+            ? "Su propuesta ha sido enviada a revisión. A continuación se muestran los detalles oficiales y el avance del proceso."
+            : "Antes de crear tu propuesta, asegúrate de cumplir con los requisitos obligatorios."}
         </p>
       </div>
 
@@ -144,7 +168,7 @@ export default async function EgresadoLandingPage() {
           </div>
         </div>
       ) : (
-        /* Summary of Submitted Proposal Information (Replaces DocumentGate upon submission) */
+        /* Summary of Submitted Proposal Information */
         <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
           <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
             <span className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg">
@@ -155,7 +179,7 @@ export default async function EgresadoLandingPage() {
                 Información General de la Propuesta Enviada
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Detalles registrados de la institución, supervisor y fecha oficial de envío.
+                Detalles registrados de la institución, supervisor y registro oficial de envío.
               </p>
             </div>
           </div>
@@ -191,17 +215,20 @@ export default async function EgresadoLandingPage() {
               </div>
             </div>
 
-            {/* Supervisor & Fecha Envío */}
+            {/* Supervisor & Fecha / Hora Envío (SEPARATED & CONVERTED TO EL SALVADOR TIME) */}
             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
               <h3 className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
-                👤 Supervisor y Fecha de Envío
+                👤 Supervisor y Registro de Envío
               </h3>
               <div className="text-xs space-y-1">
                 <p className="font-bold text-slate-800">
-                  {activeSupervisor ? `${activeSupervisor.titulo || ''} ${activeSupervisor.nombres} ${activeSupervisor.apellidos}`.trim() : "Sin supervisor"}
+                  {activeSupervisor ? `${activeSupervisor.titulo || ''} ${activeSupervisor.nombres} ${activeSupervisor.apellidos}`.trim() : "Sin supervisor asignado"}
                 </p>
-                <p className="text-brand-red font-bold">
-                  🗓️ {activeSubmittedProp.enviadaEn ? new Date(activeSubmittedProp.enviadaEn).toLocaleString("es-SV", { dateStyle: "long", timeStyle: "short" }) : "Fecha no registrada"}
+                <p className="text-brand-red font-bold flex items-center gap-1 mt-1">
+                  <span>🗓️ Fecha de Envío:</span> <span className="capitalize">{fechaEnvio}</span>
+                </p>
+                <p className="text-slate-700 font-bold flex items-center gap-1">
+                  <span>⏰ Hora (El Salvador):</span> <span>{horaEnvio}</span>
                 </p>
               </div>
             </div>
@@ -211,7 +238,7 @@ export default async function EgresadoLandingPage() {
 
       {/* ACTIVE SUBMITTED PROPOSAL STATUS CARD */}
       {activeSubmittedProp && (
-        <div className="mt-8 bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-5">
+        <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
             <div>
               <div className="flex items-center gap-3">
@@ -256,6 +283,118 @@ export default async function EgresadoLandingPage() {
           </div>
         </div>
       )}
+
+      {/* PROPOSALS TABLE BAR - ALWAYS VISIBLE AT ALL TIMES AS REQUESTED */}
+      <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+          <div>
+            <h2 className="text-xl font-extrabold text-slate-900">
+              Mis Propuestas ({userPropuestas.length}/3)
+            </h2>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Puedes crear y redactar hasta 3 propuestas. Puedes continuar editando borradores o crear una nueva.
+            </p>
+          </div>
+
+          <CrearPropuestaModalButton
+            existingCount={userPropuestas.length}
+            isTeamMember={!!acceptedTeam}
+            isLocked={hasSubmittedPropuesta}
+          />
+        </div>
+
+        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs text-slate-500 bg-slate-50 uppercase font-extrabold border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4"># Propuesta</th>
+                  <th className="px-6 py-4">Título / Descripción</th>
+                  <th className="px-6 py-4">Modalidad</th>
+                  <th className="px-6 py-4">Estado</th>
+                  <th className="px-6 py-4 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 bg-white">
+                {acceptedTeam ? (
+                  <tr className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-6 py-4 font-bold text-slate-900">Propuesta #{acceptedTeam.propuesta.numero}</td>
+                    <td className="px-6 py-4 font-medium text-slate-800 max-w-[280px] truncate">
+                      Propuesta de Proyecto (Equipo de {acceptedTeam.liderNombre})
+                    </td>
+                    <td className="px-6 py-4 uppercase text-xs font-bold text-slate-500">
+                      {acceptedTeam.propuesta.tipo}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                        Integrante de equipo
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Link
+                        href={`/egresado/redactar?id=${acceptedTeam.propuesta.id}`}
+                        className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-slate-900 hover:bg-slate-800 text-white transition-colors"
+                      >
+                        Ver propuesta
+                      </Link>
+                    </td>
+                  </tr>
+                ) : userPropuestas.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center justify-center text-slate-400">
+                        <svg className="w-12 h-12 mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                        <p className="font-bold text-slate-700 text-sm">Aún no has creado ninguna propuesta.</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Haz clic en "Crear Nueva Propuesta" para iniciar.</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  userPropuestas.map((p, index) => {
+                    const numeroCalculado = index + 1;
+                    const isDraft = p.estado === "redactando";
+
+                    return (
+                      <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-6 py-4 font-extrabold text-brand-red">Propuesta #{numeroCalculado}</td>
+                        <td className="px-6 py-4 font-medium text-slate-800 max-w-[280px] truncate" title={p.titulo || ""}>
+                          {p.titulo || `Propuesta de Trabajo de Graduación (${p.tipo.toUpperCase()})`}
+                        </td>
+                        <td className="px-6 py-4 uppercase text-xs font-bold text-slate-500">{p.tipo}</td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
+                              isDraft
+                                ? "bg-amber-100 text-amber-800 border-amber-200"
+                                : "bg-purple-100 text-purple-800 border-purple-200"
+                            }`}
+                          >
+                            {isDraft ? "Redactando (Borrador)" : p.estado}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <Link
+                            href={`/egresado/redactar?id=${p.id}`}
+                            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs ${
+                              isDraft
+                                ? "bg-brand-red text-white hover:bg-brand-red-dark"
+                                : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300"
+                            }`}
+                          >
+                            {isDraft ? "Continuar Redacción" : "Ver Propuesta"}
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

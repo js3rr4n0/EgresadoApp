@@ -2,8 +2,29 @@ import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { propuestas, empresas, supervisores, documentosPropuesta, historialEstados, usuarios } from "@/lib/schema";
-import { eq, asc, desc, inArray } from "drizzle-orm";
+import { eq, asc, desc } from "drizzle-orm";
 import Link from "next/link";
+
+function formatFechaHoraSV(dateInput: Date | string | null) {
+  if (!dateInput) return { fecha: "N/A", hora: "N/A" };
+  const d = new Date(dateInput);
+
+  const fecha = d.toLocaleDateString("es-SV", {
+    timeZone: "America/El_Salvador",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const hora = d.toLocaleTimeString("es-SV", {
+    timeZone: "America/El_Salvador",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  return { fecha, hora };
+}
 
 export default async function HistorialPropuestaPage() {
   const session = await getSession();
@@ -91,6 +112,7 @@ export default async function HistorialPropuestaPage() {
 
       {propsWithDetails.map((p) => {
         const isSubmitted = p.estado === "enviada" || p.estado === "coordinador_asignado" || p.estado === "aprobada";
+        const { fecha: fechaEnvio, hora: horaEnvio } = formatFechaHoraSV(p.enviadaEn || null);
 
         return (
           <div key={p.id} className="bg-white border border-slate-200 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
@@ -143,12 +165,15 @@ export default async function HistorialPropuestaPage() {
                       <div className="w-10 h-10 rounded-xl bg-rose-100 text-brand-red flex items-center justify-center font-bold text-lg shrink-0">
                         📄
                       </div>
-                      <div>
+                      <div className="space-y-0.5">
                         <h4 className="font-extrabold text-slate-800 text-xs">
                           {`Propuesta_Oficial_${p.numero}.pdf`}
                         </h4>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Envío Oficial: {p.enviadaEn ? new Date(p.enviadaEn).toLocaleString("es-SV", { dateStyle: "medium", timeStyle: "short" }) : "Generado al enviar"}
+                        <p className="text-[11px] text-brand-red font-bold">
+                          🗓️ Fecha: {fechaEnvio}
+                        </p>
+                        <p className="text-[11px] text-slate-600 font-bold">
+                          ⏰ Hora (El Salvador): {horaEnvio}
                         </p>
                       </div>
                     </div>
@@ -163,32 +188,35 @@ export default async function HistorialPropuestaPage() {
                     </a>
                   </div>
 
-                  {p.pdfDocs.map((doc) => (
-                    <div key={doc.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg shrink-0">
-                          📑
+                  {p.pdfDocs.map((doc) => {
+                    const { fecha: docFecha, hora: docHora } = formatFechaHoraSV(doc.subidoEn);
+                    return (
+                      <div key={doc.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-lg shrink-0">
+                            📑
+                          </div>
+                          <div className="space-y-0.5">
+                            <h4 className="font-extrabold text-slate-800 text-xs">
+                              {doc.nombreArchivo || `PDF_Snapshot_${doc.id}.pdf`}
+                            </h4>
+                            <p className="text-[11px] text-slate-600 font-medium">
+                              🗓️ {docFecha} | ⏰ {docHora}
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-extrabold text-slate-800 text-xs">
-                            {doc.nombreArchivo || `PDF_Snapshot_${doc.id}.pdf`}
-                          </h4>
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            Fecha: {doc.subidoEn ? new Date(doc.subidoEn).toLocaleString("es-SV", { dateStyle: "medium", timeStyle: "short" }) : "N/A"}
-                          </p>
-                        </div>
-                      </div>
 
-                      <a
-                        href={doc.archivoUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-xs transition-colors shrink-0"
-                      >
-                        Descargar
-                      </a>
-                    </div>
-                  ))}
+                        <a
+                          href={doc.archivoUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 font-bold text-xs transition-colors shrink-0"
+                        >
+                          Descargar
+                        </a>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
@@ -205,27 +233,31 @@ export default async function HistorialPropuestaPage() {
 
               {p.historial.length > 0 ? (
                 <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
-                  {p.historial.map((h) => (
-                    <div key={h.id} className="p-3.5 bg-slate-50/50 flex items-center justify-between text-xs gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="w-2 h-2 rounded-full bg-slate-400"></span>
-                        <div>
-                          <span className="font-bold text-slate-800">
-                            Cambio de estado: <span className="text-slate-500 font-normal">{h.de}</span> → <strong className="text-brand-red">{h.a}</strong>
-                          </span>
-                          {h.usuarioNombre && (
-                            <span className="text-slate-500 block text-[11px]">
-                              Por: {h.usuarioNombre}
+                  {p.historial.map((h) => {
+                    const { fecha: hFecha, hora: hHora } = formatFechaHoraSV(h.creadoEn);
+                    return (
+                      <div key={h.id} className="p-3.5 bg-slate-50/50 flex items-center justify-between text-xs gap-4">
+                        <div className="flex items-center gap-3">
+                          <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+                          <div>
+                            <span className="font-bold text-slate-800">
+                              Cambio de estado: <span className="text-slate-500 font-normal">{h.de}</span> → <strong className="text-brand-red">{h.a}</strong>
                             </span>
-                          )}
+                            {h.usuarioNombre && (
+                              <span className="text-slate-500 block text-[11px]">
+                                Por: {h.usuarioNombre}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] text-slate-500 font-medium text-right shrink-0">
+                          <div>🗓️ {hFecha}</div>
+                          <div>⏰ {hHora}</div>
                         </div>
                       </div>
-
-                      <span className="text-[11px] text-slate-400 font-medium shrink-0">
-                        {h.creadoEn ? new Date(h.creadoEn).toLocaleString("es-SV", { dateStyle: "medium", timeStyle: "short" }) : "N/A"}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-xs text-slate-400 font-medium italic">Sin cambios de estado registrados en el historial.</p>
