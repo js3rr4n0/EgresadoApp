@@ -498,4 +498,67 @@ export const documentosPropuesta = pgTable(
   ]
 );
 
+// ─────────────────────────── Informes de Seguimiento — Hito 1: Primer Contacto ───────────────────────────
+
+export const informesPrimerContacto = pgTable(
+  "informes_primer_contacto",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .unique()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    asesorId: integer("asesor_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    supervisorId: integer("supervisor_id")
+      .notNull()
+      .references(() => supervisores.id, { onDelete: "cascade" }),
+
+    // Estado del informe
+    estado: varchar("estado", { length: 20 }).notNull().default("borrador"), // 'borrador', 'enviado', 'anulado'
+
+    // Metadatos de cumplimiento congelados
+    fechaLimite: timestamp("fecha_limite", { withTimezone: true }).notNull(),
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }),
+    cumplimiento: varchar("cumplimiento", { length: 25 }), // 'a_tiempo', 'fuera_de_tiempo'
+    desviacionDias: integer("desviacion_dias"),
+
+    // Pantalla 1: Verificación de Interlocutor
+    contactoPrevio: boolean("contacto_previo"),
+    medioContacto: varchar("medio_contacto", { length: 50 }), // Para rama SÍ: 'llamada', 'correo', 'videollamada', 'whatsapp', 'visita'
+    fechaCita: date("fecha_cita"), // Para rama NO
+    modalidadCita: varchar("modalidad_cita", { length: 50 }), // Para rama NO: 'visita_fisica', 'videollamada'
+    evidenciaUrls: jsonb("evidencia_urls"), // Array de URLs de archivos subidos
+
+    // Pantalla 2: Guion y Acuerdos
+    objetivosEntrevista: jsonb("objetivos_entrevista"), // Array de strings
+    mecanismosComunicacion: jsonb("mecanismos_comunicacion"), // Array de strings
+    aceptaInformesMensuales: boolean("acepta_informes_mensuales"),
+
+    // Campo Crítico: Validación de Actividades
+    resultadoValidacion: varchar("resultado_validacion", { length: 30 }), // 'aprobada', 'con_modificaciones', 'rechazada'
+    justificacionResultado: text("justificacion_resultado"),
+
+    // Anulación administrativa
+    anuladoPor: integer("anulado_por").references(() => usuarios.id),
+    anuladoEn: timestamp("anulado_en", { withTimezone: true }),
+    motivoAnulacion: text("motivo_anulacion"),
+
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    check(
+      "estado_informe_check",
+      sql`${table.estado} IN ('borrador', 'enviado', 'anulado')`
+    ),
+    check(
+      "resultado_validacion_check",
+      sql`${table.resultadoValidacion} IS NULL OR ${table.resultadoValidacion} IN ('aprobada', 'con_modificaciones', 'rechazada')`
+    ),
+  ]
+);
+
+
 

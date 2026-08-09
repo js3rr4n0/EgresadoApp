@@ -204,6 +204,13 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
+          <Link
+            href={`/asesor/informes/primer-contacto/${propuesta.id}`}
+            className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-300 font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs active:scale-95"
+          >
+            <span>📋 Informe Primer Contacto (Hito 1)</span>
+          </Link>
+
           <button
             type="button"
             onClick={handleAprobarOK}
