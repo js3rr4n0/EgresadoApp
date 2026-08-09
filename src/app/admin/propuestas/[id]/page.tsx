@@ -13,6 +13,7 @@ import {
 } from "@/lib/schema";
 import { getEquipoProyecto, getDetallesProyecto } from "@/app/actions/proyecto";
 import { getCoordinadoresConEstadisticas } from "@/app/actions/adminPropuestas";
+import { getHistorialCompletoProyecto } from "@/app/actions/coordinador";
 import { eq, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -99,15 +100,8 @@ export default async function AdminPropuestaReviewPage({
     ? await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId))
     : [];
 
-  const historialList = await db
-    .select({
-      historial: historialEstados,
-      usuario: usuarios,
-    })
-    .from(historialEstados)
-    .leftJoin(usuarios, eq(historialEstados.usuarioId, usuarios.id))
-    .where(eq(historialEstados.propuestaId, propuesta.id))
-    .orderBy(asc(historialEstados.creadoEn));
+  const historialRes = await getHistorialCompletoProyecto(propuesta.id);
+  const historialList = historialRes.success ? historialRes.data : [];
 
   const coordRes = await getCoordinadoresConEstadisticas(propuesta.empresaId);
   const coordinadoresList = coordRes.success ? coordRes.data : [];
@@ -494,18 +488,7 @@ export default async function AdminPropuestaReviewPage({
           />
 
           {/* HISTORIAL DE ACCIONES Y CAMBIOS DEL PROYECTO (ACORDEÓN COLAPSABLE) */}
-          <HistorialProyectoAccordion
-            historial={historialList.map((h) => ({
-              id: h.historial.id,
-              usuarioNombre: h.usuario ? `${h.usuario.nombreCompleto} (${h.usuario.rol})` : "Sistema",
-              de: h.historial.de,
-              a: h.historial.a,
-              fechaStr: new Date(h.historial.creadoEn || "").toLocaleString("es-SV", {
-                dateStyle: "short",
-                timeStyle: "short",
-              }),
-            }))}
-          />
+          <HistorialProyectoAccordion historial={historialList} />
         </div>
       </div>
     </div>

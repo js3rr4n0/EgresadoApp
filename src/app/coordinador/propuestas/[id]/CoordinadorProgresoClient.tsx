@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import DocumentosPropuestaSection from "@/components/coordinador/DocumentosPropuestaSection";
+import HistorialProyectoAccordion from "@/components/HistorialProyectoAccordion";
 
 interface CoordinadorProgresoClientProps {
   data: {
@@ -563,51 +564,8 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
 
       {/* ────────────────── TAB 6: HISTÓRICO DE CAMBIOS ────────────────── */}
       {activeTab === "historial" && (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8 space-y-4">
-          <h2 className="text-lg font-bold text-slate-900 border-b border-slate-200 pb-3 uppercase tracking-wider text-xs">
-            Histórico de Acciones y Cambios de Estado
-          </h2>
-
-          {historial.length === 0 ? (
-            <div className="py-12 text-center text-slate-500 text-sm">
-              No hay eventos registrados en el historial aún.
-            </div>
-          ) : (
-            <div className="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-rose-200 pl-6">
-              {historial.map((h: any, idx: number) => {
-                let fechaStr = "Fecha no disponible";
-                if (h?.creadoEn) {
-                  try {
-                    const d = new Date(h.creadoEn);
-                    if (!isNaN(d.getTime())) {
-                      fechaStr = d.toLocaleDateString("es-SV", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
-                    }
-                  } catch (e) {}
-                }
-
-                return (
-                  <div key={h?.id || idx} className="relative flex items-start gap-3 text-xs">
-                    <div className="w-3 h-3 rounded-full bg-brand-red ring-4 ring-rose-50 mt-1 shrink-0 -ml-5 z-10" />
-                    <div className="w-full bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-1 shadow-2xs">
-                      <div className="flex items-center justify-between text-slate-500 text-[11px]">
-                        <span className="font-bold text-slate-700">{h?.usuarioNombre || "Sistema"}</span>
-                        <span>{fechaStr}</span>
-                      </div>
-                      <p className="font-extrabold text-slate-900">
-                        Cambio de estado: <span className="text-rose-700">{h?.de || "N/A"}</span> → <span className="text-emerald-700">{h?.a || "N/A"}</span>
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <div className="space-y-4">
+          <HistorialProyectoAccordion historial={historial} />
         </div>
       )}
     </div>

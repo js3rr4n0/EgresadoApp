@@ -503,19 +503,10 @@ export async function getDetallePropuestaCoordinador(propuestaId: number) {
 
     let historialList: any[] = [];
     try {
-      historialList = await db
-        .select({
-          id: historialEstados.id,
-          de: historialEstados.de,
-          a: historialEstados.a,
-          creadoEn: historialEstados.creadoEn,
-          usuarioNombre: usuarios.nombreCompleto,
-          usuarioRol: usuarios.rol,
-        })
-        .from(historialEstados)
-        .leftJoin(usuarios, eq(historialEstados.usuarioId, usuarios.id))
-        .where(eq(historialEstados.propuestaId, propuestaId))
-        .orderBy(asc(historialEstados.creadoEn));
+      const hRes = await getHistorialCompletoProyecto(propuestaId);
+      if (hRes.success) {
+        historialList = hRes.data;
+      }
     } catch (e) {}
 
     return {
@@ -834,6 +825,179 @@ export async function responderAsignacionCoordinador(
   } catch (error: any) {
     console.error("Error al responder asignación de coordinador:", error);
     return { success: false, error: "Error interno: " + error.message };
+  }
+}
+
+/**
+ * Fetch full comprehensive history timeline for a proposal (Status changes, coordinator reassignments, advisor requests, acceptances/rejections with justification, and documents).
+ */
+export async function getHistorialCompletoProyecto(propuestaId: number) {
+  try {
+    const events: Array<{
+      id: string | number;
+      fecha: Date;
+      fechaStr: string;
+      usuarioNombre: string;
+      rol: string;
+      titulo: string;
+      detalle?: string;
+      de?: string;
+      a?: string;
+      tipoEvento: "estado" | "coordinador" | "asesor" | "documento" | "baja";
+    }> = [];
+
+    // 1. Raw historialEstados entries
+    const histRows = await db
+      .select({
+        historial: historialEstados,
+        usuario: usuarios,
+      })
+      .from(historialEstados)
+      .leftJoin(usuarios, eq(historialEstados.usuarioId, usuarios.id))
+      .where(eq(historialEstados.propuestaId, propuestaId))
+      .orderBy(asc(historialEstados.creadoEn));
+
+    for (const h of histRows) {
+      const u = h.usuario;
+      const uNombre = u ? `${u.nombreCompleto} (${u.rol})` : "Sistema";
+      const uRol = u ? u.rol : "sistema";
+      const d = h.historial.creadoEn ? new Date(h.historial.creadoEn) : new Date();
+
+      let titulo = `Cambio de estado: ${h.historial.de} ➔ ${h.historial.a}`;
+      let tipoEvento: "estado" | "coordinador" | "asesor" | "documento" | "baja" = "estado";
+
+      if (h.historial.a.startsWith("coordinador_asignado") || h.historial.a.startsWith("coordinador_reasignado")) {
+        titulo = "Asignación / Reasignación de Coordinador de Facultad";
+        tipoEvento = "coordinador";
+      } else if (h.historial.a.startsWith("asesor_asignado") || h.historial.a === "solicitud_asesor_enviada") {
+        titulo = "Solicitud de Asesoría enviada al docente";
+        tipoEvento = "asesor";
+      } else if (h.historial.a.startsWith("asesor_acepto")) {
+        titulo = "✅ Solicitud de Asesoría ACEPTADA por el docente";
+        tipoEvento = "asesor";
+      } else if (h.historial.a.startsWith("asesor_rechazo")) {
+        const parts = h.historial.a.split(":");
+        const just = parts.slice(1).join(":");
+        titulo = `❌ Solicitud de Asesoría RECHAZADA por el docente${just ? `: "${just}"` : ""}`;
+        tipoEvento = "asesor";
+      }
+
+      events.push({
+        id: `hist_${h.historial.id}`,
+        fecha: d,
+        fechaStr: d.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+        usuarioNombre: uNombre,
+        rol: uRol,
+        titulo,
+        de: h.historial.de,
+        a: h.historial.a,
+        tipoEvento,
+      });
+    }
+
+    // 2. Solicitudes de Asesor (Advisor requests, acceptances, rejections)
+    const solAsesor = await db
+      .select({
+        solicitud: solicitudesAsesor,
+        asesor: usuarios,
+      })
+      .from(solicitudesAsesor)
+      .innerJoin(usuarios, eq(solicitudesAsesor.asesorId, usuarios.id))
+      .where(eq(solicitudesAsesor.propuestaId, propuestaId));
+
+    for (const sa of solAsesor) {
+      const createdDate = sa.solicitud.creadaEn ? new Date(sa.solicitud.creadaEn) : new Date();
+      events.push({
+        id: `sol_asesor_sent_${sa.solicitud.id}`,
+        fecha: createdDate,
+        fechaStr: createdDate.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+        usuarioNombre: "Coordinación de Facultad",
+        rol: "coordinador",
+        titulo: `Solicitud de asesoría enviada/asignada a ${sa.asesor.nombreCompleto}`,
+        detalle: `Estado de la solicitud: ${sa.solicitud.estado.toUpperCase()}`,
+        de: "coordinador_asignado",
+        a: "solicitud_asesor_enviada",
+        tipoEvento: "asesor",
+      });
+
+      if (sa.solicitud.respondidoEn) {
+        const respDate = new Date(sa.solicitud.respondidoEn);
+        const isAceptada = sa.solicitud.estado === "aceptada";
+        events.push({
+          id: `sol_asesor_resp_${sa.solicitud.id}`,
+          fecha: respDate,
+          fechaStr: respDate.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+          usuarioNombre: `${sa.asesor.nombreCompleto} (asesor)`,
+          rol: "asesor",
+          titulo: isAceptada
+            ? `✅ Asesoría ACEPTADA por ${sa.asesor.nombreCompleto}`
+            : `❌ Asesoría RECHAZADA por ${sa.asesor.nombreCompleto}`,
+          detalle: isAceptada
+            ? "El docente ha aceptado asesorar el proyecto/pasantía del estudiante."
+            : `Justificación del rechazo: "${sa.solicitud.justificacionRechazo || "Sin motivo especificado"}"`,
+          de: "solicitud_asesor_enviada",
+          a: isAceptada ? "asesor_acepto" : "asesor_rechazo",
+          tipoEvento: "asesor",
+        });
+      }
+    }
+
+    // 3. Solicitudes de Baja de Proyecto
+    const solBaja = await db
+      .select({
+        baja: solicitudesBaja,
+        asesor: usuarios,
+      })
+      .from(solicitudesBaja)
+      .innerJoin(usuarios, eq(solicitudesBaja.asesorId, usuarios.id))
+      .where(eq(solicitudesBaja.propuestaId, propuestaId));
+
+    for (const sb of solBaja) {
+      const createdDate = sb.baja.creadaEn ? new Date(sb.baja.creadaEn) : new Date();
+      events.push({
+        id: `sol_baja_created_${sb.baja.id}`,
+        fecha: createdDate,
+        fechaStr: createdDate.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+        usuarioNombre: `${sb.asesor.nombreCompleto} (asesor)`,
+        rol: "asesor",
+        titulo: "⚠️ Solicitud de Baja de Proyecto enviada por Asesor",
+        detalle: `Motivo expuesto: "${sb.baja.motivo}"`,
+        de: "aprobada",
+        a: "solicitud_baja",
+        tipoEvento: "baja",
+      });
+
+      if (sb.baja.respondidoEn) {
+        const respDate = new Date(sb.baja.respondidoEn);
+        events.push({
+          id: `sol_baja_resp_${sb.baja.id}`,
+          fecha: respDate,
+          fechaStr: respDate.toLocaleString("es-SV", { dateStyle: "short", timeStyle: "short" }),
+          usuarioNombre: "Coordinación de Facultad",
+          rol: "coordinador",
+          titulo: sb.baja.estado === "aprobada" ? "🚫 Baja del Proyecto APROBADA" : "ℹ️ Solicitud de Baja RECHAZADA",
+          detalle: sb.baja.respuestaCoordinador ? `Respuesta: "${sb.baja.respuestaCoordinador}"` : undefined,
+          de: "solicitud_baja",
+          a: sb.baja.estado === "aprobada" ? "anulada" : "aprobada",
+          tipoEvento: "baja",
+        });
+      }
+    }
+
+    // Deduplicate events by id
+    const uniqueEventsMap = new Map<string, typeof events[0]>();
+    for (const ev of events) {
+      uniqueEventsMap.set(String(ev.id), ev);
+    }
+    const resultEvents = Array.from(uniqueEventsMap.values());
+
+    // Sort chronologically (oldest to newest)
+    resultEvents.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
+
+    return { success: true, data: resultEvents };
+  } catch (error: any) {
+    console.error("Error al obtener historial completo del proyecto:", error);
+    return { success: false, error: error.message, data: [] };
   }
 }
 
