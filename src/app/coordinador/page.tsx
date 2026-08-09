@@ -33,6 +33,12 @@ export default async function CoordinadorPage() {
       asesores={asesores}
       solicitudesBaja={solicitudesBaja}
       isAdmin={session.rol === "admin"}
+      usuario={{
+        id: session.userId,
+        nombreCompleto: session.nombreCompleto,
+        correo: session.correo,
+        rol: session.rol,
+      }}
     />
   );
 }

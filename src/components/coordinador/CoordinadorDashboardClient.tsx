@@ -66,6 +66,12 @@ interface Props {
   asesores: Asesor[];
   solicitudesBaja: SolicitudBaja[];
   isAdmin?: boolean;
+  usuario?: {
+    id: number;
+    nombreCompleto: string;
+    correo: string;
+    rol: string;
+  } | null;
 }
 
 export default function CoordinadorDashboardClient({
@@ -74,6 +80,7 @@ export default function CoordinadorDashboardClient({
   asesores,
   solicitudesBaja,
   isAdmin = false,
+  usuario,
 }: Props) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"pendientes" | "asignadas" | "bajas">("pendientes");
@@ -92,7 +99,7 @@ export default function CoordinadorDashboardClient({
       setModalTab("docs");
       setCanApproveModal(false);
       getDetallePropuestaCoordinador(viewingDocPropuesta.id).then((res) => {
-        if (res.success && res.data) {
+        if (res && res.success && res.data) {
           setDocDetails(res.data);
         }
         setLoadingDocDetails(false);
@@ -129,16 +136,16 @@ export default function CoordinadorDashboardClient({
     );
     setAssigning(false);
 
-    if (res.success) {
+    if (res && res.success) {
       alert(res.message);
       setSelectedPropuesta(null);
       router.refresh();
     } else {
-      alert(res.error || "Error al asignar la propuesta.");
+      alert(res?.error || "Error al asignar la propuesta.");
     }
   };
 
-  // Modal / Confirm para rechazar asignacion de Admin
+  // Modal / Confirm para rechazar asignación de Admin
   const [rejectingPropuesta, setRejectingPropuesta] = useState<PropuestaPendiente | null>(null);
   const [motivoRechazoAdmin, setMotivoRechazoAdmin] = useState("");
   const [processingAssignResp, setProcessingAssignResp] = useState(false);
@@ -148,11 +155,11 @@ export default function CoordinadorDashboardClient({
     setProcessingAssignResp(true);
     const res = await responderAsignacionCoordinador(prop.id, true);
     setProcessingAssignResp(false);
-    if (res.success) {
+    if (res && res.success) {
       alert(res.message);
       router.refresh();
     } else {
-      alert(res.error || "Error al aceptar la propuesta.");
+      alert(res?.error || "Error al aceptar la propuesta.");
     }
   };
 
@@ -161,13 +168,13 @@ export default function CoordinadorDashboardClient({
     setProcessingAssignResp(true);
     const res = await responderAsignacionCoordinador(rejectingPropuesta.id, false, motivoRechazoAdmin);
     setProcessingAssignResp(false);
-    if (res.success) {
+    if (res && res.success) {
       alert(res.message);
       setRejectingPropuesta(null);
       setMotivoRechazoAdmin("");
       router.refresh();
     } else {
-      alert(res.error || "Error al rechazar la asignación.");
+      alert(res?.error || "Error al rechazar la asignación.");
     }
   };
 
@@ -185,18 +192,52 @@ export default function CoordinadorDashboardClient({
     );
     setProcessingBaja(false);
 
-    if (res.success) {
+    if (res && res.success) {
       alert(res.message);
       setSelectedBaja(null);
       setRespuestaBaja("");
       router.refresh();
     } else {
-      alert(res.error || "Error al procesar la solicitud de baja.");
+      alert(res?.error || "Error al procesar la solicitud de baja.");
     }
   };
 
   return (
     <div className="space-y-8">
+      {/* Banner de Identidad del Usuario Logueado */}
+      {usuario && (
+        <div className="bg-slate-900 text-white p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md border border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-brand-red text-white flex items-center justify-center font-extrabold text-sm shadow-xs">
+              {usuario.nombreCompleto ? usuario.nombreCompleto.charAt(0).toUpperCase() : "U"}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="font-extrabold text-sm text-white">{usuario.nombreCompleto}</p>
+                <span className="text-[10px] bg-rose-500/20 text-rose-300 font-extrabold px-2 py-0.5 rounded-full border border-rose-500/30">
+                  {usuario.rol.toUpperCase()}
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 font-mono">{usuario.correo}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <span className="px-3 py-1 bg-amber-500/20 text-amber-300 rounded-full font-bold text-xs border border-amber-500/40">
+                🛡️ Modo Administrador Activo
+              </span>
+            )}
+            <Link
+              href={isAdmin ? "/admin" : "/coordinador"}
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 transition-colors"
+            >
+              Recargar Estado
+            </Link>
+          </div>
+        </div>
+      )}
+
       {isAdmin && (
         <div className="bg-amber-50 border border-amber-300 text-amber-950 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3">
@@ -306,20 +347,26 @@ export default function CoordinadorDashboardClient({
                     <th className="p-4">Modalidad</th>
                     <th className="p-4">Estudiante / Equipo</th>
                     <th className="p-4">Título de la Propuesta</th>
-                    <th className="p-4 text-center">PDF Propuesta</th>
+                    <th className="p-4 text-center">Documentos & PDF</th>
                     <th className="p-4 text-center">Estado Asesoría</th>
                     <th className="p-4 text-right rounded-tr-lg">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {pendientes.map((prop) => {
-                    const fechaStr = prop.fechaAprobacion
-                      ? new Date(prop.fechaAprobacion).toLocaleDateString("es-SV", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "N/A";
+                    let fechaStr = "N/A";
+                    if (prop.fechaAprobacion) {
+                      try {
+                        const d = new Date(prop.fechaAprobacion);
+                        if (!isNaN(d.getTime())) {
+                          fechaStr = d.toLocaleDateString("es-SV", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          });
+                        }
+                      } catch (e) {}
+                    }
 
                     return (
                       <tr key={prop.id} className="hover:bg-slate-50 transition-colors">
@@ -339,15 +386,21 @@ export default function CoordinadorDashboardClient({
                           {prop.titulo}
                         </td>
                         <td className="p-4 text-center">
-                          <Link
-                            href={`/coordinador/propuestas/${prop.id}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-brand-red text-xs font-bold rounded-lg border border-rose-200 transition-all cursor-pointer shadow-xs active:scale-95"
-                          >
-                            <svg className="w-4 h-4 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            Ver Documento
-                          </Link>
+                          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => setViewingDocPropuesta(prop)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-brand-red text-xs font-bold rounded-lg border border-rose-200 transition-all cursor-pointer shadow-xs active:scale-95"
+                            >
+                              📄 Ver Documentos
+                            </button>
+                            <Link
+                              href={`/coordinador/propuestas/${prop.id}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg border border-slate-300 transition-all"
+                              title="Abrir vista completa en nueva página"
+                            >
+                              ↗ Página
+                            </Link>
+                          </div>
                         </td>
                         <td className="p-4 text-center">
                           {prop.solicitudActual ? (
@@ -380,13 +433,13 @@ export default function CoordinadorDashboardClient({
                         </td>
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-2 flex-wrap">
-                            <Link
-                              href={`/coordinador/propuestas/${prop.id}`}
-                              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow-xs transition-colors inline-flex items-center gap-1"
+                            <button
+                              onClick={() => setViewingDocPropuesta(prop)}
+                              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow-xs transition-colors inline-flex items-center gap-1 cursor-pointer"
                               title="Revisar detalles y documentos de validación"
                             >
                               📄 Revisar / Docs
-                            </Link>
+                            </button>
 
                             <button
                               onClick={() => handleOpenAssignModal(prop)}
@@ -405,7 +458,7 @@ export default function CoordinadorDashboardClient({
                               className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold text-xs rounded-lg transition-colors inline-flex items-center gap-1"
                               title="Exportar solo Diagrama de Gantt (PDF 1 pág)"
                             >
-                              📊 Gantt (1 pág)
+                              📊 Gantt
                             </a>
                           </div>
                         </td>
@@ -423,50 +476,47 @@ export default function CoordinadorDashboardClient({
       {activeTab === "asignadas" && (
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
           <div className="mb-6">
-            <h2 className="text-xl font-bold text-slate-900">Mis Propuestas Asignadas</h2>
+            <h2 className="text-xl font-bold text-slate-900">Propuestas en Desarrollo (Asesor Asignado)</h2>
             <p className="text-slate-500 text-sm">
-              Listado de proyectos en desarrollo cuyos asesores aceptaron la solicitud de seguimiento.
+              Proyectos cuyo asesor ha sido aceptado y están en fase activa de ejecución.
             </p>
           </div>
 
           {asignadas.length === 0 ? (
             <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50">
               <svg className="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
-              <p className="text-slate-600 font-semibold">Aún no tienes propuestas asignadas activas</p>
-              <p className="text-xs text-slate-400 mt-1">
-                Cuando el coordinador o asesor acepte la solicitud en &quot;VER SOLICITUDES DE PROPUESTA&quot;, aparecerá en esta tabla.
-              </p>
+              <p className="text-slate-600 font-semibold">No hay propuestas asignadas activas</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
-                    <th className="p-4 rounded-tl-lg">Asesor</th>
-                    <th className="p-4">Estudiante/s</th>
-                    <th className="p-4">Título</th>
+                    <th className="p-4 rounded-tl-lg">Propuesta / Título</th>
+                    <th className="p-4">Estudiante / Equipo</th>
+                    <th className="p-4">Asesor Asignado</th>
                     <th className="p-4">Modalidad</th>
-                    <th className="p-4">Fecha de inicio</th>
-                    <th className="p-4">Fecha de Fin</th>
-                    <th className="p-4 text-right rounded-tr-lg">Acciones</th>
+                    <th className="p-4">Inicio</th>
+                    <th className="p-4">Fin Est.</th>
+                    <th className="p-4 text-right rounded-tr-lg">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {asignadas.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-4 font-bold text-slate-900">
-                        {item.asesorNombre}
-                      </td>
-                      <td className="p-4 font-medium text-slate-800 max-w-[200px]">
-                        {item.estudiantes}
-                      </td>
-                      <td className="p-4 font-semibold text-slate-900 max-w-[260px]">
+                      <td className="p-4 font-bold text-slate-900 max-w-[240px]">
                         {item.titulo}
                       </td>
+                      <td className="p-4 font-medium text-slate-800">
+                        {item.estudiantes}
+                      </td>
+                      <td className="p-4 font-bold text-brand-red">
+                        {item.asesorNombre}
+                      </td>
                       <td className="p-4">
-                        <span className="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <span className="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase bg-rose-50 text-brand-red border border-rose-200">
                           {item.tipo}
                         </span>
                       </td>
@@ -477,16 +527,32 @@ export default function CoordinadorDashboardClient({
                         {item.fechaFin}
                       </td>
                       <td className="p-4 text-right">
-                        <Link
-                          href={`/coordinador/propuestas/${item.id}`}
-                          className="px-4 py-2 bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          Ver Progreso
-                        </Link>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() =>
+                              setViewingDocPropuesta({
+                                id: item.id,
+                                numero: item.numero,
+                                tipo: item.tipo,
+                                titulo: item.titulo,
+                                fechaAprobacion: null,
+                                estudiantes: item.estudiantes,
+                                carrera: "",
+                                asesorAsignadoId: null,
+                                solicitudActual: null,
+                              })
+                            }
+                            className="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow-xs transition-colors"
+                          >
+                            📄 Docs / Modal
+                          </button>
+                          <Link
+                            href={`/coordinador/propuestas/${item.id}`}
+                            className="px-3.5 py-2 bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold rounded-lg shadow-sm transition-colors inline-flex items-center gap-1.5"
+                          >
+                            ↗ Ver Progreso Completo
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -530,11 +596,19 @@ export default function CoordinadorDashboardClient({
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {solicitudesBaja.map((baja) => {
-                    const fechaStr = new Date(baja.creadaEn).toLocaleDateString("es-SV", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    });
+                    let fechaStr = "N/A";
+                    if (baja.creadaEn) {
+                      try {
+                        const d = new Date(baja.creadaEn);
+                        if (!isNaN(d.getTime())) {
+                          fechaStr = d.toLocaleDateString("es-SV", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          });
+                        }
+                      } catch (e) {}
+                    }
 
                     return (
                       <tr key={baja.id} className="hover:bg-slate-50 transition-colors">
@@ -550,26 +624,25 @@ export default function CoordinadorDashboardClient({
                                 ? "bg-amber-100 text-amber-800 border border-amber-300"
                                 : baja.estado === "aprobada"
                                 ? "bg-rose-100 text-rose-800 border border-rose-300"
-                                : "bg-slate-100 text-slate-600 border border-slate-300"
+                                : "bg-emerald-100 text-emerald-800 border border-emerald-300"
                             }`}
                           >
-                            {baja.estado === "pendiente"
-                              ? "Pendiente Revisión"
-                              : baja.estado === "aprobada"
-                              ? "Dada de Baja (Anulada)"
-                              : "Rechazada"}
+                            {baja.estado.toUpperCase()}
                           </span>
                         </td>
-                        <td className="p-4 text-right whitespace-nowrap">
+                        <td className="p-4 text-right">
                           {baja.estado === "pendiente" ? (
                             <button
-                              onClick={() => setSelectedBaja(baja)}
-                              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+                              onClick={() => {
+                                setSelectedBaja(baja);
+                                setRespuestaBaja("");
+                              }}
+                              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg shadow-xs transition-colors"
                             >
-                              Evaluar Baja
+                              Resolver Solicitud
                             </button>
                           ) : (
-                            <span className="text-xs text-slate-400 font-semibold">Procesada</span>
+                            <span className="text-xs text-slate-400 italic">Resuelto</span>
                           )}
                         </td>
                       </tr>
@@ -582,111 +655,37 @@ export default function CoordinadorDashboardClient({
         </div>
       )}
 
-      {/* ────────────────── MODAL: REVISIÓN COMPLETA Y DOCUMENTO PDF DE LA PROPUESTA ────────────────── */}
+      {/* ────────────────── MODAL: VER DOCUMENTOS Y REVISIÓN COMPLETA ────────────────── */}
       {viewingDocPropuesta && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
-          <div className="bg-white rounded-2xl max-w-6xl w-full h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Top Header */}
-            <div className="p-4 bg-brand-red text-white flex flex-wrap items-center justify-between gap-3 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold text-lg">
-                  📄
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="p-6 bg-slate-900 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-brand-red text-white">
+                    {viewingDocPropuesta.tipo}
+                  </span>
+                  <h3 className="text-lg font-extrabold text-white">
+                    Revisión de Propuesta #{viewingDocPropuesta.numero}
+                  </h3>
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-sm sm:text-base leading-tight">
-                      Revisión de Propuesta #{viewingDocPropuesta.numero}
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-white/20 text-white">
-                      {viewingDocPropuesta.tipo}
-                    </span>
-                  </div>
-                  <p className="text-xs text-white/90 truncate max-w-lg mt-0.5">
-                    {viewingDocPropuesta.titulo}
-                  </p>
-                </div>
+                <p className="text-xs text-slate-300 mt-1 max-w-xl truncate font-medium">
+                  {viewingDocPropuesta.titulo}
+                </p>
               </div>
 
-              {/* Action Buttons inside Modal */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={() => {
-                    const prop = viewingDocPropuesta;
-                    setViewingDocPropuesta(null);
-                    handleAceptarAsignacion(prop);
-                  }}
-                  disabled={!canApproveModal || processingAssignResp}
-                  className={`px-3 py-1.5 text-white text-xs font-bold rounded-lg shadow-xs transition-all inline-flex items-center gap-1 ${
-                    canApproveModal && !processingAssignResp
-                      ? "bg-emerald-600 hover:bg-emerald-700 cursor-pointer"
-                      : "bg-slate-500/70 opacity-60 cursor-not-allowed"
-                  }`}
-                  title={
-                    canApproveModal
-                      ? "Aceptar coordinar esta propuesta"
-                      : "🔒 Deshabilitado: Debe subir los 4 documentos obligatorios para Aceptar/Rechazar"
-                  }
-                >
-                  ✓ Aceptar
-                </button>
-                <button
-                  onClick={() => {
-                    const prop = viewingDocPropuesta;
-                    setViewingDocPropuesta(null);
-                    setRejectingPropuesta(prop);
-                    setMotivoRechazoAdmin("");
-                  }}
-                  disabled={!canApproveModal || processingAssignResp}
-                  className={`px-3 py-1.5 text-white text-xs font-bold rounded-lg shadow-xs transition-all inline-flex items-center gap-1 ${
-                    canApproveModal && !processingAssignResp
-                      ? "bg-rose-700 hover:bg-rose-800 cursor-pointer"
-                      : "bg-slate-500/70 opacity-60 cursor-not-allowed"
-                  }`}
-                  title={
-                    canApproveModal
-                      ? "Rechazar asignación y devolver a Pendiente de Revisión"
-                      : "🔒 Deshabilitado: Debe subir los 4 documentos obligatorios para Aceptar/Rechazar"
-                  }
-                >
-                  ✕ Rechazar
-                </button>
-                <button
-                  onClick={() => {
-                    const prop = viewingDocPropuesta;
-                    setViewingDocPropuesta(null);
-                    handleOpenAssignModal(prop);
-                  }}
-                  className="px-3 py-1.5 bg-white text-brand-red hover:bg-rose-50 text-xs font-bold rounded-lg shadow-xs transition-all inline-flex items-center gap-1"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                  </svg>
-                  {viewingDocPropuesta.solicitudActual?.estado === "rechazada" ? "Reasignar Asesor" : "Asignar Asesor"}
-                </button>
-                <a
-                  href={`/admin/propuestas/${viewingDocPropuesta.id}/imprimir?ganttOnly=true`}
+              <div className="flex items-center gap-3">
+                <Link
+                  href={`/coordinador/propuestas/${viewingDocPropuesta.id}`}
                   target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1 shadow-2xs"
-                  title="Exportar Diagrama de Gantt en 1 sola página PDF"
+                  className="bg-brand-red hover:bg-brand-red-dark text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-colors shadow-xs inline-flex items-center gap-1"
                 >
-                  📊 Exportar Gantt (PDF 1 pág)
-                </a>
-                <a
-                  href={`/coordinador/propuestas/${viewingDocPropuesta.id}/imprimir`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  Nueva Pestaña
-                </a>
+                  ↗ Abrir Página Completa
+                </Link>
                 <button
                   onClick={() => setViewingDocPropuesta(null)}
-                  className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-white font-bold text-sm"
-                  title="Cerrar Modal"
+                  className="text-slate-400 hover:text-white text-xl font-bold p-1 transition-colors"
                 >
                   ✕
                 </button>
@@ -694,7 +693,7 @@ export default function CoordinadorDashboardClient({
             </div>
 
             {/* Modal Tabs Bar */}
-            <div className="bg-slate-100 border-b border-slate-200 px-4 pt-3 flex gap-2 shrink-0 flex-wrap">
+            <div className="bg-slate-100 border-b border-slate-200 px-6 pt-3 flex gap-2 overflow-x-auto">
               <button
                 onClick={() => setModalTab("docs")}
                 className={`px-4 py-2.5 rounded-t-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
@@ -707,17 +706,14 @@ export default function CoordinadorDashboardClient({
               </button>
 
               <button
-                onClick={() => {
-                  setModalTab("pdf");
-                  window.open(`/coordinador/propuestas/${viewingDocPropuesta.id}/imprimir`, "_blank");
-                }}
+                onClick={() => setModalTab("pdf")}
                 className={`px-4 py-2.5 rounded-t-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
                   modalTab === "pdf"
                     ? "bg-white text-brand-red border-t-2 border-brand-red shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                <span>📄 Documento PDF (Hoja Oficial) ↗</span>
+                <span>📄 Visor PDF Oficial</span>
               </button>
 
               <button
@@ -728,7 +724,7 @@ export default function CoordinadorDashboardClient({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                <span>📋 Información del Estudiante y Proyecto</span>
+                <span>👤 Estudiante y Proyecto</span>
               </button>
 
               <button
@@ -805,10 +801,10 @@ export default function CoordinadorDashboardClient({
                           {docDetails.teamMembers && docDetails.teamMembers.length > 0 && (
                             <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
                               <span className="text-[11px] text-slate-400 font-bold block uppercase">Integrantes Adicionales</span>
-                              {docDetails.teamMembers.map((tm: any) => (
-                                <div key={tm.id} className="border-t border-slate-200 pt-1 text-xs">
-                                  <p className="font-bold text-slate-900">{tm.nombreCompleto}</p>
-                                  <p className="text-slate-500 font-mono text-[11px]">{tm.carnet} - {tm.correo}</p>
+                              {docDetails.teamMembers.map((tm: any, idx: number) => (
+                                <div key={tm?.id || idx} className="border-t border-slate-200 pt-1 text-xs">
+                                  <p className="font-bold text-slate-900">{tm?.nombreCompleto}</p>
+                                  <p className="text-slate-500 font-mono text-[11px]">{tm?.carnet} - {tm?.correo}</p>
                                 </div>
                               ))}
                             </div>
@@ -859,11 +855,11 @@ export default function CoordinadorDashboardClient({
                             <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                               <span className="text-[11px] text-slate-400 font-bold uppercase block">Supervisor Institucional</span>
                               <p className="font-bold text-slate-900 text-sm">
-                                {docDetails.supervisor ? `${docDetails.supervisor.nombres} ${docDetails.supervisor.apellidos}` : "Sin supervisor"}
+                                {docDetails.supervisor ? `${docDetails.supervisor.nombres || ""} ${docDetails.supervisor.apellidos || ""}`.trim() : "Sin supervisor"}
                               </p>
                               {docDetails.supervisor && (
                                 <p className="text-xs text-slate-600 mt-1">
-                                  {docDetails.supervisor.cargo || "Sin cargo"} | {docDetails.supervisor.correo || docDetails.supervisor.telefono}
+                                  {docDetails.supervisor.cargo || "Sin cargo"} | {docDetails.supervisor.correo || docDetails.supervisor.telefono || "Sin contacto"}
                                 </p>
                               )}
                             </div>
@@ -891,43 +887,58 @@ export default function CoordinadorDashboardClient({
                   ) : docDetails?.historial && docDetails.historial.length > 0 ? (
                     <div className="space-y-3 relative before:absolute before:inset-0 before:left-3 before:w-0.5 before:bg-rose-200 pl-4">
                       {docDetails.historial.map((h: any, idx: number) => {
-                        const fechaStr = new Date(h.creadoEn).toLocaleDateString("es-SV", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        });
+                        let fechaStr = "N/A";
+                        if (h?.creadoEn) {
+                          try {
+                            const d = new Date(h.creadoEn);
+                            if (!isNaN(d.getTime())) {
+                              fechaStr = d.toLocaleDateString("es-SV", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              });
+                            }
+                          } catch (e) {}
+                        }
 
                         return (
-                          <div key={h.id || idx} className="relative flex items-start gap-3 text-xs">
-                            <div className="w-2.5 h-2.5 rounded-full bg-brand-red ring-4 ring-rose-50 mt-1 shrink-0 -ml-4 z-10" />
-                            <div className="w-full bg-white border border-slate-200 rounded-xl p-4 space-y-2 shadow-xs">
-                              <div className="flex items-center justify-between flex-wrap gap-2">
-                                <span className="font-extrabold text-slate-900 text-sm">{h.usuarioNombre || "Sistema"}</span>
-                                <span className="text-xs font-mono text-slate-400">{fechaStr}</span>
+                          <div key={h?.id || idx} className="relative flex items-start gap-3 text-xs">
+                            <div className="w-2.5 h-2.5 rounded-full bg-brand-red mt-1 shrink-0 -ml-[19px] ring-4 ring-rose-50" />
+                            <div className="w-full bg-white border border-slate-200 rounded-xl p-3.5 space-y-1 shadow-2xs">
+                              <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                                <span className="font-bold text-slate-700">{h?.usuarioNombre || "Sistema"}</span>
+                                <span>{fechaStr}</span>
                               </div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="px-2.5 py-0.5 rounded-md text-xs font-extrabold bg-slate-100 text-slate-700">
-                                  {h.de || "Inicio"}
-                                </span>
-                                <span className="text-slate-400 font-bold">➔</span>
-                                <span className="px-2.5 py-0.5 rounded-md text-xs font-extrabold bg-brand-red text-white">
-                                  {h.a}
-                                </span>
-                              </div>
+                              <p className="font-bold text-slate-900">
+                                Cambio de estado: <span className="text-rose-700">{h?.de || "N/A"}</span> → <span className="text-emerald-700">{h?.a || "N/A"}</span>
+                              </p>
                             </div>
                           </div>
                         );
                       })}
                     </div>
                   ) : (
-                    <div className="text-center py-12 bg-white border border-dashed border-slate-200 rounded-xl text-slate-400 text-sm">
-                      No hay eventos registrados en el histórico de esta propuesta aún.
+                    <div className="text-center py-12 text-slate-400 text-sm">
+                      No hay historial de cambios aún.
                     </div>
                   )}
                 </div>
               )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-white border-t border-slate-200 flex justify-between items-center px-6">
+              <span className="text-xs text-slate-500 font-medium">
+                Propuesta ID: #{viewingDocPropuesta.id}
+              </span>
+              <button
+                onClick={() => setViewingDocPropuesta(null)}
+                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                Cerrar Ventana
+              </button>
             </div>
           </div>
         </div>
@@ -935,73 +946,62 @@ export default function CoordinadorDashboardClient({
 
       {/* ────────────────── MODAL: ASIGNAR ASESOR ────────────────── */}
       {selectedPropuesta && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                <svg className="w-5 h-5 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
-                Asignar Asesor a la Propuesta
-              </h3>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-xl border border-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-lg font-bold text-slate-900">Asignar Asesor a la Propuesta</h3>
               <button
                 onClick={() => setSelectedPropuesta(null)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg"
+                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
               >
                 ✕
               </button>
             </div>
 
-            <div className="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-200">
-              <p className="text-xs font-bold text-slate-500 uppercase">Título de la Propuesta:</p>
-              <p className="text-sm font-bold text-slate-900">{selectedPropuesta.titulo}</p>
-              <p className="text-xs text-slate-600">
-                <strong>Estudiante(s):</strong> {selectedPropuesta.estudiantes}
+            <div className="space-y-2 text-xs">
+              <p className="text-slate-600">
+                Selecciona un asesor de la facultad para que tome la tutoría del proyecto:
               </p>
-              <p className="text-xs text-slate-600">
-                <strong>Modalidad:</strong> {selectedPropuesta.tipo.toUpperCase()}
-              </p>
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="font-extrabold text-slate-900 text-sm">{selectedPropuesta.titulo}</p>
+                <p className="text-slate-500 mt-0.5">Estudiante(s): {selectedPropuesta.estudiantes}</p>
+              </div>
             </div>
 
             <form onSubmit={handleAssignSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-bold text-slate-800 mb-1.5">
-                  Seleccionar Asesor de Facultad:
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Asesor de Facultad:
                 </label>
                 <select
-                  required
                   value={selectedAsesorId}
                   onChange={(e) => setSelectedAsesorId(e.target.value)}
-                  className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red bg-white"
+                  required
+                  className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none bg-white font-medium"
                 >
-                  <option value="">-- Elige un asesor --</option>
+                  <option value="">-- Seleccionar Asesor --</option>
                   {asesores.map((ase) => (
                     <option key={ase.id} value={ase.id}>
                       {ase.nombreCompleto} ({ase.correo})
                     </option>
                   ))}
                 </select>
-                {asesores.length === 0 && (
-                  <p className="text-xs text-rose-600 mt-1.5">
-                    No se encontraron asesores registrados para esta facultad.
-                  </p>
-                )}
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+              <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setSelectedPropuesta(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={assigning || !selectedAsesorId}
-                  className="px-5 py-2 bg-brand-red hover:bg-brand-red-dark disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md transition-all flex items-center gap-2"
+                  disabled={assigning}
+                  className="px-5 py-2 bg-brand-red hover:bg-brand-red-dark text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
                 >
-                  {assigning ? "Enviando..." : "Enviar Solicitud a Asesor"}
+                  {assigning ? "Enviando..." : "Enviar Asignación"}
                 </button>
               </div>
             </form>
@@ -1009,150 +1009,84 @@ export default function CoordinadorDashboardClient({
         </div>
       )}
 
-      {/* ────────────────── MODAL: MOTIVO DE RECHAZO DE ASESOR ────────────────── */}
+      {/* ────────────────── MODAL: MOTIVO RECHAZO DE ASESOR ────────────────── */}
       {viewingRejection && viewingRejection.solicitudActual && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-            <h3 className="text-lg font-bold text-rose-800 flex items-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Motivo del Rechazo de Asesoría
-            </h3>
-
-            <div className="bg-rose-50 border border-rose-200 p-4 rounded-xl space-y-2">
-              <p className="text-xs font-bold text-rose-900">
-                Asesor: {viewingRejection.solicitudActual.asesorNombre}
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 shadow-xl border border-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Motivo de Rechazo de Asesoría</h3>
+              <button onClick={() => setViewingRejection(null)} className="text-slate-400 hover:text-slate-600 font-bold">
+                ✕
+              </button>
+            </div>
+            <div className="space-y-2 text-xs">
+              <p className="text-slate-600">
+                El asesor <strong className="text-slate-900">{viewingRejection.solicitudActual.asesorNombre}</strong> no pudo aceptar la solicitud.
               </p>
-              <p className="text-xs text-rose-700">
-                <strong>Propuesta:</strong> {viewingRejection.titulo}
-              </p>
-              <div className="pt-2 border-t border-rose-200 text-sm text-rose-950 font-medium italic">
-                &ldquo;{viewingRejection.solicitudActual.justificacionRechazo || "Sin justificación provista."}&rdquo;
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 font-medium leading-relaxed">
+                "{viewingRejection.solicitudActual.justificacionRechazo || "Sin justificación detallada."}"
               </div>
             </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                onClick={() => setViewingRejection(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors"
-              >
-                Cerrar
-              </button>
+            <div className="flex justify-end pt-2">
               <button
                 onClick={() => {
                   const prop = viewingRejection;
                   setViewingRejection(null);
                   handleOpenAssignModal(prop);
                 }}
-                className="px-4 py-2 bg-brand-red hover:bg-brand-red-dark text-white font-bold text-sm rounded-xl shadow-md transition-colors"
+                className="px-4 py-2 bg-brand-red text-white text-xs font-bold rounded-xl"
               >
-                Reasignar a otro Asesor
+                Reasignar a Otro Asesor
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ────────────────── MODAL: RESPONDER SOLICITUD DE BAJA ────────────────── */}
+      {/* ────────────────── MODAL: RESOLVER SOLICITUD DE BAJA ────────────────── */}
       {selectedBaja && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5">
-            <h3 className="text-lg font-bold text-slate-900">Evaluar Solicitud de Baja del Proyecto</h3>
-
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2 text-xs">
-              <p><strong>Propuesta:</strong> {selectedBaja.titulo}</p>
-              <p><strong>Asesor Solicitante:</strong> {selectedBaja.asesorNombre}</p>
-              <p><strong>Estudiante:</strong> {selectedBaja.estudianteNombre}</p>
-              <div className="pt-2 border-t border-slate-200">
-                <p className="font-bold text-rose-700 mb-1">Motivo expuesto por el asesor:</p>
-                <p className="text-slate-800 bg-white p-2.5 rounded-lg border border-slate-200 italic">{selectedBaja.motivo}</p>
-              </div>
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 space-y-4 shadow-xl border border-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900">Resolver Solicitud de Baja de Proyecto</h3>
+              <button onClick={() => setSelectedBaja(null)} className="text-slate-400 hover:text-slate-600 font-bold">
+                ✕
+              </button>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Observaciones / Comentario de Respuesta (Opcional):
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1 text-xs">
+              <p className="font-extrabold text-slate-900 text-sm">{selectedBaja.titulo}</p>
+              <p className="text-slate-600">Asesor: {selectedBaja.asesorNombre} | Estudiante: {selectedBaja.estudianteNombre}</p>
+              <p className="text-rose-700 font-medium pt-1">Motivo: "{selectedBaja.motivo}"</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700">
+                Observaciones / Comentario de Resolución (Opcional):
               </label>
               <textarea
                 value={respuestaBaja}
                 onChange={(e) => setRespuestaBaja(e.target.value)}
                 rows={3}
-                placeholder="Escribe comentarios o motivos institucionales para el historial..."
-                className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-red"
+                placeholder="Escribe un comentario..."
+                className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-red outline-none"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+            <div className="flex justify-end gap-2 pt-2">
               <button
-                type="button"
-                onClick={() => setSelectedBaja(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={processingBaja}
                 onClick={() => handleResponderBaja("rechazada")}
-                className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white font-bold text-sm rounded-xl shadow-sm transition-colors"
+                disabled={processingBaja}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
               >
                 Rechazar Baja
               </button>
               <button
-                type="button"
-                disabled={processingBaja}
                 onClick={() => handleResponderBaja("aprobada")}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors"
+                disabled={processingBaja}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-xs"
               >
-                {processingBaja ? "Procesando..." : "Dar de Baja (Anular Proyecto)"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* ────────────────── MODAL: RECHAZAR ASIGNACIÓN DE ADMIN ────────────────── */}
-      {rejectingPropuesta && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-4">
-            <h3 className="text-lg font-bold text-rose-800 flex items-center gap-2">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Rechazar Asignación de Propuesta
-            </h3>
-            <p className="text-xs text-slate-600">
-              Al rechazar la propuesta &quot;{rejectingPropuesta.titulo}&quot;, esta regresará automáticamente a <strong>Pendiente de Revisión</strong> en la vista del Administrador y se registrará en el historial.
-            </p>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Motivo del rechazo / observaciones (Opcional):
-              </label>
-              <textarea
-                value={motivoRechazoAdmin}
-                onChange={(e) => setMotivoRechazoAdmin(e.target.value)}
-                rows={3}
-                placeholder="Indique los motivos por los cuales no puede coordinar la propuesta..."
-                className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setRejectingPropuesta(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm rounded-xl transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={processingAssignResp}
-                onClick={handleRechazarAsignacionSubmit}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl shadow-md transition-colors"
-              >
-                {processingAssignResp ? "Procesando..." : "Confirmar Rechazo"}
+                Aprobar Baja (Anular Proyecto)
               </button>
             </div>
           </div>
