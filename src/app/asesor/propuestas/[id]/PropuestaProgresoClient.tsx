@@ -213,14 +213,6 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
 
         <div className="flex items-center gap-3 flex-wrap">
           <a
-            href={`/asesor/propuestas/${propuesta.id}/dictamen`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
-          >
-            📄 Crear Dictamen ↗
-          </a>
-          <a
             href={`/admin/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
             target="_blank"
             rel="noopener noreferrer"
