@@ -302,10 +302,26 @@ export async function enviarPropuesta(id: number) {
     return { success: false, error: "Debes subir OBLIGATORIAMENTE los tres archivos (Servicio, Notas, Pago) para enviar la propuesta." };
   }
 
+  const now = new Date();
+
   // Update proposal status
   await db.update(propuestas)
-    .set({ estado: "enviada", enviadaEn: new Date() })
+    .set({ estado: "enviada", enviadaEn: now })
     .where(and(eq(propuestas.id, id), eq(propuestas.egresadoId, session.userId)));
+
+  // Save official PDF snapshot record in database
+  const { documentosPropuesta } = await import("@/lib/schema");
+  try {
+    await db.insert(documentosPropuesta).values({
+      propuestaId: id,
+      tipo: "pdf_oficial_enviado",
+      archivoUrl: `/egresado/redactar/imprimir?id=${id}`,
+      nombreArchivo: `Propuesta_Oficial_${id}.pdf`,
+      subidoEn: now,
+    });
+  } catch (err) {
+    console.log("PDF snapshot record creation handled:", err);
+  }
 
   revalidatePath("/egresado");
   revalidatePath("/egresado/redactar");
@@ -319,22 +335,36 @@ export async function reenviarPropuestaAjustada(id: number) {
   const [prop] = await db.select().from(propuestas).where(and(eq(propuestas.id, id), eq(propuestas.egresadoId, session.userId))).limit(1);
   if (!prop) return { success: false, error: "Propuesta no encontrada." };
 
+  const now = new Date();
   const nuevoEstado = prop.coordinadorId ? "coordinador_asignado" : "enviada";
 
   await db.update(propuestas)
     .set({
       estado: nuevoEstado,
       observaciones: null,
+      enviadaEn: now,
     })
     .where(eq(propuestas.id, id));
 
-  const { historialEstados } = await import("@/lib/schema");
+  const { historialEstados, documentosPropuesta } = await import("@/lib/schema");
   await db.insert(historialEstados).values({
     propuestaId: id,
     de: "redactando",
     a: "ajustes_completados",
     usuarioId: session.userId,
   });
+
+  try {
+    await db.insert(documentosPropuesta).values({
+      propuestaId: id,
+      tipo: `pdf_ajustado_${now.getTime()}`,
+      archivoUrl: `/egresado/redactar/imprimir?id=${id}`,
+      nombreArchivo: `Propuesta_Ajustada_${id}.pdf`,
+      subidoEn: now,
+    });
+  } catch (err) {
+    console.log("Adjusted PDF snapshot record creation handled:", err);
+  }
 
   revalidatePath("/egresado");
   revalidatePath("/egresado/redactar");
