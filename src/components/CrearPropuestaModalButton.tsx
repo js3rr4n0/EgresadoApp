@@ -18,7 +18,7 @@ export default function CrearPropuestaModalButton({
   const [selectedProcess, setSelectedProcess] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
 
-  const isDisabled = isTeamMember || existingCount >= 3;
+  const isDisabled = isTeamMember || isLocked || existingCount >= 3;
 
   return (
     <>
@@ -30,6 +30,8 @@ export default function CrearPropuestaModalButton({
         title={
           isTeamMember
             ? "No puedes crear propuestas mientras pertenezcas a un equipo de trabajo."
+            : isLocked
+            ? "No puedes crear otra propuesta mientras tengas una propuesta enviada en proceso de evaluación."
             : existingCount >= 3
             ? "Has alcanzado el límite máximo de 3 propuestas."
             : "Crear nueva propuesta"
@@ -41,6 +43,8 @@ export default function CrearPropuestaModalButton({
         <span>
           {isTeamMember
             ? "Perteneces a un Equipo"
+            : isLocked
+            ? "Propuesta en Evaluación"
             : existingCount >= 3
             ? "Límite Alcanzado (3/3)"
             : existingCount > 0

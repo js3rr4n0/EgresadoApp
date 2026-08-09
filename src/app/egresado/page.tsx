@@ -354,7 +354,20 @@ export default async function EgresadoLandingPage() {
                 ) : (
                   userPropuestas.map((p, index) => {
                     const numeroCalculado = index + 1;
-                    const isDraft = p.estado === "redactando";
+                    const isCurrentActiveSubmitted = activeSubmittedProp && p.id === activeSubmittedProp.id;
+                    const hasAdvisorObservations = !!p.observaciones;
+                    const isSubmittedOrLocked = p.estado !== "redactando" || (hasSubmittedPropuesta && !isCurrentActiveSubmitted);
+
+                    let actionText = "Ver Propuesta (Solo Lectura)";
+                    let actionClass = "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300";
+
+                    if (hasAdvisorObservations) {
+                      actionText = "✏️ Ajustar Propuesta";
+                      actionClass = "bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-sm";
+                    } else if (p.estado === "redactando" && !hasSubmittedPropuesta) {
+                      actionText = "Continuar Redacción";
+                      actionClass = "bg-brand-red text-white hover:bg-brand-red-dark font-extrabold shadow-sm";
+                    }
 
                     return (
                       <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
@@ -366,24 +379,30 @@ export default async function EgresadoLandingPage() {
                         <td className="px-6 py-4">
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
-                              isDraft
-                                ? "bg-amber-100 text-amber-800 border-amber-200"
+                              hasAdvisorObservations
+                                ? "bg-amber-100 text-amber-900 border-amber-300"
+                                : p.estado === "redactando"
+                                ? hasSubmittedPropuesta && !isCurrentActiveSubmitted
+                                  ? "bg-slate-100 text-slate-600 border-slate-300"
+                                  : "bg-amber-100 text-amber-800 border-amber-200"
                                 : "bg-purple-100 text-purple-800 border-purple-200"
                             }`}
                           >
-                            {isDraft ? "Redactando (Borrador)" : p.estado}
+                            {hasAdvisorObservations
+                              ? "Ajustes Solicitados"
+                              : p.estado === "redactando"
+                              ? hasSubmittedPropuesta && !isCurrentActiveSubmitted
+                                ? "Bloqueada (En Espera)"
+                                : "Redactando (Borrador)"
+                              : p.estado}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
                           <Link
                             href={`/egresado/redactar?id=${p.id}`}
-                            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs ${
-                              isDraft
-                                ? "bg-brand-red text-white hover:bg-brand-red-dark"
-                                : "bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300"
-                            }`}
+                            className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs ${actionClass}`}
                           >
-                            {isDraft ? "Continuar Redacción" : "Ver Propuesta"}
+                            {actionText}
                           </Link>
                         </td>
                       </tr>

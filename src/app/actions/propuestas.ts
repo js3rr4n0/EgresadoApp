@@ -357,9 +357,9 @@ export async function reenviarPropuestaAjustada(id: number) {
   try {
     await db.insert(documentosPropuesta).values({
       propuestaId: id,
-      tipo: `pdf_ajustado_${now.getTime()}`,
+      tipo: `pdf_revisado_${now.getTime()}`,
       archivoUrl: `/egresado/redactar/imprimir?id=${id}`,
-      nombreArchivo: `Propuesta_Ajustada_${id}.pdf`,
+      nombreArchivo: `Propuesta_Revisada_${id}.pdf`,
       subidoEn: now,
     });
   } catch (err) {
