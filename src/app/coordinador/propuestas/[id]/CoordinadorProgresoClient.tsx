@@ -131,6 +131,14 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                 <span>{asesor ? "Cambiar Asesor" : "Asignar Asesor"}</span>
               </button>
               <a
+                href={`/coordinador/propuestas/${propuestaId}/dictamen`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
+              >
+                📄 Crear Dictamen ↗
+              </a>
+              <a
                 href={`/coordinador/propuestas/${propuestaId}/imprimir?ganttOnly=true`}
                 target="_blank"
                 rel="noopener noreferrer"
