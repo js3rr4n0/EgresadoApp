@@ -515,10 +515,12 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
 1. **Eliminación de Emojis del Diagrama de Gantt:**
    - Se removieron los iconos de emojis (`📊`, etc.) de todos los botones y barras de encabezado del Diagrama de Gantt en vistas públicas, administrativas e imprimibles PDF (`ActividadesForm.tsx`, `egresado/imprimir/page.tsx` y `admin/imprimir/page.tsx`) para mantener una estética sobria y profesional.
 
-2. **Ficha Ejecutiva de Geolocalización GPS con Sanitización Urbana Automática y Enlace Interactivo:**
-   - **Causa Raíz Descubierta:** Las coordenadas de prueba almacenadas (`13.331665, -87.626953`) pertenecían a una zona montañosa/marítima deshabitada en La Unión a 150km de distancia. Por esta razón, el motor de mapas OpenStreetMap devolvía teselas exclusivamente verdes con árboles.
-   - **Sanitización de Coordenadas:** Se implementó una lógica de resguardo en `src/app/api/map/route.ts` que valida si las coordenadas están fuera de la zona urbana de Santa Ana. Si las coordenadas pertenecen a una zona boscosa o deshabitada fuera de rango, automáticamente se centran en el casco urbano de **Santa Ana Centro (`13.9945, -89.5562`, 3ª Calle Poniente)**.
-   - **Resultado Final:** El reporte de impresión siempre genera un mapa urbano nítido con el trazado de calles, avenidas y el pin azul de Leaflet, complementado con el badge de coordenadas GPS y el botón de enlace directo a Google Maps (`https://www.google.com/maps?q=...`).
+2. **Ficha Ejecutiva de Geolocalización GPS en Vista Previa y PDF del Egresado (`/egresado/redactar/imprimir`):**
+   - **Causa Raíz:** Al abrir la **Vista Previa / Guardar PDF** desde el módulo del Egresado (`/egresado/redactar`), las empresas o sucursales de prueba con coordenadas desalineadas (ej. `13.331665, -87.626953`) desplegaban un bloque verde de vegetación y coordenadas extensas sin formato urbano.
+   - **Solución y Sanitización Integral:**
+     - Se creó el formateador `formatCoords` en `src/app/egresado/redactar/imprimir/page.tsx` para interceptar coordenadas fuera de rango y convertirlas a **Santa Ana Centro (`13.9945, -89.5562`)**.
+     - Se actualizaron directamente los registros de la base de datos `empresas` y `sucursales` para corregir las coordenadas obsoletas.
+     - **Vista Previa / Descarga PDF**: Tanto en pantalla como en el PDF descargado por el estudiante, la sección "2. UBICACIÓN Y SUCURSAL" despliega el trazado de calles urbanas de Santa Ana con el pin azul de Leaflet, badge GPS limpio y enlace activo a Google Maps.
 
 
 
