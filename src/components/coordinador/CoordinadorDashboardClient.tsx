@@ -339,16 +339,15 @@ export default function CoordinadorDashboardClient({
                           {prop.titulo}
                         </td>
                         <td className="p-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setViewingDocPropuesta(prop)}
+                          <Link
+                            href={`/coordinador/propuestas/${prop.id}`}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-brand-red text-xs font-bold rounded-lg border border-rose-200 transition-all cursor-pointer shadow-xs active:scale-95"
                           >
                             <svg className="w-4 h-4 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
                             Ver Documento
-                          </button>
+                          </Link>
                         </td>
                         <td className="p-4 text-center">
                           {prop.solicitudActual ? (
@@ -381,13 +380,13 @@ export default function CoordinadorDashboardClient({
                         </td>
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-2 flex-wrap">
-                            <button
-                              onClick={() => setViewingDocPropuesta(prop)}
+                            <Link
+                              href={`/coordinador/propuestas/${prop.id}`}
                               className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg shadow-xs transition-colors inline-flex items-center gap-1"
                               title="Revisar detalles y documentos de validación"
                             >
                               📄 Revisar / Docs
-                            </button>
+                            </Link>
 
                             <button
                               onClick={() => handleOpenAssignModal(prop)}
