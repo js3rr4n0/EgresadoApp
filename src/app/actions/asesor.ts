@@ -23,32 +23,58 @@ import { revalidatePath } from "next/cache";
 export async function getMisPropuestasAsesor() {
   try {
     const session = await getSession();
-    if (!session || session.rol !== "asesor") {
+    if (!session || !session.userId) {
       return { success: false, error: "No autorizado" };
     }
 
-    const acceptedRows = await db
-      .select({
-        solicitud: solicitudesAsesor,
-        propuesta: propuestas,
-        estudiante: usuarios,
-        carreraNombre: carreras.nombre,
-      })
+    const acceptedSolicitudes = await db
+      .select()
       .from(solicitudesAsesor)
-      .innerJoin(propuestas, eq(solicitudesAsesor.propuestaId, propuestas.id))
-      .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
-      .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .where(
         and(
           eq(solicitudesAsesor.asesorId, session.userId),
           eq(solicitudesAsesor.estado, "aceptada")
         )
-      )
-      .orderBy(desc(solicitudesAsesor.respondidoEn));
+      );
 
-    // Map rows with details
+    const propIdsFromSol = acceptedSolicitudes.map((s) => s.propuestaId);
+
+    const allProps = await db
+      .select({
+        propuesta: propuestas,
+        estudiante: usuarios,
+        carreraNombre: carreras.nombre,
+      })
+      .from(propuestas)
+      .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+      .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
+      .where(eq(propuestas.asesorId, session.userId));
+
+    const propIdSet = new Set(allProps.map((p) => p.propuesta.id));
+    if (propIdsFromSol.length > 0) {
+      for (const sol of acceptedSolicitudes) {
+        if (!propIdSet.has(sol.propuestaId)) {
+          const [extraProp] = await db
+            .select({
+              propuesta: propuestas,
+              estudiante: usuarios,
+              carreraNombre: carreras.nombre,
+            })
+            .from(propuestas)
+            .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+            .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
+            .where(eq(propuestas.id, sol.propuestaId))
+            .limit(1);
+          if (extraProp) {
+            allProps.push(extraProp);
+            propIdSet.add(sol.propuestaId);
+          }
+        }
+      }
+    }
+
     const result = await Promise.all(
-      acceptedRows.map(async (row) => {
+      allProps.map(async (row) => {
         let empresa = null;
         let supervisor = null;
         let carta = null;
@@ -80,11 +106,9 @@ export async function getMisPropuestasAsesor() {
 
         return {
           id: row.propuesta.id,
-          solicitudId: row.solicitud.id,
           tipo: row.propuesta.tipo,
           numero: row.propuesta.numero,
           estado: row.propuesta.estado,
-          fechaAceptacion: row.solicitud.respondidoEn,
           estudiante: {
             id: row.estudiante.id,
             nombreCompleto: row.estudiante.nombreCompleto,
@@ -261,7 +285,7 @@ export async function responderSolicitudAsesor(
 export async function getDetallePropuestaAsesor(propuestaId: number) {
   try {
     const session = await getSession();
-    if (!session || session.rol !== "asesor") {
+    if (!session || !session.userId) {
       return { success: false, error: "No autorizado" };
     }
 

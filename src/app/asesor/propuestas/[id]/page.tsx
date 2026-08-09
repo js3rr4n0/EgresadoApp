@@ -17,8 +17,15 @@ export default async function AsesorPropuestaProgresoPage({
     redirect("/asesor");
   }
 
-  const informeRes = await getOrCreateInformePrimerContacto(pId);
-  const informeData = informeRes.success ? informeRes.informe : null;
+  let informeData = null;
+  try {
+    const informeRes = await getOrCreateInformePrimerContacto(pId);
+    if (informeRes && informeRes.success) {
+      informeData = informeRes.informe;
+    }
+  } catch (err) {
+    console.error("Error al obtener informe de primer contacto:", err);
+  }
 
   return (
     <PropuestaProgresoClient
