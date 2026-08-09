@@ -521,6 +521,10 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
      - Se integró el componente auxiliar `RecenterMap` utilizando el hook `useMap()` en `MapSelector.tsx` para forzar que al cambiar de empresa o cargar las coordenadas de la BD, la cámara Leaflet aplique `map.setView(position, 16)` de forma inmediata.
      - Se eliminó cualquier filtro o re-centrado estático en `/api/map/route.ts` e `imprimir/page.tsx`, asegurando que las coordenadas `mapa_url` de la base de datos se respetan 1:1 en todos los reportes y modales.
 
+3. **Integración del Diagrama de Gantt Ejecutivo en Vista de Revisión Administrativa (`/admin/propuestas/[id]`):**
+   - **Requisito:** Agregar el Diagrama de Gantt visual en la vista de detalle de revisión de propuestas del administrador (`/admin/propuestas/[id]`) con el mismo estándar estético profesional libre de emojis usado en los PDFs.
+   - **Solución:** Se actualizó `src/app/admin/propuestas/[id]/page.tsx` para incorporar el Diagrama de Gantt interactivo dentro de la Sección 4 ("PLANIFICACIÓN DE ACTIVIDADES Y DIAGRAMA DE GANTT"), desplegando las semanas programadas por meses en una tabla ejecutiva con badges de ejecución.
+
 
 
 

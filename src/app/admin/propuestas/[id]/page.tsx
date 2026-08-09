@@ -308,7 +308,7 @@ export default async function AdminPropuestaReviewPage({
             {actividadesList.length > 0 && (
               <div className="space-y-4">
                 <h2 className="text-base font-black uppercase border-b-2 border-slate-900 pb-1 text-slate-900 tracking-wider">
-                  4. PLANIFICACIÓN DE ACTIVIDADES
+                  4. PLANIFICACIÓN DE ACTIVIDADES Y DIAGRAMA DE GANTT
                 </h2>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left border border-slate-300">
@@ -331,6 +331,103 @@ export default async function AdminPropuestaReviewPage({
                       ))}
                     </tbody>
                   </table>
+                </div>
+
+                {/* DIAGRAMA DE GANTT EXECUTIVE */}
+                <div className="pt-3">
+                  <div className="border border-slate-300 rounded-xl overflow-hidden shadow-md bg-white">
+                    {/* Header Title Bar */}
+                    <div className="bg-gradient-to-r from-red-900 via-red-800 to-slate-900 text-white px-4 py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xs font-extrabold uppercase tracking-wider">
+                          Diagrama de Gantt - Cronograma de Ejecución
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px]">
+                        <span className="flex items-center gap-1.5 font-medium bg-red-700/60 px-2.5 py-1 rounded-full border border-red-500/40">
+                          <span className="w-2 h-2 rounded-full bg-red-300"></span>
+                          Semana Programada
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-800 text-white text-[10px] uppercase font-bold tracking-wider">
+                            <th className="py-2 px-2 text-center w-16 border-r border-slate-700">Cód.</th>
+                            <th className="py-2 px-3 text-left border-r border-slate-700">Actividad</th>
+                            {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((pNum) => (
+                              <th key={pNum} colSpan={4} className="py-2 text-center border-r border-slate-700 bg-slate-900">
+                                <span className="text-red-200 font-bold">MES {pNum}</span>
+                              </th>
+                            ))}
+                          </tr>
+                          <tr className="bg-slate-100 font-bold text-slate-600 text-[10px] border-b border-slate-300">
+                            <th className="py-1 px-2 border-r border-slate-300" colSpan={2}>Semanas</th>
+                            {Array.from(new Set(actividadesList.map((a) => a.periodo))).flatMap((pNum) =>
+                              [1, 2, 3, 4].map((sNum) => (
+                                <th key={`${pNum}-${sNum}`} className="py-1 text-center font-mono border-r border-slate-200 bg-slate-50 w-7">
+                                  S{sNum}
+                                </th>
+                              ))
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {actividadesList.map((a, idx) => {
+                            const allPeriods = Array.from(new Set(actividadesList.map((act) => act.periodo)));
+                            const isEven = idx % 2 === 0;
+                            return (
+                              <tr key={a.id} className={`${isEven ? "bg-white" : "bg-slate-50/70"} hover:bg-slate-100/50`}>
+                                <td className="py-1.5 px-2 text-center border-r border-slate-200 font-mono font-bold text-[10px]">
+                                  <span className="inline-block bg-slate-100 text-red-900 border border-slate-300 px-1.5 py-0.5 rounded font-black">
+                                    {a.periodo}.{a.semana}
+                                  </span>
+                                </td>
+                                <td className="py-1.5 px-3 border-r border-slate-200" title={a.titulo || a.descripcion}>
+                                  <span className="font-bold text-slate-800 text-xs block leading-tight">
+                                    {a.titulo || a.descripcion}
+                                  </span>
+                                </td>
+                                {allPeriods.flatMap((pNum) =>
+                                  [1, 2, 3, 4].map((sNum) => {
+                                    const active = a.periodo === pNum && a.semana === sNum;
+                                    return (
+                                      <td
+                                        key={`${a.id}-${pNum}-${sNum}`}
+                                        className="p-0 text-center border-r border-slate-200/50 h-7 align-middle"
+                                      >
+                                        {active ? (
+                                          <div className="mx-1 my-0.5 bg-gradient-to-r from-red-600 to-red-700 text-white font-bold text-[9px] rounded py-1 shadow-2xs flex items-center justify-center border border-red-500">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                                          </div>
+                                        ) : null}
+                                      </td>
+                                    );
+                                  })
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                    <div className="bg-slate-50 border-t border-slate-200 px-4 py-2 flex items-center justify-between text-xs text-slate-600 font-medium">
+                      <span>Total Actividades: <strong>{actividadesList.length}</strong></span>
+                      <div className="flex items-center gap-4">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded bg-gradient-to-r from-red-600 to-red-700 border border-red-500 inline-block"></span>
+                          Ejecución Programada
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded bg-white border border-slate-300 inline-block"></span>
+                          Sin Actividad
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
