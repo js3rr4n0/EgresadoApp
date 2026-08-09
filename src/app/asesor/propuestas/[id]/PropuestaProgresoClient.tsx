@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { updateActividadAsesor } from "@/app/actions/asesor";
+import { updateActividadAsesor, solicitarAjustesPropuestaAsesor } from "@/app/actions/asesor";
 import Link from "next/link";
 
 import { solicitarBajaProyectoAsesor } from "@/app/actions/coordinador";
@@ -33,6 +33,11 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
   const [motivoBaja, setMotivoBaja] = useState("");
   const [sendingBaja, setSendingBaja] = useState(false);
 
+  // State for Solicitar Ajustes Modal
+  const [showAjustesModal, setShowAjustesModal] = useState(false);
+  const [observacionesAjuste, setObservacionesAjuste] = useState("");
+  const [sendingAjustes, setSendingAjustes] = useState(false);
+
   const handleSolicitarBaja = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!motivoBaja.trim()) return;
@@ -47,6 +52,24 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
       setMotivoBaja("");
     } else {
       alert(res.error || "Error al solicitar la baja.");
+    }
+  };
+
+  const handleSolicitarAjustes = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!observacionesAjuste.trim()) return;
+
+    setSendingAjustes(true);
+    const res = await solicitarAjustesPropuestaAsesor(propuesta.id, observacionesAjuste.trim());
+    setSendingAjustes(false);
+
+    if (res.success) {
+      alert(res.message);
+      setShowAjustesModal(false);
+      setObservacionesAjuste("");
+      window.location.reload();
+    } else {
+      alert(res.error || "Error al solicitar los ajustes.");
     }
   };
 
@@ -130,7 +153,18 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => setShowAjustesModal(true)}
+            className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+          >
+            <svg className="w-4 h-4 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span>Solicitar Ajustes a la Propuesta</span>
+          </button>
+
           <a
             href={`/admin/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
             target="_blank"
@@ -158,6 +192,57 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
           </Link>
         </div>
       </div>
+
+      {/* Modal Solicitar Ajustes / Correcciones a la Propuesta */}
+      {showAjustesModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-5">
+            <h3 className="text-lg font-extrabold text-amber-900 flex items-center gap-2">
+              <span className="w-8 h-8 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center font-bold text-sm">
+                ✏️
+              </span>
+              Solicitar Ajustes / Correcciones al Egresado
+            </h3>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Indique detalladamente cuáles literales o actividades del plan de trabajo/propuesta debe corregir o ajustar el estudiante:
+            </p>
+
+            <form onSubmit={handleSolicitarAjustes} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Observaciones y Correcciones Requeridas:
+                </label>
+                <textarea
+                  value={observacionesAjuste}
+                  onChange={(e) => setObservacionesAjuste(e.target.value)}
+                  required
+                  rows={4}
+                  placeholder="Ej: Corregir la descripción de la actividad 3 del mes 2, y ajustar la justificación del proyecto en el apartado 5..."
+                  className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-hidden bg-amber-50/40"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowAjustesModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingAjustes}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition-colors shadow-xs disabled:opacity-50"
+                >
+                  {sendingAjustes ? "Enviando..." : "Enviar Observaciones de Ajuste"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal Solicitar Dar de Baja Proyecto */}
       {showBajaModal && (

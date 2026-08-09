@@ -312,6 +312,35 @@ export async function enviarPropuesta(id: number) {
   return { success: true };
 }
 
+export async function reenviarPropuestaAjustada(id: number) {
+  const session = await getSession();
+  if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
+
+  const [prop] = await db.select().from(propuestas).where(and(eq(propuestas.id, id), eq(propuestas.egresadoId, session.userId))).limit(1);
+  if (!prop) return { success: false, error: "Propuesta no encontrada." };
+
+  const nuevoEstado = prop.coordinadorId ? "coordinador_asignado" : "enviada";
+
+  await db.update(propuestas)
+    .set({
+      estado: nuevoEstado,
+      observaciones: null,
+    })
+    .where(eq(propuestas.id, id));
+
+  const { historialEstados } = await import("@/lib/schema");
+  await db.insert(historialEstados).values({
+    propuestaId: id,
+    de: "redactando",
+    a: "ajustes_completados",
+    usuarioId: session.userId,
+  });
+
+  revalidatePath("/egresado");
+  revalidatePath("/egresado/redactar");
+  return { success: true, message: "¡Propuesta ajustada reenviada exitosamente a revisión!" };
+}
+
 export async function solicitarCorreccionDatosDecanato(formData: FormData) {
   const session = await getSession();
   if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };

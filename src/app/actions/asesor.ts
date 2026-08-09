@@ -378,3 +378,65 @@ export async function updateActividadAsesor(actividadId: number, descripcion: st
     return { success: false, error: "Error interno: " + error.message };
   }
 }
+
+/**
+ * Allows the advisor to request adjustments/corrections on a proposal/work plan from the student.
+ * Saves specific observations detailing what activities or sections need to be updated.
+ * Sets proposal state back to 'redactando' so the student can edit the requested areas.
+ */
+export async function solicitarAjustesPropuestaAsesor(propuestaId: number, observaciones: string) {
+  try {
+    const session = await getSession();
+    if (!session || session.rol !== "asesor") {
+      return { success: false, error: "No autorizado" };
+    }
+
+    if (!observaciones || !observaciones.trim()) {
+      return { success: false, error: "Debe ingresar las observaciones y correcciones solicitadas." };
+    }
+
+    const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
+    if (!prop) return { success: false, error: "Propuesta no encontrada." };
+
+    const estadoAnterior = prop.estado;
+
+    // Update proposal state to 'redactando' with observations
+    await db
+      .update(propuestas)
+      .set({
+        estado: "redactando",
+        observaciones: observaciones.trim(),
+      })
+      .where(eq(propuestas.id, propuestaId));
+
+    // Log history
+    const { historialEstados } = await import("@/lib/schema");
+    await db.insert(historialEstados).values({
+      propuestaId,
+      de: estadoAnterior,
+      a: "ajustes_solicitados",
+      usuarioId: session.userId,
+    });
+
+    // Notify student
+    await db.insert(notificaciones).values({
+      usuarioId: prop.egresadoId,
+      tipo: "observaciones_propuesta",
+      mensaje: `El docente asesor ha solicitado ajustes en tu propuesta #${prop.numero}: ${observaciones.trim()}`,
+      leida: false,
+      creadoEn: new Date(),
+    });
+
+    revalidatePath(`/asesor/propuestas/${propuestaId}`);
+    revalidatePath(`/egresado/redactar`);
+    revalidatePath(`/egresado`);
+
+    return {
+      success: true,
+      message: "Se han enviado las observaciones de ajuste al estudiante exitosamente.",
+    };
+  } catch (error: any) {
+    console.error("Error al solicitar ajustes de propuesta por asesor:", error);
+    return { success: false, error: "Error interno: " + error.message };
+  }
+}

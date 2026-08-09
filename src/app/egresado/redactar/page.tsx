@@ -3,6 +3,7 @@ import { getActivePropuesta } from "@/app/actions/propuestas";
 import { getCartaAceptacion } from "@/app/actions/carta";
 import { getActividades } from "@/app/actions/actividades";
 import { getEquipoProyecto, getDetallesProyecto } from "@/app/actions/proyecto";
+import ReenviarPropuestaAjustadaButton from "@/components/ReenviarPropuestaAjustadaButton";
 
 import PortadaForm from "@/components/PortadaForm";
 import CartaForm from "@/components/CartaForm";
@@ -267,6 +268,44 @@ export default async function EgresadoPage({
             <p className="text-xs text-amber-800 mt-1">
               Has enviado la <strong>Propuesta #{submittedPropNumber}</strong> a revisión administrativa. Mientras se encuentre en evaluación, tus demás propuestas están en modo solo lectura. Si es rechazada, se desbloquearán automáticamente con todos sus datos conservados.
             </p>
+          </div>
+        </div>
+      )}
+
+      {propuesta.observaciones && (
+        <div className="mb-8 p-6 bg-amber-50 border-2 border-amber-300 rounded-2xl shadow-sm space-y-4 animate-in fade-in duration-200">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center font-extrabold text-lg shrink-0">
+                ⚠️
+              </div>
+              <div>
+                <h3 className="font-extrabold text-amber-950 text-base">
+                  Se han solicitado ajustes en tu propuesta
+                </h3>
+                <p className="text-xs text-amber-800 font-medium mt-0.5">
+                  El docente asesor ha revisado tu propuesta y solicitó correcciones antes de aprobarla.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <Link
+                href={`/egresado/redactar/imprimir?id=${propuesta.id}`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-100/60 transition-all shadow-2xs"
+              >
+                📄 Ver PDF de Propuesta Original Enviada ↗
+              </Link>
+              <ReenviarPropuestaAjustadaButton propuestaId={propuesta.id} />
+            </div>
+          </div>
+
+          <div className="p-4 bg-white/80 rounded-xl border border-amber-200 text-xs text-amber-900 leading-relaxed font-medium">
+            <strong className="block text-amber-950 uppercase text-[10px] font-extrabold mb-1">
+              Observaciones del Asesor / Literales a Corregir:
+            </strong>
+            <p className="whitespace-pre-wrap">{propuesta.observaciones}</p>
           </div>
         </div>
       )}

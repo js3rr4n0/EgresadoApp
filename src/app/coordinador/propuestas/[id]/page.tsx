@@ -1,4 +1,4 @@
-import { getDetallePropuestaCoordinador } from "@/app/actions/coordinador";
+import { getDetallePropuestaCoordinador, getAsesoresFacultad } from "@/app/actions/coordinador";
 import Link from "next/link";
 import CoordinadorProgresoClient from "./CoordinadorProgresoClient";
 
@@ -24,7 +24,11 @@ export default async function CoordinadorPropuestaProgresoPage({
     );
   }
 
-  const res = await getDetallePropuestaCoordinador(pId);
+  const [res, asesoresRes] = await Promise.all([
+    getDetallePropuestaCoordinador(pId),
+    getAsesoresFacultad(),
+  ]);
+
   if (!res || !res.success || !res.data) {
     return (
       <div className="max-w-md mx-auto my-20 p-8 bg-white border border-slate-200 rounded-2xl text-center space-y-4 shadow-sm">
@@ -42,5 +46,7 @@ export default async function CoordinadorPropuestaProgresoPage({
     );
   }
 
-  return <CoordinadorProgresoClient data={res.data as any} />;
+  const asesores = asesoresRes?.success && Array.isArray(asesoresRes.data) ? asesoresRes.data : [];
+
+  return <CoordinadorProgresoClient data={{ ...(res.data as any), asesores }} />;
 }

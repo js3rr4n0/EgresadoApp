@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import DocumentosPropuestaSection from "@/components/coordinador/DocumentosPropuestaSection";
 import HistorialProyectoAccordion from "@/components/HistorialProyectoAccordion";
+import { asignarAsesorCoordinador } from "@/app/actions/coordinador";
 
 interface CoordinadorProgresoClientProps {
   data: {
@@ -23,6 +24,7 @@ interface CoordinadorProgresoClientProps {
     detallesProyecto?: any;
     documentos?: any[];
     historial?: any[];
+    asesores?: any[];
   };
 }
 
@@ -43,10 +45,32 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
   const actividades = Array.isArray(safeData.actividades) ? safeData.actividades : [];
   const detallesProyecto = safeData.detallesProyecto || null;
   const historial = Array.isArray(safeData.historial) ? safeData.historial : [];
+  const asesores = Array.isArray(safeData.asesores) ? safeData.asesores : [];
+
+  const [showAsesorModal, setShowAsesorModal] = useState(false);
+  const [selectedAsesorId, setSelectedAsesorId] = useState<string>("");
+  const [loadingAsignar, setLoadingAsignar] = useState(false);
 
   const [activeTab, setActiveTab] = useState<
     "documentos" | "pdf" | "datos" | "detalles" | "plan" | "historial"
   >("documentos");
+
+  const handleConfirmAsignarAsesor = async () => {
+    if (!selectedAsesorId) {
+      alert("Por favor seleccione un docente asesor de la lista.");
+      return;
+    }
+    setLoadingAsignar(true);
+    const res = await asignarAsesorCoordinador(propuestaId, parseInt(selectedAsesorId, 10));
+    setLoadingAsignar(false);
+    if (res.success) {
+      alert(res.message);
+      setShowAsesorModal(false);
+      window.location.reload();
+    } else {
+      alert(res.error || "Error al asignar asesor.");
+    }
+  };
 
   const getTipoLabel = (tipo?: string) => {
     if (tipo === "pasantia") return "Pasantía";
@@ -96,6 +120,16 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
         <div className="flex items-center gap-3 flex-wrap">
           {propuestaId > 0 && (
             <>
+              <button
+                type="button"
+                onClick={() => setShowAsesorModal(true)}
+                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+                <span>{asesor ? "Cambiar Asesor" : "Asignar Asesor"}</span>
+              </button>
               <a
                 href={`/coordinador/propuestas/${propuestaId}/imprimir?ganttOnly=true`}
                 target="_blank"
@@ -121,6 +155,75 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
             <span>← Volver al Panel</span>
           </Link>
         </div>
+
+      {/* Modal Asignar Asesor */}
+      {showAsesorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold text-sm">
+                  👤
+                </span>
+                Asignación de Docente Asesor
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAsesorModal(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 font-bold text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs text-slate-600">
+              <p>
+                Seleccione el docente asesor que guiará la propuesta <strong>#{propuestaNumero}</strong> ({getTipoLabel(propuestaTipo)}) del estudiante <strong>{estudiante.nombreCompleto}</strong>:
+              </p>
+
+              {asesor && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 font-medium">
+                  Actualmente asignado a: <strong>{asesor.nombreCompleto}</strong>
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-800 text-xs block">Docente Asesor:</label>
+                <select
+                  value={selectedAsesorId}
+                  onChange={(e) => setSelectedAsesorId(e.target.value)}
+                  className="w-full p-3 rounded-xl border border-slate-300 text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-hidden bg-slate-50"
+                >
+                  <option value="">-- Seleccionar Asesor --</option>
+                  {asesores.map((a: any) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nombreCompleto} ({a.correo})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-200">
+              <button
+                type="button"
+                onClick={() => setShowAsesorModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={loadingAsignar || !selectedAsesorId}
+                onClick={handleConfirmAsignarAsesor}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs transition-all shadow-xs disabled:opacity-50 flex items-center gap-2"
+              >
+                {loadingAsignar ? "Asignando..." : "Confirmar Asignación"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       </div>
 
       {/* Tabs Bar Navigation */}
