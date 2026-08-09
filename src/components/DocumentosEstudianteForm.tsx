@@ -4,6 +4,7 @@ import { useState } from "react";
 import { uploadDocumento, deleteDocumento } from "@/app/actions/documentos";
 import { enviarPropuesta } from "@/app/actions/justificacion";
 import { useRouter } from "next/navigation";
+import { openDocument } from "@/lib/pdfViewer";
 
 interface DocumentosEstudianteFormProps {
   propuestaId: number;
@@ -74,33 +75,7 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
   };
 
   const openBase64Pdf = (base64Url: string) => {
-    if (!base64Url) return;
-    const newWin = window.open('', '_blank');
-    if (!newWin) {
-      alert("Por favor, permite las ventanas emergentes (pop-ups) en tu navegador.");
-      return;
-    }
-    
-    if (base64Url.startsWith('data:image/')) {
-      newWin.document.write(`
-        <html>
-          <head><title>Visor de Imagen</title></head>
-          <body style="margin:0;display:flex;justify-content:center;align-items:center;background:#0f172a;min-height:100vh;">
-            <img src="${base64Url}" style="max-width:100%;max-height:100vh;" />
-          </body>
-        </html>
-      `);
-    } else {
-      newWin.document.write(`
-        <html>
-          <head><title>Visor de Documento</title></head>
-          <body style="margin:0;padding:0;">
-            <iframe width="100%" height="100%" style="border:none;" src="${base64Url}"></iframe>
-          </body>
-        </html>
-      `);
-    }
-    newWin.document.close();
+    openDocument(base64Url);
   };
 
   const uploadedTypes = documentosSubidos.map(d => d.tipo);

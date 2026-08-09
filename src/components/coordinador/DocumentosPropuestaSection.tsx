@@ -6,6 +6,7 @@ import {
   uploadDocumentoPropuesta,
   deleteDocumentoPropuesta,
 } from "@/app/actions/documentosPropuesta";
+import { openDocument } from "@/lib/pdfViewer";
 
 export const TIPOS_DOCUMENTOS_REQUERIDOS = [
   { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
@@ -229,14 +230,13 @@ export default function DocumentosPropuestaSection({
 
               {isUploaded ? (
                 <div className="flex items-center gap-2 pt-3 border-t border-emerald-200">
-                  <a
-                    href={doc.archivoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-xl transition-colors text-center inline-flex items-center justify-center gap-1.5 shadow-2xs"
+                  <button
+                    type="button"
+                    onClick={() => openDocument(doc.archivoUrl, docItem.label)}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-xl transition-colors text-center inline-flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                   >
                     <span>📄 Ver PDF Documento</span>
-                  </a>
+                  </button>
                   {canUpload && (
                     <button
                       onClick={() => handleDelete(docItem.tipo)}
