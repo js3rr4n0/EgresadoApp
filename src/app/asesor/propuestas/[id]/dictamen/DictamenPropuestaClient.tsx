@@ -275,21 +275,13 @@ export default function DictamenPropuestaClient({
 
       {/* Screen Controls Bar */}
       <div className="no-print bg-slate-900 text-white p-4 max-w-[8.5in] mx-auto my-4 rounded-2xl flex items-center justify-between shadow-xl border border-slate-700">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => window.history.back()}
-            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-600 transition-colors cursor-pointer"
-          >
-            ← Regresar
-          </button>
-          <div>
-            <h3 className="text-sm font-extrabold text-amber-400">
-              Dictamen de Propuesta — #{propuesta.numero}
-            </h3>
-            <p className="text-[11px] text-slate-300">
-              Documento oficial listo para impresión o exportación a PDF.
-            </p>
-          </div>
+        <div>
+          <h3 className="text-sm font-extrabold text-amber-400">
+            Dictamen de Propuesta — #{propuesta.numero}
+          </h3>
+          <p className="text-[11px] text-slate-300">
+            Documento oficial listo para impresión o exportación a PDF.
+          </p>
         </div>
         <button
           onClick={() => window.print()}
