@@ -533,13 +533,24 @@ export default function ActividadesForm({
                     <tr className="bg-slate-800 text-white text-[11px] uppercase tracking-wider font-bold">
                       <th className="p-2.5 text-center border-r border-slate-700 w-24">Código</th>
                       <th className="p-2.5 text-left border-r border-slate-700 w-52">Título / Actividad</th>
-                      {periodos.map((p) => (
-                        <th key={p.num} colSpan={p.weeks} className="p-2 text-center border-r border-slate-700 bg-slate-900/90 font-bold">
-                          <span className="inline-block bg-slate-800 px-2 py-0.5 rounded text-[10px] text-red-200">
-                            {p.name} (MES {p.num})
-                          </span>
-                        </th>
-                      ))}
+                      {periodos.map((p) => {
+                        let year = new Date().getFullYear();
+                        if (fechaInicio) {
+                          const d = new Date(fechaInicio);
+                          if (!isNaN(d.getTime())) {
+                            const target = new Date(d.getFullYear(), d.getMonth() + (p.num - 1), 1);
+                            year = target.getFullYear();
+                          }
+                        }
+                        return (
+                          <th key={p.num} colSpan={p.weeks} className="p-2 text-center border-r border-slate-700 bg-slate-900/90 font-bold">
+                            <div className="text-[11px] text-white font-extrabold uppercase">MES {p.num}</div>
+                            <div className="text-[9.5px] text-rose-300 font-semibold uppercase tracking-normal">
+                              ({p.name} {year})
+                            </div>
+                          </th>
+                        );
+                      })}
                     </tr>
                     <tr className="bg-slate-100 text-slate-700 font-bold text-[10px] border-b border-slate-300">
                       <th className="p-2 border-r border-slate-200" colSpan={2}>

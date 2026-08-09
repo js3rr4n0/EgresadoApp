@@ -407,6 +407,22 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
                             <h3 className="font-extrabold text-card-dark text-base">
                               Mes {periodoNum} de Pasantía / Proyecto
                             </h3>
+                            {(() => {
+                              const startDate = carta?.fechaInicio || propuesta?.fechaAprobacion || propuesta?.enviadaEn;
+                              let baseDate = new Date();
+                              if (startDate) {
+                                const d = new Date(startDate);
+                                if (!isNaN(d.getTime())) baseDate = d;
+                              }
+                              const target = new Date(baseDate.getFullYear(), baseDate.getMonth() + (periodoNum - 1), 1);
+                              const mName = target.toLocaleDateString("es-SV", { month: "long" });
+                              const mCap = mName.charAt(0).toUpperCase() + mName.slice(1);
+                              return (
+                                <p className="text-xs font-extrabold text-brand-red uppercase tracking-wide">
+                                  ({mCap} {target.getFullYear()})
+                                </p>
+                              );
+                            })()}
                             <p className="text-xs text-slate-500">
                               {actsMonth.length} actividades programadas en este mes
                             </p>

@@ -250,11 +250,27 @@ export default async function AdminPrintPropuestaPage({
                   <tr className="bg-slate-900 text-white uppercase font-bold tracking-wider">
                     <th className="py-1.5 px-1 text-center w-10 border-r border-slate-700">Cód.</th>
                     <th className="py-1.5 px-2 text-left border-r border-slate-700">Descripción de Actividad</th>
-                    {allPeriods.map((pNum) => (
-                      <th key={pNum} colSpan={4} className="py-1.5 text-center border-r border-slate-700 bg-slate-950 text-rose-300 font-extrabold tracking-wider">
-                        MES {pNum}
-                      </th>
-                    ))}
+                    {allPeriods.map((pNum) => {
+                      const startDate = carta?.fechaInicio || propuesta.fechaAprobacion || propuesta.enviadaEn;
+                      let baseDate = new Date();
+                      if (startDate) {
+                        const d = new Date(startDate);
+                        if (!isNaN(d.getTime())) baseDate = d;
+                      }
+                      const target = new Date(baseDate.getFullYear(), baseDate.getMonth() + (pNum - 1), 1);
+                      const mName = target.toLocaleDateString("es-SV", { month: "long" });
+                      const mCap = mName.charAt(0).toUpperCase() + mName.slice(1);
+                      const monthYearStr = `${mCap} ${target.getFullYear()}`;
+
+                      return (
+                        <th key={pNum} colSpan={4} className="py-1 px-1 text-center border-r border-slate-700 bg-slate-950 font-extrabold tracking-wider">
+                          <div className="text-[10px] text-white font-extrabold">MES {pNum}</div>
+                          <div className="text-[8.5px] text-rose-300 font-semibold uppercase tracking-normal">
+                            ({monthYearStr})
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                   <tr className="bg-slate-100 font-bold text-slate-700 text-[8px] border-b border-slate-300">
                     <th className="py-0.5 px-1 border-r border-slate-300" colSpan={2}>Semanas de Trabajo</th>

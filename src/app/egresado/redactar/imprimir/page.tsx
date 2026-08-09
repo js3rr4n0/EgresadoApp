@@ -530,11 +530,27 @@ export default async function PrintPropuestaPage({
                           <tr className="bg-slate-800 text-white text-[9px] uppercase font-bold tracking-wider">
                             <th className="py-1 px-1.5 text-center w-12 border-r border-slate-700">Cód.</th>
                             <th className="py-1 px-2 text-left w-2/5 border-r border-slate-700">Actividad</th>
-                            {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((pNum) => (
-                              <th key={pNum} colSpan={4} className="py-1 text-center border-r border-slate-700 bg-slate-900">
-                                <span className="text-red-200 font-bold">MES {pNum}</span>
-                              </th>
-                            ))}
+                             {Array.from(new Set(actividadesList.map((a) => a.periodo))).map((pNum) => {
+                              const startDate = carta?.fechaInicio || propuesta.fechaAprobacion || propuesta.enviadaEn;
+                              let baseDate = new Date();
+                              if (startDate) {
+                                const d = new Date(startDate);
+                                if (!isNaN(d.getTime())) baseDate = d;
+                              }
+                              const target = new Date(baseDate.getFullYear(), baseDate.getMonth() + (pNum - 1), 1);
+                              const mName = target.toLocaleDateString("es-SV", { month: "long" });
+                              const mCap = mName.charAt(0).toUpperCase() + mName.slice(1);
+                              const monthYearStr = `${mCap} ${target.getFullYear()}`;
+
+                              return (
+                                <th key={pNum} colSpan={4} className="py-1 px-1 text-center border-r border-slate-700 bg-slate-900 font-extrabold">
+                                  <div className="text-[9px] text-white font-extrabold">MES {pNum}</div>
+                                  <div className="text-[8px] text-rose-300 font-semibold uppercase tracking-normal">
+                                    ({monthYearStr})
+                                  </div>
+                                </th>
+                              );
+                            })}
                           </tr>
                           <tr className="bg-slate-100 font-bold text-slate-600 text-[9px] border-b border-slate-300">
                             <th className="py-0.5 px-1 border-r border-slate-300" colSpan={2}>Semanas</th>
