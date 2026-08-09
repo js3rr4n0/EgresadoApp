@@ -277,7 +277,7 @@ export default function DictamenPropuestaClient({
       <div className="no-print bg-slate-900 text-white p-4 max-w-[8.5in] mx-auto my-4 rounded-2xl flex items-center justify-between shadow-xl border border-slate-700">
         <div>
           <h3 className="text-sm font-extrabold text-amber-400">
-            Dictamen de Propuesta — #{propuesta.numero}
+            Dictamen de Propuesta — #{propuesta.id}
           </h3>
           <p className="text-[11px] text-slate-300">
             Documento oficial listo para impresión o exportación a PDF.
@@ -308,7 +308,7 @@ export default function DictamenPropuestaClient({
         </div>
 
         <div className="id-line">
-          Id:<span className="fill">{propuesta.numero || propuesta.id}</span>
+          Id:<span className="fill">{propuesta.id}</span>
         </div>
 
         {/* Estudiantes */}
