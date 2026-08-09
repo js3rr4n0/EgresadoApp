@@ -132,7 +132,7 @@ export default async function AdminPrintPropuestaPage({
         <style>{`
           @page {
             size: A4 portrait;
-            margin: 6mm;
+            margin: 5mm;
           }
           @media print {
             html, body {
@@ -150,6 +150,7 @@ export default async function AdminPrintPropuestaPage({
               margin: 0 !important;
               border: none !important;
               box-shadow: none !important;
+              max-width: 100% !important;
             }
           }
         `}</style>
@@ -159,9 +160,9 @@ export default async function AdminPrintPropuestaPage({
           <div className="flex items-center gap-3">
             <span className="text-2xl">📊</span>
             <div>
-              <h2 className="font-extrabold text-sm text-white">Diagrama de Gantt — Exportación a PDF (1 Página)</h2>
+              <h2 className="font-extrabold text-sm text-white">Exportación Oficial de Diagrama de Gantt (1 Página)</h2>
               <p className="text-xs text-slate-300">
-                Diseñado exclusivamente para encajar en 1 sola página al exportar a PDF o imprimir.
+                Formato ejecutivo optimizado con bloques de tiempo y sección de firmas formales.
               </p>
             </div>
           </div>
@@ -170,63 +171,96 @@ export default async function AdminPrintPropuestaPage({
               href={backUrl}
               className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl transition-all"
             >
-              ← Volver
+              ← Volver a Revisión
             </Link>
             <PrintButton />
           </div>
         </div>
 
         {/* Document Container */}
-        <div className="print-container max-w-4xl mx-auto border border-slate-200 p-5 rounded-2xl shadow-xs print:border-none print:p-0">
-          {/* Header Compacto */}
-          <div className="border-b-2 border-brand-red pb-3 mb-3 flex items-start justify-between gap-4">
-            <div>
-              <span className="text-[10px] font-extrabold text-brand-red uppercase tracking-widest block">
-                UNIVERSIDAD DE EL SALVADOR — TRABAJO DE GRADUACIÓN
-              </span>
-              <h1 className="text-sm sm:text-base font-black text-slate-900 uppercase tracking-tight">
-                DIAGRAMA DE GANTT DE LA PROPUESTA #{propuesta.numero}
+        <div className="print-container max-w-4xl mx-auto border border-slate-300 p-6 rounded-2xl shadow-sm print:border-none print:p-0 bg-white">
+          {/* Header Institucional de Alto Impacto */}
+          <div className="border-b-2 border-brand-red pb-3 mb-4 flex items-start justify-between gap-4">
+            <div className="space-y-1 flex-1">
+              <div className="flex items-center gap-2">
+                <div className="w-2.5 h-2.5 rounded-full bg-brand-red"></div>
+                <span className="text-[10px] font-black text-brand-red uppercase tracking-widest block">
+                  UNIVERSIDAD DE EL SALVADOR — TRABAJO DE GRADUACIÓN
+                </span>
+              </div>
+              <h1 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight leading-tight">
+                DIAGRAMA DE GANTT — CRONOGRAMA DE EJECUCIÓN
               </h1>
-              <p className="text-xs text-slate-800 font-bold mt-0.5 line-clamp-2">
-                Título: <span className="font-normal italic">{propuesta.titulo || "Sin título"}</span>
+              <p className="text-xs text-slate-800 font-bold leading-snug">
+                Propuesta #{propuesta.numero} — <span className="text-slate-900 font-extrabold">Título:</span> <span className="font-semibold italic text-slate-700">{propuesta.titulo || "Sin título especificado"}</span>
               </p>
             </div>
-            <div className="text-right text-[10px] text-slate-600 space-y-0.5 shrink-0 bg-slate-50 p-2 rounded-lg border border-slate-200">
-              <p><strong className="text-slate-900">Estudiante:</strong> {studentName} ({student?.carnet || "N/A"})</p>
-              <p><strong className="text-slate-900">Carrera:</strong> {carreraNombre}</p>
-              <p><strong className="text-slate-900">Asesor:</strong> {asesorName}</p>
-              <p><strong className="text-slate-900">Modalidad:</strong> {propuesta.tipo.toUpperCase()}</p>
+
+            {/* Ficha Resumen Estudiante */}
+            <div className="text-right text-[10px] text-slate-700 space-y-1 shrink-0 bg-slate-50 p-2.5 rounded-xl border border-slate-300 shadow-2xs min-w-[220px]">
+              <p className="border-b border-slate-200 pb-1">
+                <strong className="text-slate-900 uppercase text-[9px]">Estudiante:</strong>{" "}
+                <span className="font-extrabold text-slate-900">{studentName}</span>{" "}
+                <span className="text-slate-500 font-mono">({student?.carnet || "N/A"})</span>
+              </p>
+              <p>
+                <strong className="text-slate-900 uppercase text-[9px]">Carrera:</strong>{" "}
+                <span className="font-bold">{carreraNombre}</span>
+              </p>
+              <p>
+                <strong className="text-slate-900 uppercase text-[9px]">Asesor:</strong>{" "}
+                <span className="font-bold text-brand-red">{asesorName}</span>
+              </p>
+              <p className="pt-0.5 border-t border-slate-200 text-[9px] font-bold text-slate-600">
+                MODALIDAD: <span className="uppercase text-slate-900">{propuesta.tipo}</span> #{propuesta.numero}
+              </p>
             </div>
           </div>
 
-          {/* Diagrama de Gantt Compacto */}
+          {/* Diagrama de Gantt Rediseñado */}
           {actividadesList.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-500 italic border border-dashed border-slate-300 rounded-xl">
-              No hay actividades registradas en el cronograma de esta propuesta.
+            <div className="py-12 text-center text-xs text-slate-500 italic border border-dashed border-slate-300 rounded-xl bg-slate-50">
+              No se han registrado actividades en el cronograma de esta propuesta.
             </div>
           ) : (
             <div className="border border-slate-300 rounded-xl overflow-hidden shadow-2xs bg-white">
-              <div className="bg-slate-900 text-white px-3 py-1.5 flex items-center justify-between text-[10px]">
-                <span className="font-extrabold uppercase tracking-wider">Cronograma General de Actividades</span>
-                <span className="text-[9px] text-slate-300">{actividadesList.length} Actividades programadas</span>
+              {/* Barra Superior con Leyenda */}
+              <div className="bg-gradient-to-r from-red-950 via-red-900 to-slate-900 text-white px-3 py-2 flex items-center justify-between text-[10px]">
+                <div className="flex items-center gap-2 font-extrabold uppercase tracking-wider">
+                  <svg className="w-4 h-4 text-rose-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span>Cronograma General de Actividades ({actividadesList.length})</span>
+                </div>
+
+                <div className="flex items-center gap-4 text-[9px] font-bold">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-2 rounded bg-gradient-to-r from-red-600 to-red-800 border border-red-500 inline-block"></span>
+                    Ejecución Programada
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-3 h-2 rounded bg-white border border-slate-300 inline-block"></span>
+                    Sin Actividad
+                  </span>
+                </div>
               </div>
 
               <table className="w-full text-[9px] border-collapse">
                 <thead>
-                  <tr className="bg-slate-800 text-white uppercase font-bold tracking-wider">
-                    <th className="py-1 px-1.5 text-center w-10 border-r border-slate-700">Código</th>
-                    <th className="py-1 px-2 text-left border-r border-slate-700">Descripción de Actividad</th>
+                  <tr className="bg-slate-900 text-white uppercase font-bold tracking-wider">
+                    <th className="py-1.5 px-1 text-center w-10 border-r border-slate-700">Cód.</th>
+                    <th className="py-1.5 px-2 text-left border-r border-slate-700">Descripción de Actividad</th>
                     {allPeriods.map((pNum) => (
-                      <th key={pNum} colSpan={4} className="py-1 text-center border-r border-slate-700 bg-slate-950 text-rose-300 font-bold">
+                      <th key={pNum} colSpan={4} className="py-1.5 text-center border-r border-slate-700 bg-slate-950 text-rose-300 font-extrabold tracking-wider">
                         MES {pNum}
                       </th>
                     ))}
                   </tr>
-                  <tr className="bg-slate-100 font-bold text-slate-600 text-[8px] border-b border-slate-300">
-                    <th className="py-0.5 px-1 border-r border-slate-300" colSpan={2}>Semanas</th>
+                  <tr className="bg-slate-100 font-bold text-slate-700 text-[8px] border-b border-slate-300">
+                    <th className="py-0.5 px-1 border-r border-slate-300" colSpan={2}>Semanas de Trabajo</th>
                     {allPeriods.flatMap((pNum) =>
                       [1, 2, 3, 4].map((sNum) => (
-                        <th key={`${pNum}-${sNum}`} className="py-0.5 text-center font-mono border-r border-slate-200 bg-slate-50 w-4">
+                        <th key={`${pNum}-${sNum}`} className="py-0.5 text-center font-mono border-r border-slate-200 bg-slate-50 w-5">
                           S{sNum}
                         </th>
                       ))
@@ -237,21 +271,23 @@ export default async function AdminPrintPropuestaPage({
                   {actividadesList.map((a, idx) => {
                     const isEven = idx % 2 === 0;
                     return (
-                      <tr key={a.id} className={isEven ? "bg-white" : "bg-slate-50/70"}>
-                        <td className="py-0.5 px-1 text-center border-r border-slate-200 font-mono font-bold text-[8px]">
-                          {a.periodo}.{a.semana}
+                      <tr key={a.id} className={isEven ? "bg-white" : "bg-slate-50/80"}>
+                        <td className="py-1 px-1 text-center border-r border-slate-200 font-mono font-black text-[8px]">
+                          <span className="inline-block bg-rose-50 text-rose-900 border border-rose-200 px-1 py-0.2 rounded">
+                            {a.periodo}.{a.semana}
+                          </span>
                         </td>
-                        <td className="py-0.5 px-2 border-r border-slate-200 max-w-[240px] truncate font-semibold text-slate-800">
+                        <td className="py-1 px-2 border-r border-slate-200 max-w-[260px] truncate font-bold text-slate-900 leading-tight">
                           {a.titulo || a.descripcion}
                         </td>
                         {allPeriods.flatMap((pNum) =>
                           [1, 2, 3, 4].map((sNum) => {
                             const active = a.periodo === pNum && a.semana === sNum;
                             return (
-                              <td key={`${a.id}-${pNum}-${sNum}`} className="p-0 text-center border-r border-slate-200/50 h-4 align-middle">
+                              <td key={`${a.id}-${pNum}-${sNum}`} className="p-0.5 text-center border-r border-slate-200/60 h-5 align-middle">
                                 {active ? (
-                                  <div className="mx-0.5 my-0.5 bg-brand-red text-white font-bold text-[7px] rounded py-0.5 flex items-center justify-center">
-                                    ✓
+                                  <div className="mx-0.5 bg-gradient-to-r from-red-600 via-red-700 to-red-800 text-white font-bold text-[7px] rounded-sm py-1 shadow-2xs flex items-center justify-center border border-red-600">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-white shadow-2xs"></span>
                                   </div>
                                 ) : null}
                               </td>
@@ -266,10 +302,25 @@ export default async function AdminPrintPropuestaPage({
             </div>
           )}
 
+          {/* Bloque Oficial de Firmas */}
+          <div className="mt-8 pt-4 border-t border-slate-200 grid grid-cols-2 gap-12 text-center text-[9.5px] text-slate-700 print:break-inside-avoid">
+            <div className="space-y-1">
+              <div className="border-b border-slate-400 w-52 mx-auto mb-2"></div>
+              <p className="font-extrabold text-slate-900 uppercase">Firma del Asesor Asignado</p>
+              <p className="text-slate-600 font-medium">{asesorName}</p>
+            </div>
+
+            <div className="space-y-1">
+              <div className="border-b border-slate-400 w-52 mx-auto mb-2"></div>
+              <p className="font-extrabold text-slate-900 uppercase">Firma del Coordinador de Carrera</p>
+              <p className="text-slate-600 font-medium">Coordinación de Trabajos de Graduación</p>
+            </div>
+          </div>
+
           {/* Footer del Documento */}
-          <div className="mt-4 pt-2 border-t border-slate-200 flex items-center justify-between text-[9px] text-slate-500">
+          <div className="mt-6 pt-2 border-t border-slate-200 flex items-center justify-between text-[8.5px] text-slate-500 font-medium">
             <span>Generado oficialmente por Sistema EgresadoApp — {formattedDate}</span>
-            <span>Documento de Cronograma PDF (1 Página)</span>
+            <span>Documento Oficial de Cronograma PDF (1 Página)</span>
           </div>
         </div>
       </div>
