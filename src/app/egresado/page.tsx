@@ -138,9 +138,9 @@ export default async function EgresadoLandingPage() {
         activeBadgeClass = "bg-amber-100 text-amber-900 border-amber-300";
       }
     } else if (activeSubmittedProp.estado === "aprobada") {
-      activeStatusTitle = "Propuesta Aprobada — En seguimiento inicial";
-      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada exitosamente por el docente asesor${asesorNombre ? ` (${asesorNombre})` : ""}. Actualmente se encuentra en espera de que el docente asesor realice el primer contacto con el supervisor empresarial.`;
-      activeBadgeClass = "bg-emerald-100 text-emerald-900 border-emerald-300 font-black";
+      activeStatusTitle = "Propuesta Aprobada — Esperando Primer Contacto";
+      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada exitosamente por el docente asesor${asesorNombre ? ` (${asesorNombre})` : ""}. Estado actual: Esperando que el docente asesor realice el primer contacto con el supervisor empresarial.`;
+      activeBadgeClass = "bg-emerald-100 text-emerald-950 border-emerald-400 font-black";
     } else if (activeSubmittedProp.estado === "enviada") {
       activeStatusTitle = "Tu propuesta está en revisión";
       activeStatusDesc = `Has enviado tu propuesta #${activeSubmittedProp.numero}. En este momento está siendo evaluada por las autoridades académicas${coordinadorNombre ? ` y la Coordinación de ${coordinadorNombre}` : ""}.`;
@@ -311,8 +311,8 @@ export default async function EgresadoLandingPage() {
                 <h2 className="text-xl font-extrabold text-slate-900">
                   Propuesta #{activeSubmittedProp.numero} ({activeSubmittedProp.tipo.toUpperCase()})
                 </h2>
-                <span className={`px-3 py-1 rounded-full text-xs font-extrabold border ${activeBadgeClass}`}>
-                  {activeSubmittedProp.estado}
+                <span className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide border ${activeBadgeClass}`}>
+                  {activeSubmittedProp.estado === "aprobada" ? "PROPUESTA APROBADA" : activeSubmittedProp.estado.replace(/_/g, " ")}
                 </span>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-1">
