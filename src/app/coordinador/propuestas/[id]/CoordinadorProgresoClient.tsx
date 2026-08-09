@@ -122,9 +122,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
         </button>
 
         <button
-          onClick={() => {
-            setActiveTab("pdf");
-          }}
+          onClick={() => setActiveTab("pdf")}
           className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
             activeTab === "pdf"
               ? "bg-white text-brand-red shadow-sm"
@@ -228,7 +226,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
           <div className="bg-rose-50/70 border border-rose-200 rounded-xl p-5 space-y-1">
             <span className="text-xs font-bold text-brand-red uppercase tracking-widest block">
-              Título de la Propuesta
+              Título de la Propuesta / Tema
             </span>
             <h2 className="text-lg font-extrabold text-slate-900">
               {propuesta.titulo || `Propuesta #${propuesta.numero}`}
@@ -265,20 +263,20 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
             </div>
           </div>
 
-          {/* Información de Empresa y Supervisor si aplica */}
+          {/* Información de Empresa y Supervisor */}
           {empresa && (
             <div className="border-t border-slate-200 pt-6 space-y-4">
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider text-xs">
-                Información de la Empresa y Supervisor
+                Información de la Empresa y Supervisor Encargado
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                  <p className="text-xs text-slate-500 font-bold uppercase">Empresa</p>
+                  <p className="text-xs text-slate-500 font-bold uppercase">Empresa / Institución Receptora</p>
                   <p className="font-bold text-slate-900">{empresa.nombre}</p>
                   <p className="text-xs text-slate-600 mt-1">{empresa.direccion || "Sin dirección"}</p>
                 </div>
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
-                  <p className="text-xs text-slate-500 font-bold uppercase">Supervisor</p>
+                  <p className="text-xs text-slate-500 font-bold uppercase">Supervisor Encargado</p>
                   <p className="font-bold text-slate-900">
                     {supervisor ? `${supervisor.nombres || supervisor.nombreCompleto || ""} ${supervisor.apellidos || ""}` : "Sin supervisor asignado"}
                   </p>
@@ -322,99 +320,134 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
       {/* ────────────────── TAB 4: DETALLES Y OBJETIVOS DEL PROYECTO ────────────────── */}
       {activeTab === "detalles" && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 md:p-8 space-y-6">
-          <h2 className="text-lg font-extrabold text-slate-900 border-b border-slate-200 pb-3">
-            Detalles Técnicos y Objetivos del Proyecto
-          </h2>
+          <div className="border-b border-slate-200 pb-3 flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-extrabold text-slate-900">
+                Detalles Técnicos y Objetivos de la Propuesta
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Información extraída de la Hoja de Inscripción oficial ({getTipoLabel(propuesta.tipo)})
+              </p>
+            </div>
+            <span className="px-3 py-1 bg-rose-50 text-brand-red font-bold text-xs rounded-full border border-rose-200">
+              Modalidad: {getTipoLabel(propuesta.tipo)}
+            </span>
+          </div>
 
-          {detallesProyecto ? (
-            <div className="space-y-6 text-sm">
-              {/* Descripción / Planteamiento del Problema */}
-              {detallesProyecto.descripcionProblema && (
-                <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
-                    Planteamiento / Descripción del Problema
-                  </h3>
-                  <p className="text-slate-800 leading-relaxed whitespace-pre-line">
-                    {detallesProyecto.descripcionProblema}
+          <div className="space-y-6 text-sm">
+            {/* Título de la propuesta */}
+            <div className="bg-rose-50/60 p-5 rounded-xl border border-rose-200 space-y-1">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
+                Tema / Título Registrado
+              </h3>
+              <p className="text-slate-900 font-extrabold text-base leading-snug">
+                {propuesta.titulo || `Propuesta #${propuesta.numero}`}
+              </p>
+            </div>
+
+            {/* Justificación del Proceso (Pasantía) / Descripción del Problema */}
+            <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
+                {propuesta.tipo === "pasantia"
+                  ? "Justificación y Descripción del Proceso de Pasantía"
+                  : "Planteamiento / Descripción del Problema"}
+              </h3>
+              <p className="text-slate-800 leading-relaxed whitespace-pre-line">
+                {detallesProyecto?.descripcionProblema || propuesta.justificacionProceso || "No se ha registrado una descripción detallada aún."}
+              </p>
+            </div>
+
+            {/* Justificación General */}
+            {(detallesProyecto?.justificacion || (propuesta.tipo !== "pasantia" && propuesta.justificacionProceso)) && (
+              <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
+                  Justificación del Trabajo
+                </h3>
+                <p className="text-slate-800 leading-relaxed whitespace-pre-line">
+                  {detallesProyecto?.justificacion || propuesta.justificacionProceso}
+                </p>
+              </div>
+            )}
+
+            {/* Alcance (Proyectos/Investigación) */}
+            {detallesProyecto?.alcance && (
+              <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
+                  Alcance y Delimitación
+                </h3>
+                <p className="text-slate-800 leading-relaxed whitespace-pre-line">
+                  {detallesProyecto.alcance}
+                </p>
+              </div>
+            )}
+
+            {/* Objetivo General */}
+            <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
+                Objetivo General
+              </h3>
+              <p className="text-slate-900 font-bold leading-relaxed">
+                {detallesProyecto?.objetivoGeneral || `Desarrollar y ejecutar la modalidad de ${getTipoLabel(propuesta.tipo)} de acuerdo con la propuesta aprobada.`}
+              </p>
+            </div>
+
+            {/* Objetivos Específicos */}
+            <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-3">
+              <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
+                Objetivos Específicos y Metas
+              </h3>
+              {detallesProyecto?.objetivosEspecificos && Array.isArray(detallesProyecto.objetivosEspecificos) && detallesProyecto.objetivosEspecificos.length > 0 ? (
+                <ul className="space-y-2">
+                  {detallesProyecto.objetivosEspecificos.map((obj: any, idx: number) => (
+                    <li key={idx} className="flex items-start gap-2 bg-white p-3.5 rounded-xl border border-slate-200 text-xs">
+                      <span className="font-extrabold text-brand-red text-sm">{idx + 1}.</span>
+                      <div className="flex-1">
+                        {typeof obj === "object" && obj !== null ? (
+                          <>
+                            {obj.titulo && <strong className="block text-slate-900 text-sm mb-0.5">{obj.titulo}</strong>}
+                            <span className="text-slate-700">{obj.descripcion || JSON.stringify(obj)}</span>
+                          </>
+                        ) : (
+                          <span className="text-slate-700">{String(obj)}</span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : actividades.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-600 font-medium mb-2">
+                    Actividades claves a ejecutar en el plan de trabajo:
                   </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {actividades.slice(0, 6).map((act: any, idx: number) => (
+                      <div key={act.id || idx} className="p-3 bg-white rounded-xl border border-slate-200 text-xs flex items-start gap-2">
+                        <span className="font-bold text-brand-red">M{act.periodo}.S{act.semana}:</span>
+                        <span className="text-slate-800 font-medium">{act.descripcion}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              )}
-
-              {/* Justificación */}
-              {detallesProyecto.justificacion && (
-                <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
-                    Justificación del Proyecto
-                  </h3>
-                  <p className="text-slate-800 leading-relaxed whitespace-pre-line">
-                    {detallesProyecto.justificacion}
-                  </p>
-                </div>
-              )}
-
-              {/* Alcance */}
-              {detallesProyecto.alcance && (
-                <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
-                    Alcance y Delimitación
-                  </h3>
-                  <p className="text-slate-800 leading-relaxed whitespace-pre-line">
-                    {detallesProyecto.alcance}
-                  </p>
-                </div>
-              )}
-
-              {/* Objetivo General */}
-              {detallesProyecto.objetivoGeneral && (
-                <div className="bg-rose-50/60 p-5 rounded-xl border border-rose-200 space-y-2">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
-                    Objetivo General
-                  </h3>
-                  <p className="text-slate-900 font-bold leading-relaxed">
-                    {detallesProyecto.objetivoGeneral}
-                  </p>
-                </div>
-              )}
-
-              {/* Objetivos Específicos */}
-              {detallesProyecto.objetivosEspecificos && (
-                <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-3">
-                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
-                    Objetivos Específicos
-                  </h3>
-                  {Array.isArray(detallesProyecto.objetivosEspecificos) ? (
-                    <ul className="space-y-2">
-                      {detallesProyecto.objetivosEspecificos.map((obj: any, idx: number) => (
-                        <li key={idx} className="flex items-start gap-2 bg-white p-3 rounded-lg border border-slate-200 text-xs">
-                          <span className="font-extrabold text-brand-red">{idx + 1}.</span>
-                          <div className="flex-1">
-                            {typeof obj === "object" && obj !== null ? (
-                              <>
-                                {obj.titulo && <strong className="block text-slate-900">{obj.titulo}</strong>}
-                                <span className="text-slate-700">{obj.descripcion || JSON.stringify(obj)}</span>
-                              </>
-                            ) : (
-                              <span className="text-slate-700">{String(obj)}</span>
-                            )}
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-slate-800 whitespace-pre-line text-xs">
-                      {typeof detallesProyecto.objetivosEspecificos === "object"
-                        ? JSON.stringify(detallesProyecto.objetivosEspecificos, null, 2)
-                        : String(detallesProyecto.objetivosEspecificos)}
-                    </p>
-                  )}
-                </div>
+              ) : (
+                <p className="text-slate-500 italic text-xs">
+                  Sin lista detallada de objetivos específicos adicionales.
+                </p>
               )}
             </div>
-          ) : (
-            <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 text-slate-500 text-sm">
-              No hay detalles adicionales ni objetivos registrados aún para esta propuesta.
-            </div>
-          )}
+
+            {/* Carta de Aceptación resumen */}
+            {carta && (
+              <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-2">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-brand-red">
+                  Carta de Aceptación Registrada
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <p><strong className="text-slate-700">Emisor:</strong> {carta.emisorNombre || "N/A"} ({carta.emisorCargo || "Supervisor"})</p>
+                  <p><strong className="text-slate-700">Período:</strong> {carta.fechaInicio || "N/A"} al {carta.fechaFin || "N/A"}</p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
