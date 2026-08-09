@@ -965,28 +965,18 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                       <span>{sendingAprobar ? "Aprobando..." : propuesta.estado === "aprobada" ? "✓ Propuesta Aprobada (OK)" : "✅ Dar OK (Aprobar Plan)"}</span>
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (propuesta.estado !== "aprobada") {
-                          alert("Debe dar OK y aprobar la propuesta antes de generar el dictamen.");
-                          return;
-                        }
-                        alert("Función 'Generar Dictamen de Propuesta' habilitada exitosamente. (Módulo oficial en desarrollo)");
-                      }}
-                      disabled={propuesta.estado !== "aprobada"}
-                      className={`inline-flex items-center gap-2 font-extrabold text-xs px-5 py-3 rounded-xl transition-all shadow-md ${
-                        propuesta.estado === "aprobada"
-                          ? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer active:scale-95"
-                          : "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60"
-                      }`}
-                      title={propuesta.estado === "aprobada" ? "Generar Dictamen Oficial" : "Requiere propuesta aprobada (OK)"}
+                    <a
+                      href={`/asesor/propuestas/${propuesta.id}/dictamen`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 font-extrabold text-xs px-5 py-3 rounded-xl transition-all shadow-md bg-purple-700 hover:bg-purple-800 text-white cursor-pointer active:scale-95"
+                      title="Generar e imprimir Dictamen Oficial de Propuesta UNICAES"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                       </svg>
-                      <span>Generar Dictamen de Propuesta</span>
-                    </button>
+                      <span>Generar Dictamen de Propuesta ↗</span>
+                    </a>
 
                     <button
                       type="button"

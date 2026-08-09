@@ -214,19 +214,6 @@ export default function DocumentosPropuestaSection({
                       {doc.nombreArchivo}
                     </p>
                   )}
-                  {docItem.tipo === "dictamen_propuesta" && (
-                    <div className="mt-2">
-                      <a
-                        href={`/asesor/propuestas/${propuestaId}/dictamen`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-extrabold px-3 py-1.5 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
-                      >
-                        <span>📄 Generar / Imprimir Dictamen</span>
-                        <span>↗</span>
-                      </a>
-                    </div>
-                  )}
                 </div>
 
                 <span
