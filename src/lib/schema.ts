@@ -479,3 +479,23 @@ export const detallesProyecto = pgTable("detalles_proyecto", {
   objetivosEspecificos: jsonb("objetivos_especificos"), // Array of { titulo: string, descripcion: string }
 });
 
+// ─────────────────────────── Documentos de Aprobación de Propuesta ───────────────────────────
+
+export const documentosPropuesta = pgTable(
+  "documentos_propuesta",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    tipo: varchar("tipo", { length: 50 }).notNull(), // 'propuesta_aceptada', 'plan_trabajo_firmado', 'dictamen_plan_trabajo', 'dictamen_propuesta'
+    archivoUrl: text("archivo_url").notNull(),
+    nombreArchivo: varchar("nombre_archivo", { length: 255 }),
+    subidoEn: timestamp("subido_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("documentos_propuesta_unique").on(table.propuestaId, table.tipo),
+  ]
+);
+
+

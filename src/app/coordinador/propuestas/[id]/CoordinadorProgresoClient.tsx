@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import DocumentosPropuestaSection from "@/components/coordinador/DocumentosPropuestaSection";
 
 interface CoordinadorProgresoClientProps {
   data: {
@@ -67,12 +68,22 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
           </div>
         </div>
 
-        <Link
-          href="/coordinador"
-          className="inline-flex items-center gap-2 bg-brand-red hover:bg-brand-red-dark text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-colors shadow-sm self-start sm:self-auto"
-        >
-          <span>← Regresar al Panel de Coordinador</span>
-        </Link>
+        <div className="flex items-center gap-3">
+          <a
+            href={`/admin/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
+          >
+            📊 Exportar Gantt (PDF 1 pág)
+          </a>
+          <Link
+            href="/coordinador"
+            className="inline-flex items-center gap-2 bg-brand-red hover:bg-brand-red-dark text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-colors shadow-sm self-start sm:self-auto"
+          >
+            <span>← Regresar al Panel de Coordinador</span>
+          </Link>
+        </div>
       </div>
 
       {/* Tabs Navigation Header */}
@@ -103,6 +114,17 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
           Plan de Trabajo y Avances por Mes
+        </button>
+
+        <button
+          onClick={() => setActiveTab("documentos" as any)}
+          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+            (activeTab as string) === "documentos"
+              ? "bg-brand-red text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-100"
+          }`}
+        >
+          <span>📋 Documentos de Validación (4 Obligatorios)</span>
         </button>
       </div>
 
@@ -299,6 +321,11 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
             </div>
           )}
         </div>
+      )}
+
+      {/* ────────────────── TAB 3: DOCUMENTOS DE VALIDACIÓN ────────────────── */}
+      {(activeTab as string) === "documentos" && (
+        <DocumentosPropuestaSection propuestaId={propuesta.id} />
       )}
     </div>
   );
