@@ -125,7 +125,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
         if (c.codigo) carMap.set(c.codigo.toLowerCase(), c.id);
       });
 
-      const validRoles = new Set(['admin', 'decanato', 'asesor', 'egresado']);
+      const validRoles = new Set(['admin', 'decanato', 'coordinador', 'asesor', 'egresado']);
 
       // Generate a default hash for all inserted users to keep it fast
       const defaultPasswordHash = dryRun ? "" : await bcrypt.hash("Egresado123!", 10);
@@ -137,7 +137,7 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
         if (!row.rol) errores.push(`Fila ${fila}: 'rol' es requerido.`);
         
         if (row.rol && !validRoles.has(row.rol.toLowerCase())) {
-          errores.push(`Fila ${fila}: 'rol' "${row.rol}" es inválido. Opciones: admin, decanato, asesor, egresado.`);
+          errores.push(`Fila ${fila}: 'rol' "${row.rol}" es inválido. Opciones: admin, decanato, coordinador, asesor, egresado.`);
         }
 
         if (existingCorreos.has(row.correo)) {
