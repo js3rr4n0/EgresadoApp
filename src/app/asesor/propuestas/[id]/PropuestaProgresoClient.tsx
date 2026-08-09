@@ -206,26 +206,6 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <button
-            type="button"
-            onClick={handleAprobarOK}
-            disabled={sendingAprobar}
-            className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
-          >
-            <span>{sendingAprobar ? "Aprobando..." : "✅ Dar OK (Aprobar Plan)"}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowAjustesModal(true)}
-            className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
-          >
-            <svg className="w-4 h-4 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            <span>Solicitar Ajustes a la Propuesta</span>
-          </button>
-
           <a
             href={`/admin/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
             target="_blank"
@@ -486,53 +466,55 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
 
             {/* Document / Proposal PDF File Viewer */}
             <div className="border-t border-border pt-6 space-y-4">
-              <h3 className="text-sm font-bold text-card-dark flex items-center gap-2">
-                <span>Archivo PDF con la información de la propuesta</span>
-                {carta?.archivoUrl && (
-                  <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded border border-emerald-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-extrabold text-card-dark flex items-center gap-2 uppercase tracking-wider text-xs">
+                  <span>📄 Archivo PDF con la información del alumno</span>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-800 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300 uppercase">
                     PDF Disponible
                   </span>
-                )}
-              </h3>
+                </h3>
+              </div>
 
-              {carta?.archivoUrl ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 bg-purple-50 border border-purple-200 p-4 rounded-xl">
-                    <svg className="w-8 h-8 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    </svg>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-purple-900 truncate">
-                        Carta de Aceptación y Datos de Propuesta
-                      </p>
-                      <p className="text-xs text-purple-700">
-                        Documento oficial adjuntado por el estudiante.
-                      </p>
+              {(() => {
+                const pdfUrl = propuesta.pdfFinalUrl || carta?.archivoUrl || `/admin/propuestas/${propuesta.id}/imprimir?ganttOnly=true`;
+                return (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-purple-50 border border-purple-200 p-4 rounded-xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-purple-700 text-white flex items-center justify-center text-xl font-bold shrink-0">
+                          📄
+                        </div>
+                        <div>
+                          <p className="text-sm font-extrabold text-purple-950">
+                            Propuesta #{propuesta.numero} — Documentación Completa del Estudiante
+                          </p>
+                          <p className="text-xs text-purple-700 font-medium">
+                            Documento oficial registrado por {estudiante.nombreCompleto}.
+                          </p>
+                        </div>
+                      </div>
+                      <a
+                        href={pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-sm shrink-0 flex items-center gap-1.5"
+                      >
+                        <span>Abrir PDF en Nueva Pestaña</span>
+                        <span>↗</span>
+                      </a>
                     </div>
-                    <a
-                      href={carta.archivoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shrink-0"
-                    >
-                      Abrir PDF en Nueva Pestaña
-                    </a>
-                  </div>
 
-                  {/* Embedded PDF iframe viewer */}
-                  <div className="w-full h-[500px] border border-slate-300 rounded-xl overflow-hidden shadow-inner bg-slate-100">
-                    <iframe
-                      src={carta.archivoUrl}
-                      className="w-full h-full border-none"
-                      title="Visor PDF Propuesta"
-                    />
+                    {/* Embedded PDF iframe viewer */}
+                    <div className="w-full h-[600px] border-2 border-slate-300 rounded-2xl overflow-hidden shadow-inner bg-slate-100">
+                      <iframe
+                        src={pdfUrl}
+                        className="w-full h-full border-none"
+                        title="Visor PDF Propuesta Egresado"
+                      />
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="p-6 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-center text-slate-500 text-sm">
-                  El estudiante aún no ha adjuntado el archivo PDF final de la propuesta.
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Datos de Empresa / Supervisor si aplica */}
@@ -715,9 +697,25 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                                         </div>
                                       </div>
                                     ) : (
-                                      <p className="text-slate-800 font-medium leading-relaxed">
-                                        {act.descripcion}
-                                      </p>
+                                      <div className="space-y-1">
+                                        {act.descripcionAnterior && act.descripcionAnterior !== act.descripcion && (
+                                          <div className="text-xs text-red-600/90 font-medium flex items-center gap-1.5 flex-wrap">
+                                            <span className="line-through text-red-500/80 bg-red-50 px-2 py-0.5 rounded border border-red-200">
+                                              ~{act.descripcionAnterior}~
+                                            </span>
+                                          </div>
+                                        )}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <p className="text-slate-900 font-bold leading-relaxed">
+                                            {act.descripcion}
+                                          </p>
+                                          {(act.descripcionAnterior || act.esModificada || act.corregida) && (
+                                            <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 font-extrabold px-2 py-0.5 rounded-full uppercase">
+                                              ✓ (Corregido)
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
                                     )}
                                   </td>
                                   <td className="py-3 px-3 text-center">
@@ -754,6 +752,175 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                     </div>
                   );
                 })}
+
+                {/* DIAGRAMA DE GANTT NUEVO Y COMPLETO ABAJO DEL PLAN DE TRABAJO */}
+                <div className="mt-8 border border-border rounded-xl p-5 bg-white space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between border-b border-border pb-3">
+                    <div className="flex items-center gap-2 text-card-dark font-extrabold text-base">
+                      <span>📊 Diagrama de Gantt Actualizado (Vista General)</span>
+                    </div>
+                    <a
+                      href={`/admin/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-extrabold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Exportar Diagrama PDF ↗
+                    </a>
+                  </div>
+
+                  <div className="border border-slate-300 rounded-xl overflow-hidden shadow-2xs bg-white">
+                    <div className="bg-gradient-to-r from-red-950 via-red-900 to-slate-900 text-white px-3 py-2 flex items-center justify-between text-[11px]">
+                      <div className="flex items-center gap-2 font-extrabold uppercase tracking-wider">
+                        <span>Cronograma General de Actividades ({actividadesList.length})</span>
+                      </div>
+
+                      <div className="flex items-center gap-4 text-[10px] font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-3 h-2 rounded bg-gradient-to-r from-red-600 to-red-800 border border-red-500 inline-block"></span>
+                          Ejecución Programada
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-3 h-2 rounded bg-white border border-slate-300 inline-block"></span>
+                          Sin Actividad
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-[10px] border-collapse">
+                        <thead>
+                          <tr className="bg-slate-900 text-white uppercase font-bold tracking-wider">
+                            <th className="py-2 px-1 text-center w-12 border-r border-slate-700">Cód.</th>
+                            <th className="py-2 px-3 text-left border-r border-slate-700">Descripción de Actividad</th>
+                            {periodosUnicos.map((pNum) => {
+                              const startDate = carta?.fechaInicio || propuesta?.fechaAprobacion || propuesta?.enviadaEn;
+                              let baseDate = new Date();
+                              if (startDate) {
+                                const d = new Date(startDate);
+                                if (!isNaN(d.getTime())) baseDate = d;
+                              }
+                              const target = new Date(baseDate.getFullYear(), baseDate.getMonth() + (pNum - 1), 1);
+                              const mName = target.toLocaleDateString("es-SV", { month: "long" });
+                              const mCap = mName.charAt(0).toUpperCase() + mName.slice(1);
+
+                              return (
+                                <th key={pNum} colSpan={4} className="py-1.5 px-1 text-center border-r border-slate-700 bg-slate-950 font-extrabold">
+                                  <div className="text-[11px] text-white font-extrabold">MES {pNum}</div>
+                                  <div className="text-[9px] text-rose-300 font-semibold uppercase">
+                                    ({mCap} {target.getFullYear()})
+                                  </div>
+                                </th>
+                              );
+                            })}
+                          </tr>
+                          <tr className="bg-slate-100 font-bold text-slate-700 text-[9px] border-b border-slate-300">
+                            <th className="py-1 px-1 border-r border-slate-300" colSpan={2}>Semanas de Trabajo</th>
+                            {periodosUnicos.flatMap((pNum) =>
+                              [1, 2, 3, 4].map((sNum) => (
+                                <th key={`${pNum}-${sNum}`} className="py-1 text-center font-mono border-r border-slate-200 bg-slate-50 w-6">
+                                  S{sNum}
+                                </th>
+                              ))
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {actividadesList.map((a, idx) => {
+                            const isEven = idx % 2 === 0;
+                            return (
+                              <tr key={a.id} className={isEven ? "bg-white" : "bg-slate-50/80"}>
+                                <td className="py-1.5 px-1 text-center border-r border-slate-200 font-mono font-black text-[9px]">
+                                  <span className="inline-block bg-rose-50 text-rose-900 border border-rose-200 px-1 py-0.5 rounded">
+                                    {a.periodo}.{a.semana}
+                                  </span>
+                                </td>
+                                <td className="py-1.5 px-3 border-r border-slate-200 font-bold text-slate-900 leading-tight">
+                                  {a.titulo || a.descripcion}
+                                </td>
+                                {periodosUnicos.flatMap((pNum) =>
+                                  [1, 2, 3, 4].map((sNum) => {
+                                    const active = a.periodo === pNum && a.semana === sNum;
+                                    return (
+                                      <td key={`${a.id}-${pNum}-${sNum}`} className="p-0.5 text-center border-r border-slate-200/60 h-6 align-middle">
+                                        {active ? (
+                                          <div className="mx-0.5 bg-gradient-to-r from-red-600 via-red-700 to-red-800 text-white font-bold text-[7.5px] rounded py-1 shadow-2xs flex items-center justify-center border border-red-600">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-white shadow-2xs"></span>
+                                          </div>
+                                        ) : null}
+                                      </td>
+                                    );
+                                  })
+                                )}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* BARRA INFERIOR DE ACCIONES AL FINAL DE TODO EL PLAN DE TRABAJO */}
+                <div className="mt-8 pt-6 border-t-2 border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm">
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-base">
+                      Aprobación y Dictamen Final de la Propuesta
+                    </h3>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      Una vez verificado el plan de trabajo y sus correcciones, puedes aprobar la propuesta y habilitar la emisión del dictamen.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handleAprobarOK}
+                      disabled={sendingAprobar || propuesta.estado === "aprobada"}
+                      className={`inline-flex items-center gap-2 font-extrabold text-xs px-5 py-3 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer ${
+                        propuesta.estado === "aprobada"
+                          ? "bg-slate-200 text-slate-600 border border-slate-300 cursor-not-allowed"
+                          : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      }`}
+                    >
+                      <span>{sendingAprobar ? "Aprobando..." : propuesta.estado === "aprobada" ? "✓ Propuesta Aprobada (OK)" : "✅ Dar OK (Aprobar Plan)"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (propuesta.estado !== "aprobada") {
+                          alert("Debe dar OK y aprobar la propuesta antes de generar el dictamen.");
+                          return;
+                        }
+                        alert("Función 'Generar Dictamen de Propuesta' habilitada exitosamente. (Módulo oficial en desarrollo)");
+                      }}
+                      disabled={propuesta.estado !== "aprobada"}
+                      className={`inline-flex items-center gap-2 font-extrabold text-xs px-5 py-3 rounded-xl transition-all shadow-md ${
+                        propuesta.estado === "aprobada"
+                          ? "bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer active:scale-95"
+                          : "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60"
+                      }`}
+                      title={propuesta.estado === "aprobada" ? "Generar Dictamen Oficial" : "Requiere propuesta aprobada (OK)"}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>Generar Dictamen de Propuesta</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowAjustesModal(true)}
+                      className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs px-4 py-3 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                    >
+                      <svg className="w-4 h-4 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      <span>Solicitar Ajustes</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>

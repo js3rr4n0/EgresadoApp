@@ -119,9 +119,9 @@ export default async function EgresadoLandingPage() {
         activeBadgeClass = "bg-amber-100 text-amber-900 border-amber-300";
       }
     } else if (activeSubmittedProp.estado === "aprobada") {
-      activeStatusTitle = "Propuesta aprobada — En seguimiento";
-      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada${coordinadorNombre ? ` por la Coordinación de Facultad (${coordinadorNombre})` : ""}. El docente asesor${asesorNombre ? ` (${asesorNombre})` : ""} se pondrá en contacto con la institución/empresa para dar inicio al seguimiento del trabajo.`;
-      activeBadgeClass = "bg-emerald-100 text-emerald-900 border-emerald-300";
+      activeStatusTitle = "Propuesta Aprobada — En seguimiento inicial";
+      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada exitosamente por el docente asesor${asesorNombre ? ` (${asesorNombre})` : ""}. Actualmente se encuentra en espera de que el docente asesor realice el primer contacto con el supervisor empresarial.`;
+      activeBadgeClass = "bg-emerald-100 text-emerald-900 border-emerald-300 font-black";
     } else if (activeSubmittedProp.estado === "enviada") {
       activeStatusTitle = "Tu propuesta está en revisión";
       activeStatusDesc = `Has enviado tu propuesta #${activeSubmittedProp.numero}. En este momento está siendo evaluada por las autoridades académicas${coordinadorNombre ? ` y la Coordinación de ${coordinadorNombre}` : ""}.`;
@@ -272,6 +272,11 @@ export default async function EgresadoLandingPage() {
                 <p className="text-slate-700 font-bold flex items-center gap-1">
                   <span>⏰ Hora (SV):</span> <span>{horaEnvio}</span>
                 </p>
+                {activeSubmittedProp.estado === "aprobada" && (
+                  <div className="mt-2 p-2 bg-indigo-50 border border-indigo-200 rounded-lg text-[11px] font-extrabold text-indigo-900 flex items-center gap-1.5 shadow-2xs">
+                    <span>⏳ Esperando que el asesor realice el primer contacto</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
