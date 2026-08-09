@@ -161,13 +161,7 @@ export default function InformePrimerContactoClient({
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-16">
       {/* Top Navigation */}
-      <div className="flex items-center justify-between">
-        <Link
-          href={`/asesor/propuestas/${propuesta.id}`}
-          className="inline-flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 px-3.5 py-2 rounded-xl transition-all"
-        >
-          ← Volver a la Propuesta #{propuesta.numero}
-        </Link>
+      <div className="flex items-center justify-end">
         <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
           Módulo: Informes de Seguimiento — Hito 1
         </span>

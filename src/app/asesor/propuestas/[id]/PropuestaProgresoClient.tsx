@@ -5,6 +5,7 @@ import { updateActividadAsesor, solicitarAjustesPropuestaAsesor, aprobarPropuest
 import Link from "next/link";
 
 import { solicitarBajaProyectoAsesor } from "@/app/actions/coordinador";
+import InformePrimerContactoClient from "@/app/asesor/informes/primer-contacto/[id]/InformePrimerContactoClient";
 
 interface PropuestaProgresoClientProps {
   data: {
@@ -21,9 +22,10 @@ interface PropuestaProgresoClientProps {
     actividades: any[];
     detallesProyecto: any;
   };
+  informeData?: any;
 }
 
-export default function PropuestaProgresoClient({ data }: PropuestaProgresoClientProps) {
+export default function PropuestaProgresoClient({ data, informeData }: PropuestaProgresoClientProps) {
   const { propuesta, estudiante, empresa, supervisor, carta, actividades } = data;
 
   const [activeTab, setActiveTab] = useState<"datos" | "plan" | "primer_contacto">("datos");
@@ -204,13 +206,6 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <Link
-            href={`/asesor/informes/primer-contacto/${propuesta.id}`}
-            className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-300 font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-xs active:scale-95"
-          >
-            <span>📋 Informe Primer Contacto (Hito 1)</span>
-          </Link>
-
           <button
             type="button"
             onClick={handleAprobarOK}
@@ -440,7 +435,7 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
 
         <button
           onClick={() => setActiveTab("primer_contacto")}
-          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
             activeTab === "primer_contacto"
               ? "bg-brand-red text-white shadow-sm"
               : "text-slate-600 hover:bg-slate-100"
@@ -450,9 +445,15 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
           Informe de primer contacto
-          <span className="text-[10px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-extrabold uppercase">
-            En desarrollo
-          </span>
+          {informeData && informeData.estado === "enviado" ? (
+            <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded font-extrabold uppercase">
+              ✓ Completado
+            </span>
+          ) : (
+            <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-extrabold uppercase">
+              Hito 1
+            </span>
+          )}
         </button>
       </div>
 
@@ -791,126 +792,25 @@ export default function PropuestaProgresoClient({ data }: PropuestaProgresoClien
       )}
 
       {/* ============================================================= */}
-      {/* PESTAÑA 3: INFORME DE PRIMER CONTACTO (EN DESARROLLO) */}
+      {/* PESTAÑA 3: INFORME DE PRIMER CONTACTO (HITO 1) */}
       {/* ============================================================= */}
       {activeTab === "primer_contacto" && (
-        <div className="space-y-6">
-          <div className="bg-white rounded-2xl border border-border shadow-sm p-6 md:p-8 space-y-6 relative overflow-hidden">
-            {/* Banner distintivo "(En desarrollo)" */}
-            <div className="bg-amber-500 text-white font-extrabold text-xs px-4 py-1.5 rounded-full inline-flex items-center gap-2 shadow-xs uppercase tracking-wider">
-              <span>⚠️ ESTA SECCIÓN SE ENCUENTRA ACTUALMENTE EN DESARROLLO</span>
+        <div className="pt-2">
+          {informeData ? (
+            <InformePrimerContactoClient
+              informeData={informeData}
+              propuesta={propuesta}
+              egresado={estudiante}
+              supervisor={supervisor}
+              empresa={empresa}
+              carrera={{ nombre: estudiante.carrera }}
+              actividades={actividades || []}
+            />
+          ) : (
+            <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl text-center text-xs text-slate-500 font-bold">
+              Cargando formulario de Informe de Primer Contacto...
             </div>
-
-            <div>
-              <h2 className="text-xl font-extrabold text-card-dark">
-                Informe de Primer Contacto con la Empresa
-              </h2>
-              <p className="text-xs text-muted mt-1 leading-relaxed">
-                En este apartado el asesor podrá llenar diferentes campos de entrada con información recopilada en el primer contacto o visita a la empresa en la que el egresado está realizando su pasantía o proyecto.
-              </p>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setPrimerContactoSaved(true);
-                setTimeout(() => setPrimerContactoSaved(false), 3000);
-              }}
-              className="bg-slate-50 rounded-xl p-6 border border-slate-200 space-y-6"
-            >
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                    Nombre del Contacto en la Empresa
-                  </label>
-                  <input
-                    type="text"
-                    value={primerContactoData.nombreContactoEmpresa}
-                    onChange={(e) =>
-                      setPrimerContactoData((p) => ({ ...p, nombreContactoEmpresa: e.target.value }))
-                    }
-                    placeholder="Ej. Licda. María Fernández"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-border text-sm focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red outline-none bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                    Cargo en la Empresa
-                  </label>
-                  <input
-                    type="text"
-                    value={primerContactoData.cargoContacto}
-                    onChange={(e) =>
-                      setPrimerContactoData((p) => ({ ...p, cargoContacto: e.target.value }))
-                    }
-                    placeholder="Ej. Gerente de Recursos Humanos"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-border text-sm focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red outline-none bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                    Teléfono de Contacto Directo
-                  </label>
-                  <input
-                    type="text"
-                    value={primerContactoData.telefonoContacto}
-                    onChange={(e) =>
-                      setPrimerContactoData((p) => ({ ...p, telefonoContacto: e.target.value }))
-                    }
-                    placeholder="Ej. 2440-1234 / 7890-0000"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-border text-sm focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red outline-none bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                    Correo Electrónico del Contacto
-                  </label>
-                  <input
-                    type="email"
-                    value={primerContactoData.correoContacto}
-                    onChange={(e) =>
-                      setPrimerContactoData((p) => ({ ...p, correoContacto: e.target.value }))
-                    }
-                    placeholder="contacto@empresa.com"
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-border text-sm focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red outline-none bg-white"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5">
-                  Observaciones y Detalles del Primer Contacto / Visita Inicial
-                </label>
-                <textarea
-                  rows={5}
-                  value={primerContactoData.observacionesPrimerVisita}
-                  onChange={(e) =>
-                    setPrimerContactoData((p) => ({ ...p, observacionesPrimerVisita: e.target.value }))
-                  }
-                  placeholder="Escriba los comentarios generales acordados con la empresa, horarios confirmados y observaciones del primer contacto..."
-                  className="w-full p-3 rounded-lg border border-border text-sm focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red outline-none bg-white resize-none"
-                />
-              </div>
-
-              {primerContactoSaved && (
-                <div className="p-3 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold">
-                  ✓ Borrador de informe de primer contacto guardado localmente (En desarrollo).
-                </div>
-              )}
-
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-6 py-3 rounded-xl transition-colors shadow-sm"
-                >
-                  Guardar Datos de Primer Contacto (Borrador)
-                </button>
-              </div>
-            </form>
-          </div>
+          )}
         </div>
       )}
     </div>

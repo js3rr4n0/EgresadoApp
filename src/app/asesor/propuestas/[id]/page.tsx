@@ -1,4 +1,5 @@
 import { getDetallePropuestaAsesor } from "@/app/actions/asesor";
+import { getOrCreateInformePrimerContacto } from "@/app/actions/informes";
 import { redirect } from "next/navigation";
 import PropuestaProgresoClient from "./PropuestaProgresoClient";
 
@@ -16,5 +17,13 @@ export default async function AsesorPropuestaProgresoPage({
     redirect("/asesor");
   }
 
-  return <PropuestaProgresoClient data={res.data as any} />;
+  const informeRes = await getOrCreateInformePrimerContacto(pId);
+  const informeData = informeRes.success ? informeRes.informe : null;
+
+  return (
+    <PropuestaProgresoClient
+      data={res.data as any}
+      informeData={informeData}
+    />
+  );
 }
