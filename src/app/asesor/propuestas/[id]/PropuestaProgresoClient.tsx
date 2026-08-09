@@ -243,7 +243,7 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
 
         <div className="flex items-center gap-3 flex-wrap">
           <a
-            href={`/admin/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
+            href={`/asesor/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
