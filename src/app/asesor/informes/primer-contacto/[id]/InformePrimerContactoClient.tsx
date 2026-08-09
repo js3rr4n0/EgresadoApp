@@ -283,6 +283,19 @@ export default function InformePrimerContactoClient({
             </p>
           </div>
 
+          {/* Botón Generar Dictamen de Plan de Trabajo (Ubicación marcada por usuario) */}
+          <div className="flex items-center justify-center my-2 md:my-0">
+            <a
+              href={`/asesor/propuestas/${propuesta.id}/dictamen`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm hover:shadow-md shrink-0"
+            >
+              <span>📜</span>
+              <span>Generar Dictamen de Plan de Trabajo</span>
+            </a>
+          </div>
+
           <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl text-right min-w-[200px]">
             <p className="text-[11px] font-extrabold uppercase text-slate-400">Fecha Límite</p>
             <p className="text-sm font-bold text-slate-800">
