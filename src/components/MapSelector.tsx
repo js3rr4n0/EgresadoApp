@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 
@@ -12,6 +12,16 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
+
+function RecenterMap({ position }: { position: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (position) {
+      map.setView(position, 16);
+    }
+  }, [position, map]);
+  return null;
+}
 
 function LocationMarker({ position, setPosition }: { position: [number, number] | null, setPosition: (pos: [number, number]) => void }) {
   useMapEvents({
@@ -60,7 +70,7 @@ export default function MapSelector({
     <div className="h-[250px] w-full rounded-lg overflow-hidden border border-gray-300 relative z-0">
       <MapContainer
         center={position || [13.9945, -89.5562]} // Santa Ana Centro, El Salvador
-        zoom={position ? 16 : 14}
+        zoom={16}
         scrollWheelZoom={true}
         style={{ height: "100%", width: "100%", zIndex: 1 }}
       >
@@ -68,6 +78,7 @@ export default function MapSelector({
           attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        <RecenterMap position={position} />
         <LocationMarker position={position} setPosition={handleSetPosition} />
       </MapContainer>
       <div className="absolute top-2 right-2 bg-white/90 backdrop-blur px-3 py-1.5 rounded-md shadow text-xs font-bold text-gray-700 z-[400] border border-gray-200">

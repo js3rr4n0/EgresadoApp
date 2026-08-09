@@ -515,11 +515,11 @@ Se reforzó la revisión administrativa de solicitudes de corrección de datos d
 1. **Eliminación de Emojis del Diagrama de Gantt:**
    - Se removieron los iconos de emojis (`📊`, etc.) de todos los botones y barras de encabezado del Diagrama de Gantt en vistas públicas, administrativas e imprimibles PDF (`ActividadesForm.tsx`, `egresado/imprimir/page.tsx` y `admin/imprimir/page.tsx`) para mantener una estética sobria y profesional.
 
-2. **Sincronización 1:1 Exacta de Coordenadas de la Base de Datos en Mapa PDF (`/api/map`):**
-   - **Requisito del Usuario:** El mapa estático en el PDF debe coincidir de forma idéntica con la ubicación exacta seleccionada por el estudiante/administrador en el mapa interactivo y almacenada en la base de datos (`mapa_url`), sin forzar reemplazos ni re-centrados artificiales.
+2. **Sincronización 1:1 Exacta de Coordenadas de la Base de Datos en Selector Interactivo y Mapa PDF:**
+   - **Requisito:** La vista previa interactiva (`MapSelector.tsx`) y el mapa estático del PDF (`/api/map`) deben enfocar en **Zoom 16** exactamente las coordenadas guardadas en la base de datos para la empresa/sucursal elegida, garantizando concordancia absoluta entre la dirección y el marcador.
    - **Solución:**
-     - Se eliminó cualquier sobrescritura hardcoded de coordenadas en `/api/map/route.ts` y en la vista de impresión del egresado (`/egresado/redactar/imprimir/page.tsx`).
-     - El generador del mapa estático consulta directamente el parámetro `coords` recibido de `empresa.mapaUrl` / `sucursal.mapaUrl` de la DB y ubica el marcador de pin azul de Leaflet sobre las coordenadas exactas elegidas por el usuario.
+     - Se integró el componente auxiliar `RecenterMap` utilizando el hook `useMap()` en `MapSelector.tsx` para forzar que al cambiar de empresa o cargar las coordenadas de la BD, la cámara Leaflet aplique `map.setView(position, 16)` de forma inmediata.
+     - Se eliminó cualquier filtro o re-centrado estático en `/api/map/route.ts` e `imprimir/page.tsx`, asegurando que las coordenadas `mapa_url` de la base de datos se respetan 1:1 en todos los reportes y modales.
 
 
 
