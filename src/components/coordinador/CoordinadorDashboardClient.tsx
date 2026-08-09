@@ -708,14 +708,17 @@ export default function CoordinadorDashboardClient({
               </button>
 
               <button
-                onClick={() => setModalTab("pdf")}
+                onClick={() => {
+                  setModalTab("pdf");
+                  window.open(`/coordinador/propuestas/${viewingDocPropuesta.id}/imprimir`, "_blank");
+                }}
                 className={`px-4 py-2.5 rounded-t-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
                   modalTab === "pdf"
                     ? "bg-white text-brand-red border-t-2 border-brand-red shadow-sm"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                <span>📄 Documento PDF (Hoja Oficial)</span>
+                <span>📄 Documento PDF (Hoja Oficial) ↗</span>
               </button>
 
               <button
@@ -758,40 +761,23 @@ export default function CoordinadorDashboardClient({
               )}
 
               {modalTab === "pdf" && (
-                <div className="p-8 max-w-2xl mx-auto text-center space-y-6 bg-white my-8 rounded-2xl border border-slate-200 shadow-sm">
-                  <div className="w-16 h-16 rounded-2xl bg-rose-100 text-brand-red flex items-center justify-center mx-auto text-3xl shadow-xs">
-                    📄
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-extrabold text-slate-900">Visualización de Hoja Oficial en Pantalla Completa</h3>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      El documento PDF oficial de la propuesta se visualiza en una ventana independiente para garantizar máxima nitidez, legibilidad óptima para la impresión y evitar barras de desplazamiento dentro del modal.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+                <div className="w-full h-full min-h-[600px] flex flex-col bg-white">
+                  <div className="bg-slate-100 p-3 border-b border-slate-200 flex items-center justify-between px-6 text-xs text-slate-600">
+                    <span className="font-bold text-slate-800">📄 Vista de Documento Oficial de Propuesta</span>
                     <a
                       href={`/coordinador/propuestas/${viewingDocPropuesta.id}/imprimir`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full sm:w-auto px-6 py-3 bg-brand-red hover:bg-brand-red-dark text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                      className="font-bold text-brand-red hover:underline flex items-center gap-1"
                     >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                      Abrir Documento PDF Completo ↗
-                    </a>
-
-                    <a
-                      href={`/coordinador/propuestas/${viewingDocPropuesta.id}/imprimir?ganttOnly=true`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full sm:w-auto px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-                    >
-                      <span>📊</span>
-                      Exportar Solo Diagrama de Gantt (PDF 1 pág) ↗
+                      <span>Abrir en Pestaña Completa ↗</span>
                     </a>
                   </div>
+                  <iframe
+                    src={`/coordinador/propuestas/${viewingDocPropuesta.id}/imprimir`}
+                    className="w-full flex-1 border-none min-h-[650px]"
+                    title={`Documento Propuesta ${viewingDocPropuesta.id}`}
+                  />
                 </div>
               )}
 

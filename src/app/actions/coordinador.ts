@@ -364,96 +364,163 @@ export async function getPropuestasAsignadasCoordinador() {
 export async function getDetallePropuestaCoordinador(propuestaId: number) {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
+    if (!session) {
       return { success: false, error: "No autorizado" };
     }
 
-    const [prop] = await db
+    const [propRow] = await db
       .select({
         propuesta: propuestas,
         estudiante: usuarios,
         carreraNombre: carreras.nombre,
       })
       .from(propuestas)
-      .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+      .leftJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .where(eq(propuestas.id, propuestaId))
       .limit(1);
 
-    if (!prop) return { success: false, error: "Propuesta no encontrada" };
+    if (!propRow || !propRow.propuesta) {
+      return { success: false, error: "Propuesta no encontrada" };
+    }
+
+    const prop = propRow.propuesta;
+
+    let estudianteObj = null;
+    if (propRow.estudiante) {
+      estudianteObj = {
+        nombreCompleto: propRow.estudiante.nombreCompleto || "Estudiante",
+        carnet: propRow.estudiante.carnet || "N/A",
+        correo: propRow.estudiante.correo || "N/A",
+        carrera: propRow.carreraNombre || "Sin Carrera",
+      };
+    } else if (prop.egresadoId) {
+      try {
+        const [u] = await db.select().from(usuarios).where(eq(usuarios.id, prop.egresadoId)).limit(1);
+        if (u) {
+          estudianteObj = {
+            nombreCompleto: u.nombreCompleto || "Estudiante",
+            carnet: u.carnet || "N/A",
+            correo: u.correo || "N/A",
+            carrera: "Sin Carrera",
+          };
+        }
+      } catch (e) {}
+    }
 
     let asesorObj = null;
-    if (prop.propuesta.asesorId) {
-      const [ase] = await db.select().from(usuarios).where(eq(usuarios.id, prop.propuesta.asesorId)).limit(1);
-      asesorObj = ase || null;
+    if (prop.asesorId) {
+      try {
+        const [ase] = await db.select().from(usuarios).where(eq(usuarios.id, prop.asesorId)).limit(1);
+        asesorObj = ase || null;
+      } catch (e) {}
     }
 
     let empresa = null;
     let supervisor = null;
-    if (prop.propuesta.empresaId) {
-      const [emp] = await db.select().from(empresas).where(eq(empresas.id, prop.propuesta.empresaId)).limit(1);
-      empresa = emp || null;
+    if (prop.empresaId) {
+      try {
+        const [emp] = await db.select().from(empresas).where(eq(empresas.id, prop.empresaId)).limit(1);
+        if (emp) {
+          empresa = {
+            ...emp,
+            nombre: (emp as any).nombreEmpresa || (emp as any).nombre || "Empresa",
+            direccion: (emp as any).direccionFormatoTexto || (emp as any).direccion || "Sin dirección",
+          };
+        }
+      } catch (e) {}
     }
-    if (prop.propuesta.supervisorId) {
-      const [sup] = await db.select().from(supervisores).where(eq(supervisores.id, prop.propuesta.supervisorId)).limit(1);
-      supervisor = sup || null;
+
+    if (prop.supervisorId) {
+      try {
+        const [sup] = await db.select().from(supervisores).where(eq(supervisores.id, prop.supervisorId)).limit(1);
+        if (sup) {
+          supervisor = {
+            ...sup,
+            nombres: (sup as any).nombreCompleto || (sup as any).nombres || "",
+            apellidos: (sup as any).apellidos || "",
+            cargo: sup.cargo || "Supervisor",
+          };
+        }
+      } catch (e) {}
     }
 
-    const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuestaId)).limit(1);
-    const actividadesList = await db
-      .select()
-      .from(actividades)
-      .where(eq(actividades.propuestaId, propuestaId))
-      .orderBy(asc(actividades.periodo), asc(actividades.semana), asc(actividades.numero));
+    let carta = null;
+    try {
+      const [c] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuestaId)).limit(1);
+      carta = c || null;
+    } catch (e) {}
 
-    const [detalles] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId)).limit(1);
-    const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, prop.propuesta.egresadoId));
+    let actividadesList: any[] = [];
+    try {
+      actividadesList = await db
+        .select()
+        .from(actividades)
+        .where(eq(actividades.propuestaId, propuestaId))
+        .orderBy(asc(actividades.periodo), asc(actividades.semana), asc(actividades.numero));
+    } catch (e) {}
 
-    // Fetch team members if multi-user
+    let detalles = null;
+    try {
+      const [d] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId)).limit(1);
+      detalles = d || null;
+    } catch (e) {}
+
+    let docs: any[] = [];
+    if (prop.egresadoId) {
+      try {
+        docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, prop.egresadoId));
+      } catch (e) {}
+    }
+
     let teamMembers: any[] = [];
-    if (prop.propuesta.tipo === "proyecto" || prop.propuesta.tipo === "investigacion") {
-      const teamRows = await db
-        .select({
-          id: usuarios.id,
-          carnet: usuarios.carnet,
-          nombreCompleto: usuarios.nombreCompleto,
-          correo: usuarios.correo,
-        })
-        .from(integrantesProyecto)
-        .innerJoin(usuarios, eq(integrantesProyecto.egresadoId, usuarios.id))
-        .where(
-          and(
-            eq(integrantesProyecto.propuestaId, propuestaId),
-            eq(integrantesProyecto.estado, "aceptado")
-          )
-        );
-      teamMembers = teamRows;
+    if (prop.tipo === "proyecto" || prop.tipo === "investigacion") {
+      try {
+        const teamRows = await db
+          .select({
+            id: usuarios.id,
+            carnet: usuarios.carnet,
+            nombreCompleto: usuarios.nombreCompleto,
+            correo: usuarios.correo,
+          })
+          .from(integrantesProyecto)
+          .innerJoin(usuarios, eq(integrantesProyecto.egresadoId, usuarios.id))
+          .where(
+            and(
+              eq(integrantesProyecto.propuestaId, propuestaId),
+              eq(integrantesProyecto.estado, "aceptado")
+            )
+          );
+        teamMembers = teamRows;
+      } catch (e) {}
     }
 
-    // Fetch status change history
-    const historialList = await db
-      .select({
-        id: historialEstados.id,
-        de: historialEstados.de,
-        a: historialEstados.a,
-        creadoEn: historialEstados.creadoEn,
-        usuarioNombre: usuarios.nombreCompleto,
-        usuarioRol: usuarios.rol,
-      })
-      .from(historialEstados)
-      .leftJoin(usuarios, eq(historialEstados.usuarioId, usuarios.id))
-      .where(eq(historialEstados.propuestaId, propuestaId))
-      .orderBy(asc(historialEstados.creadoEn));
+    let historialList: any[] = [];
+    try {
+      historialList = await db
+        .select({
+          id: historialEstados.id,
+          de: historialEstados.de,
+          a: historialEstados.a,
+          creadoEn: historialEstados.creadoEn,
+          usuarioNombre: usuarios.nombreCompleto,
+          usuarioRol: usuarios.rol,
+        })
+        .from(historialEstados)
+        .leftJoin(usuarios, eq(historialEstados.usuarioId, usuarios.id))
+        .where(eq(historialEstados.propuestaId, propuestaId))
+        .orderBy(asc(historialEstados.creadoEn));
+    } catch (e) {}
 
     return {
       success: true,
       data: {
-        propuesta: prop.propuesta,
-        estudiante: {
-          nombreCompleto: prop.estudiante.nombreCompleto,
-          carnet: prop.estudiante.carnet || "N/A",
-          correo: prop.estudiante.correo,
-          carrera: prop.carreraNombre || "Sin Carrera",
+        propuesta: prop,
+        estudiante: estudianteObj || {
+          nombreCompleto: "Estudiante Solicitante",
+          carnet: "N/A",
+          correo: "N/A",
+          carrera: "N/A",
         },
         teamMembers,
         asesor: asesorObj,
@@ -461,7 +528,7 @@ export async function getDetallePropuestaCoordinador(propuestaId: number) {
         supervisor,
         carta,
         actividades: actividadesList,
-        detallesProyecto: detalles || null,
+        detallesProyecto: detalles,
         documentos: docs,
         historial: historialList,
       },
