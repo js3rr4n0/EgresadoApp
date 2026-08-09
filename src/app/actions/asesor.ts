@@ -433,6 +433,17 @@ export async function solicitarAjustesPropuestaAsesor(propuestaId: number, obser
       })
       .where(eq(propuestas.id, propuestaId));
 
+    // Preserve current activity descriptions as descripcionAnterior for diff tracking
+    const currentActs = await db.select().from(actividades).where(eq(actividades.propuestaId, propuestaId));
+    for (const act of currentActs) {
+      if (!act.descripcionAnterior) {
+        await db
+          .update(actividades)
+          .set({ descripcionAnterior: act.descripcion })
+          .where(eq(actividades.id, act.id));
+      }
+    }
+
     // Log history
     const { historialEstados } = await import("@/lib/schema");
     await db.insert(historialEstados).values({

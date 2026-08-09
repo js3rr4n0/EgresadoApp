@@ -581,6 +581,47 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
               </p>
             </div>
 
+            {/* BANNER DE COMPARATIVA DE CAMBIOS ENVIADOS POR EL ALUMNO */}
+            {actividadesList.some((a: any) => (a.descripcionAnterior && a.descripcionAnterior !== a.descripcion) || a.esModificada || a.esNueva) && (
+              <div className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-indigo-950 text-white p-5 rounded-2xl shadow-md border border-indigo-700/60 space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2.5 bg-indigo-600/30 text-indigo-300 rounded-xl text-xl border border-indigo-500/40 shrink-0">
+                    ⏳
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-sm text-white">
+                        Propuesta Ajustada por el Estudiante — Comparativa de Cambios
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-400 text-amber-950 border border-amber-300">
+                        Pendiente de Revisión
+                      </span>
+                    </div>
+                    <p className="text-xs text-indigo-200 leading-relaxed">
+                      El egresado ha reenviado las correcciones del plan de trabajo. A continuación se presenta la <strong>comparativa directa de los cambios realizados</strong>:
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-indigo-800/80 text-xs">
+                  <div className="flex items-center gap-2 bg-rose-950/70 border border-rose-700/50 p-2.5 rounded-xl">
+                    <span className="text-base">❌</span>
+                    <div>
+                      <span className="text-rose-300 font-bold block text-[11px]">Texto original del Asesor:</span>
+                      <span className="line-through text-rose-200/90 font-medium text-[11px]">~Tachado en rojo~</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-700/50 p-2.5 rounded-xl">
+                    <span className="text-base">🟢</span>
+                    <div>
+                      <span className="text-emerald-300 font-bold block text-[11px]">Nuevas actividades o correcciones:</span>
+                      <span className="text-emerald-200 font-semibold text-[11px]">Resaltadas en verde ✓</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {periodosUnicos.length === 0 ? (
               <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                 <p className="text-slate-500 font-semibold text-sm">
@@ -699,89 +740,54 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                                     {act.numero}
                                   </td>
                                   <td className="py-3 px-4">
-                                    {editingActId === act.id ? (
-                                      <div className="flex flex-col gap-2 py-1">
-                                        <textarea
-                                          rows={3}
-                                          value={editingText}
-                                          onChange={(e) => setEditingText(e.target.value)}
-                                          className="w-full p-2 border border-brand-red rounded text-xs focus:outline-none"
-                                        />
-                                        <div className="flex gap-2">
-                                          <button
-                                            disabled={loadingUpdate}
-                                            onClick={() => handleSaveActividad(act.id)}
-                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-3 py-1 rounded"
-                                          >
-                                            {loadingUpdate ? "Guardando..." : "Guardar Modificación"}
-                                          </button>
-                                          <button
-                                            onClick={() => setEditingActId(null)}
-                                            className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[11px] px-3 py-1 rounded"
-                                          >
-                                            Cancelar
-                                          </button>
+                                    <div className="space-y-1">
+                                      {isNewAct ? (
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="text-[10px] bg-emerald-600 text-white font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                                            🟢 Nueva Actividad Añadida
+                                          </span>
+                                          <p className="text-emerald-950 font-bold leading-relaxed">
+                                            {act.descripcion}
+                                          </p>
                                         </div>
-                                      </div>
-                                    ) : (
-                                      <div className="space-y-1">
-                                        {isNewAct ? (
+                                      ) : (
+                                        <>
+                                          {act.descripcionAnterior && act.descripcionAnterior !== act.descripcion && (
+                                            <div className="text-xs text-red-600 font-medium flex items-center gap-1.5 flex-wrap">
+                                              <span className="line-through text-red-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                                                Original Asesor: ~{act.descripcionAnterior}~
+                                              </span>
+                                            </div>
+                                          )}
                                           <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-[10px] bg-emerald-600 text-white font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
-                                              🟢 Nueva Actividad Añadida
-                                            </span>
-                                            <p className="text-emerald-950 font-bold leading-relaxed">
+                                            <p className="text-slate-900 font-bold leading-relaxed">
                                               {act.descripcion}
                                             </p>
-                                          </div>
-                                        ) : (
-                                          <>
-                                            {act.descripcionAnterior && act.descripcionAnterior !== act.descripcion && (
-                                              <div className="text-xs text-red-600 font-medium flex items-center gap-1.5 flex-wrap">
-                                                <span className="line-through text-red-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
-                                                  Original Asesor: ~{act.descripcionAnterior}~
-                                                </span>
-                                              </div>
+                                            {isModAct && (
+                                              <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 font-extrabold px-2 py-0.5 rounded-full uppercase">
+                                                ✓ (Corregido)
+                                              </span>
                                             )}
-                                            <div className="flex items-center gap-2 flex-wrap">
-                                              <p className="text-slate-900 font-bold leading-relaxed">
-                                                {act.descripcion}
-                                              </p>
-                                              {isModAct && (
-                                                <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 font-extrabold px-2 py-0.5 rounded-full uppercase">
-                                                  ✓ (Corregido)
-                                                </span>
-                                              )}
-                                            </div>
-                                          </>
-                                        )}
-                                      </div>
-                                    )}
+                                          </div>
+                                        </>
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="py-3 px-3 text-center">
-                                    {editingActId !== act.id && (
-                                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                                        <button
-                                          onClick={() => handleStartEditAct(act)}
-                                          className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-2 py-1 rounded transition-colors"
-                                          title="Modificar actividad directamente"
-                                        >
-                                          ✏️ Editar
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            if (!selectedActIds.includes(act.id)) {
-                                              setSelectedActIds((prev) => [...prev, act.id]);
-                                            }
-                                            setShowAjustesModal(true);
-                                          }}
-                                          className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-2 py-1 rounded transition-colors border border-amber-300 flex items-center gap-1"
-                                          title="Marcar esta actividad y añadir observación con motivo"
-                                        >
-                                          💬 Comentar
-                                        </button>
-                                      </div>
-                                    )}
+                                    <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                                      <button
+                                        onClick={() => {
+                                          if (!selectedActIds.includes(act.id)) {
+                                            setSelectedActIds((prev) => [...prev, act.id]);
+                                          }
+                                          setShowAjustesModal(true);
+                                        }}
+                                        className="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-2 py-1 rounded transition-colors border border-amber-300 flex items-center gap-1"
+                                        title="Marcar esta actividad y añadir observación con motivo"
+                                      >
+                                        💬 Comentar
+                                      </button>
+                                    </div>
                                   </td>
                                 </tr>
                               );
