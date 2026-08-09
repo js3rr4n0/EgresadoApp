@@ -60,10 +60,10 @@ export default function InformePrimerContactoClient({
   const [uploadingEvidencia, setUploadingEvidencia] = useState(false);
 
   const [objetivosEntrevista, setObjetivosEntrevista] = useState<string[]>(
-    informeData.objetivosEntrevista || ["Consenso del plan de trabajo", "Tiempos de ejecución"]
+    informeData.objetivosEntrevista || []
   );
   const [mecanismosComunicacion, setMecanismosComunicacion] = useState<string[]>(
-    informeData.mecanismosComunicacion || ["Correo electrónico", "WhatsApp"]
+    informeData.mecanismosComunicacion || []
   );
   const [aceptaInformesMensuales, setAceptaInformesMensuales] = useState<boolean>(
     informeData.aceptaInformesMensuales ?? true
