@@ -91,30 +91,30 @@ export default async function AdminPrintPropuestaPage({
   let teamMembers: any[] = [];
   let detallesProj: any = null;
 
+  if (propuesta.empresaId) {
+    const res = await db.select().from(empresas).where(eq(empresas.id, propuesta.empresaId)).limit(1);
+    empresa = res[0];
+  }
+
+  if (propuesta.supervisorId) {
+    const res = await db.select().from(supervisores).where(eq(supervisores.id, propuesta.supervisorId)).limit(1);
+    supervisor = res[0];
+  }
+
+  if (propuesta.sucursalId) {
+    const res = await db.select().from(sucursales).where(eq(sucursales.id, propuesta.sucursalId)).limit(1);
+    sucursal = res[0];
+  }
+
+  actividadesList = await db
+    .select()
+    .from(actividades)
+    .where(eq(actividades.propuestaId, propuesta.id))
+    .orderBy(asc(actividades.periodo), asc(actividades.semana), asc(actividades.numero));
+
   if (isMultiUserFlow) {
     teamMembers = await getEquipoProyecto(propuesta.id);
     detallesProj = await getDetallesProyecto(propuesta.id);
-  } else {
-    if (propuesta.empresaId) {
-      const res = await db.select().from(empresas).where(eq(empresas.id, propuesta.empresaId)).limit(1);
-      empresa = res[0];
-    }
-
-    if (propuesta.supervisorId) {
-      const res = await db.select().from(supervisores).where(eq(supervisores.id, propuesta.supervisorId)).limit(1);
-      supervisor = res[0];
-    }
-
-    if (propuesta.sucursalId) {
-      const res = await db.select().from(sucursales).where(eq(sucursales.id, propuesta.sucursalId)).limit(1);
-      sucursal = res[0];
-    }
-
-    actividadesList = await db
-      .select()
-      .from(actividades)
-      .where(eq(actividades.propuestaId, propuesta.id))
-      .orderBy(asc(actividades.periodo), asc(actividades.semana), asc(actividades.numero));
   }
 
   const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuesta.id)).limit(1);
@@ -302,18 +302,20 @@ export default async function AdminPrintPropuestaPage({
             </div>
           )}
 
-          {/* Bloque Oficial de Firmas */}
+          {/* Bloque Oficial de Firmas (Empresa y Asesor) */}
           <div className="mt-8 pt-4 border-t border-slate-200 grid grid-cols-2 gap-12 text-center text-[9.5px] text-slate-700 print:break-inside-avoid">
             <div className="space-y-1">
-              <div className="border-b border-slate-400 w-52 mx-auto mb-2"></div>
-              <p className="font-extrabold text-slate-900 uppercase">Firma del Asesor Asignado</p>
-              <p className="text-slate-600 font-medium">{asesorName}</p>
+              <div className="border-b border-slate-400 w-56 mx-auto mb-2"></div>
+              <p className="font-extrabold text-slate-900 uppercase">Firma del Representante de la Empresa</p>
+              <p className="text-slate-900 font-bold">{supervisor?.nombreCompleto || supervisor?.nombre || "Encargado / Supervisor de la Empresa"}</p>
+              <p className="text-slate-500 text-[8.5px] font-medium italic">{empresa?.nombreEmpresa || "Empresa / Institución Receptora"}</p>
             </div>
 
             <div className="space-y-1">
-              <div className="border-b border-slate-400 w-52 mx-auto mb-2"></div>
-              <p className="font-extrabold text-slate-900 uppercase">Firma del Coordinador de Carrera</p>
-              <p className="text-slate-600 font-medium">Coordinación de Trabajos de Graduación</p>
+              <div className="border-b border-slate-400 w-56 mx-auto mb-2"></div>
+              <p className="font-extrabold text-slate-900 uppercase">Firma del Asesor Asignado</p>
+              <p className="text-slate-900 font-bold">{asesorName}</p>
+              <p className="text-slate-500 text-[8.5px] font-medium italic">Universidad de El Salvador</p>
             </div>
           </div>
 
