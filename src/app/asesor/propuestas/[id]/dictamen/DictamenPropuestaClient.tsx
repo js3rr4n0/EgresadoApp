@@ -62,8 +62,8 @@ export default function DictamenPropuestaClient({
     timeZone: "America/El_Salvador",
   });
 
-  // Always render 3 rows for student tables (filled or blank for manual entries)
-  const maxRows = 3;
+  // Render 2 rows if 1-2 students, or 3 rows if 3+ students (filled or blank for manual entries)
+  const maxRows = Math.min(3, Math.max(2, students.length));
   const rows = Array.from({ length: maxRows }, (_, i) => students[i] || null);
 
   return (
@@ -74,7 +74,7 @@ export default function DictamenPropuestaClient({
         :root{
           --ink:#000;
           --line:1px solid #000;
-          --pad:6px 8px;
+          --pad:4px 6px;
         }
 
         html,body{ margin:0; padding:0; background:#8a8a8a; }
@@ -88,14 +88,16 @@ export default function DictamenPropuestaClient({
         .page{
           width:8.5in;
           min-height:11in;
+          max-height:11in;
           margin:24px auto;
           background:#fff;
           box-sizing:border-box;
-          padding:0.55in 0.55in 0.45in 0.55in;
+          padding:0.4in 0.45in 0.35in 0.45in;
           position:relative;
           box-shadow:0 2px 18px rgba(0,0,0,.35);
           display:flex;
           flex-direction:column;
+          overflow:hidden;
         }
 
         /* ---------- Encabezado ---------- */
@@ -103,16 +105,16 @@ export default function DictamenPropuestaClient({
           display:flex;
           align-items:flex-start;
           gap:14px;
-          margin-bottom:16px;
+          margin-bottom:10px;
         }
         .logo{
-          width:88px;
-          flex:0 0 88px;
+          width:80px;
+          flex:0 0 80px;
           text-align:center;
-          padding-top:4px;
+          padding-top:2px;
         }
         .logo .seal{
-          width:74px; height:74px;
+          width:68px; height:68px;
           border:1.5px solid #7a1f1f;
           border-radius:50%;
           margin:0 auto;
@@ -127,38 +129,38 @@ export default function DictamenPropuestaClient({
           object-fit:contain;
         }
         .logo .lema{
-          font-size:7px;
+          font-size:6.5px;
           font-style:italic;
-          margin-top:5px;
+          margin-top:4px;
           color:#333;
         }
         .titles{
           flex:1;
           text-align:center;
-          padding-top:14px;
+          padding-top:10px;
         }
         .titles h1{
-          font-size:15px;
+          font-size:14px;
           font-weight:bold;
-          margin:0 0 6px 0;
+          margin:0 0 4px 0;
           letter-spacing:.2px;
         }
         .titles h2{
-          font-size:14px;
+          font-size:13px;
           font-weight:bold;
           margin:0;
         }
-        .spacer-logo{ flex:0 0 88px; }
+        .spacer-logo{ flex:0 0 80px; }
 
         .id-line{
           text-align:right;
-          font-size:12.5px;
+          font-size:11.5px;
           font-weight:bold;
-          margin:2px 0 8px 0;
+          margin:0 0 6px 0;
         }
         .id-line .fill{
           display:inline-block;
-          min-width:110px;
+          min-width:100px;
           border-bottom:var(--line);
           padding-left:4px;
           text-align:center;
@@ -168,7 +170,7 @@ export default function DictamenPropuestaClient({
         table{
           width:100%;
           border-collapse:collapse;
-          font-size:12.5px;
+          font-size:11.5px;
         }
         td, th{
           border:var(--line);
@@ -177,7 +179,7 @@ export default function DictamenPropuestaClient({
         }
         .no-border td{ border:none; }
 
-        .blk{ margin-bottom:14px; }
+        .blk{ margin-bottom:9px; }
 
         th{
           font-weight:bold;
@@ -187,7 +189,7 @@ export default function DictamenPropuestaClient({
         .th-center{ text-align:center; }
 
         /* filas vacías para llenar a mano */
-        .row-fill td{ height:26px; }
+        .row-fill td{ height:22px; }
 
         .label{ font-weight:normal; }
 
@@ -197,51 +199,76 @@ export default function DictamenPropuestaClient({
 
         .tipo-label{ width:32%; }
 
-        .titulo-box td{ height:120px; vertical-align:top; }
+        .titulo-box td{ height:75px; vertical-align:top; }
 
-        .recom-box td{ height:110px; vertical-align:top; }
+        .recom-box td{ height:65px; vertical-align:top; }
 
-        .firma-cell{ height:44px; }
+        .firma-cell{ height:36px; }
 
         .col-carnet{ width:26%; }
         .col-firma{ width:26%; }
 
         /* ---------- Decano ---------- */
         .decano{
-          margin-top:50px;
+          margin-top:24px;
           text-align:left;
           padding-left:20px;
-          font-size:12.5px;
+          font-size:11.5px;
         }
         .decano .rule{
-          width:340px;
+          width:320px;
           border-top:var(--line);
-          margin-bottom:4px;
+          margin-bottom:3px;
         }
         .decano .cargo{
-          padding-left:110px;
+          padding-left:100px;
         }
 
         /* ---------- Pie ---------- */
         .footer{
           margin-top:auto;
-          padding-top:30px;
+          padding-top:12px;
           display:flex;
           justify-content:space-between;
           align-items:flex-end;
-          font-size:12.5px;
+          font-size:11.5px;
         }
         .footer .fill{
           display:inline-block;
-          min-width:170px;
+          min-width:160px;
           border-bottom:var(--line);
           padding-left:4px;
         }
 
         @media print{
-          html,body{ background:#fff; }
-          .page{ margin:0; box-shadow:none; width:auto; min-height:auto; padding:0.4in; }
-          .no-print{ display:none !important; }
+          html, body{
+            background:#fff !important;
+            margin:0 !important;
+            padding:0 !important;
+            height:100% !important;
+            overflow:hidden !important;
+          }
+          .no-print{
+            display:none !important;
+            height:0 !important;
+            margin:0 !important;
+            padding:0 !important;
+          }
+          .page{
+            margin:0 !important;
+            box-shadow:none !important;
+            width:8.5in !important;
+            height:11in !important;
+            max-height:11in !important;
+            box-sizing:border-box !important;
+            padding:0.35in 0.4in 0.3in 0.4in !important;
+            page-break-after:avoid !important;
+            page-break-before:avoid !important;
+            page-break-inside:avoid !important;
+            break-after:avoid !important;
+            break-inside:avoid !important;
+            overflow:hidden !important;
+          }
         }
       `}</style>
 
