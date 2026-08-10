@@ -127,15 +127,15 @@ export default function LoginPage() {
               <p className="text-muted">Pass: Test123!</p>
             </div>
             <div>
-              <p className="font-bold text-brand-red mb-0.5">Coord: <span className="text-muted font-normal">decanato@uni.test</span></p>
+              <p className="font-bold text-brand-red mb-0.5">Coord: <span className="text-muted font-normal">Jose.luis@uni.test</span></p>
               <p className="text-muted">Pass: Test123!</p>
             </div>
             <div>
-              <p className="font-bold text-brand-red mb-0.5">Asesor: <span className="text-muted font-normal">asesor@uni.test</span></p>
+              <p className="font-bold text-brand-red mb-0.5">Asesor: <span className="text-muted font-normal">Marco.solis@catolica.edu.sv</span></p>
               <p className="text-muted">Pass: Test123!</p>
             </div>
             <div>
-              <p className="font-bold text-brand-red mb-0.5">Egresado: <span className="text-muted font-normal">egresado@uni.test</span></p>
+              <p className="font-bold text-brand-red mb-0.5">Egresado: <span className="text-muted font-normal">julio.serrano@catolica.edu.sv</span></p>
               <p className="text-muted">Pass: Test123!</p>
             </div>
           </div>
