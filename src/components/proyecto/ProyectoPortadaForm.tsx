@@ -196,6 +196,12 @@ export default function ProyectoPortadaForm({
     </div>
   );
 
+  // Split full name into names and surnames approximately for display
+  const nombresSplit = (userDetails?.nombreCompleto || "").split(" ");
+  const half = Math.ceil(nombresSplit.length / 2);
+  const nombres = nombresSplit.slice(0, half).join(" ");
+  const apellidos = nombresSplit.slice(half).join(" ");
+
   return (
     <div className="bg-white border border-border rounded-xl p-6 lg:p-8 shadow-sm">
       <div className="mb-6 flex justify-between items-center border-b border-border pb-4">
@@ -267,84 +273,111 @@ export default function ProyectoPortadaForm({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-5">
           <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">Nombres y Apellidos del Egresado</label>
+            <label className="block text-sm font-bold text-foreground mb-1.5">Nombres</label>
             <div className="relative">
-              <input
-                type="text"
-                readOnly
-                value={nombreCompleto}
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-700 text-sm cursor-not-allowed focus:outline-none"
+              <input 
+                type="text" 
+                readOnly 
+                value={nombres} 
+                className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none" 
+              />
+              <InputLock />
+            </div>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-bold text-foreground mb-1.5">Apellidos</label>
+            <div className="relative">
+              <input 
+                type="text" 
+                readOnly 
+                value={apellidos} 
+                className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none" 
               />
               <InputLock />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">Número de Carnet</label>
+            <label className="block text-sm font-bold text-foreground mb-1.5">Número de Carnet</label>
             <div className="relative">
-              <input
-                type="text"
-                readOnly
-                value={carnet}
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-700 text-sm cursor-not-allowed focus:outline-none"
+              <input 
+                type="text" 
+                readOnly 
+                value={userDetails?.carnet || ""} 
+                className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none" 
               />
               <InputLock />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">Carrera / Título al que se opta</label>
+            <label className="block text-sm font-bold text-foreground mb-1.5">Título al que se quiere optar</label>
             <div className="relative">
-              <input
-                type="text"
-                readOnly
-                value={userDetails?.carrera || "No especificada"}
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-700 text-sm cursor-not-allowed focus:outline-none"
+              <input 
+                type="text" 
+                readOnly 
+                value={userDetails?.carrera || "Carrera no asignada"} 
+                className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none" 
               />
               <InputLock />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">Mes de Envío</label>
+            <label className="block text-sm font-bold text-foreground mb-1.5">Mes de envío</label>
             <div className="relative">
-              <input
-                type="text"
-                readOnly
-                value={mesEnvio}
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-700 text-sm cursor-not-allowed capitalize focus:outline-none"
+              <input 
+                type="text" 
+                readOnly 
+                value={mesEnvio} 
+                className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none capitalize" 
               />
               <InputLock />
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-border">
-          <button
-            type="button"
+        <div className="flex justify-center sm:justify-start gap-4 mt-8 pt-6 border-t border-border flex-wrap">
+          <button 
+            type="button" 
             onClick={() => setIsModalOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 font-bold text-sm transition-colors shadow-sm"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-amber-400 text-amber-700 bg-amber-50 hover:bg-amber-100 font-bold text-sm transition-colors"
           >
-            <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             ¿Datos erróneos?
           </button>
 
           {!isReadOnly && (
-            <button
-              type="button"
-              disabled={savingTitulo}
-              onClick={handleSaveTituloAndContinue}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#b90000] hover:bg-[#a00000] text-white font-bold text-sm transition-colors shadow-sm disabled:opacity-50"
-            >
-              {savingTitulo ? "Guardando..." : "Guardar y Continuar"}
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </button>
+            <>
+              <button 
+                type="button" 
+                onClick={async () => {
+                  if (titulo) {
+                    setSavingTitulo(true);
+                    await updateTituloPropuesta(propuestaId, titulo);
+                    setSavingTitulo(false);
+                  }
+                  alert("Borrador del título guardado exitosamente.");
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold text-sm transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                Guardar Borrador
+              </button>
+
+              <button 
+                type="button" 
+                disabled={savingTitulo}
+                onClick={handleSaveTituloAndContinue}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#b90000] hover:bg-[#a00000] text-white font-bold text-sm transition-colors disabled:opacity-50"
+              >
+                {savingTitulo ? "Guardando..." : "Guardar y Continuar"}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              </button>
+            </>
           )}
         </div>
       </div>
