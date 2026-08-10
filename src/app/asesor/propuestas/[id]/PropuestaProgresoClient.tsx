@@ -461,28 +461,30 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
           Visualizar plan de trabajo
         </button>
 
-        <button
-          onClick={() => setActiveTab("primer_contacto")}
-          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
-            activeTab === "primer_contacto"
-              ? "bg-brand-red text-white shadow-sm"
-              : "text-slate-600 hover:bg-slate-100"
-          }`}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          Informe de primer contacto
-          {informeData && informeData.estado === "enviado" ? (
-            <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded font-extrabold uppercase">
-              ✓ Completado
-            </span>
-          ) : (
-            <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-extrabold uppercase">
-              Hito 1
-            </span>
-          )}
-        </button>
+        {propuesta.tipo === "pasantia" && (
+          <button
+            onClick={() => setActiveTab("primer_contacto")}
+            className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeTab === "primer_contacto"
+                ? "bg-brand-red text-white shadow-sm"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+            </svg>
+            Informe de primer contacto
+            {informeData && informeData.estado === "enviado" ? (
+              <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded font-extrabold uppercase">
+                ✓ Completado
+              </span>
+            ) : (
+              <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-extrabold uppercase">
+                Hito 1
+              </span>
+            )}
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab("documentos")}
@@ -1186,7 +1188,7 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
       {/* ============================================================= */}
       {/* PESTAÑA 3: INFORME DE PRIMER CONTACTO (HITO 1) */}
       {/* ============================================================= */}
-      {activeTab === "primer_contacto" && (
+      {activeTab === "primer_contacto" && propuesta.tipo === "pasantia" && (
         <div className="pt-2">
           {informeData ? (
             <InformePrimerContactoClient
