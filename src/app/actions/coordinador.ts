@@ -275,9 +275,7 @@ export async function getPropuestasAsignadasCoordinador() {
       return { success: false, error: "No autorizado" };
     }
 
-    const isAdmin = session.rol === "admin";
-
-    // Fetch all proposals assigned to this coordinator (or all proposals with a coordinator if admin)
+    // Fetch all proposals assigned specifically to this logged-in coordinator
     const acceptedRows = await db
       .select({
         propuesta: propuestas,
@@ -285,11 +283,7 @@ export async function getPropuestasAsignadasCoordinador() {
       })
       .from(propuestas)
       .leftJoin(usuarios, eq(propuestas.asesorId, usuarios.id))
-      .where(
-        isAdmin
-          ? isNotNull(propuestas.coordinadorId)
-          : eq(propuestas.coordinadorId, session.userId)
-      )
+      .where(eq(propuestas.coordinadorId, session.userId))
       .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
 
     const result = await Promise.all(
