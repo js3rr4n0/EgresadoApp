@@ -107,6 +107,55 @@ export default function ObjetivosProyectoForm({
     setPending(false);
   };
 
+  const handleReenviarAjustada = async () => {
+    if (disabled) return;
+
+    if (!objetivoGeneral.trim()) {
+      setError("Debes ingresar el objetivo general del proyecto.");
+      return;
+    }
+
+    const invalid = objetivosEspecificos.some(
+      (item) => !item.titulo.trim() || !item.descripcion.trim()
+    );
+
+    if (invalid) {
+      setError("Todos los objetivos específicos deben tener un título y una descripción.");
+      return;
+    }
+
+    if (!confirm("¿Confirma que ha realizado todas las correcciones solicitadas y desea reenviar su propuesta ajustada?")) {
+      return;
+    }
+
+    setPending(true);
+    setError(null);
+    setSuccess(null);
+
+    const saveRes = await saveObjetivosProyecto(propuestaId, {
+      objetivoGeneral,
+      objetivosEspecificos,
+    });
+
+    if (!saveRes.success) {
+      setError(saveRes.error || "Error al guardar los objetivos.");
+      setPending(false);
+      return;
+    }
+
+    const { reenviarPropuestaAjustada } = await import("@/app/actions/propuestas");
+    const res = await reenviarPropuestaAjustada(propuestaId);
+    setPending(false);
+
+    if (res.success) {
+      alert(res.message);
+      router.push("/egresado");
+      router.refresh();
+    } else {
+      setError(res.error || "Error al reenviar la propuesta.");
+    }
+  };
+
   return (
     <div className="bg-white border border-border rounded-xl p-6 lg:p-8 shadow-sm">
       <div className="mb-6 border-b border-border pb-4">
@@ -240,34 +289,52 @@ export default function ObjetivosProyectoForm({
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border mt-8">
-          <button
-            type="button"
-            onClick={() => router.push(isInvestigacion ? `?id=${propuestaId}&step=5` : `?id=${propuestaId}&step=6`)}
-            className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
-          >
-            {isInvestigacion ? "← Volver a Justificación" : "← Volver a Alcance"}
-          </button>
+          {!observaciones && (
+            <button
+              type="button"
+              onClick={() => router.push(isInvestigacion ? `?id=${propuestaId}&step=5` : `?id=${propuestaId}&step=6`)}
+              className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
+            >
+              {isInvestigacion ? "← Volver a Justificación" : "← Volver a Alcance"}
+            </button>
+          )}
 
           {!disabled && (
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => handleSave(false)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-                Guardar Borrador
-              </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => handleSave(true)}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white font-bold text-sm transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
-              >
-                {pending ? "Guardando..." : "Guardar y Continuar"}
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-              </button>
+            <div className="flex items-center gap-3 ml-auto">
+              {observaciones ? (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={handleReenviarAjustada}
+                  className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-xs transition-colors shadow-md disabled:opacity-50 cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  <span>{pending ? "Guardando y Reenviando..." : "Reenviar Propuesta Ajustada"}</span>
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => handleSave(false)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                    Guardar Borrador
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => handleSave(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white font-bold text-sm transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+                  >
+                    {pending ? "Guardando..." : "Guardar y Continuar"}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

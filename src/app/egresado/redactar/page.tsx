@@ -68,7 +68,7 @@ export default async function EgresadoPage({
 
   const defaultStepForAdjustments = isProyecto ? 7 : isInvestigacion ? 6 : 5;
   const currentStep = hasAdvisorObservations
-    ? (params.step ? parseInt(params.step, 10) : defaultStepForAdjustments)
+    ? defaultStepForAdjustments
     : parseInt(params.step || "1", 10);
 
   let cartaData: any = null;
@@ -347,7 +347,7 @@ export default async function EgresadoPage({
               const active = step.num === currentStep;
               const completed = step.num < currentStep;
               const locked = hasAdvisorObservations
-                ? (isProyecto ? (step.num !== 7 && step.num !== 5 && step.num !== 6) : isInvestigacion ? (step.num !== 6 && step.num !== 5) : step.num !== 5)
+                ? step.num !== defaultStepForAdjustments
                 : step.num > maxAllowedStep;
 
               const innerContent = (
