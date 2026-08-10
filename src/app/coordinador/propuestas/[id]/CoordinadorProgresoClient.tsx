@@ -306,7 +306,12 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
       {/* ────────────────── TAB 1: VALIDAR DOCUMENTOS ────────────────── */}
       {activeTab === "documentos" && propuestaId > 0 && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-          <DocumentosPropuestaSection propuestaId={propuestaId} propuestaEstado={propuesta.estado} />
+          <DocumentosPropuestaSection
+            propuestaId={propuestaId}
+            propuestaEstado={propuesta.estado}
+            propuestaTipo={propuestaTipo}
+            canStartPlan={true}
+          />
         </div>
       )}
 

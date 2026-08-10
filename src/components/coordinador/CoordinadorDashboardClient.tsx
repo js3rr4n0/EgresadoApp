@@ -766,6 +766,7 @@ export default function CoordinadorDashboardClient({
                     propuestaEstado={docDetails?.propuesta?.estado || (viewingDocPropuesta as any)?.estado || undefined}
                     propuestaTipo={docDetails?.propuesta?.tipo || viewingDocPropuesta?.tipo}
                     onStatusChange={(allUploaded) => setCanApproveModal(allUploaded)}
+                    canStartPlan={true}
                   />
                 </div>
               )}

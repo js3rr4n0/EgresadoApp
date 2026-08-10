@@ -23,6 +23,7 @@ interface Props {
   propuestaTipo?: string;
   onStatusChange?: (allUploaded: boolean) => void;
   canUpload?: boolean;
+  canStartPlan?: boolean;
 }
 
 export default function DocumentosPropuestaSection({
@@ -31,6 +32,7 @@ export default function DocumentosPropuestaSection({
   propuestaTipo,
   onStatusChange,
   canUpload = true,
+  canStartPlan = false,
 }: Props) {
   const [currentEstado, setCurrentEstado] = useState<string | undefined>(propuestaEstado);
   const [startingPlan, setStartingPlan] = useState(false);
@@ -362,7 +364,7 @@ export default function DocumentosPropuestaSection({
             ✓ En Ejecución
           </span>
         </div>
-      ) : (
+      ) : canStartPlan ? (
         <div className="bg-slate-50 border-2 border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
           <div>
             <h4 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
@@ -382,7 +384,7 @@ export default function DocumentosPropuestaSection({
             type="button"
             onClick={handleDarInicioPlan}
             disabled={!docsData.allRequiredUploaded || startingPlan}
-            className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none disabled:active:scale-100 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0"
+            className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none disabled:active:scale-100 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
           >
             {startingPlan ? (
               <span>Procesando...</span>
@@ -393,6 +395,25 @@ export default function DocumentosPropuestaSection({
               </>
             )}
           </button>
+        </div>
+      ) : (
+        <div className="bg-amber-50/80 border-2 border-amber-200 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg font-bold shrink-0">
+              ⏳
+            </div>
+            <div>
+              <h4 className="font-extrabold text-amber-950 text-sm">
+                Estado del Plan de Trabajo
+              </h4>
+              <p className="text-xs text-amber-900 mt-0.5">
+                El plan de trabajo aún no se encuentra en ejecución. El <strong>Coordinador de Facultad</strong> dará inicio al plan una vez validados los dictámenes y la documentación requerida.
+              </p>
+            </div>
+          </div>
+          <span className="px-3.5 py-1.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-[11px] font-extrabold uppercase tracking-wider shrink-0">
+            Pendiente de Inicio (Coordinador)
+          </span>
         </div>
       )}
     </div>

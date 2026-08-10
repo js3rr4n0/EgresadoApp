@@ -1335,7 +1335,13 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
             </div>
           </div>
 
-          <DocumentosPropuestaSection propuestaId={propuesta.id} canUpload={true} />
+          <DocumentosPropuestaSection
+            propuestaId={propuesta.id}
+            propuestaEstado={propuesta.estado}
+            propuestaTipo={propuesta.tipo}
+            canUpload={true}
+            canStartPlan={false}
+          />
         </div>
       )}
     </div>
