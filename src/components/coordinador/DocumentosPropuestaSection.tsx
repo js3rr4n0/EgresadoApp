@@ -116,9 +116,11 @@ export default function DocumentosPropuestaSection({
 
     try {
       const formData = new FormData();
+      formData.append("propuestaId", propuestaId.toString());
+      formData.append("tipo", tipo);
       formData.append("file", file);
 
-      const res = await uploadDocumentoPropuesta(Number(propuestaId), tipo, formData);
+      const res = await uploadDocumentoPropuesta(formData);
       if (res && res.success) {
         setMessage({ type: "success", text: `Documento subido correctamente.` });
         await fetchDocs();
@@ -275,23 +277,47 @@ export default function DocumentosPropuestaSection({
               </div>
 
               {isUploaded ? (
-                <div className="flex items-center gap-2 pt-3 border-t border-emerald-200">
-                  <button
-                    type="button"
-                    onClick={() => openDocument(doc.archivoUrl, docItem.label)}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-xl transition-colors text-center inline-flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
-                  >
-                    <span>📄 Ver PDF Documento</span>
-                  </button>
-                  {canUpload && (
+                <div className="space-y-3 pt-3 border-t border-emerald-200">
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleDelete(docItem.tipo)}
-                      disabled={isDeleting}
-                      className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold py-2 px-3 rounded-xl border border-rose-200 transition-colors"
-                      title="Eliminar o Reemplazar Documento"
+                      type="button"
+                      onClick={() => openDocument(doc.archivoUrl, docItem.label)}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2 px-3 rounded-xl transition-colors text-center inline-flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
                     >
-                      {isDeleting ? "..." : "🗑️ Reemplazar"}
+                      <span>📄 Ver PDF Documento</span>
                     </button>
+                    {canUpload && (
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(docItem.tipo)}
+                        disabled={isDeleting}
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold py-2 px-3 rounded-xl border border-rose-200 transition-colors cursor-pointer shrink-0"
+                        title="Eliminar Documento"
+                      >
+                        {isDeleting ? "..." : "🗑️ Eliminar"}
+                      </button>
+                    )}
+                  </div>
+
+                  {canUpload && (
+                    <div className="pt-2 border-t border-emerald-200/70">
+                      <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                        🔄 Reemplazar por un nuevo PDF:
+                      </label>
+                      <input
+                        type="file"
+                        accept=".pdf,image/*"
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleFileUpload(docItem.tipo, f);
+                        }}
+                        className="block w-full text-xs text-slate-500 file:mr-2 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[11px] file:font-bold file:bg-slate-700 file:text-white hover:file:bg-slate-800 cursor-pointer"
+                      />
+                      {isUploading && (
+                        <p className="text-[11px] text-amber-700 font-bold mt-1">Actualizando archivo...</p>
+                      )}
+                    </div>
                   )}
                 </div>
               ) : (

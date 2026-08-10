@@ -77,29 +77,31 @@ export async function uploadDocumentoPropuesta(
       return { success: false, error: "No autorizado" };
     }
 
-    let propuestaId: number;
-    let tipo: string;
+    let propuestaId: number = 0;
+    let tipo: string = "";
     let archivo: File | null = null;
 
-    if (typeof propuestaIdOrFormData === "number") {
-      propuestaId = propuestaIdOrFormData;
-      tipo = tipoParam || "";
-      const rawFile = formDataParam?.get("file") || formDataParam?.get("archivo");
-      if (rawFile && typeof rawFile !== "string") {
-        archivo = rawFile as File;
-      }
-    } else {
+    if (propuestaIdOrFormData instanceof FormData) {
       const pStr = propuestaIdOrFormData.get("propuestaId") as string;
       propuestaId = parseInt(pStr, 10);
       tipo = propuestaIdOrFormData.get("tipo") as string;
-      const rawFile = propuestaIdOrFormData.get("archivo") || propuestaIdOrFormData.get("file");
+      const rawFile = propuestaIdOrFormData.get("file") || propuestaIdOrFormData.get("archivo");
       if (rawFile && typeof rawFile !== "string") {
         archivo = rawFile as File;
       }
+    } else if (typeof propuestaIdOrFormData === "number") {
+      propuestaId = propuestaIdOrFormData;
+      tipo = tipoParam || "";
+      if (formDataParam && formDataParam instanceof FormData) {
+        const rawFile = formDataParam.get("file") || formDataParam.get("archivo");
+        if (rawFile && typeof rawFile !== "string") {
+          archivo = rawFile as File;
+        }
+      }
     }
 
-    if (isNaN(propuestaId) || !tipo || !archivo) {
-      return { success: false, error: "Faltan datos requeridos para subir el documento." };
+    if (isNaN(propuestaId) || !propuestaId || !tipo || !archivo) {
+      return { success: false, error: "Faltan datos requeridos o el archivo es inválido para subir el documento." };
     }
 
     const arrayBuffer = await archivo.arrayBuffer();
