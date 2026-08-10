@@ -531,6 +531,34 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
               </div>
             </div>
 
+            {/* Dictamen de Plan de Trabajo Section */}
+            <div className="border-t border-border pt-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center text-xl font-bold shrink-0">
+                    📜
+                  </div>
+                  <div>
+                    <p className="text-sm font-extrabold text-emerald-950">
+                      Dictamen Oficial de Plan de Trabajo — Propuesta #{propuesta.numero}
+                    </p>
+                    <p className="text-xs text-emerald-800 font-medium">
+                      Genera e imprime el documento de dictamen oficial en formato de 1 página UNICAES.
+                    </p>
+                  </div>
+                </div>
+                <a
+                  href={`/asesor/propuestas/${propuesta.id}/dictamen`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0"
+                >
+                  <span>📜 Generar Dictamen (PDF 1 pág)</span>
+                  <span>↗</span>
+                </a>
+              </div>
+            </div>
+
             {/* Document / Proposal PDF File Viewer */}
             <div className="border-t border-border pt-6 space-y-4">
               <div className="flex items-center justify-between">
@@ -710,13 +738,24 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                       </p>
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowAjustesModal(true)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer"
-                  >
-                    <span>✏️ Solicitar Ajustes de Objetivos</span>
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <a
+                      href={`/asesor/propuestas/${propuesta.id}/dictamen`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm cursor-pointer"
+                      title="Generar e imprimir Dictamen Oficial de Plan de Trabajo / Propuesta UNICAES"
+                    >
+                      <span>📜 Generar Dictamen ↗</span>
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => setShowAjustesModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer"
+                    >
+                      <span>✏️ Solicitar Ajustes de Objetivos</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Objetivo General */}
@@ -1097,59 +1136,59 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                     </div>
                   </div>
                 </div>
-
-                {/* BARRA INFERIOR DE ACCIONES AL FINAL DE TODO EL PLAN DE TRABAJO */}
-                <div className="mt-8 pt-6 border-t-2 border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <div>
-                    <h3 className="font-extrabold text-slate-900 text-base">
-                      Aprobación y Dictamen Final de la Propuesta
-                    </h3>
-                    <p className="text-xs text-slate-600 mt-0.5">
-                      Una vez verificado el plan de trabajo y sus correcciones, puedes aprobar la propuesta y habilitar la emisión del dictamen.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <button
-                      type="button"
-                      onClick={handleAprobarOK}
-                      disabled={sendingAprobar || propuesta.estado === "aprobada"}
-                      className={`inline-flex items-center gap-2 font-extrabold text-xs px-5 py-3 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer ${
-                        propuesta.estado === "aprobada"
-                          ? "bg-slate-200 text-slate-600 border border-slate-300 cursor-not-allowed"
-                          : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                      }`}
-                    >
-                      <span>{sendingAprobar ? "Aprobando..." : propuesta.estado === "aprobada" ? "✓ Propuesta Aprobada (OK)" : "✅ Dar OK (Aprobar Plan)"}</span>
-                    </button>
-
-                    <a
-                      href={`/asesor/propuestas/${propuesta.id}/dictamen`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 font-extrabold text-xs px-5 py-3 rounded-xl transition-all shadow-md bg-purple-700 hover:bg-purple-800 text-white cursor-pointer active:scale-95"
-                      title="Generar e imprimir Dictamen Oficial de Propuesta UNICAES"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span>Generar Dictamen de Propuesta ↗</span>
-                    </a>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowAjustesModal(true)}
-                      className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs px-4 py-3 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
-                    >
-                      <svg className="w-4 h-4 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      <span>Solicitar Ajustes</span>
-                    </button>
-                  </div>
-                </div>
               </div>
             )}
+
+            {/* BARRA INFERIOR DE ACCIONES AL FINAL DE TODO EL PLAN DE TRABAJO */}
+            <div className="mt-8 pt-6 border-t-2 border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                  <span>📜 Aprobación y Dictamen Final de la Propuesta / Plan</span>
+                </h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Una vez verificado el plan de trabajo u objetivos y sus correcciones, puedes aprobar la propuesta y generar el dictamen oficial.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleAprobarOK}
+                  disabled={sendingAprobar || propuesta.estado === "aprobada"}
+                  className={`inline-flex items-center gap-2 font-extrabold text-xs px-5 py-3 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer ${
+                    propuesta.estado === "aprobada"
+                      ? "bg-slate-200 text-slate-600 border border-slate-300 cursor-not-allowed"
+                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  }`}
+                >
+                  <span>{sendingAprobar ? "Aprobando..." : propuesta.estado === "aprobada" ? "✓ Propuesta Aprobada (OK)" : "✅ Dar OK (Aprobar Plan)"}</span>
+                </button>
+
+                <a
+                  href={`/asesor/propuestas/${propuesta.id}/dictamen`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 font-extrabold text-xs px-5 py-3 rounded-xl transition-all shadow-md bg-purple-700 hover:bg-purple-800 text-white cursor-pointer active:scale-95"
+                  title="Generar e imprimir Dictamen Oficial de Plan de Trabajo UNICAES"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Generar Dictamen de Plan de Trabajo ↗</span>
+                </a>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAjustesModal(true)}
+                  className="inline-flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs px-4 py-3 rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                >
+                  <svg className="w-4 h-4 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span>Solicitar Ajustes</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
