@@ -10,10 +10,14 @@ import DictamenPropuestaClient from "./DictamenPropuestaClient";
 
 export default async function DictamenPropuestaPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ tipo?: string }>;
 }) {
   const { id } = await params;
+  const sp = searchParams ? await searchParams : {};
+  const tipoDictamen = sp.tipo === "propuesta" ? "propuesta" : "plan";
   const propuestaId = parseInt(id, 10);
 
   const [propRow] = await db
@@ -107,6 +111,7 @@ export default async function DictamenPropuestaPage({
       students={studentsList}
       asesorNombre={asesorNombre}
       decanoNombre={decanoNombre}
+      tipoDictamen={tipoDictamen}
     />
   );
 }

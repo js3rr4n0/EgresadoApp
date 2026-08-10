@@ -232,10 +232,48 @@ export default async function AdminPrintPropuestaPage({
             </div>
           </div>
 
+          {/* Objetivos para Proyecto / Investigación */}
+          {detallesProj && (detallesProj.objetivoGeneral || (Array.isArray(detallesProj.objetivosEspecificos) && detallesProj.objetivosEspecificos.length > 0)) && (
+            <div className="mb-4 border border-slate-300 rounded-xl p-3 bg-slate-50 space-y-2 text-[9.5px]">
+              <h3 className="font-extrabold text-slate-900 uppercase tracking-wider text-[10px] border-b border-slate-200 pb-1">
+                Objetivos {isInvestigacion ? "de la Investigación" : "del Proyecto Específico"}
+              </h3>
+              {detallesProj.objetivoGeneral && (
+                <div>
+                  <strong className="text-slate-900 uppercase text-[8.5px]">Objetivo General:</strong>
+                  <p className="text-slate-800 font-medium leading-tight mt-0.5">{detallesProj.objetivoGeneral}</p>
+                </div>
+              )}
+              {Array.isArray(detallesProj.objetivosEspecificos) && detallesProj.objetivosEspecificos.length > 0 && (
+                <div className="mt-2">
+                  <strong className="text-slate-900 uppercase text-[8.5px]">Objetivos Específicos:</strong>
+                  <table className="w-full text-[9px] border-collapse border border-slate-300 mt-1">
+                    <thead className="bg-slate-200 font-bold text-slate-900">
+                      <tr>
+                        <th className="border border-slate-300 p-1 text-center w-6">#</th>
+                        <th className="border border-slate-300 p-1 text-left w-1/3">Título</th>
+                        <th className="border border-slate-300 p-1 text-left">Descripción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detallesProj.objetivosEspecificos.map((obj: any, idx: number) => (
+                        <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-slate-100/60"}>
+                          <td className="border border-slate-300 p-1 text-center font-bold">{idx + 1}</td>
+                          <td className="border border-slate-300 p-1 font-semibold text-slate-900">{obj.titulo}</td>
+                          <td className="border border-slate-300 p-1 text-slate-800">{obj.descripcion}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Diagrama de Gantt Rediseñado */}
           {actividadesList.length === 0 ? (
-            <div className="py-12 text-center text-xs text-slate-500 italic border border-dashed border-slate-300 rounded-xl bg-slate-50">
-              No se han registrado actividades en el cronograma de esta propuesta.
+            <div className="py-8 text-center text-xs text-slate-500 italic border border-dashed border-slate-300 rounded-xl bg-slate-50">
+              No se han registrado actividades adicionales en el cronograma de esta propuesta.
             </div>
           ) : (
             <div className="border border-slate-300 rounded-xl overflow-hidden shadow-2xs bg-white">
@@ -333,20 +371,35 @@ export default async function AdminPrintPropuestaPage({
             </div>
           )}
 
-          {/* Bloque Oficial de Firmas (Empresa y Asesor) */}
-          <div className="mt-8 pt-4 border-t border-slate-200 grid grid-cols-2 gap-12 text-center text-[9.5px] text-slate-700 print:break-inside-avoid">
+          {/* Bloque Oficial de Firmas */}
+          <div className="mt-8 pt-4 border-t border-slate-200 grid grid-cols-2 sm:grid-cols-3 gap-6 text-center text-[9.5px] text-slate-700 print:break-inside-avoid">
             <div className="space-y-1">
-              <div className="border-b border-slate-400 w-56 mx-auto mb-2"></div>
-              <p className="font-extrabold text-slate-900 uppercase">Firma del Representante de la Empresa</p>
-              <p className="text-slate-900 font-bold">{supervisor?.nombreCompleto || supervisor?.nombre || "Encargado / Supervisor de la Empresa"}</p>
-              <p className="text-slate-500 text-[8.5px] font-medium italic">{empresa?.nombreEmpresa || "Empresa / Institución Receptora"}</p>
+              <div className="border-b border-slate-400 w-44 mx-auto mb-2"></div>
+              <p className="font-extrabold text-slate-900 uppercase">
+                {isMultiUserFlow ? "Firma del Estudiante(s)" : "Firma del Representante Empresa"}
+              </p>
+              <p className="text-slate-900 font-bold text-[8.5px]">
+                {isMultiUserFlow
+                  ? allStudents.map((s) => s.nombreCompleto).join(", ")
+                  : supervisor?.nombreCompleto || supervisor?.nombre || "Encargado / Supervisor de la Empresa"}
+              </p>
+              <p className="text-slate-500 text-[8px] font-medium italic">
+                {isMultiUserFlow ? "Egresado(s) Solicitante(s)" : empresa?.nombreEmpresa || "Empresa / Institución Receptora"}
+              </p>
             </div>
 
             <div className="space-y-1">
-              <div className="border-b border-slate-400 w-56 mx-auto mb-2"></div>
+              <div className="border-b border-slate-400 w-44 mx-auto mb-2"></div>
               <p className="font-extrabold text-slate-900 uppercase">Firma del Asesor Asignado</p>
-              <p className="text-slate-900 font-bold">{asesorName}</p>
-              <p className="text-slate-500 text-[8.5px] font-medium italic">Universidad de El Salvador</p>
+              <p className="text-slate-900 font-bold text-[8.5px]">{asesorName}</p>
+              <p className="text-slate-500 text-[8px] font-medium italic">Universidad Católica de El Salvador</p>
+            </div>
+
+            <div className="space-y-1">
+              <div className="border-b border-slate-400 w-44 mx-auto mb-2"></div>
+              <p className="font-extrabold text-slate-900 uppercase">Firma / Sello Coordinación</p>
+              <p className="text-slate-900 font-bold text-[8.5px]">Coordinación de Trabajo de Graduación</p>
+              <p className="text-slate-500 text-[8px] font-medium italic">UNICAES</p>
             </div>
           </div>
 

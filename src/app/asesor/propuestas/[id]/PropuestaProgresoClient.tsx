@@ -149,6 +149,12 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
     return "Investigación";
   };
 
+  const isApprovedByAsesor =
+    propuesta.estado === "aprobada" ||
+    propuesta.estado === "primer_contacto_completado" ||
+    propuesta.estado === "completada" ||
+    propuesta.estado === "finalizada";
+
   const handleStartEditAct = (act: any) => {
     setEditingActId(act.id);
     setEditingText(act.descripcion);
@@ -643,30 +649,82 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                 Revisa la programación de actividades mes por mes según las semanas de trabajo. Puedes realizar modificaciones a la descripción de cualquier actividad si es necesario (los cambios se sincronizarán con el estudiante). Además, al final de cada mes podrás revisar el informe mensual subido.
               </p>
             </div>
-            {/* Dictamen Oficial de Plan de Trabajo Section */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-xs">
+            {/* Section Dictámenes Oficiales UNICAES */}
+            <div className="bg-emerald-50/90 border border-emerald-200 p-5 rounded-2xl space-y-4 shadow-xs">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center text-xl font-bold shrink-0 shadow-xs">
                   📜
                 </div>
                 <div>
-                  <p className="text-sm font-extrabold text-emerald-950">
-                    Dictamen Oficial de Plan de Trabajo — Propuesta #{propuesta.numero || propuesta.id}
-                  </p>
-                  <p className="text-xs text-emerald-800 font-medium">
-                    Genera e imprime el documento de dictamen oficial en formato de 1 página UNICAES.
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-extrabold text-emerald-950">
+                      Dictámenes Oficiales UNICAES — Propuesta #{propuesta.numero || propuesta.id}
+                    </p>
+                    {isApprovedByAsesor ? (
+                      <span className="bg-emerald-200 text-emerald-900 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-emerald-400">
+                        ✓ Propuesta Aprobada
+                      </span>
+                    ) : (
+                      <span className="bg-amber-100 text-amber-900 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-amber-300">
+                        🔒 Requiere Aprobación del Asesor
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-emerald-800 font-medium mt-0.5">
+                    {isApprovedByAsesor
+                      ? "Genera e imprime los documentos oficiales de dictamen en formato de 1 página UNICAES."
+                      : "Los dictámenes oficiales solo se activarán posterior a que la propuesta sea aprobada por el docente asesor."}
                   </p>
                 </div>
               </div>
-              <a
-                href={`/asesor/propuestas/${propuesta.id}/dictamen`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold px-4.5 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
-              >
-                <span>📜 Generar Dictamen (PDF 1 pág)</span>
-                <span>↗</span>
-              </a>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-emerald-200/80">
+                {/* Dictamen de Plan de Trabajo */}
+                {isApprovedByAsesor ? (
+                  <a
+                    href={`/asesor/propuestas/${propuesta.id}/dictamen?tipo=plan`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold px-4.5 py-3 rounded-xl transition-all shadow-sm flex items-center justify-between gap-2 shrink-0 active:scale-95 cursor-pointer"
+                  >
+                    <span>📜 Dictamen de Plan de Trabajo (PDF 1 pág)</span>
+                    <span>↗</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="bg-slate-200 text-slate-500 border border-slate-300 text-xs font-bold px-4.5 py-3 rounded-xl flex items-center justify-between gap-2 shrink-0 cursor-not-allowed opacity-75"
+                    title="Se activará posterior a que la propuesta sea aprobada por el asesor"
+                  >
+                    <span>🔒 Dictamen de Plan de Trabajo</span>
+                    <span className="text-[10px] uppercase font-bold">(Inactivo)</span>
+                  </button>
+                )}
+
+                {/* Dictamen de Propuesta */}
+                {isApprovedByAsesor ? (
+                  <a
+                    href={`/asesor/propuestas/${propuesta.id}/dictamen?tipo=propuesta`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-purple-700 hover:bg-purple-800 text-white text-xs font-extrabold px-4.5 py-3 rounded-xl transition-all shadow-sm flex items-center justify-between gap-2 shrink-0 active:scale-95 cursor-pointer"
+                  >
+                    <span>📄 Dictamen de Propuesta (PDF 1 pág)</span>
+                    <span>↗</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="bg-slate-200 text-slate-500 border border-slate-300 text-xs font-bold px-4.5 py-3 rounded-xl flex items-center justify-between gap-2 shrink-0 cursor-not-allowed opacity-75"
+                    title="Se activará posterior a que la propuesta sea aprobada por el asesor"
+                  >
+                    <span>🔒 Dictamen de Propuesta</span>
+                    <span className="text-[10px] uppercase font-bold">(Inactivo)</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* BANNER DE COMPARATIVA DE CAMBIOS ENVIADOS POR EL ALUMNO */}
@@ -737,15 +795,26 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <a
-                      href={`/asesor/propuestas/${propuesta.id}/dictamen`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm cursor-pointer"
-                      title="Generar e imprimir Dictamen Oficial de Plan de Trabajo / Propuesta UNICAES"
-                    >
-                      <span>📜 Generar Dictamen ↗</span>
-                    </a>
+                    {isApprovedByAsesor ? (
+                      <a
+                        href={`/asesor/propuestas/${propuesta.id}/dictamen?tipo=plan`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs rounded-xl transition-all shadow-sm cursor-pointer"
+                        title="Generar e imprimir Dictamen Oficial UNICAES"
+                      >
+                        <span>📜 Generar Dictamen ↗</span>
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-200 text-slate-500 font-bold text-xs rounded-xl cursor-not-allowed opacity-70 border border-slate-300"
+                        title="Inactivo: Requiere aprobación previa del Asesor"
+                      >
+                        <span>🔒 Generar Dictamen</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setShowAjustesModal(true)}

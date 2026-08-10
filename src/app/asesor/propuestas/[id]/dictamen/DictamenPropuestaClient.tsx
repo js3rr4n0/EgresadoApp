@@ -10,6 +10,7 @@ interface Props {
   }>;
   asesorNombre: string;
   decanoNombre?: string;
+  tipoDictamen?: "plan" | "propuesta";
 }
 
 export default function DictamenPropuestaClient({
@@ -17,6 +18,7 @@ export default function DictamenPropuestaClient({
   students,
   asesorNombre,
   decanoNombre,
+  tipoDictamen = "plan",
 }: Props) {
   const getTipoLabel = (tipo?: string) => {
     if (tipo === "pasantia") return "Pasantía";
@@ -235,7 +237,7 @@ export default function DictamenPropuestaClient({
           <span className="text-2xl">📜</span>
           <div>
             <h3 className="text-sm font-extrabold text-white">
-              Dictamen de Plan de Trabajo — Propuesta #{propuesta.numero || propuesta.id}
+              {tipoDictamen === "propuesta" ? "Dictamen de Propuesta" : "Dictamen de Plan de Trabajo"} — Propuesta #{propuesta.numero || propuesta.id}
             </h3>
             <p className="text-[11px] text-slate-300">
               Formato oficial UNICAES listo para impresión en 1 sola página PDF.
@@ -259,7 +261,7 @@ export default function DictamenPropuestaClient({
           </div>
           <div className="titulos">
             UNIVERSIDAD CATÓLICA DE EL SALVADOR<br />
-            DICTAMEN DE PLAN DE TRABAJO
+            {tipoDictamen === "propuesta" ? "DICTAMEN DE PROPUESTA" : "DICTAMEN DE PLAN DE TRABAJO"}
           </div>
           <div></div>
         </div>
