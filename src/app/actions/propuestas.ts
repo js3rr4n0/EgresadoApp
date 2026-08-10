@@ -295,16 +295,31 @@ export async function enviarPropuesta(id: number) {
   const session = await getSession();
   if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
 
-  // Verify documents
-  const { documentosEgresado } = await import("@/lib/schema");
-  const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, session.userId));
-  
-  const hasServicio = docs.some(d => d.tipo === "servicio_social");
-  const hasNotas = docs.some(d => d.tipo === "certificacion_notas");
-  const hasPago = docs.some(d => d.tipo === "pago_tg");
+  const [prop] = await db.select().from(propuestas).where(and(eq(propuestas.id, id), eq(propuestas.egresadoId, session.userId))).limit(1);
+  if (!prop) return { success: false, error: "Propuesta no encontrada o no eres el coordinador." };
 
-  if (!hasServicio || !hasNotas || !hasPago) {
-    return { success: false, error: "Debes subir OBLIGATORIAMENTE los tres archivos (Servicio, Notas, Pago) para enviar la propuesta." };
+  // For team collaboration proposals (proyecto / investigacion), run pre-flight checks & ratification verification (§10 & §8)
+  if (prop.tipo === "proyecto" || prop.tipo === "investigacion") {
+    const { verificarCapacidadEnvio } = await import("@/app/actions/proyecto");
+    const checkRes = await verificarCapacidadEnvio(id);
+    if (!checkRes.puedeEnviar) {
+      return {
+        success: false,
+        error: checkRes.errores[0] || "No se cumplen las condiciones para enviar la propuesta.",
+      };
+    }
+  } else {
+    // Individual verification
+    const { documentosEgresado } = await import("@/lib/schema");
+    const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, session.userId));
+    
+    const hasServicio = docs.some(d => d.tipo === "servicio_social");
+    const hasNotas = docs.some(d => d.tipo === "certificacion_notas");
+    const hasPago = docs.some(d => d.tipo === "pago_tg");
+
+    if (!hasServicio || !hasNotas || !hasPago) {
+      return { success: false, error: "Debes subir OBLIGATORIAMENTE los tres archivos (Servicio, Notas, Pago) en tu portafolio para enviar la propuesta." };
+    }
   }
 
   const now = new Date();

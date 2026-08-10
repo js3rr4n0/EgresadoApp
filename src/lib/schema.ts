@@ -267,6 +267,7 @@ export const actividades = pgTable(
     propuestaId: integer("propuesta_id")
       .notNull()
       .references(() => propuestas.id, { onDelete: "cascade" }),
+    egresadoId: integer("egresado_id").references(() => usuarios.id),
     periodo: smallint("periodo").notNull(),
     semana: smallint("semana").notNull(),
     numero: smallint("numero").notNull(),
@@ -456,7 +457,28 @@ export const integrantesProyecto = pgTable(
     ),
     check(
       "estado_integrante_check",
-      sql`${table.estado} IN ('pendiente', 'aceptado', 'rechazado')`
+      sql`${table.estado} IN ('pendiente', 'aceptado', 'rechazado', 'retirado', 'concluido')`
+    ),
+  ]
+);
+
+export const ratificacionesPropuesta = pgTable(
+  "ratificaciones_propuesta",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    huellaFirmada: text("huella_firmada").notNull(),
+    momento: timestamp("momento", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("unique_ratificacion_propuesta_usuario").on(
+      table.propuestaId,
+      table.usuarioId
     ),
   ]
 );

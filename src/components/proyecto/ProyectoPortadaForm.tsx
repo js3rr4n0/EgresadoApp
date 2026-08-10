@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { updatePortada, solicitarCorreccionDatosDecanato, updateTituloPropuesta } from "@/app/actions/propuestas";
-import { invitarIntegrante, expulsarIntegrante, salirDelGrupo } from "@/app/actions/proyecto";
+import {
+  invitarIntegrante,
+  expulsarIntegrante,
+  salirDelGrupo,
+  ratificarPropuesta,
+  transferirLiderazgo,
+  retirarseDelProyecto,
+} from "@/app/actions/proyecto";
 import { useRouter } from "next/navigation";
 
 interface ProyectoPortadaFormProps {
@@ -114,11 +121,40 @@ export default function ProyectoPortadaForm({
     }
   };
 
+  const [ratifying, setRatifying] = useState(false);
+
+  const handleRatificar = async () => {
+    setRatifying(true);
+    setError(null);
+    setSuccess(null);
+    const res = await ratificarPropuesta(propuestaId);
+    setRatifying(false);
+    if (!res.success) {
+      setError(res.error || "Error al ratificar la propuesta.");
+    } else {
+      setSuccess(res.message || "Versión del plan de trabajo ratificada exitosamente con la huella digital.");
+      router.refresh();
+    }
+  };
+
+  const handleTransferir = async (nuevoLiderId: number, nombre: string) => {
+    if (!confirm(`¿Seguro que deseas transferir el rol de coordinador del equipo a ${nombre}?`)) return;
+    setError(null);
+    setSuccess(null);
+    const res = await transferirLiderazgo(propuestaId, nuevoLiderId);
+    if (!res.success) {
+      setError(res.error || "Error al transferir la coordinación.");
+    } else {
+      setSuccess(res.message || "Coordinación transferida.");
+      router.refresh();
+    }
+  };
+
   const handleLeaveGroup = async () => {
-    if (!memberInfo) return;
+    if (!memberInfo && !isLeader) return;
     if (!confirm("¿Seguro que deseas salir de este equipo? No podrás ver ni recibir actualizaciones de la propuesta.")) return;
     setError(null);
-    const res = await salirDelGrupo(memberInfo.integranteId);
+    const res = isLeader ? await retirarseDelProyecto(propuestaId) : (memberInfo ? await salirDelGrupo(memberInfo.integranteId) : { success: false, error: "No autorizado" });
     if (!res.success) {
       setError(res.error || "Error al salir del grupo.");
     } else {
@@ -397,7 +433,17 @@ export default function ProyectoPortadaForm({
                     )}
                   </td>
                   {isLeader && !isLocked && (
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right flex items-center justify-end gap-3">
+                      {member.estado === "aceptado" && (
+                        <button
+                          onClick={() => handleTransferir(member.egresadoId, member.nombreCompleto)}
+                          type="button"
+                          className="text-blue-600 hover:text-blue-800 font-semibold text-xs hover:underline"
+                          title="Transferir el rol de coordinador del grupo a este integrante"
+                        >
+                          Transferir Rol
+                        </button>
+                      )}
                       <button
                         onClick={() => handleExpulsar(member.id)}
                         type="button"
@@ -420,6 +466,50 @@ export default function ProyectoPortadaForm({
             </tbody>
           </table>
         </div>
+
+        {/* Section: Ratificación Unánime del Plan de Trabajo (§8) */}
+        {!isLocked && (
+          <div className="mt-6 bg-slate-900 text-white rounded-xl p-5 border border-slate-800 shadow-md">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                    §8 Ratificación Unánime
+                  </span>
+                  <h4 className="font-bold text-sm text-white">Firma de Conformidad del Equipo</h4>
+                </div>
+                <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+                  Cada integrante del equipo debe ratificar de forma individual la versión final del proyecto.
+                  Toda modificación posterior al título, alcance o actividades invalidará las firmas previas para garantizar el acuerdo unánime.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleRatificar}
+                  disabled={ratifying}
+                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {ratifying ? "Ratificando..." : "Ratificar Versión Actual"}
+                </button>
+
+                {(!isLeader || teamMembers.length > 0) && (
+                  <button
+                    type="button"
+                    onClick={handleLeaveGroup}
+                    className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-red-400 font-semibold text-xs px-3 py-2.5 rounded-lg transition-colors border border-slate-700 hover:border-red-900/50"
+                  >
+                    Retirarse del Equipo
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {isModalOpen && (
