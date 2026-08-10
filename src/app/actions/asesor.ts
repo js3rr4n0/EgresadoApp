@@ -46,7 +46,7 @@ export async function getMisPropuestasAsesor() {
         carreraNombre: carreras.nombre,
       })
       .from(propuestas)
-      .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+      .leftJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .where(eq(propuestas.asesorId, session.userId));
 
@@ -61,7 +61,7 @@ export async function getMisPropuestasAsesor() {
               carreraNombre: carreras.nombre,
             })
             .from(propuestas)
-            .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+            .leftJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
             .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
             .where(eq(propuestas.id, sol.propuestaId))
             .limit(1);
@@ -110,10 +110,10 @@ export async function getMisPropuestasAsesor() {
           numero: row.propuesta.numero,
           estado: row.propuesta.estado,
           estudiante: {
-            id: row.estudiante.id,
-            nombreCompleto: row.estudiante.nombreCompleto,
-            carnet: row.estudiante.carnet || "N/A",
-            correo: row.estudiante.correo,
+            id: row.estudiante?.id || 0,
+            nombreCompleto: row.estudiante?.nombreCompleto || "Estudiante",
+            carnet: row.estudiante?.carnet || "N/A",
+            correo: row.estudiante?.correo || "N/A",
             carrera: row.carreraNombre || "Sin Carrera",
           },
           empresa,

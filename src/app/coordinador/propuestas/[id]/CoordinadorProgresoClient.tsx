@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import DocumentosPropuestaSection from "@/components/coordinador/DocumentosPropuestaSection";
 import HistorialProyectoAccordion from "@/components/HistorialProyectoAccordion";
 import { asignarAsesorCoordinador } from "@/app/actions/coordinador";
@@ -29,6 +30,7 @@ interface CoordinadorProgresoClientProps {
 }
 
 export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoClientProps) {
+  const router = useRouter();
   const safeData = data || {};
   const propuesta = safeData.propuesta || {};
   const estudiante = safeData.estudiante || {
@@ -63,12 +65,13 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
     setLoadingAsignar(true);
     const res = await asignarAsesorCoordinador(propuestaId, parseInt(selectedAsesorId, 10));
     setLoadingAsignar(false);
-    if (res.success) {
+    if (res && res.success) {
       alert(res.message);
       setShowAsesorModal(false);
+      router.refresh();
       window.location.reload();
     } else {
-      alert(res.error || "Error al asignar asesor.");
+      alert(res?.error || "Error al asignar asesor.");
     }
   };
 

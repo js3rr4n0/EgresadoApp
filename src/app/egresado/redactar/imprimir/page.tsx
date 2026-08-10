@@ -30,15 +30,22 @@ export default async function PrintPropuestaPage({
 }) {
   const params = await searchParams;
   const session = await getSession();
-  if (!session || session.rol !== "egresado") {
+  if (!session) {
     redirect("/login");
   }
 
   // Get active proposal
   const targetId = params.id ? parseInt(params.id, 10) : undefined;
   const data = await getActivePropuesta(targetId);
-  if (!data || "error" in data) {
-    redirect("/egresado");
+  if (!data || "error" in data || !data.propuesta) {
+    return (
+      <div className="max-w-md mx-auto my-20 p-8 bg-white border border-slate-200 rounded-2xl text-center space-y-4 shadow-sm">
+        <h2 className="text-lg font-bold text-slate-900">No se pudo cargar la vista de la propuesta</h2>
+        <p className="text-xs text-slate-500 font-medium">
+          {(data && "error" in data && data.error) || "Es posible que la propuesta no exista o requiera permisos especiales."}
+        </p>
+      </div>
+    );
   }
   const { propuesta } = data;
 

@@ -8,38 +8,48 @@ import { revalidatePath } from "next/cache";
 
 export async function getActivePropuesta(targetPropuestaId?: number) {
   const session = await getSession();
-  if (!session || session.rol !== "egresado") return null;
+  if (!session) return null;
 
   // 1. Get active period
   const activePeriodRows = await db.select().from(periodos).where(eq(periodos.activo, true)).limit(1);
-  if (activePeriodRows.length === 0) return { error: "No hay periodo activo actualmente." };
-  const periodo = activePeriodRows[0];
-
-  // 2. Check for existing proposals owned by user
-  const props = await db
-    .select()
-    .from(propuestas)
-    .where(
-      and(
-        eq(propuestas.egresadoId, session.userId),
-        eq(propuestas.periodoId, periodo.id)
-      )
-    )
-    .orderBy(asc(propuestas.id));
+  const periodo = activePeriodRows[0] || null;
 
   let propuesta = null;
+  let targetEgresadoId = session.userId;
+
+  // If a targetPropuestaId is explicitly provided, fetch that proposal directly regardless of role
   if (targetPropuestaId) {
-    propuesta = props.find((p) => p.id === targetPropuestaId) || null;
-  }
-  if (!propuesta && props.length > 0) {
-    propuesta = props[0];
+    const [targetProp] = await db
+      .select()
+      .from(propuestas)
+      .where(eq(propuestas.id, targetPropuestaId))
+      .limit(1);
+    if (targetProp) {
+      propuesta = targetProp;
+      targetEgresadoId = targetProp.egresadoId;
+    }
   }
 
-  let isLeader = true;
-  let memberInfo = null;
+  // 2. Check for existing proposals owned by egresado user if target not specified
+  if (!propuesta && session.rol === "egresado" && periodo) {
+    const props = await db
+      .select()
+      .from(propuestas)
+      .where(
+        and(
+          eq(propuestas.egresadoId, session.userId),
+          eq(propuestas.periodoId, periodo.id)
+        )
+      )
+      .orderBy(asc(propuestas.id));
 
-  // If user doesn't own a proposal, check if they are part of an accepted project team
-  if (!propuesta) {
+    if (props.length > 0) {
+      propuesta = props[0];
+    }
+  }
+
+  // 3. Check team membership if user doesn't own a proposal directly
+  if (!propuesta && session.rol === "egresado") {
     const { integrantesProyecto, usuarios } = await import("@/lib/schema");
     const teamMemberRows = await db
       .select({
@@ -61,31 +71,31 @@ export async function getActivePropuesta(targetPropuestaId?: number) {
 
     if (teamMemberRows.length > 0) {
       propuesta = teamMemberRows[0].propuesta;
-      isLeader = false;
-      memberInfo = {
-        integranteId: teamMemberRows[0].integranteId,
-        liderNombre: teamMemberRows[0].liderNombre,
-        liderCarnet: teamMemberRows[0].liderCarnet,
-      };
+      targetEgresadoId = propuesta.egresadoId;
     }
   }
 
-  // 3. Return error if no proposal exists or assigned
+  // 4. Return error if no proposal exists or specified
   if (!propuesta) {
-    return { error: "No has creado ninguna propuesta aún." };
+    return { error: "No se encontró ninguna propuesta activa o vinculada." };
   }
 
-  // Calculate sequential display number for current proposal
-  const currentPropIndex = props.findIndex((p) => p.id === propuesta!.id);
+  // Calculate user proposals and index
+  const userProps = await db
+    .select()
+    .from(propuestas)
+    .where(eq(propuestas.egresadoId, targetEgresadoId))
+    .orderBy(asc(propuestas.id));
+
+  const currentPropIndex = userProps.findIndex((p) => p.id === propuesta!.id);
   const displayNumero = currentPropIndex !== -1 ? currentPropIndex + 1 : (propuesta.numero || 1);
   const propuestaConNumero = { ...propuesta, numero: displayNumero };
 
-  // Check if ANY proposal of the user is submitted or approved
-  const submittedIndex = props.findIndex((p) => p.estado === "enviada" || p.estado === "aprobada");
+  const submittedIndex = userProps.findIndex((p) => p.estado === "enviada" || p.estado === "aprobada");
   const isAnySubmitted = submittedIndex !== -1;
   const isCurrentSubmitted = propuesta.estado === "enviada" || propuesta.estado === "aprobada";
 
-  // 4. Fetch User details for Portada
+  // 5. Fetch Student User details for Portada
   const userRows = await db
     .select({
       nombreCompleto: usuarios.nombreCompleto,
@@ -96,12 +106,10 @@ export async function getActivePropuesta(targetPropuestaId?: number) {
     .from(usuarios)
     .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
     .leftJoin(facultades, eq(usuarios.facultadId, facultades.id))
-    .where(eq(usuarios.id, session.userId))
+    .where(eq(usuarios.id, targetEgresadoId))
     .limit(1);
 
   const userDetails = userRows[0];
-
-  // 5. Month of sending
   const mesEnvio = new Intl.DateTimeFormat('es-SV', { month: 'long' }).format(new Date());
 
   return {
@@ -109,9 +117,9 @@ export async function getActivePropuesta(targetPropuestaId?: number) {
     userDetails,
     mesEnvio,
     periodo,
-    isLeader,
-    memberInfo,
-    allPropuestas: props,
+    isLeader: targetEgresadoId === session.userId,
+    memberInfo: null,
+    allPropuestas: userProps,
     isAnySubmitted,
     isCurrentSubmitted,
     submittedPropNumber: submittedIndex !== -1 ? submittedIndex + 1 : null,

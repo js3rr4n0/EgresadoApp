@@ -675,6 +675,14 @@ export default function CoordinadorDashboardClient({
               </div>
 
               <div className="flex items-center gap-3">
+                {(!viewingDocPropuesta.solicitudActual || viewingDocPropuesta.solicitudActual.estado === "rechazada") && !viewingDocPropuesta.asesorAsignadoId && (
+                  <button
+                    onClick={() => handleOpenAssignModal(viewingDocPropuesta)}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-xs inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    👤 {viewingDocPropuesta.solicitudActual?.estado === "rechazada" ? "Reasignar Asesor" : "Asignar Asesor"}
+                  </button>
+                )}
                 <Link
                   href={`/coordinador/propuestas/${viewingDocPropuesta.id}`}
                   target="_blank"

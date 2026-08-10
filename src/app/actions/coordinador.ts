@@ -18,7 +18,7 @@ import {
   notificaciones,
   historialEstados,
 } from "@/lib/schema";
-import { eq, and, desc, asc, inArray, isNotNull } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, isNotNull, or, isNull } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
@@ -49,7 +49,7 @@ export async function getPropuestasPendientesCoordinador() {
         carreraNombre: carreras.nombre,
       })
       .from(propuestas)
-      .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+      .leftJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .where(
         and(
@@ -62,7 +62,7 @@ export async function getPropuestasPendientesCoordinador() {
     const result = await Promise.all(
       rawPropuestas.map(async (row) => {
         // Fetch student team if multi-user
-        let estudiantesNombres = row.estudiante.nombreCompleto;
+        let estudiantesNombres = row.estudiante?.nombreCompleto || "Estudiante";
         if (row.propuesta.tipo === "proyecto" || row.propuesta.tipo === "investigacion") {
           const team = await db
             .select({ nombre: usuarios.nombreCompleto })
@@ -141,7 +141,9 @@ export async function getAsesoresFacultad() {
 
     const coordFacultadId = userCoord?.facultadId;
 
-    let asesoresList;
+    let asesoresList: any[] = [];
+
+    // 1. Try to fetch advisers belonging to the same faculty
     if (coordFacultadId && !isAdmin) {
       asesoresList = await db
         .select({
@@ -154,10 +156,13 @@ export async function getAsesoresFacultad() {
           and(
             eq(usuarios.rol, "asesor"),
             eq(usuarios.facultadId, coordFacultadId),
-            eq(usuarios.activo, true)
+            or(eq(usuarios.activo, true), isNull(usuarios.activo))
           )
         );
-    } else {
+    }
+
+    // 2. Fallback: If no advisers found for faculty or user is admin, fetch all active advisers
+    if (asesoresList.length === 0) {
       asesoresList = await db
         .select({
           id: usuarios.id,
@@ -165,7 +170,12 @@ export async function getAsesoresFacultad() {
           correo: usuarios.correo,
         })
         .from(usuarios)
-        .where(and(eq(usuarios.rol, "asesor"), eq(usuarios.activo, true)));
+        .where(
+          and(
+            eq(usuarios.rol, "asesor"),
+            or(eq(usuarios.activo, true), isNull(usuarios.activo))
+          )
+        );
     }
 
     return { success: true, data: asesoresList };
@@ -218,6 +228,14 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
       return { success: false, error: "Ya existe una solicitud pendiente enviada a este asesor." };
     }
 
+    // Ensure coordinatorId is attached to the proposal
+    await db
+      .update(propuestas)
+      .set({
+        coordinadorId: prop.coordinadorId || session.userId,
+      })
+      .where(eq(propuestas.id, propuestaId));
+
     // Insert request with coordinatorId recorded
     await db.insert(solicitudesAsesor).values({
       propuestaId,
@@ -226,6 +244,18 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
       estado: "pendiente",
       creadaEn: new Date(),
     });
+
+    // Log in proposal history
+    try {
+      await db.insert(historialEstados).values({
+        propuestaId,
+        de: prop.estado,
+        a: `solicitud_asesor_enviada`,
+        usuarioId: session.userId,
+      });
+    } catch (e) {
+      console.log("Error non-fatal al registrar en historial:", e);
+    }
 
     // Notify Advisor
     const [estudiante] = await db
@@ -253,7 +283,12 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
     });
 
     revalidatePath("/coordinador");
+    revalidatePath(`/coordinador/propuestas/${propuestaId}`);
+    revalidatePath(`/coordinador/propuestas/${propuestaId}/dictamen`);
     revalidatePath("/asesor");
+    revalidatePath(`/asesor/propuestas/${propuestaId}`);
+    revalidatePath("/admin/propuestas");
+    revalidatePath(`/admin/propuestas/${propuestaId}`);
 
     return {
       success: true,
