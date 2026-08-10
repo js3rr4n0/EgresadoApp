@@ -531,33 +531,6 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
               </div>
             </div>
 
-            {/* Dictamen de Plan de Trabajo Section */}
-            <div className="border-t border-border pt-6 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center text-xl font-bold shrink-0">
-                    📜
-                  </div>
-                  <div>
-                    <p className="text-sm font-extrabold text-emerald-950">
-                      Dictamen Oficial de Plan de Trabajo — Propuesta #{propuesta.numero}
-                    </p>
-                    <p className="text-xs text-emerald-800 font-medium">
-                      Genera e imprime el documento de dictamen oficial en formato de 1 página UNICAES.
-                    </p>
-                  </div>
-                </div>
-                <a
-                  href={`/asesor/propuestas/${propuesta.id}/dictamen`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0"
-                >
-                  <span>📜 Generar Dictamen (PDF 1 pág)</span>
-                  <span>↗</span>
-                </a>
-              </div>
-            </div>
 
             {/* Document / Proposal PDF File Viewer */}
             <div className="border-t border-border pt-6 space-y-4">
@@ -669,6 +642,31 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
               <p className="text-xs text-muted mt-2 leading-relaxed">
                 Revisa la programación de actividades mes por mes según las semanas de trabajo. Puedes realizar modificaciones a la descripción de cualquier actividad si es necesario (los cambios se sincronizarán con el estudiante). Además, al final de cada mes podrás revisar el informe mensual subido.
               </p>
+            </div>
+            {/* Dictamen Oficial de Plan de Trabajo Section */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-emerald-50 border border-emerald-200 p-4 rounded-2xl shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center text-xl font-bold shrink-0 shadow-xs">
+                  📜
+                </div>
+                <div>
+                  <p className="text-sm font-extrabold text-emerald-950">
+                    Dictamen Oficial de Plan de Trabajo — Propuesta #{propuesta.numero || propuesta.id}
+                  </p>
+                  <p className="text-xs text-emerald-800 font-medium">
+                    Genera e imprime el documento de dictamen oficial en formato de 1 página UNICAES.
+                  </p>
+                </div>
+              </div>
+              <a
+                href={`/asesor/propuestas/${propuesta.id}/dictamen`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-extrabold px-4.5 py-2.5 rounded-xl transition-all shadow-sm flex items-center gap-1.5 shrink-0 active:scale-95 cursor-pointer"
+              >
+                <span>📜 Generar Dictamen (PDF 1 pág)</span>
+                <span>↗</span>
+              </a>
             </div>
 
             {/* BANNER DE COMPARATIVA DE CAMBIOS ENVIADOS POR EL ALUMNO */}
