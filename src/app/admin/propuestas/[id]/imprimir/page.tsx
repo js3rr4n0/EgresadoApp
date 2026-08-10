@@ -117,6 +117,18 @@ export default async function AdminPrintPropuestaPage({
     detallesProj = await getDetallesProyecto(propuesta.id);
   }
 
+  const teamAcceptedOrActive = teamMembers.filter(
+    (m) => m.estado === "aceptado" || m.estado === "pendiente"
+  );
+
+  const allStudents = [
+    { nombreCompleto: studentName, carnet: student?.carnet || "N/A" },
+    ...teamAcceptedOrActive.map((m) => ({
+      nombreCompleto: m.nombreCompleto,
+      carnet: m.carnet || "Sin carnet",
+    })),
+  ];
+
   const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuesta.id)).limit(1);
   const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId));
 
@@ -203,9 +215,8 @@ export default async function AdminPrintPropuestaPage({
             {/* Ficha Resumen Estudiante */}
             <div className="text-right text-[10px] text-slate-700 space-y-1 shrink-0 bg-slate-50 p-2.5 rounded-xl border border-slate-300 shadow-2xs min-w-[220px]">
               <p className="border-b border-slate-200 pb-1">
-                <strong className="text-slate-900 uppercase text-[9px]">Estudiante:</strong>{" "}
-                <span className="font-extrabold text-slate-900">{studentName}</span>{" "}
-                <span className="text-slate-500 font-mono">({student?.carnet || "N/A"})</span>
+                <strong className="text-slate-900 uppercase text-[9px]">{allStudents.length > 1 ? "Estudiantes:" : "Estudiante:"}</strong>{" "}
+                <span className="font-extrabold text-slate-900">{allStudents.map((s) => `${s.nombreCompleto} (${s.carnet})`).join(", ")}</span>
               </p>
               <p>
                 <strong className="text-slate-900 uppercase text-[9px]">Carrera:</strong>{" "}
@@ -403,10 +414,17 @@ export default async function AdminPrintPropuestaPage({
             </h3>
           </div>
 
-          <div className="mb-12 space-y-3">
-            <h3 className="text-lg font-bold text-gray-900 uppercase">
-              {isMultiUserFlow ? (isInvestigacion ? "INVESTIGADOR PRINCIPAL: " : "LÍDER DE PROYECTO: ") : "ESTUDIANTE: "} {studentName} ({student?.carnet || "N/A"})
-            </h3>
+          <div className="mb-12 space-y-4">
+            <div className="space-y-1.5">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                {allStudents.length > 1 ? "ESTUDIANTES:" : "ESTUDIANTE:"}
+              </p>
+              {allStudents.map((s, idx) => (
+                <h3 key={idx} className="text-lg font-bold text-gray-900 uppercase">
+                  {s.nombreCompleto} <span className="text-base text-gray-600 font-semibold font-mono">({s.carnet})</span>
+                </h3>
+              ))}
+            </div>
 
             <p className="text-sm font-semibold text-gray-700 uppercase">
               <strong>TÍTULO AL QUE SE OPTA / CARRERA:</strong> {carreraNombre}
@@ -415,19 +433,6 @@ export default async function AdminPrintPropuestaPage({
             <p className="text-sm font-semibold text-gray-700 uppercase">
               <strong>MES DE ENVÍO:</strong> {mesEnvioStr}
             </p>
-
-            {isMultiUserFlow && teamMembers.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Integrantes del Equipo:</p>
-                <div className="space-y-1">
-                  {teamMembers.map((m) => (
-                    <p key={m.id} className="text-sm font-medium text-gray-800">
-                      {m.nombreCompleto} ({m.carnet || "Sin carnet"}) - <span className="text-xs italic uppercase text-emerald-700">{m.estado}</span>
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {!isMultiUserFlow && empresa && (
               <div className="mt-6">

@@ -56,7 +56,7 @@ export default async function PrintPropuestaPage({
     })
     .from(usuarios)
     .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
-    .where(eq(usuarios.id, session.userId))
+    .where(eq(usuarios.id, propuesta.egresadoId))
     .limit(1);
 
   const student = studentRows[0];
@@ -99,6 +99,18 @@ export default async function PrintPropuestaPage({
       .where(eq(actividades.propuestaId, propuesta.id))
       .orderBy(asc(actividades.periodo), asc(actividades.numero));
   }
+
+  const teamAcceptedOrActive = teamMembers.filter(
+    (m) => m.estado === "aceptado" || m.estado === "pendiente"
+  );
+
+  const allStudents = [
+    { nombreCompleto: studentName, carnet: student?.carnet || "N/A" },
+    ...teamAcceptedOrActive.map((m) => ({
+      nombreCompleto: m.nombreCompleto,
+      carnet: m.carnet || "Sin carnet",
+    })),
+  ];
 
   const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuesta.id)).limit(1);
   const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId));
@@ -161,10 +173,17 @@ export default async function PrintPropuestaPage({
             </h3>
           </div>
 
-          <div className="mb-12 space-y-3">
-            <h3 className="text-lg font-bold text-gray-900 uppercase">
-              {isMultiUserFlow ? (isInvestigacion ? "INVESTIGADOR PRINCIPAL: " : "LÍDER DE PROYECTO: ") : "ESTUDIANTE: "} {studentName} ({student?.carnet || "N/A"})
-            </h3>
+          <div className="mb-12 space-y-4">
+            <div className="space-y-1.5">
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">
+                {allStudents.length > 1 ? "ESTUDIANTES:" : "ESTUDIANTE:"}
+              </p>
+              {allStudents.map((s, idx) => (
+                <h3 key={idx} className="text-lg font-bold text-gray-900 uppercase">
+                  {s.nombreCompleto} <span className="text-base text-gray-600 font-semibold font-mono">({s.carnet})</span>
+                </h3>
+              ))}
+            </div>
 
             <p className="text-sm font-semibold text-gray-700 uppercase">
               <strong>TÍTULO AL QUE SE OPTA / CARRERA:</strong> {carreraNombre}
@@ -173,19 +192,6 @@ export default async function PrintPropuestaPage({
             <p className="text-sm font-semibold text-gray-700 uppercase">
               <strong>MES DE ENVÍO:</strong> {mesEnvioStr}
             </p>
-
-            {isMultiUserFlow && teamMembers.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Integrantes del Equipo:</p>
-                <div className="space-y-1">
-                  {teamMembers.map((m) => (
-                    <p key={m.id} className="text-sm font-medium text-gray-800">
-                      {m.nombreCompleto} ({m.carnet || "Sin carnet"}) - <span className="text-xs italic uppercase text-emerald-700">{m.estado}</span>
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {!isMultiUserFlow && empresa && (
               <div className="mt-6">
