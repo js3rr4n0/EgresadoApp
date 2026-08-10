@@ -701,7 +701,7 @@ export default function CoordinadorDashboardClient({
                     : "text-slate-600 hover:text-slate-900"
                 }`}
               >
-                <span>📋 Validar Documentos ({canApproveModal ? "✓ 4/4" : "Incompleto"})</span>
+                <span>📋 Validar Documentos ({canApproveModal ? "✓ Completo" : "Incompleto"})</span>
               </button>
 
               <button

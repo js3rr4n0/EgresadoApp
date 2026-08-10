@@ -37,10 +37,13 @@ export default function DocumentosPropuestaSection({
 
   const [loading, setLoading] = useState(true);
   const [docsData, setDocsData] = useState<{
+    tipo?: string;
+    requiredDocs?: Array<{ tipo: string; label: string }>;
     docs: Record<string, any>;
     missingDocs: string[];
     allRequiredUploaded: boolean;
   }>({
+    requiredDocs: Array.from(TIPOS_DOCUMENTOS_REQUERIDOS),
     docs: {},
     missingDocs: TIPOS_DOCUMENTOS_REQUERIDOS.map((t) => t.label),
     allRequiredUploaded: false,
@@ -152,6 +155,9 @@ export default function DocumentosPropuestaSection({
     );
   }
 
+  const currentRequiredDocs = docsData.requiredDocs || Array.from(TIPOS_DOCUMENTOS_REQUERIDOS);
+  const totalRequiredCount = currentRequiredDocs.length;
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6 shadow-xs">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-4">
@@ -165,11 +171,13 @@ export default function DocumentosPropuestaSection({
                   : "bg-amber-100 text-amber-900 border border-amber-300"
               }`}
             >
-              {docsData.allRequiredUploaded ? "Completo (4/4)" : `Pendiente (${4 - docsData.missingDocs.length}/4)`}
+              {docsData.allRequiredUploaded
+                ? `Completo (${totalRequiredCount}/${totalRequiredCount})`
+                : `Pendiente (${totalRequiredCount - docsData.missingDocs.length}/${totalRequiredCount})`}
             </span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Se requiere que los 4 documentos estén subidos y verificados para habilitar los botones de Aprobación/Rechazo final.
+            Se requiere que los {totalRequiredCount} documentos estén subidos y verificados para habilitar la aprobación final del expediente.
           </p>
         </div>
       </div>
@@ -195,10 +203,10 @@ export default function DocumentosPropuestaSection({
           </div>
           <div>
             <p className="font-extrabold text-emerald-950 text-sm">
-              Requisitos Documentales Cumplidos (4/4)
+              Requisitos Documentales Cumplidos ({totalRequiredCount}/{totalRequiredCount})
             </p>
             <p className="text-xs text-emerald-800">
-              Se han subido y verificado la Propuesta aceptada/modificada, el Plan de trabajo firmado y ambos dictamenes. Las acciones de resolución están HABILITADAS.
+              Se han subido y verificado todos los documentos requeridos. Las acciones de resolución están HABILITADAS.
             </p>
           </div>
         </div>
@@ -220,9 +228,9 @@ export default function DocumentosPropuestaSection({
         </div>
       )}
 
-      {/* Grid of 4 Document Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {TIPOS_DOCUMENTOS_REQUERIDOS.map((docItem) => {
+      {/* Grid of Document Cards */}
+      <div className={`grid grid-cols-1 ${totalRequiredCount === 3 ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4`}>
+        {currentRequiredDocs.map((docItem) => {
           const doc = docsData.docs[docItem.tipo];
           const isUploaded = !!doc && !!doc.archivoUrl;
           const isUploading = uploadingType === docItem.tipo;
@@ -307,11 +315,19 @@ export default function DocumentosPropuestaSection({
         })}
       </div>
 
-      {/* Botón Dar Inicio al Plan de Trabajo */}
+      {/* Botón / Estado Dar Inicio al Plan de Trabajo */}
       {currentEstado === "en_ejecucion" ? (
-        <div className="bg-emerald-50 border-2 border-emerald-300 p-4.5 rounded-2xl text-center flex items-center justify-center gap-2 text-emerald-950 font-extrabold text-sm shadow-xs">
-          <span className="text-xl">🚀</span>
-          <span>¡El Plan de Trabajo ya se encuentra EN EJECUCIÓN!</span>
+        <div className="bg-emerald-50 border-2 border-emerald-400 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 text-emerald-900 font-extrabold text-sm shadow-xs">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🎉</span>
+            <div className="text-left">
+              <p className="text-sm font-extrabold text-emerald-900">¡Felicidades! Esta propuesta ya se encuentra en ejecución.</p>
+              <p className="text-xs text-emerald-700 font-medium">El plan de trabajo ha iniciado oficialmente para el egresado y el asesor.</p>
+            </div>
+          </div>
+          <span className="px-3.5 py-1.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-wider shrink-0 shadow-xs">
+            ✓ En Ejecución
+          </span>
         </div>
       ) : (
         <div className="bg-slate-50 border-2 border-slate-200 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 shadow-xs">

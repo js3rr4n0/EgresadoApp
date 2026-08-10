@@ -1,17 +1,34 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { documentosPropuesta } from "@/lib/schema";
+import { propuestas, documentosPropuesta } from "@/lib/schema";
 import { eq, and } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
-const TIPOS_DOCUMENTOS_REQUERIDOS = [
+export const TIPOS_DOCUMENTOS_REQUERIDOS = [
   { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
   { tipo: "plan_trabajo_firmado", label: "Plan de Trabajo Firmado" },
   { tipo: "dictamen_plan_trabajo", label: "Dictamen de Plan de Trabajo" },
   { tipo: "dictamen_propuesta", label: "Dictamen de Propuesta" },
 ] as const;
+
+function getRequiredDocsForTipo(tipo?: string) {
+  if (tipo === "proyecto" || tipo === "investigacion") {
+    return [
+      { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
+      { tipo: "dictamen_plan_trabajo", label: "Dictamen de Plan de Trabajo (Objetivos)" },
+      { tipo: "dictamen_propuesta", label: "Dictamen de Propuesta" },
+    ];
+  }
+  // Pasantía or default (4 documents)
+  return [
+    { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
+    { tipo: "plan_trabajo_firmado", label: "Plan de Trabajo Firmado" },
+    { tipo: "dictamen_plan_trabajo", label: "Dictamen de Plan de Trabajo" },
+    { tipo: "dictamen_propuesta", label: "Dictamen de Propuesta" },
+  ];
+}
 
 export async function getDocumentosPropuesta(propuestaId: number) {
   try {
@@ -19,6 +36,15 @@ export async function getDocumentosPropuesta(propuestaId: number) {
     if (!session) {
       return { success: false, error: "No autorizado" };
     }
+
+    const [prop] = await db
+      .select({ tipo: propuestas.tipo })
+      .from(propuestas)
+      .where(eq(propuestas.id, propuestaId))
+      .limit(1);
+
+    const tipoPropuesta = prop?.tipo || "pasantia";
+    const requiredDocs = getRequiredDocsForTipo(tipoPropuesta);
 
     const rows = await db
       .select()
@@ -31,7 +57,7 @@ export async function getDocumentosPropuesta(propuestaId: number) {
     });
 
     const missingDocs: string[] = [];
-    TIPOS_DOCUMENTOS_REQUERIDOS.forEach((item) => {
+    requiredDocs.forEach((item) => {
       if (!docsMap[item.tipo] || !docsMap[item.tipo].archivoUrl) {
         missingDocs.push(item.label);
       }
@@ -42,6 +68,8 @@ export async function getDocumentosPropuesta(propuestaId: number) {
     return {
       success: true,
       data: {
+        tipo: tipoPropuesta,
+        requiredDocs,
         docs: docsMap,
         missingDocs,
         allRequiredUploaded,
