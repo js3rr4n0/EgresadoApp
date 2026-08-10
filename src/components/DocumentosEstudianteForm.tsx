@@ -10,9 +10,10 @@ interface DocumentosEstudianteFormProps {
   propuestaId: number;
   isLocked: boolean;
   documentosSubidos: { tipo: string; archivoUrl: string }[];
+  prevStep?: number;
 }
 
-export default function DocumentosEstudianteForm({ propuestaId, isLocked, documentosSubidos }: DocumentosEstudianteFormProps) {
+export default function DocumentosEstudianteForm({ propuestaId, isLocked, documentosSubidos, prevStep = 6 }: DocumentosEstudianteFormProps) {
   const router = useRouter();
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -187,8 +188,8 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
 
       <div className="flex justify-between items-center pt-6 border-t border-border mt-8">
         <div className="flex items-center gap-4">
-          <button type="button" onClick={() => router.push(`?id=${propuestaId}&step=6`)} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors">
-            ← Volver a Justificación
+          <button type="button" onClick={() => router.push(`?id=${propuestaId}&step=${prevStep}`)} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer">
+            ← Volver al paso anterior
           </button>
           
           <button 

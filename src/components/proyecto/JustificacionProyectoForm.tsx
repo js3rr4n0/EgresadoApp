@@ -28,8 +28,7 @@ export default function JustificacionProyectoForm({
 
   const disabled = isLocked || isReadOnly;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSave = async (shouldAdvance: boolean) => {
     if (disabled) return;
 
     if (!justificacion.trim()) {
@@ -47,8 +46,10 @@ export default function JustificacionProyectoForm({
       setError(res.error || "Error al guardar la justificación.");
     } else {
       setSuccess("Justificación guardada correctamente.");
-      router.push(`?id=${propuestaId}&step=6`);
-      router.refresh();
+      if (shouldAdvance) {
+        router.push(`?id=${propuestaId}&step=6`);
+        router.refresh();
+      }
     }
     setPending(false);
   };
@@ -76,7 +77,7 @@ export default function JustificacionProyectoForm({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-6">
         <div>
           <label className="block text-sm font-bold text-card-dark mb-2">
             Justificación amplia <span className="text-red-500">*</span>
@@ -92,18 +93,39 @@ export default function JustificacionProyectoForm({
           />
         </div>
 
-        {!disabled && (
-          <div className="flex justify-end pt-2">
-            <button
-              type="submit"
-              disabled={pending}
-              className="bg-brand-red hover:bg-brand-red-hover text-white font-bold px-6 py-2.5 rounded-lg text-sm transition-colors shadow-sm disabled:opacity-50"
-            >
-              {pending ? "Guardando..." : "Guardar Justificación"}
-            </button>
-          </div>
-        )}
-      </form>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border mt-8">
+          <button
+            type="button"
+            onClick={() => router.push(`?id=${propuestaId}&step=4`)}
+            className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
+          >
+            ← Volver a Descripción
+          </button>
+
+          {!disabled && (
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => handleSave(false)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 font-bold text-sm transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+                Guardar Borrador
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => handleSave(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white font-bold text-sm transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
+              >
+                {pending ? "Guardando..." : "Guardar y Continuar"}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

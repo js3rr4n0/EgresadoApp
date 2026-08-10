@@ -628,6 +628,7 @@ export default async function EgresadoPage({
                   propuestaId={propuesta.id}
                   isLocked={isFormLocked || !isLeader}
                   documentosSubidos={documentosSubidos}
+                  prevStep={7}
                 />
               )}
             </>
@@ -724,6 +725,7 @@ export default async function EgresadoPage({
                     propuestaId={propuesta.id}
                     isLocked={isFormLocked}
                     documentosSubidos={documentosSubidos}
+                    prevStep={6}
                   />
                 </>
               )}
