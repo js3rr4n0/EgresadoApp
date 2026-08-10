@@ -49,7 +49,7 @@ export default function ProyectoPortadaForm({
   const [savingTitulo, setSavingTitulo] = useState(false);
   const [nombreCompleto] = useState(userDetails?.nombreCompleto || "");
   const [carnet] = useState(userDetails?.carnet || "");
-  const [invitingCarnet, setInvitingCarnet] = useState("");
+  const [invitingInput, setInvitingInput] = useState("");
   
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,18 +84,18 @@ export default function ProyectoPortadaForm({
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isReadOnly || !invitingCarnet.trim()) return;
+    if (isReadOnly || !invitingInput.trim()) return;
 
     setInviting(true);
     setError(null);
     setSuccess(null);
 
-    const res = await invitarIntegrante(propuestaId, invitingCarnet);
+    const res = await invitarIntegrante(propuestaId, invitingInput);
     if (!res.success) {
       setError(res.error || "Error al invitar al integrante");
     } else {
       setSuccess("Invitación enviada correctamente.");
-      setInvitingCarnet("");
+      setInvitingInput("");
       router.refresh();
     }
     setInviting(false);
@@ -323,7 +323,7 @@ export default function ProyectoPortadaForm({
             {isInvestigacion ? "Integrantes del Equipo de Investigación" : "Integrantes del Equipo de Proyecto"}
           </h3>
           <p className="text-xs text-muted mt-1">
-            Puedes invitar a otros egresados ingresando su número de carnet.
+            Puedes invitar a otros egresados ingresando su número de carnet o correo electrónico.
           </p>
         </div>
 
@@ -332,15 +332,15 @@ export default function ProyectoPortadaForm({
             <div className="flex-1 w-full">
               <input
                 type="text"
-                value={invitingCarnet}
-                onChange={(e) => setInvitingCarnet(e.target.value)}
-                placeholder="Ingresa el carnet del egresado (Ej: 2020-PM-605)"
+                value={invitingInput}
+                onChange={(e) => setInvitingInput(e.target.value)}
+                placeholder="Ingresa el carnet o correo del egresado (Ej: 2020-PM-605 o correo@ejemplo.com)"
                 className="w-full px-4 py-2 rounded-lg border border-border bg-white text-sm focus:ring-2 focus:ring-brand-red focus:outline-none"
               />
             </div>
             <button
               type="submit"
-              disabled={inviting || !invitingCarnet.trim()}
+              disabled={inviting || !invitingInput.trim()}
               className="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm px-5 py-2 rounded-lg transition-colors shrink-0 disabled:opacity-50"
             >
               {inviting ? "Enviando..." : "Añadir Integrante"}
@@ -353,7 +353,7 @@ export default function ProyectoPortadaForm({
             <thead className="text-xs text-muted bg-slate-50 uppercase font-bold border-b border-border">
               <tr>
                 <th className="px-6 py-3">Egresado</th>
-                <th className="px-6 py-3">Carnet</th>
+                <th className="px-6 py-3">Carnet / Correo</th>
                 <th className="px-6 py-3">Estado</th>
                 {isLeader && !isLocked && <th className="px-6 py-3 text-right">Acciones</th>}
               </tr>
@@ -377,7 +377,10 @@ export default function ProyectoPortadaForm({
               {teamMembers.map((member) => (
                 <tr key={member.id} className="hover:bg-slate-50">
                   <td className="px-6 py-4 font-medium text-foreground">{member.nombreCompleto}</td>
-                  <td className="px-6 py-4 text-muted">{member.carnet || "Sin carnet"}</td>
+                  <td className="px-6 py-4 text-muted">
+                    <div className="font-bold text-slate-800">{member.carnet || "Sin carnet"}</div>
+                    {member.correo && <div className="text-xs text-slate-500 font-normal">{member.correo}</div>}
+                  </td>
                   <td className="px-6 py-4">
                     {member.estado === "aceptado" ? (
                       <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">

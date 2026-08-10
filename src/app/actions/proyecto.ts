@@ -9,7 +9,7 @@ import {
   notificaciones,
   carreras,
 } from "@/lib/schema";
-import { eq, and, ne } from "drizzle-orm";
+import { eq, and, ne, or } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
@@ -68,15 +68,15 @@ export async function getUserAcceptedTeamProposal() {
   return accepted.length > 0 ? accepted[0] : null;
 }
 
-export async function invitarIntegrante(propuestaId: number, carnet: string) {
+export async function invitarIntegrante(propuestaId: number, carnetOrEmail: string) {
   const session = await getSession();
   if (!session || session.rol !== "egresado") {
     return { success: false, error: "No autorizado" };
   }
 
-  const cleanCarnet = carnet.trim();
-  if (!cleanCarnet) {
-    return { success: false, error: "Debes ingresar un número de carnet." };
+  const cleanInput = carnetOrEmail.trim();
+  if (!cleanInput) {
+    return { success: false, error: "Debes ingresar un número de carnet o correo electrónico." };
   }
 
   // 1. Verify proposal exists and belongs to current user
@@ -92,20 +92,26 @@ export async function invitarIntegrante(propuestaId: number, carnet: string) {
 
   const propuesta = propRows[0];
 
-  // 2. Search target user by carnet
+  // 2. Search target user by carnet OR email
   const targetUsers = await db
     .select({
       id: usuarios.id,
       nombreCompleto: usuarios.nombreCompleto,
       carnet: usuarios.carnet,
+      correo: usuarios.correo,
       rol: usuarios.rol,
     })
     .from(usuarios)
-    .where(eq(usuarios.carnet, cleanCarnet))
+    .where(
+      or(
+        eq(usuarios.carnet, cleanInput),
+        eq(usuarios.correo, cleanInput.toLowerCase())
+      )
+    )
     .limit(1);
 
   if (targetUsers.length === 0) {
-    return { success: false, error: `No se encontró ningún egresado con el carnet "${cleanCarnet}".` };
+    return { success: false, error: `No se encontró ningún egresado con el carnet o correo "${cleanInput}".` };
   }
 
   const targetUser = targetUsers[0];
