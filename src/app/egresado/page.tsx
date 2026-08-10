@@ -59,16 +59,20 @@ export default async function EgresadoLandingPage() {
     "coordinador_asignado",
     "aprobada",
     "primer_contacto_completado",
-    "en_ejecucion"
+    "en_ejecucion",
+    "pend_revision_datos",
+    "pend_empresa_nueva"
   ];
 
-  // Find active proposal in evaluation pipeline (submitted, assigned to coordinator/advisor, or approved)
+  // Find active proposal in evaluation pipeline (submitted, assigned to coordinator/advisor, approved, or pending adjustments)
   const activeSubmittedProp =
     userPropuestas.find(
       (p) =>
+        p.enviadaEn !== null ||
+        !!p.observaciones ||
         submittedStates.includes(p.estado) ||
-        (p.coordinadorId !== null && !["rechazada", "anulada", "redactando", "pend_revision_datos", "pend_empresa_nueva"].includes(p.estado)) ||
-        (p.asesorId !== null && !["rechazada", "anulada", "redactando", "pend_revision_datos", "pend_empresa_nueva"].includes(p.estado))
+        (p.coordinadorId !== null && !["rechazada", "anulada"].includes(p.estado)) ||
+        (p.asesorId !== null && !["rechazada", "anulada"].includes(p.estado))
     ) || acceptedTeam?.propuesta;
   const hasSubmittedPropuesta = !!activeSubmittedProp;
 
@@ -132,7 +136,11 @@ export default async function EgresadoLandingPage() {
       isPropuestaAjustada = true;
     }
 
-    if (activeSubmittedProp.estado === "en_ejecucion") {
+    if (activeSubmittedProp.observaciones) {
+      activeStatusTitle = "✏️ Ajustes Solicitados por el Docente Asesor";
+      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} tiene observaciones pendientes de corrección por parte del docente asesor${asesorNombre ? ` (${asesorNombre})` : ""}. Por favor, haz clic en "Corregir Observaciones" para realizar y reenviar las modificaciones solicitadas.`;
+      activeBadgeClass = "bg-amber-100 text-amber-950 border-amber-300 font-extrabold";
+    } else if (activeSubmittedProp.estado === "en_ejecucion") {
       activeStatusTitle = "¡Felicidades! Su trabajo de graduación ya se encuentra en ejecución 🎉";
       activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada e iniciada oficialmente por la Coordinación de Facultad. Tu plan de trabajo y pasantía se encuentran en proceso activo de desarrollo.`;
       activeBadgeClass = "bg-emerald-100 text-emerald-950 border-emerald-400 font-extrabold";
