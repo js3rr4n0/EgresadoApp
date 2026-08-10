@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logout } from "@/app/actions/auth";
 import NotificationBell from "./NotificationBell";
+import LogoutButton from "./LogoutButton";
 
 export interface NavItem {
   label: string;
@@ -54,13 +54,11 @@ export default function DashboardHeader({
               </div>
             </div>
 
-            <form action={logout}>
-              <button type="submit" className="text-white hover:text-white/80 transition-colors ml-2 sm:ml-0 p-1">
-                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </button>
-            </form>
+            <LogoutButton className="text-white hover:text-white/80 transition-colors ml-2 sm:ml-0 p-1 cursor-pointer" title="Cerrar Sesión">
+              <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </LogoutButton>
           </div>
         </div>
       </header>

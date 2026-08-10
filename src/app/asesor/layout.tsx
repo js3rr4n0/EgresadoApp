@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { logout } from "@/app/actions/auth";
 import NotificationBell from "@/components/NotificationBell";
+import LogoutButton from "@/components/LogoutButton";
 import Link from "next/link";
 
 export default async function AsesorLayout({
@@ -45,18 +45,7 @@ export default async function AsesorLayout({
                 {session.nombreCompleto?.substring(0, 2).toUpperCase() || "AS"}
               </div>
 
-              <form action={logout}>
-                <button 
-                  type="submit"
-                  title="Cerrar Sesión"
-                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors text-xs font-bold flex items-center gap-1 cursor-pointer"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  <span className="hidden md:inline">Salir</span>
-                </button>
-              </form>
+              <LogoutButton />
             </div>
           </div>
         </div>

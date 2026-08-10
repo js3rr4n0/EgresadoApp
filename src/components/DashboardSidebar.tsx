@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logout } from "@/app/actions/auth";
+import LogoutButton from "./LogoutButton";
 import type { UserRole } from "@/lib/session";
 
 export interface NavItem {
@@ -82,27 +82,22 @@ export default function DashboardSidebar({
             <p className="text-xs text-slate-400">{roleName}</p>
           </div>
         </div>
-        <form action={logout}>
-          <button
-            type="submit"
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-red-600/10 transition-colors cursor-pointer"
+        <LogoutButton className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-red-600/10 transition-colors cursor-pointer" title="Cerrar sesión">
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-              />
-            </svg>
-            Cerrar sesión
-          </button>
-        </form>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+            />
+          </svg>
+          Cerrar sesión
+        </LogoutButton>
       </div>
     </aside>
   );

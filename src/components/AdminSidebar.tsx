@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { logout } from "@/app/actions/auth";
+import LogoutButton from "./LogoutButton";
 
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: (
@@ -76,15 +76,13 @@ export default function AdminSidebar() {
       </nav>
 
       <div className="p-4 mt-auto mb-2 lg:mb-4 hidden lg:block">
-        <form action={logout}>
-          <button 
-            type="submit"
-            className="flex items-center gap-3 px-4 py-3 w-full text-left text-white/80 hover:bg-white/5 hover:text-white rounded-xl transition-all font-medium text-sm cursor-pointer"
-          >
-            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-            Cerrar Sesión
-          </button>
-        </form>
+        <LogoutButton 
+          className="flex items-center gap-3 px-4 py-3 w-full text-left text-white/80 hover:bg-white/5 hover:text-white rounded-xl transition-all font-medium text-sm cursor-pointer"
+          title="Cerrar Sesión"
+        >
+          <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          Cerrar Sesión
+        </LogoutButton>
       </div>
     </aside>
   );

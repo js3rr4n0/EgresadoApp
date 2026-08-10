@@ -54,7 +54,14 @@ export async function login(
   redirect(getDashboardPath(user.rol as UserRole));
 }
 
-export async function logout(): Promise<void> {
+export async function logout(): Promise<{ success: boolean }> {
   await deleteSession();
-  redirect("/login");
+  try {
+    redirect("/login");
+  } catch (err: any) {
+    if (err?.message?.includes("NEXT_REDIRECT") || err?.digest?.includes("NEXT_REDIRECT")) {
+      throw err;
+    }
+  }
+  return { success: true };
 }
