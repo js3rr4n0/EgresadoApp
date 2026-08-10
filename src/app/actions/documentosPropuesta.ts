@@ -6,29 +6,14 @@ import { eq, and } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
+import { getRequiredDocsForTipo } from "@/lib/proposalUtils";
+
 export const TIPOS_DOCUMENTOS_REQUERIDOS = [
   { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
   { tipo: "plan_trabajo_firmado", label: "Plan de Trabajo Firmado" },
   { tipo: "dictamen_plan_trabajo", label: "Dictamen de Plan de Trabajo" },
   { tipo: "dictamen_propuesta", label: "Dictamen de Propuesta" },
 ] as const;
-
-function getRequiredDocsForTipo(tipo?: string) {
-  if (tipo === "proyecto" || tipo === "investigacion") {
-    return [
-      { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
-      { tipo: "dictamen_plan_trabajo", label: "Dictamen de Plan de Trabajo (Objetivos)" },
-      { tipo: "dictamen_propuesta", label: "Dictamen de Propuesta" },
-    ];
-  }
-  // Pasantía or default (4 documents)
-  return [
-    { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
-    { tipo: "plan_trabajo_firmado", label: "Plan de Trabajo Firmado" },
-    { tipo: "dictamen_plan_trabajo", label: "Dictamen de Plan de Trabajo" },
-    { tipo: "dictamen_propuesta", label: "Dictamen de Propuesta" },
-  ];
-}
 
 export async function getDocumentosPropuesta(propuestaId: number) {
   try {

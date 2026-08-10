@@ -8,6 +8,8 @@ import {
 } from "@/app/actions/documentosPropuesta";
 import { openDocument } from "@/lib/pdfViewer";
 
+import { getRequiredDocsForTipo } from "@/lib/proposalUtils";
+
 export const TIPOS_DOCUMENTOS_REQUERIDOS = [
   { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
   { tipo: "plan_trabajo_firmado", label: "Plan de Trabajo Firmado" },
@@ -18,6 +20,7 @@ export const TIPOS_DOCUMENTOS_REQUERIDOS = [
 interface Props {
   propuestaId: number;
   propuestaEstado?: string;
+  propuestaTipo?: string;
   onStatusChange?: (allUploaded: boolean) => void;
   canUpload?: boolean;
 }
@@ -25,6 +28,7 @@ interface Props {
 export default function DocumentosPropuestaSection({
   propuestaId,
   propuestaEstado,
+  propuestaTipo,
   onStatusChange,
   canUpload = true,
 }: Props) {
@@ -35,6 +39,8 @@ export default function DocumentosPropuestaSection({
     setCurrentEstado(propuestaEstado);
   }, [propuestaEstado]);
 
+  const initialDocs = getRequiredDocsForTipo(propuestaTipo);
+
   const [loading, setLoading] = useState(true);
   const [docsData, setDocsData] = useState<{
     tipo?: string;
@@ -43,9 +49,9 @@ export default function DocumentosPropuestaSection({
     missingDocs: string[];
     allRequiredUploaded: boolean;
   }>({
-    requiredDocs: Array.from(TIPOS_DOCUMENTOS_REQUERIDOS),
+    requiredDocs: initialDocs,
     docs: {},
-    missingDocs: TIPOS_DOCUMENTOS_REQUERIDOS.map((t) => t.label),
+    missingDocs: initialDocs.map((t) => t.label),
     allRequiredUploaded: false,
   });
 
@@ -338,12 +344,18 @@ export default function DocumentosPropuestaSection({
             <p className="text-xs text-slate-500 mt-0.5">
               Al hacer clic en este botón, el estado de la propuesta cambiará a <strong className="text-emerald-700 font-bold">En ejecución</strong> para el egresado y el asesor.
             </p>
+            {!docsData.allRequiredUploaded && (
+              <p className="text-[11px] text-amber-800 font-bold mt-1.5 flex items-center gap-1">
+                <span>🔒</span>
+                <span>Se requiere subir y verificar todos los documentos obligatorios ({totalRequiredCount}/{totalRequiredCount}) para habilitar el inicio del plan.</span>
+              </p>
+            )}
           </div>
           <button
             type="button"
             onClick={handleDarInicioPlan}
-            disabled={startingPlan}
-            className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
+            disabled={!docsData.allRequiredUploaded || startingPlan}
+            className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none disabled:active:scale-100 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0"
           >
             {startingPlan ? (
               <span>Procesando...</span>

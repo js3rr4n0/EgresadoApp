@@ -749,6 +749,8 @@ export default function CoordinadorDashboardClient({
                 <div className="p-6 max-w-4xl mx-auto">
                   <DocumentosPropuestaSection
                     propuestaId={viewingDocPropuesta.id}
+                    propuestaEstado={docDetails?.propuesta?.estado || (viewingDocPropuesta as any)?.estado || undefined}
+                    propuestaTipo={docDetails?.propuesta?.tipo || viewingDocPropuesta?.tipo}
                     onStatusChange={(allUploaded) => setCanApproveModal(allUploaded)}
                   />
                 </div>
