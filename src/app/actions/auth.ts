@@ -32,8 +32,8 @@ export async function login(
     .where(eq(usuarios.correo, correo))
     .limit(1);
 
-  if (!user || !user.activo) {
-    return { error: "Credenciales inválidas." };
+  if (!user || user.activo === false) {
+    return { error: "Credenciales inválidas o usuario inactivo." };
   }
 
   // Verify password

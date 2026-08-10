@@ -130,19 +130,25 @@ export default function CoordinadorDashboardClient({
     e.preventDefault();
     if (!selectedPropuesta || !selectedAsesorId) return;
 
-    setAssigning(true);
-    const res = await asignarAsesorCoordinador(
-      selectedPropuesta.id,
-      parseInt(selectedAsesorId)
-    );
-    setAssigning(false);
+    try {
+      setAssigning(true);
+      const res = await asignarAsesorCoordinador(
+        selectedPropuesta.id,
+        parseInt(selectedAsesorId)
+      );
 
-    if (res && res.success) {
-      alert(res.message);
-      setSelectedPropuesta(null);
-      router.refresh();
-    } else {
-      alert(res?.error || "Error al asignar la propuesta.");
+      if (res && res.success) {
+        alert(res.message);
+        setSelectedPropuesta(null);
+        router.refresh();
+      } else {
+        alert(res?.error || "Error al asignar la propuesta.");
+      }
+    } catch (err: any) {
+      console.error("Error al asignar asesor:", err);
+      alert("Error al procesar la asignación: " + (err?.message || String(err)));
+    } finally {
+      setAssigning(false);
     }
   };
 

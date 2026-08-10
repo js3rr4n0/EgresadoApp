@@ -8,12 +8,7 @@ import { revalidatePath } from "next/cache";
 
 import { getRequiredDocsForTipo } from "@/lib/proposalUtils";
 
-export const TIPOS_DOCUMENTOS_REQUERIDOS = [
-  { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
-  { tipo: "plan_trabajo_firmado", label: "Plan de Trabajo Firmado" },
-  { tipo: "dictamen_plan_trabajo", label: "Dictamen de Plan de Trabajo" },
-  { tipo: "dictamen_propuesta", label: "Dictamen de Propuesta" },
-] as const;
+
 
 export async function getDocumentosPropuesta(propuestaId: number) {
   try {

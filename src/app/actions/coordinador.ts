@@ -228,22 +228,55 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
       return { success: false, error: "Ya existe una solicitud pendiente enviada a este asesor." };
     }
 
-    // Ensure coordinatorId is attached to the proposal
-    await db
-      .update(propuestas)
-      .set({
-        coordinadorId: prop.coordinadorId || session.userId,
-      })
-      .where(eq(propuestas.id, propuestaId));
+    // Cancel any previous pending requests for this proposal to other advisors
+    try {
+      await db
+        .update(solicitudesAsesor)
+        .set({
+          estado: "rechazada",
+          justificacionRechazo: "Reemplazada por nueva solicitud enviada por el coordinador",
+          respondidoEn: new Date(),
+        })
+        .where(
+          and(
+            eq(solicitudesAsesor.propuestaId, propuestaId),
+            eq(solicitudesAsesor.estado, "pendiente")
+          )
+        );
+    } catch (e) {
+      console.log("Error al cancelar solicitudes previas:", e);
+    }
 
-    // Insert request with coordinatorId recorded
-    await db.insert(solicitudesAsesor).values({
-      propuestaId,
-      asesorId,
-      coordinadorId: session.userId,
-      estado: "pendiente",
-      creadaEn: new Date(),
-    });
+    // Ensure coordinatorId is attached to the proposal
+    try {
+      await db
+        .update(propuestas)
+        .set({
+          coordinadorId: prop.coordinadorId || session.userId,
+        })
+        .where(eq(propuestas.id, propuestaId));
+    } catch (e) {
+      console.log("Error non-fatal al actualizar coordinadorId en propuesta:", e);
+    }
+
+    // Insert request with fallback if coordinadorId column is missing in production DB
+    try {
+      await db.insert(solicitudesAsesor).values({
+        propuestaId,
+        asesorId,
+        coordinadorId: session.userId,
+        estado: "pendiente",
+        creadaEn: new Date(),
+      });
+    } catch (err: any) {
+      console.warn("Fallo inserción primaria en solicitudesAsesor, intentando fallback sin coordinadorId:", err?.message);
+      await db.insert(solicitudesAsesor).values({
+        propuestaId,
+        asesorId,
+        estado: "pendiente",
+        creadaEn: new Date(),
+      });
+    }
 
     // Log in proposal history
     try {
@@ -258,29 +291,33 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
     }
 
     // Notify Advisor
-    const [estudiante] = await db
-      .select()
-      .from(usuarios)
-      .where(eq(usuarios.id, prop.egresadoId))
-      .limit(1);
+    try {
+      const [estudiante] = await db
+        .select()
+        .from(usuarios)
+        .where(eq(usuarios.id, prop.egresadoId))
+        .limit(1);
 
-    const tipoPropStr =
-      prop.tipo === "pasantia"
-        ? "Pasantía"
-        : prop.tipo === "proyecto"
-        ? "Proyecto Específico"
-        : "Investigación";
+      const tipoPropStr =
+        prop.tipo === "pasantia"
+          ? "Pasantía"
+          : prop.tipo === "proyecto"
+          ? "Proyecto Específico"
+          : "Investigación";
 
-    const nombreEst = estudiante ? estudiante.nombreCompleto : "Estudiante";
-    const carnetEst = estudiante?.carnet || "N/A";
+      const nombreEst = estudiante ? estudiante.nombreCompleto : "Estudiante";
+      const carnetEst = estudiante?.carnet || "N/A";
 
-    await db.insert(notificaciones).values({
-      usuarioId: asesorId,
-      tipo: "solicitud_asesoria",
-      mensaje: `Se ha asignado una propuesta de ${tipoPropStr} de parte del estudiante ${nombreEst} con carnet ${carnetEst}, ¿estaría dispuesto a asesorar?`,
-      leida: false,
-      creadoEn: new Date(),
-    });
+      await db.insert(notificaciones).values({
+        usuarioId: asesorId,
+        tipo: "solicitud_asesoria",
+        mensaje: `Se ha asignado una propuesta de ${tipoPropStr} de parte del estudiante ${nombreEst} con carnet ${carnetEst}, ¿estaría dispuesto a asesorar?`,
+        leida: false,
+        creadoEn: new Date(),
+      });
+    } catch (e) {
+      console.log("Error non-fatal al enviar notificacion:", e);
+    }
 
     revalidatePath("/coordinador");
     revalidatePath(`/coordinador/propuestas/${propuestaId}`);
