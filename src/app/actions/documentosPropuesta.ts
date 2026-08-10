@@ -19,13 +19,18 @@ export async function getDocumentosPropuesta(propuestaId: number) {
   try {
     const session = await getSession();
     if (!session) {
-      return { success: false, error: "No autorizado" };
+      return { success: false, error: "No autorizado. Por favor inicie sesión de nuevo." };
+    }
+
+    const pId = Number(propuestaId);
+    if (isNaN(pId) || pId <= 0) {
+      return { success: false, error: "ID de propuesta inválido." };
     }
 
     const [prop] = await db
       .select({ tipo: propuestas.tipo })
       .from(propuestas)
-      .where(eq(propuestas.id, propuestaId))
+      .where(eq(propuestas.id, pId))
       .limit(1);
 
     const tipoPropuesta = prop?.tipo || "pasantia";
@@ -34,16 +39,21 @@ export async function getDocumentosPropuesta(propuestaId: number) {
     const rows = await db
       .select()
       .from(documentosPropuesta)
-      .where(eq(documentosPropuesta.propuestaId, propuestaId));
+      .where(eq(documentosPropuesta.propuestaId, pId));
 
     const docsMap: Record<string, any> = {};
     rows.forEach((row) => {
-      docsMap[row.tipo] = row;
+      if (row.tipo) {
+        docsMap[row.tipo] = row;
+        docsMap[row.tipo.trim().toLowerCase()] = row;
+      }
     });
 
     const missingDocs: string[] = [];
     requiredDocs.forEach((item) => {
-      if (!docsMap[item.tipo] || !docsMap[item.tipo].archivoUrl) {
+      const cleanTipo = (item.tipo || "").trim().toLowerCase();
+      const docObj = docsMap[cleanTipo] || docsMap[item.tipo];
+      if (!docObj || !docObj.archivoUrl) {
         missingDocs.push(item.label);
       }
     });
@@ -62,7 +72,7 @@ export async function getDocumentosPropuesta(propuestaId: number) {
     };
   } catch (error: any) {
     console.error("Error en getDocumentosPropuesta:", error);
-    return { success: false, error: error.message };
+    return { success: false, error: "Error en servidor: " + error.message };
   }
 }
 
@@ -159,15 +169,21 @@ export async function deleteDocumentoPropuesta(propuestaIdOrDocId: number, tipoO
 
     if (typeof tipoOrPropId === "string") {
       const propuestaId = propuestaIdOrDocId;
-      const tipo = tipoOrPropId;
-      await db
-        .delete(documentosPropuesta)
-        .where(
-          and(
-            eq(documentosPropuesta.propuestaId, propuestaId),
-            eq(documentosPropuesta.tipo, tipo)
-          )
-        );
+      const targetTipo = tipoOrPropId.trim().toLowerCase();
+
+      const allPropDocs = await db
+        .select()
+        .from(documentosPropuesta)
+        .where(eq(documentosPropuesta.propuestaId, propuestaId));
+
+      const matchingDocs = allPropDocs.filter(
+        (d) => (d.tipo || "").trim().toLowerCase() === targetTipo
+      );
+
+      for (const mDoc of matchingDocs) {
+        await db.delete(documentosPropuesta).where(eq(documentosPropuesta.id, mDoc.id));
+      }
+
       revalidatePath(`/coordinador/propuestas/${propuestaId}`);
     } else {
       const docId = propuestaIdOrDocId;

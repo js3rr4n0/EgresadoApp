@@ -239,7 +239,8 @@ export default function DocumentosPropuestaSection({
       {/* Grid of Document Cards */}
       <div className={`grid grid-cols-1 ${totalRequiredCount === 3 ? "md:grid-cols-3" : "md:grid-cols-2"} gap-4`}>
         {currentRequiredDocs.map((docItem) => {
-          const doc = docsData.docs[docItem.tipo];
+          const cleanTipoKey = (docItem.tipo || "").trim().toLowerCase();
+          const doc = docsData.docs[docItem.tipo] || docsData.docs[cleanTipoKey];
           const isUploaded = !!doc && !!doc.archivoUrl;
           const isUploading = uploadingType === docItem.tipo;
           const isDeleting = deletingType === docItem.tipo;
