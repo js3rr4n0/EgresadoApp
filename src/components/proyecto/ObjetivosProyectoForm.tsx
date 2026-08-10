@@ -16,6 +16,7 @@ interface ObjetivosProyectoFormProps {
   isLocked: boolean;
   isReadOnly?: boolean;
   isInvestigacion?: boolean;
+  observaciones?: string | null;
 }
 
 export default function ObjetivosProyectoForm({
@@ -25,6 +26,7 @@ export default function ObjetivosProyectoForm({
   isLocked,
   isReadOnly = false,
   isInvestigacion = false,
+  observaciones,
 }: ObjetivosProyectoFormProps) {
   const router = useRouter();
   const [objetivoGeneral, setObjetivoGeneral] = useState(initialObjetivoGeneral || "");
@@ -115,6 +117,17 @@ export default function ObjetivosProyectoForm({
           Establece 1 objetivo general y de 4 a 6 objetivos específicos en la tabla a continuación.
         </p>
       </div>
+
+      {observaciones && (
+        <div className="mb-6 p-5 bg-amber-50 border-2 border-amber-300 rounded-xl space-y-2 shadow-xs">
+          <div className="flex items-center gap-2 font-extrabold text-amber-950 text-sm">
+            <span>📝 Indicaciones de Corrección del Docente Asesor sobre los Objetivos:</span>
+          </div>
+          <p className="text-xs text-amber-900 leading-relaxed font-semibold whitespace-pre-wrap">
+            {observaciones}
+          </p>
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm font-medium">

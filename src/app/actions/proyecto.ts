@@ -563,11 +563,28 @@ export async function saveObjetivosProyecto(
     .limit(1);
 
   if (existing.length > 0) {
+    const current = existing[0];
+    const prevGeneral =
+      current.objetivoGeneralAnterior !== null && current.objetivoGeneralAnterior !== undefined
+        ? current.objetivoGeneralAnterior
+        : current.objetivoGeneral && current.objetivoGeneral !== data.objetivoGeneral
+        ? current.objetivoGeneral
+        : null;
+
+    const prevEspecificos =
+      current.objetivosEspecificosAnteriores !== null && current.objetivosEspecificosAnteriores !== undefined
+        ? current.objetivosEspecificosAnteriores
+        : current.objetivosEspecificos
+        ? current.objetivosEspecificos
+        : null;
+
     await db
       .update(detallesProyecto)
       .set({
         objetivoGeneral: data.objetivoGeneral,
         objetivosEspecificos: data.objetivosEspecificos,
+        objetivoGeneralAnterior: prevGeneral,
+        objetivosEspecificosAnteriores: prevEspecificos,
       })
       .where(eq(detallesProyecto.propuestaId, propuestaId));
   } else {

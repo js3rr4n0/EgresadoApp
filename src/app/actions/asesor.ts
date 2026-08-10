@@ -447,6 +447,22 @@ export async function solicitarAjustesPropuestaAsesor(propuestaId: number, obser
       }
     }
 
+    // Preserve current project details (objectives) as previous state for diff tracking
+    try {
+      const [det] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId)).limit(1);
+      if (det) {
+        await db
+          .update(detallesProyecto)
+          .set({
+            objetivoGeneralAnterior: det.objetivoGeneralAnterior || det.objetivoGeneral,
+            objetivosEspecificosAnteriores: det.objetivosEspecificosAnteriores || det.objetivosEspecificos,
+          })
+          .where(eq(detallesProyecto.id, det.id));
+      }
+    } catch (e) {
+      console.warn("Could not preserve objective diffs in detallesProyecto", e);
+    }
+
     // Log history
     const { historialEstados } = await import("@/lib/schema");
     await db.insert(historialEstados).values({
@@ -503,7 +519,7 @@ export async function aprobarPropuestaAsesor(propuestaId: number) {
       .where(eq(propuestas.id, propuestaId));
 
     // Consolidate approved activities: clear temporary diff markers
-    const { actividades } = await import("@/lib/schema");
+    const { actividades, detallesProyecto } = await import("@/lib/schema");
     await db
       .update(actividades)
       .set({
@@ -512,6 +528,21 @@ export async function aprobarPropuestaAsesor(propuestaId: number) {
         esNueva: false,
       })
       .where(eq(actividades.propuestaId, propuestaId));
+
+    try {
+      const [det] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId)).limit(1);
+      if (det) {
+        await db
+          .update(detallesProyecto)
+          .set({
+            objetivoGeneralAnterior: null,
+            objetivosEspecificosAnteriores: null,
+          })
+          .where(eq(detallesProyecto.id, det.id));
+      }
+    } catch (e) {
+      console.warn("Could not clear objective diff markers in detallesProyecto", e);
+    }
 
     const { historialEstados, notificaciones } = await import("@/lib/schema");
     await db.insert(historialEstados).values({

@@ -38,9 +38,6 @@ export default async function EgresadoPage({
     return <div className="p-8 text-center text-muted">Error cargando sesión.</div>;
   }
 
-  const hasAdvisorObservations = !!data?.propuesta?.observaciones;
-  const currentStep = hasAdvisorObservations ? 5 : parseInt(params.step || "1");
-
   if ("error" in data) {
     return (
       <div className="p-12 text-center border border-amber-200 bg-amber-50 rounded-xl mt-8">
@@ -63,9 +60,16 @@ export default async function EgresadoPage({
     isCurrentSubmitted,
     submittedPropNumber,
   } = data;
-  const isProyecto = propuesta.tipo === "proyecto";
-  const isInvestigacion = propuesta.tipo === "investigacion";
+
+  const hasAdvisorObservations = !!propuesta?.observaciones;
+  const isProyecto = propuesta?.tipo === "proyecto";
+  const isInvestigacion = propuesta?.tipo === "investigacion";
   const isMultiUserFlow = isProyecto || isInvestigacion;
+
+  const defaultStepForAdjustments = isProyecto ? 7 : isInvestigacion ? 6 : 5;
+  const currentStep = hasAdvisorObservations
+    ? (params.step ? parseInt(params.step, 10) : defaultStepForAdjustments)
+    : parseInt(params.step || "1", 10);
 
   let cartaData: any = null;
   let empresasList: any[] = [];
@@ -342,7 +346,9 @@ export default async function EgresadoPage({
             {steps.map((step) => {
               const active = step.num === currentStep;
               const completed = step.num < currentStep;
-              const locked = hasAdvisorObservations ? step.num !== 5 : step.num > maxAllowedStep;
+              const locked = hasAdvisorObservations
+                ? (isProyecto ? (step.num !== 7 && step.num !== 5 && step.num !== 6) : isInvestigacion ? (step.num !== 6 && step.num !== 5) : step.num !== 5)
+                : step.num > maxAllowedStep;
 
               const innerContent = (
                 <>
@@ -541,6 +547,7 @@ export default async function EgresadoPage({
                   isLocked={isFormLocked}
                   isReadOnly={!isLeader}
                   isInvestigacion={true}
+                  observaciones={propuesta.observaciones}
                 />
               )}
 
@@ -620,6 +627,7 @@ export default async function EgresadoPage({
                   initialObjetivosEspecificos={detallesProj?.objetivosEspecificos}
                   isLocked={isFormLocked}
                   isReadOnly={!isLeader}
+                  observaciones={propuesta.observaciones}
                 />
               )}
 

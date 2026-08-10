@@ -503,6 +503,8 @@ export const detallesProyecto = pgTable("detalles_proyecto", {
   // Step 7: Objetivos del proyecto
   objetivoGeneral: text("objetivo_general"),
   objetivosEspecificos: jsonb("objetivos_especificos"), // Array of { titulo: string, descripcion: string }
+  objetivoGeneralAnterior: text("objetivo_general_anterior"),
+  objetivosEspecificosAnteriores: jsonb("objetivos_especificos_anteriores"),
 });
 
 // ─────────────────────────── Documentos de Aprobación de Propuesta ───────────────────────────

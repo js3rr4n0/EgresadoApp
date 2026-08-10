@@ -27,7 +27,7 @@ interface PropuestaProgresoClientProps {
 }
 
 export default function PropuestaProgresoClient({ data, informeData }: PropuestaProgresoClientProps) {
-  const { propuesta, estudiante, empresa, supervisor, carta, actividades } = data;
+  const { propuesta, estudiante, empresa, supervisor, carta, actividades, detallesProyecto } = data;
 
   const [activeTab, setActiveTab] = useState<"datos" | "plan" | "primer_contacto" | "documentos">("datos");
 
@@ -176,6 +176,18 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
   const periodosUnicos = Array.from(
     new Set(actividadesList.map((a) => a.periodo || 1))
   ).sort((a, b) => a - b);
+
+  const hasObjectiveDiff =
+    detallesProyecto &&
+    ((detallesProyecto.objetivoGeneralAnterior && detallesProyecto.objetivoGeneralAnterior !== detallesProyecto.objetivoGeneral) ||
+      (detallesProyecto.objetivosEspecificosAnteriores &&
+        JSON.stringify(detallesProyecto.objetivosEspecificosAnteriores) !== JSON.stringify(detallesProyecto.objetivosEspecificos)));
+
+  const hasActivityDiff = actividadesList.some(
+    (a: any) => (a.descripcionAnterior && a.descripcionAnterior !== a.descripcion) || a.esModificada || a.esNueva
+  );
+
+  const hasAnyDiff = hasObjectiveDiff || hasActivityDiff;
 
   return (
     <div className="space-y-6">
@@ -630,42 +642,156 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
             </div>
 
             {/* BANNER DE COMPARATIVA DE CAMBIOS ENVIADOS POR EL ALUMNO */}
-            {actividadesList.some((a: any) => (a.descripcionAnterior && a.descripcionAnterior !== a.descripcion) || a.esModificada || a.esNueva) && (
-              <div className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-indigo-950 text-white p-5 rounded-2xl shadow-md border border-indigo-700/60 space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 bg-indigo-600/30 text-indigo-300 rounded-xl text-xl border border-indigo-500/40 shrink-0">
-                    ⏳
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-extrabold text-sm text-white">
-                        Propuesta Ajustada por el Estudiante — Comparativa de Cambios
-                      </h3>
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-400 text-amber-950 border border-amber-300">
-                        Pendiente de Revisión
-                      </span>
+            {(hasAnyDiff || propuesta.observaciones) && (
+              <div className="bg-gradient-to-r from-indigo-950 via-indigo-900 to-indigo-950 text-white p-5 rounded-2xl shadow-md border border-indigo-700/60 space-y-4">
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2.5 bg-indigo-600/30 text-indigo-300 rounded-xl text-xl border border-indigo-500/40 shrink-0">
+                      ⏳
                     </div>
-                    <p className="text-xs text-indigo-200 leading-relaxed">
-                      El egresado ha reenviado las correcciones del plan de trabajo. A continuación se presenta la <strong>comparativa directa de los cambios realizados</strong>:
-                    </p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-extrabold text-sm text-white">
+                          Propuesta Ajustada por el Estudiante — Comparativa de Cambios
+                        </h3>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-400 text-amber-950 border border-amber-300">
+                          Pendiente de Revisión
+                        </span>
+                      </div>
+                      <p className="text-xs text-indigo-200 leading-relaxed">
+                        El egresado ha reenviado las correcciones de los objetivos y/o plan de trabajo. Revisa los cambios resaltados a continuación y haz clic en <strong>Aprobar Propuesta Ajustada</strong> al finalizar.
+                      </p>
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={handleAprobarOK}
+                    disabled={sendingAprobar || propuesta.estado === "aprobada"}
+                    className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all active:scale-95 cursor-pointer shrink-0 flex items-center gap-2"
+                  >
+                    <span>{sendingAprobar ? "Aprobando..." : "✅ Aprobar Propuesta Ajustada"}</span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 border-t border-indigo-800/80 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-indigo-800/80 text-xs">
                   <div className="flex items-center gap-2 bg-rose-950/70 border border-rose-700/50 p-2.5 rounded-xl">
                     <span className="text-base">❌</span>
                     <div>
-                      <span className="text-rose-300 font-bold block text-[11px]">Texto original del Asesor:</span>
+                      <span className="text-rose-300 font-bold block text-[11px]">Texto original anterior:</span>
                       <span className="line-through text-rose-200/90 font-medium text-[11px]">~Tachado en rojo~</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 bg-emerald-950/70 border border-emerald-700/50 p-2.5 rounded-xl">
                     <span className="text-base">🟢</span>
                     <div>
-                      <span className="text-emerald-300 font-bold block text-[11px]">Nuevas actividades o correcciones:</span>
+                      <span className="text-emerald-300 font-bold block text-[11px]">Nuevos objetivos / correcciones:</span>
                       <span className="text-emerald-200 font-semibold text-[11px]">Resaltadas en verde ✓</span>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* SECCIÓN DE OBJETIVOS (DEL PROYECTO / INVESTIGACIÓN) */}
+            {detallesProyecto && (detallesProyecto.objetivoGeneral || (Array.isArray(detallesProyecto.objetivosEspecificos) && detallesProyecto.objetivosEspecificos.length > 0)) && (
+              <div className="bg-slate-50 rounded-2xl border border-slate-200 p-6 space-y-6 shadow-2xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3 flex-wrap gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-xl">🎯</span>
+                    <div>
+                      <h3 className="font-extrabold text-slate-900 text-base">
+                        Objetivos del Trabajo {propuesta.tipo === "investigacion" ? "de Investigación" : "de Proyecto Específico"}
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">
+                        Visualiza y valida el objetivo general y los objetivos específicos propuestos por el estudiante.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAjustesModal(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 font-bold text-xs rounded-xl transition-all shadow-2xs cursor-pointer"
+                  >
+                    <span>✏️ Solicitar Ajustes de Objetivos</span>
+                  </button>
+                </div>
+
+                {/* Objetivo General */}
+                <div className="space-y-2">
+                  <h4 className="font-extrabold text-xs text-slate-700 uppercase tracking-wider">
+                    Objetivo General:
+                  </h4>
+                  {detallesProyecto.objetivoGeneralAnterior && detallesProyecto.objetivoGeneralAnterior !== detallesProyecto.objetivoGeneral ? (
+                    <div className="space-y-2">
+                      <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900">
+                        <span className="font-bold block text-[10px] text-rose-700 uppercase tracking-wider mb-0.5">Anterior (Solicitado a Cambiar):</span>
+                        <span className="line-through font-medium">~ {detallesProyecto.objetivoGeneralAnterior} ~</span>
+                      </div>
+                      <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-xs text-emerald-950 font-bold shadow-2xs">
+                        <span className="font-extrabold block text-[10px] text-emerald-800 uppercase tracking-wider mb-0.5">Nuevo Objetivo Ajustado por Alumno:</span>
+                        <span>✓ {detallesProyecto.objetivoGeneral}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 font-medium leading-relaxed shadow-2xs">
+                      {detallesProyecto.objetivoGeneral || <span className="italic text-slate-400">No registrado</span>}
+                    </div>
+                  )}
+                </div>
+
+                {/* Objetivos Específicos */}
+                <div className="space-y-3">
+                  <h4 className="font-extrabold text-xs text-slate-700 uppercase tracking-wider">
+                    Objetivos Específicos ({Array.isArray(detallesProyecto.objetivosEspecificos) ? detallesProyecto.objetivosEspecificos.length : 0}):
+                  </h4>
+                  {Array.isArray(detallesProyecto.objetivosEspecificos) && detallesProyecto.objetivosEspecificos.length > 0 ? (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs bg-white">
+                      <table className="w-full text-xs text-left border-collapse">
+                        <thead className="bg-slate-100 font-extrabold text-slate-700 uppercase text-[10px] border-b border-slate-200">
+                          <tr>
+                            <th className="py-2.5 px-3 w-10 text-center border-r border-slate-200">#</th>
+                            <th className="py-2.5 px-3 w-1/3 border-r border-slate-200">Título del Objetivo</th>
+                            <th className="py-2.5 px-3">Descripción</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200">
+                          {detallesProyecto.objetivosEspecificos.map((obj: any, idx: number) => {
+                            const prevObj = Array.isArray(detallesProyecto.objetivosEspecificosAnteriores)
+                              ? detallesProyecto.objetivosEspecificosAnteriores[idx]
+                              : null;
+                            const isObjChanged = prevObj && (prevObj.titulo !== obj.titulo || prevObj.descripcion !== obj.descripcion);
+
+                            return (
+                              <tr key={idx} className={isObjChanged ? "bg-emerald-50/60" : idx % 2 === 0 ? "bg-white" : "bg-slate-50/50"}>
+                                <td className="py-2.5 px-3 text-center font-bold text-slate-500 border-r border-slate-200">{idx + 1}</td>
+                                <td className="py-2.5 px-3 font-bold text-slate-900 border-r border-slate-200 align-top">
+                                  {isObjChanged && prevObj?.titulo && prevObj.titulo !== obj.titulo && (
+                                    <div className="line-through text-rose-700 text-[11px] mb-1 font-medium">
+                                      ~ {prevObj.titulo} ~
+                                    </div>
+                                  )}
+                                  <span className={isObjChanged ? "text-emerald-950 font-extrabold" : ""}>{obj.titulo}</span>
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-800 leading-relaxed align-top">
+                                  {isObjChanged && prevObj?.descripcion && prevObj.descripcion !== obj.descripcion && (
+                                    <div className="line-through text-rose-700 text-[11px] mb-1 font-medium">
+                                      ~ {prevObj.descripcion} ~
+                                    </div>
+                                  )}
+                                  <span className={isObjChanged ? "text-emerald-950 font-bold" : ""}>{obj.descripcion}</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-xs italic text-slate-400 bg-white p-4 rounded-xl border border-slate-200">
+                      Sin objetivos específicos registrados.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
