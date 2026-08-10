@@ -18,7 +18,7 @@ import {
   notificaciones,
   historialEstados,
 } from "@/lib/schema";
-import { eq, and, desc, asc, inArray } from "drizzle-orm";
+import { eq, and, desc, asc, inArray, isNotNull } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
@@ -277,28 +277,20 @@ export async function getPropuestasAsignadasCoordinador() {
 
     const isAdmin = session.rol === "admin";
 
-    const adminUsers = await db
-      .select({ id: usuarios.id })
-      .from(usuarios)
-      .where(eq(usuarios.rol, "admin"));
-    const adminIds = adminUsers.map((u) => u.id);
-    if (!adminIds.includes(session.userId)) adminIds.push(session.userId);
-
-    // Fetch accepted advisor requests made by this coordinator (or all if admin)
+    // Fetch all proposals assigned to this coordinator (or all proposals with a coordinator if admin)
     const acceptedRows = await db
       .select({
         propuesta: propuestas,
         asesor: usuarios,
       })
       .from(propuestas)
-      .innerJoin(usuarios, eq(propuestas.asesorId, usuarios.id))
+      .leftJoin(usuarios, eq(propuestas.asesorId, usuarios.id))
       .where(
-        and(
-          eq(propuestas.coordinadorId, session.userId),
-          eq(propuestas.estado, "aprobada")
-        )
+        isAdmin
+          ? isNotNull(propuestas.coordinadorId)
+          : eq(propuestas.coordinadorId, session.userId)
       )
-      .orderBy(desc(propuestas.fechaAprobacion));
+      .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
 
     const result = await Promise.all(
       acceptedRows.map(async (row) => {
@@ -349,10 +341,11 @@ export async function getPropuestasAsignadasCoordinador() {
           numero: row.propuesta.numero,
           tipo: row.propuesta.tipo,
           titulo: row.propuesta.titulo || `Propuesta #${row.propuesta.numero}`,
-          asesorNombre: row.asesor.nombreCompleto,
+          asesorNombre: row.asesor ? row.asesor.nombreCompleto : "Sin Asesor Asignado",
           estudiantes: estudiantesNombres,
           fechaInicio,
           fechaFin,
+          estado: row.propuesta.estado,
         };
       })
     );

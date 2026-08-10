@@ -39,6 +39,7 @@ interface PropuestaAsignada {
   estudiantes: string;
   fechaInicio: string;
   fechaFin: string;
+  estado?: string;
 }
 
 interface Asesor {
@@ -480,6 +481,7 @@ export default function CoordinadorDashboardClient({
                     <th className="p-4">Estudiante / Equipo</th>
                     <th className="p-4">Asesor Asignado</th>
                     <th className="p-4">Modalidad</th>
+                    <th className="p-4">Estado</th>
                     <th className="p-4">Inicio</th>
                     <th className="p-4">Fin Est.</th>
                     <th className="p-4 text-right rounded-tr-lg">Acción</th>
@@ -500,6 +502,21 @@ export default function CoordinadorDashboardClient({
                       <td className="p-4">
                         <span className="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase bg-rose-50 text-brand-red border border-rose-200">
                           {item.tipo}
+                        </span>
+                      </td>
+                      <td className="p-4 whitespace-nowrap">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold uppercase ${
+                          item.estado === "en_ejecucion"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
+                            : item.estado === "aprobada"
+                            ? "bg-blue-100 text-blue-800 border border-blue-300"
+                            : item.estado === "coordinador_asignado"
+                            ? "bg-amber-100 text-amber-800 border border-amber-300"
+                            : item.estado === "anulada" || item.estado === "rechazada"
+                            ? "bg-rose-100 text-rose-800 border border-rose-300"
+                            : "bg-slate-100 text-slate-700 border border-slate-300"
+                        }`}>
+                          {item.estado ? item.estado.replace("_", " ").toUpperCase() : "APROBADA"}
                         </span>
                       </td>
                       <td className="p-4 font-medium text-slate-600 whitespace-nowrap">
