@@ -296,12 +296,12 @@ export async function getDetallePropuestaAsesor(propuestaId: number) {
         carreraNombre: carreras.nombre,
       })
       .from(propuestas)
-      .innerJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
+      .leftJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .where(eq(propuestas.id, propuestaId))
       .limit(1);
 
-    if (!prop) {
+    if (!prop || !prop.propuesta) {
       return { success: false, error: "Propuesta no encontrada" };
     }
 
@@ -349,9 +349,9 @@ export async function getDetallePropuestaAsesor(propuestaId: number) {
       data: {
         propuesta: prop.propuesta,
         estudiante: {
-          nombreCompleto: prop.estudiante.nombreCompleto,
-          carnet: prop.estudiante.carnet || "N/A",
-          correo: prop.estudiante.correo,
+          nombreCompleto: prop.estudiante?.nombreCompleto || "Estudiante",
+          carnet: prop.estudiante?.carnet || "N/A",
+          correo: prop.estudiante?.correo || "N/A",
           carrera: prop.carreraNombre || "Sin Carrera",
         },
         empresa,
