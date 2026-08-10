@@ -53,13 +53,22 @@ export default async function EgresadoLandingPage() {
     .where(eq(propuestas.egresadoId, session.userId))
     .orderBy(asc(propuestas.id));
 
+  // Submitted states that mean a proposal was officially sent to academic evaluation
+  const submittedStates = [
+    "enviada",
+    "coordinador_asignado",
+    "aprobada",
+    "primer_contacto_completado",
+    "en_ejecucion"
+  ];
+
   // Find active proposal in evaluation pipeline (submitted, assigned to coordinator/advisor, or approved)
   const activeSubmittedProp =
     userPropuestas.find(
       (p) =>
-        p.estado !== "redactando" ||
-        p.coordinadorId !== null ||
-        p.asesorId !== null
+        submittedStates.includes(p.estado) ||
+        (p.coordinadorId !== null && !["rechazada", "anulada", "redactando", "pend_revision_datos", "pend_empresa_nueva"].includes(p.estado)) ||
+        (p.asesorId !== null && !["rechazada", "anulada", "redactando", "pend_revision_datos", "pend_empresa_nueva"].includes(p.estado))
     ) || acceptedTeam?.propuesta;
   const hasSubmittedPropuesta = !!activeSubmittedProp;
 
@@ -475,8 +484,8 @@ export default async function EgresadoLandingPage() {
                       actionClass = "bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-sm animate-pulse";
                       targetUrl = `/egresado/redactar?id=${p.id}&step=5`;
                       isPdf = false;
-                    } else if (p.estado === "redactando" && !hasSubmittedPropuesta) {
-                      actionText = "Continuar Redacción";
+                    } else if (!submittedStates.includes(p.estado) && p.estado !== "rechazada" && p.estado !== "anulada") {
+                      actionText = p.estado === "pend_revision_datos" || p.estado === "pend_empresa_nueva" ? "Ver propuesta" : "Continuar Redacción";
                       actionClass = "bg-brand-red text-white hover:bg-brand-red-dark font-extrabold shadow-sm";
                       targetUrl = `/egresado/redactar?id=${p.id}`;
                       isPdf = false;
@@ -498,6 +507,8 @@ export default async function EgresadoLandingPage() {
                                 ? hasSubmittedPropuesta && !isCurrentActiveSubmitted
                                   ? "bg-slate-100 text-slate-600 border-slate-300"
                                   : "bg-amber-100 text-amber-800 border-amber-200"
+                                : p.estado === "pend_revision_datos"
+                                ? "bg-purple-100 text-purple-900 border-purple-300 font-extrabold"
                                 : "bg-purple-100 text-purple-800 border-purple-200"
                             }`}
                           >
@@ -511,6 +522,10 @@ export default async function EgresadoLandingPage() {
                               ? hasSubmittedPropuesta && !isCurrentActiveSubmitted
                                 ? "Bloqueada (En Espera)"
                                 : "Redactando (Borrador)"
+                              : p.estado === "pend_revision_datos"
+                              ? "Pend. Revisión Datos"
+                              : p.estado === "pend_empresa_nueva"
+                              ? "Pend. Revisión Empresa"
                               : p.estado.replace(/_/g, " ")}
                           </span>
                         </td>

@@ -162,12 +162,20 @@ export async function initPropuesta(tipo: string) {
       )
       .orderBy(asc(propuestas.id));
 
-    // If user has any proposal currently submitted, assigned to coordinator/advisor, or approved, block creating a new one
+    const submittedStates = [
+      "enviada",
+      "coordinador_asignado",
+      "aprobada",
+      "primer_contacto_completado",
+      "en_ejecucion"
+    ];
+
+    // If user has any proposal currently submitted to academic evaluation, block creating a new one
     const activeSubmitted = props.find(
       (p) =>
-        p.estado !== "redactando" ||
-        p.coordinadorId !== null ||
-        p.asesorId !== null
+        submittedStates.includes(p.estado) ||
+        (p.coordinadorId !== null && !["rechazada", "anulada", "redactando", "pend_revision_datos", "pend_empresa_nueva"].includes(p.estado)) ||
+        (p.asesorId !== null && !["rechazada", "anulada", "redactando", "pend_revision_datos", "pend_empresa_nueva"].includes(p.estado))
     );
     if (activeSubmitted) {
       return {
