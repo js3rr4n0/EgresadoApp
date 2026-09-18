@@ -603,5 +603,78 @@ export const evidenciasInformePrimerContacto = pgTable(
   }
 );
 
+// ─────────────────────────── Informes Mensuales de Seguimiento (Pasantía) ───────────────────────────
+// numero 1-4 coincide con periodos.max_primer_informe..max_cuarto_informe y con actividades.periodo (mes del cronograma)
+
+export const informesMensuales = pgTable(
+  "informes_mensuales",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    numero: smallint("numero").notNull(),
+
+    // Encabezado del informe (periodo reportado)
+    periodoDesde: date("periodo_desde"),
+    periodoHasta: date("periodo_hasta"),
+    fechaPresentacion: date("fecha_presentacion"),
+
+    estado: varchar("estado", { length: 20 }).notNull().default("redactando"), // 'redactando', 'enviado', 'observado', 'aprobado'
+
+    // Cumplimiento contra la fecha límite del periodo académico
+    fechaLimite: date("fecha_limite").notNull(),
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }),
+    cumplimiento: varchar("cumplimiento", { length: 20 }), // 'a_tiempo', 'fuera_de_tiempo'
+    desviacionDias: integer("desviacion_dias"),
+
+    // Retroalimentación del asesor
+    comentarioAsesor: text("comentario_asesor"),
+    revisadoPor: integer("revisado_por").references(() => usuarios.id),
+    revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    unique("informes_mensuales_unique").on(table.propuestaId, table.numero),
+    check("numero_informe_mensual_check", sql`${table.numero} BETWEEN 1 AND 4`),
+    check(
+      "estado_informe_mensual_check",
+      sql`${table.estado} IN ('redactando', 'enviado', 'observado', 'aprobado')`
+    ),
+  ]
+);
+
+export const bitacorasSemanales = pgTable(
+  "bitacoras_semanales",
+  {
+    id: serial("id").primaryKey(),
+    informeId: integer("informe_id")
+      .notNull()
+      .references(() => informesMensuales.id, { onDelete: "cascade" }),
+    semana: smallint("semana").notNull(), // coincide con actividades.semana dentro del mismo periodo
+    descripcion: text("descripcion"), // desarrollo de actividades (bitácora redactada)
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    unique("bitacoras_semanales_unique").on(table.informeId, table.semana),
+  ]
+);
+
+export const evidenciasInformeMensual = pgTable(
+  "evidencias_informe_mensual",
+  {
+    id: serial("id").primaryKey(),
+    informeId: integer("informe_id")
+      .notNull()
+      .references(() => informesMensuales.id, { onDelete: "cascade" }),
+    semana: smallint("semana").notNull(),
+    nombreArchivo: varchar("nombre_archivo", { length: 255 }),
+    archivoUrl: text("archivo_url").notNull(),
+    leyenda: varchar("leyenda", { length: 255 }),
+    subidoEn: timestamp("subido_en", { withTimezone: true }).notNull().defaultNow(),
+  }
+);
 
 
