@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { saveActividades } from "@/app/actions/actividades";
 import { useRouter } from "next/navigation";
 import ReenviarPropuestaAjustadaButton from "@/components/ReenviarPropuestaAjustadaButton";
+import { generarPeriodosPasantia, DURACION_PASANTIA_DIAS } from "@/lib/periodosPasantia";
 
 interface Actividad {
   id: string; // internal id for UI
@@ -82,55 +83,15 @@ export default function ActividadesForm({
     if (fechaInicio) {
       const start = new Date(fechaInicio);
       const end = new Date(start);
-      end.setDate(start.getDate() + 150);
+      end.setDate(start.getDate() + DURACION_PASANTIA_DIAS);
       setFechaFin(end.toISOString().split("T")[0]);
 
-      // Generate periods (months)
-      const generatedPeriods: PeriodoDisplay[] = [];
-      let current = new Date(start);
-      let periodNum = 1;
-
-      while (current <= end) {
-        const monthStart = new Date(current);
-        let monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0); // Last day of month
-        if (monthEnd > end) {
-          monthEnd = new Date(end);
-        }
-
-        const monthNames = [
-          "Enero",
-          "Febrero",
-          "Marzo",
-          "Abril",
-          "Mayo",
-          "Junio",
-          "Julio",
-          "Agosto",
-          "Septiembre",
-          "Octubre",
-          "Noviembre",
-          "Diciembre",
-        ];
-        const name = monthNames[monthStart.getMonth()];
-
-        const formatStr = (d: Date) =>
-          `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-        const diffTime = Math.abs(monthEnd.getTime() - monthStart.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-        const weeks = Math.ceil(diffDays / 7);
-
-        generatedPeriods.push({
-          num: periodNum,
-          name: name,
-          range: `${formatStr(monthStart)} al ${formatStr(monthEnd)}`,
-          weeks: weeks > 0 ? weeks : 1,
-        });
-
-        // Move to next month
-        current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-        periodNum++;
-      }
+      const generatedPeriods: PeriodoDisplay[] = generarPeriodosPasantia(start).map((p) => ({
+        num: p.num,
+        name: p.nombre,
+        range: p.rango,
+        weeks: p.semanas,
+      }));
 
       setPeriodos(generatedPeriods);
       if (selectedPeriodo > generatedPeriods.length) {

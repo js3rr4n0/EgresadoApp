@@ -4,6 +4,7 @@ import DashboardHeader, { type NavItem } from "@/components/DashboardHeader";
 
 const navItems: NavItem[] = [
   { label: "Coordinación de Propuestas", href: "/coordinador" },
+  { label: "Seguimiento de Pasantías", href: "/coordinador/seguimiento" },
 ];
 
 export default async function CoordinadorLayout({

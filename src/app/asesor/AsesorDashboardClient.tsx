@@ -7,11 +7,13 @@ import Link from "next/link";
 interface AsesorDashboardClientProps {
   initialPropuestas: any[];
   initialSolicitudes: any[];
+  seguimiento?: any[];
 }
 
 export default function AsesorDashboardClient({
   initialPropuestas,
   initialSolicitudes,
+  seguimiento = [],
 }: AsesorDashboardClientProps) {
   const [propuestas, setPropuestas] = useState<any[]>(initialPropuestas);
   const [solicitudes, setSolicitudes] = useState<any[]>(initialSolicitudes);
@@ -195,6 +197,48 @@ export default function AsesorDashboardClient({
         </div>
       )}
 
+      {/* Seguimiento de Actividades (registro progresivo) */}
+      {seguimiento.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-border p-6 md:p-8 space-y-4">
+          <div>
+            <h2 className="text-lg font-extrabold text-card-dark">Seguimiento de actividades: pasantías en ejecución</h2>
+            <p className="text-xs text-muted mt-0.5">Avance semanal de sus estudiantes según el cronograma (Gantt).</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {seguimiento.map((s) => (
+              <Link
+                key={s.propuestaId}
+                href={`/asesor/seguimiento/${s.propuestaId}`}
+                className="p-4 bg-slate-50 hover:bg-slate-100 border border-border rounded-xl transition-colors flex flex-col gap-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs font-extrabold text-card-dark">{s.egresado?.nombreCompleto}</span>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {s.pendientesRevision > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800 border border-blue-300">
+                        {s.pendientesRevision} actividades por revisar
+                      </span>
+                    )}
+                    {s.informesPorRevisar > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-red-50 text-brand-red border border-red-200">
+                        {s.informesPorRevisar} informe{s.informesPorRevisar > 1 ? "s" : ""} por revisar
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted font-semibold">Mes {s.mesActual}, Semana {s.semanaActual}</p>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div className="h-full bg-brand-red rounded-full" style={{ width: `${s.porcentajeAvance}%` }} />
+                  </div>
+                  <span className="text-[10px] font-extrabold text-slate-600">{s.porcentajeAvance}%</span>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Main Section: Tabla "Mis propuestas" */}
       <div className="bg-white rounded-2xl shadow-sm border border-border p-6 md:p-8 space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border pb-4">
@@ -268,10 +312,10 @@ export default function AsesorDashboardClient({
                         </Link>
                         {p.estado === "en_ejecucion" && p.tipo === "pasantia" && (
                           <Link
-                            href={`/asesor/informes/mensual/${p.id}`}
+                            href={`/asesor/seguimiento/${p.id}`}
                             className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shadow-sm"
                           >
-                            📊 Informes Mensuales
+                            Seguimiento de actividades
                           </Link>
                         )}
                       </div>

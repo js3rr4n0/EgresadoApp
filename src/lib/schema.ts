@@ -277,6 +277,7 @@ export const actividades = pgTable(
     descripcionAnterior: text("descripcion_anterior"),
     esNueva: boolean("es_nueva").default(false),
     esModificada: boolean("es_modificada").default(false),
+    eliminada: boolean("eliminada").notNull().default(false), // baja lógica durante ejecución (Fase 3)
   },
   (table) => [
     unique("actividades_codigo_unico").on(
@@ -284,6 +285,81 @@ export const actividades = pgTable(
       table.periodo,
       table.semana,
       table.numero
+    ),
+  ]
+);
+
+// Solicitudes de cambio al Gantt durante la ejecución (agregar/modificar/eliminar/posponer)
+export const solicitudesCambioActividad = pgTable(
+  "solicitudes_cambio_actividad",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    actividadId: integer("actividad_id").references(() => actividades.id, { onDelete: "cascade" }), // null cuando tipo='agregar'
+    tipo: varchar("tipo", { length: 20 }).notNull(), // 'agregar', 'modificar', 'eliminar', 'posponer', 'reubicar'
+    // 'reubicar': actividad de la semana destino que toma la posición original (intercambio). Null = solo reubicar.
+    actividadIntercambioId: integer("actividad_intercambio_id").references(() => actividades.id, { onDelete: "set null" }),
+
+    periodoDestino: smallint("periodo_destino"), // para 'agregar' y 'posponer'
+    semanaDestino: smallint("semana_destino"),
+    tituloPropuesto: text("titulo_propuesto"), // para 'agregar' y 'modificar'
+    descripcionPropuesta: text("descripcion_propuesta"),
+
+    justificacion: text("justificacion").notNull(),
+    estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // 'pendiente', 'aprobada', 'rechazada'
+    respuestaAsesor: text("respuesta_asesor"),
+    revisadoPor: integer("revisado_por").references(() => usuarios.id),
+    revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "tipo_cambio_actividad_check",
+      sql`${table.tipo} IN ('agregar', 'modificar', 'eliminar', 'posponer', 'reubicar')`
+    ),
+    check(
+      "estado_cambio_actividad_check",
+      sql`${table.estado} IN ('pendiente', 'aprobada', 'rechazada')`
+    ),
+  ]
+);
+
+// Registro de contenido/avance de cada actividad del Gantt (habilitación progresiva)
+export const registrosActividad = pgTable(
+  "registros_actividad",
+  {
+    id: serial("id").primaryKey(),
+    actividadId: integer("actividad_id")
+      .notNull()
+      .unique()
+      .references(() => actividades.id, { onDelete: "cascade" }),
+
+    estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // 'pendiente', 'guardado', 'enviado', 'observado', 'aprobado'
+
+    fecha: date("fecha"), // fecha en que se realizó la actividad
+    descriptor: text("descriptor"), // 401-500 palabras
+    marcoTeorico: text("marco_teorico"), // antes de la descripción
+    citaApa: text("cita_apa"), // referencia/citación APA 7
+
+    imagenUrl: text("imagen_url"), // PNG 5x5cm opcional
+    leyendaImagen: varchar("leyenda_imagen", { length: 255 }),
+    numeroImagen: integer("numero_imagen"), // numeración correlativa para índice/tabla de contenido
+
+    comentarioAsesor: text("comentario_asesor"),
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }),
+    revisadoPor: integer("revisado_por").references(() => usuarios.id),
+    revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
+  },
+  (table) => [
+    check(
+      "estado_registro_actividad_check",
+      sql`${table.estado} IN ('pendiente', 'guardado', 'enviado', 'observado', 'aprobado')`
     ),
   ]
 );
@@ -632,6 +708,11 @@ export const informesMensuales = pgTable(
     comentarioAsesor: text("comentario_asesor"),
     revisadoPor: integer("revisado_por").references(() => usuarios.id),
     revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+
+    // Cierre del periodo (Fase 4 — registro progresivo de actividades)
+    alertaCierreEnviada: boolean("alerta_cierre_enviada").notNull().default(false),
+    cerrado: boolean("cerrado").notNull().default(false),
+    cerradoEn: timestamp("cerrado_en", { withTimezone: true }),
 
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
