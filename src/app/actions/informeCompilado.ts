@@ -10,11 +10,14 @@ import {
   supervisores,
   actividades,
   registrosActividad,
+  informesVisita,
 } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { eq, and, asc, inArray } from "drizzle-orm";
 import { codigoActividad, ESTADOS_REGISTRADOS, getPeriodosPropuesta } from "@/lib/habilitacionActividades";
-import { sumarDiasISO } from "@/lib/periodosPasantia";
+import { rangoSemanaISO } from "@/lib/periodosPasantia";
+import { leerComentarios, tieneComentarios, validarComentariosCompletos } from "@/lib/comentariosAsesor";
+import { visitaRealizada, type FotoVisita, type Respuestas } from "@/lib/formularioVisita";
 
 export async function getInformeCompilado(informeId: number) {
   try {
@@ -96,20 +99,11 @@ export async function getInformeCompilado(informeId: number) {
 
     const semanas = Array.from({ length: totalSemanas }, (_, i) => {
       const numero = i + 1;
-      let inicio: string | null = null;
-      let fin: string | null = null;
-      if (periodo?.inicio && periodo.fin) {
-        const inicioSemana = sumarDiasISO(periodo.inicio, 7 * i);
-        if (inicioSemana <= periodo.fin) {
-          const finSemana = sumarDiasISO(inicioSemana, 6);
-          inicio = inicioSemana;
-          fin = finSemana < periodo.fin ? finSemana : periodo.fin;
-        }
-      }
+      const rango = periodo?.inicio && periodo.fin ? rangoSemanaISO(periodo.inicio, periodo.fin, numero, totalSemanas) : null;
       return {
         numero,
-        inicio,
-        fin,
+        inicio: rango?.inicio ?? null,
+        fin: rango?.fin ?? null,
         actividades: actividadesCompiladas.filter((a) => a.semana === numero),
       };
     });
@@ -124,10 +118,31 @@ export async function getInformeCompilado(informeId: number) {
       }
     }
 
+    // Comentarios del asesor para el decanato y, en el informe del tercer período, la evidencia de la visita a la empresa.
+    const comentarios = leerComentarios(informe.comentariosDecanato);
+    let visita: { fecha: string | null; modalidad: string | null; fotos: FotoVisita[] } | null = null;
+    if (informe.numero === 3) {
+      const [v] = await db.select().from(informesVisita).where(eq(informesVisita.propuestaId, prop.id)).limit(1);
+      const respuestas = (v?.respuestas || {}) as Respuestas;
+      if (v?.estado === "completado" && visitaRealizada(respuestas)) {
+        visita = {
+          fecha: typeof respuestas.fecha_visita === "string" ? respuestas.fecha_visita : null,
+          modalidad: typeof respuestas.modalidad === "string" ? respuestas.modalidad : null,
+          fotos: (v.fotos || []) as FotoVisita[],
+        };
+      }
+    }
+
     return {
       success: true,
       informe,
       propuesta: prop,
+      comentarios: {
+        ...comentarios,
+        registrados: tieneComentarios(comentarios),
+        completos: validarComentariosCompletos(comentarios).length === 0,
+      },
+      visita,
       egresado: egresadoRow,
       asesor,
       empresa,

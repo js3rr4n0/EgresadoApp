@@ -4,9 +4,12 @@ import { getSession } from "@/lib/session";
 import { getSeguimientoAsesor } from "@/app/actions/registrosActividad";
 import { getSolicitudesCambioAsesor } from "@/app/actions/cambiosActividad";
 import { getInformesMensualesAsesor } from "@/app/actions/informesMensuales";
+import { getNotasSeguimiento } from "@/app/actions/comentariosAsesor";
+import { getInformeVisita } from "@/app/actions/informeVisita";
 import { formatearFechaLarga } from "@/lib/periodosPasantia";
 import Paginacion, { paginar } from "@/components/Paginacion";
 import SolicitudesCambioAsesor from "./SolicitudesCambioAsesor";
+import NotasSeguimiento from "./NotasSeguimiento";
 
 const TAMANO_PAGINA = 10;
 
@@ -61,7 +64,15 @@ export default async function SeguimientoAsesorPage({
     );
   }
 
-  const [solicitudesRes, informesRes] = await Promise.all([getSolicitudesCambioAsesor(id), getInformesMensualesAsesor(id)]);
+  const [solicitudesRes, informesRes, notasRes, visitaRes] = await Promise.all([
+    getSolicitudesCambioAsesor(id),
+    getInformesMensualesAsesor(id),
+    getNotasSeguimiento(id),
+    getInformeVisita(id),
+  ]);
+  const notas = notasRes.success && notasRes.notas ? notasRes.notas.map((n) => ({ periodo: n.periodo, semana: n.semana, nota: n.nota })) : [];
+  const visitaCompletada = visitaRes.success && visitaRes.visita?.estado === "completado";
+  const ventanaVisita = visitaRes.success ? visitaRes.ventanaVisita : null;
   const solicitudes = solicitudesRes.success && solicitudesRes.solicitudes ? solicitudesRes.solicitudes : [];
   const informesMensualesList = informesRes.success && informesRes.informes ? informesRes.informes : [];
 
@@ -70,7 +81,7 @@ export default async function SeguimientoAsesorPage({
   );
   const porRevisar = todas.filter((a) => a.registro?.estado === "enviado");
   const observadas = todas.filter((a) => a.registro?.estado === "observado");
-  const grupoActual = res.grupos.find((g) => g.estadoGrupo === "habilitada");
+  const grupoActual = res.grupos.find((g) => g.estadoGrupo === "habilitada" || g.estadoGrupo === "en_revision");
 
   const listas: Record<Vista, typeof todas> = { revisar: porRevisar, observadas, todas };
   const lista = listas[vista];
@@ -92,12 +103,20 @@ export default async function SeguimientoAsesorPage({
             {res.egresado?.nombreCompleto} ({res.egresado?.carnet}) — Pasantía como Trabajo de Graduación
           </p>
         </div>
-        <Link
-          href="/asesor"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
-        >
-          Volver al panel
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href={`/asesor/seguimiento/${id}/bitacora`}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs transition-colors w-fit"
+          >
+            Bitácora del proceso
+          </Link>
+          <Link
+            href="/asesor"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
+          >
+            Volver al panel
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white border border-border rounded-2xl p-5 shadow-sm">
@@ -128,8 +147,8 @@ export default async function SeguimientoAsesorPage({
       </div>
 
       <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-3">
-        <h2 className="text-sm font-extrabold text-card-dark">Informes mensuales</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <h2 className="text-sm font-extrabold text-card-dark">Informes del período</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {informesMensualesList.map((im) => {
             const estado = ESTADO_INFORME[im.estado] || ESTADO_INFORME.redactando;
             return (
@@ -155,7 +174,7 @@ export default async function SeguimientoAsesorPage({
                           : "bg-slate-900 hover:bg-slate-800 text-white"
                       }`}
                     >
-                      {im.estado === "enviado" ? "Revisar informe" : "Ver revisión"}
+                      {im.estado === "aprobado" ? "Ver comentarios" : "Agregar comentarios del asesor"}
                     </Link>
                   )}
                   <Link
@@ -166,11 +185,53 @@ export default async function SeguimientoAsesorPage({
                     Ver documento
                   </Link>
                 </div>
+
+                {/* El informe del tercer período incluye la visita del asesor a la empresa */}
+                {im.numero === 3 && (
+                  <div className="pt-2 mt-1 border-t border-slate-200 space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-extrabold text-slate-700">Informe de visita</span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${
+                          visitaCompletada ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-amber-50 text-amber-900 border-amber-300"
+                        }`}
+                      >
+                        {visitaCompletada ? "Completado" : "Pendiente"}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted font-semibold">
+                      Requisito para aprobar este informe.
+                      {ventanaVisita &&
+                        ` Visitas de la cohorte: del ${formatearFechaLarga(ventanaVisita.inicio)} al ${formatearFechaLarga(ventanaVisita.fin)}.`}
+                    </p>
+                    <Link
+                      href={`/asesor/seguimiento/${id}/visita`}
+                      className="block text-center px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold"
+                    >
+                      {visitaCompletada ? "Ver o actualizar informe de visita" : "Registrar informe de visita"}
+                    </Link>
+                    {visitaCompletada && (
+                      <Link
+                        href={`/informes/visita/${id}`}
+                        target="_blank"
+                        className="block text-center px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-white text-[11px] font-bold"
+                      >
+                        Ver documento de visita
+                      </Link>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       </div>
+
+      <NotasSeguimiento
+        propuestaId={id}
+        semanaActual={grupoActual ? { periodo: grupoActual.periodo, semana: grupoActual.semana } : null}
+        notas={notas}
+      />
 
       <SolicitudesCambioAsesor solicitudes={solicitudes} />
 

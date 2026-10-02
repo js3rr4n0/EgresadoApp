@@ -31,11 +31,15 @@ export default function EnvioInformeClient({
   informe,
   periodo,
   requisitos: requisitosIniciales,
+  advertencias,
+  paginasEstimadas,
   puedeEnviar,
 }: {
   informe: InformeResumen;
   periodo: { inicio: string | null; fin: string | null } | null;
   requisitos: RequisitoInforme[];
+  advertencias: string[];
+  paginasEstimadas: number;
   puedeEnviar: boolean;
 }) {
   const router = useRouter();
@@ -66,7 +70,7 @@ export default function EnvioInformeClient({
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900">Informe Mensual #{informe.numero}</h1>
+          <h1 className="text-xl font-extrabold text-slate-900">Informe #{informe.numero}</h1>
           <p className="text-xs text-slate-500 font-medium mt-1">Pasantía como Trabajo de Graduación</p>
         </div>
         <Link
@@ -79,19 +83,19 @@ export default function EnvioInformeClient({
 
       {informe.estado === "enviado" && (
         <div className="p-4 rounded-xl border bg-blue-50 border-blue-200 text-blue-900 text-xs font-semibold">
-          El informe fue enviado el {formatFechaHora(informe.enviadoEn)} y se encuentra en revisión por su docente asesor.
+          El informe fue enviado el {formatFechaHora(informe.enviadoEn)} y se encuentra en revisión por su asesor designado.
         </div>
       )}
       {informe.estado === "observado" && (
         <div className="p-4 rounded-xl border bg-amber-50 border-amber-300 text-amber-900 text-xs font-semibold space-y-1">
-          <p className="font-extrabold">Su docente asesor solicitó correcciones.</p>
+          <p className="font-extrabold">Su asesor designado solicitó correcciones.</p>
           {informe.comentarioAsesor && <p className="whitespace-pre-wrap font-medium">{informe.comentarioAsesor}</p>}
           <p className="font-medium">Corrija las actividades señaladas y vuelva a enviar el informe.</p>
         </div>
       )}
       {informe.estado === "aprobado" && (
         <div className="p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-900 text-xs font-semibold space-y-1">
-          <p className="font-extrabold">El informe fue aprobado por su docente asesor.</p>
+          <p className="font-extrabold">El informe fue aprobado por su asesor designado.</p>
           {informe.comentarioAsesor && <p className="whitespace-pre-wrap font-medium">{informe.comentarioAsesor}</p>}
         </div>
       )}
@@ -117,6 +121,10 @@ export default function EnvioInformeClient({
             <span className="font-bold text-slate-800">{formatearFechaLarga(informe.fechaLimite)}</span>
           </div>
           <div>
+            <span className="block text-[10px] font-bold uppercase text-slate-400">Extensión estimada</span>
+            <span className="font-bold text-slate-800">{paginasEstimadas} páginas</span>
+          </div>
+          <div>
             <span className="block text-[10px] font-bold uppercase text-slate-400">Envío</span>
             <span className="font-bold text-slate-800">{formatFechaHora(informe.enviadoEn)}</span>
             {informe.cumplimiento && (
@@ -127,6 +135,18 @@ export default function EnvioInformeClient({
           </div>
         </div>
       </div>
+
+      {advertencias.length > 0 && (
+        <div className="p-4 rounded-xl border bg-amber-50 border-amber-300 text-amber-900 text-xs font-semibold space-y-1">
+          <p className="font-extrabold">Advertencia de extensión del informe</p>
+          {advertencias.map((a, i) => (
+            <p key={i} className="font-medium">
+              {a}
+            </p>
+          ))}
+          <p className="font-medium">Esta advertencia no impide el envío.</p>
+        </div>
+      )}
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div>
@@ -179,7 +199,7 @@ export default function EnvioInformeClient({
             disabled={!puedeEnviar || pendientes > 0}
             className="px-6 py-3 rounded-xl bg-brand-red hover:bg-brand-red-hover text-white font-extrabold text-xs shadow-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Enviar informe mensual
+            Enviar informe
           </button>
         )}
       </div>
@@ -192,9 +212,9 @@ export default function EnvioInformeClient({
       {confirmando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-extrabold text-slate-900">Confirmar envío del Informe Mensual #{informe.numero}</h3>
+            <h3 className="text-base font-extrabold text-slate-900">Confirmar envío del Informe #{informe.numero}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Una vez enviado, el informe quedará en revisión por su docente asesor y no podrá modificar las actividades de este mes
+              Una vez enviado, el informe quedará en revisión por su asesor designado y no podrá modificar las actividades de este mes
               salvo que el asesor solicite correcciones. La fecha y hora de envío quedarán registradas.
             </p>
             <div className="flex justify-end gap-3 pt-2">

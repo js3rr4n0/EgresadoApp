@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { responderSolicitudCambioActividad } from "@/app/actions/cambiosActividad";
+import { responderSolicitudCambioActividad, getDocumentoSupervisorSolicitud } from "@/app/actions/cambiosActividad";
+import { openDocument } from "@/lib/pdfViewer";
 
 const TIPO_LABEL: Record<string, string> = {
   agregar: "Agregar actividad nueva",
@@ -24,6 +25,12 @@ export default function SolicitudesCambioAsesor({ solicitudes }: { solicitudes: 
   const [respuesta, setRespuesta] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const verDocumento = async (solicitudId: number) => {
+    const res = await getDocumentoSupervisorSolicitud(solicitudId);
+    if (res.success && res.url) openDocument(res.url, res.nombre);
+    else alert(res.error || "No se pudo abrir el documento.");
+  };
 
   const pendientes = solicitudes.filter((s) => s.estado === "pendiente");
   const resueltas = solicitudes.filter((s) => s.estado !== "pendiente");
@@ -106,6 +113,17 @@ export default function SolicitudesCambioAsesor({ solicitudes }: { solicitudes: 
                 <p className="text-[11px] text-slate-700 font-medium">
                   <span className="font-bold">Justificación:</span> {s.justificacion}
                 </p>
+                {s.tieneDocumento ? (
+                  <button
+                    type="button"
+                    onClick={() => verDocumento(s.id)}
+                    className="text-[11px] font-bold text-slate-700 underline hover:text-brand-red"
+                  >
+                    Ver nota del supervisor empresarial{s.documentoSupervisorNombre ? ` (${s.documentoSupervisorNombre})` : ""}
+                  </button>
+                ) : (
+                  <p className="text-[11px] text-slate-500 font-semibold">Sin nota del supervisor empresarial adjunta.</p>
+                )}
 
                 {activaId === s.id ? (
                   <div className="space-y-2 pt-2 border-t border-blue-200">

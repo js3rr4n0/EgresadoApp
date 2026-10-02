@@ -52,10 +52,28 @@ export default async function SeguimientoCoordinadorPage() {
               {estudiantes.map((e) => (
                 <tr key={e.propuestaId} className="hover:bg-slate-50/80 transition-colors">
                   <td className="py-4 px-4">
-                    <p className="font-bold text-card-dark">{e.egresado?.nombreCompleto}</p>
+                    <Link
+                      href={`/coordinador/seguimiento/bitacora/${e.propuestaId}`}
+                      title="Ver bitácora del proceso"
+                      className="font-bold text-card-dark hover:text-brand-red hover:underline"
+                    >
+                      {e.egresado?.nombreCompleto}
+                    </Link>
                     <p className="text-[11px] text-muted font-mono">{e.egresado?.carnet} — {e.egresado?.carrera}</p>
                   </td>
-                  <td className="py-4 px-4 text-slate-600 text-xs font-semibold">{e.asesor}</td>
+                  <td className="py-4 px-4 text-slate-600 text-xs font-semibold">
+                    {e.asesorId ? (
+                      <Link
+                        href={`/coordinador/seguimiento/asesor/${e.asesorId}`}
+                        title="Ver bitácora de todos los egresados del asesor"
+                        className="hover:text-brand-red hover:underline"
+                      >
+                        {e.asesor}
+                      </Link>
+                    ) : (
+                      e.asesor
+                    )}
+                  </td>
                   <td className="py-4 px-4 text-xs font-semibold text-slate-600">
                     Mes {e.mesActual}, Sem. {e.semanaActual}
                   </td>
@@ -95,6 +113,15 @@ export default async function SeguimientoCoordinadorPage() {
                         );
                       })}
                     </div>
+                    {e.visitaCompletada && (
+                      <Link
+                        href={`/informes/visita/${e.propuestaId}`}
+                        target="_blank"
+                        className="inline-block mt-1.5 text-[11px] font-bold text-slate-600 underline hover:text-brand-red"
+                      >
+                        Ver informe de visita
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}

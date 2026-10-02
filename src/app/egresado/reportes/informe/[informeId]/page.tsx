@@ -18,7 +18,7 @@ export default async function EnvioInformePage({ params }: { params: Promise<{ i
   if (!res.success || !res.informe || !res.requisitos) {
     return (
       <div className="p-5 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-bold">
-        {res.error || "No se pudo cargar el informe mensual."}
+        {res.error || "No se pudo cargar el informe."}
       </div>
     );
   }
@@ -36,6 +36,8 @@ export default async function EnvioInformePage({ params }: { params: Promise<{ i
       }}
       periodo={res.periodo ? { inicio: res.periodo.inicio, fin: res.periodo.fin } : null}
       requisitos={res.requisitos}
+      advertencias={res.advertencias ?? []}
+      paginasEstimadas={res.paginasEstimadas ?? 0}
       puedeEnviar={!!res.puedeEnviar}
     />
   );

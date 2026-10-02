@@ -2,6 +2,9 @@ import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { formatearFechaHoraElSalvador } from "@/lib/periodosPasantia";
 import { getEnvioInformeMensual } from "@/app/actions/informesMensuales";
+import { getNotasSeguimiento } from "@/app/actions/comentariosAsesor";
+import { getInformeVisita } from "@/app/actions/informeVisita";
+import { leerComentarios, validarComentariosCompletos } from "@/lib/comentariosAsesor";
 import RevisionInformeClient from "./RevisionInformeClient";
 
 export default async function RevisionInformePage({
@@ -22,10 +25,24 @@ export default async function RevisionInformePage({
   if (!res.success || !res.informe || !res.actividadesMes) {
     return (
       <div className="p-5 bg-red-50 text-red-700 border border-red-200 rounded-xl text-sm font-bold">
-        {res.error || "No se pudo cargar el informe mensual."}
+        {res.error || "No se pudo cargar el informe."}
       </div>
     );
   }
+
+  const [notasRes, visitaRes] = await Promise.all([
+    getNotasSeguimiento(Number(propuestaId)),
+    res.informe.numero === 3 ? getInformeVisita(Number(propuestaId)) : Promise.resolve(null),
+  ]);
+  const notasSemanales =
+    notasRes.success && notasRes.notas
+      ? notasRes.notas.filter((n) => n.periodo === res.informe!.numero).map((n) => ({ semana: n.semana, nota: n.nota }))
+      : [];
+  const comentarios = leerComentarios(res.informe.comentariosDecanato);
+  const visita =
+    res.informe.numero === 3
+      ? { requerida: true, completada: !!(visitaRes && visitaRes.success && visitaRes.visita?.estado === "completado") }
+      : { requerida: false, completada: true };
 
   return (
     <RevisionInformeClient
@@ -41,6 +58,10 @@ export default async function RevisionInformePage({
       }}
       periodo={res.periodo ? { inicio: res.periodo.inicio, fin: res.periodo.fin } : null}
       actividades={res.actividadesMes}
+      comentarios={comentarios}
+      comentariosCompletos={validarComentariosCompletos(comentarios).length === 0}
+      notasSemanales={notasSemanales}
+      visita={visita}
     />
   );
 }

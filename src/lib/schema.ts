@@ -10,6 +10,8 @@ import {
   timestamp,
   jsonb,
   unique,
+  uniqueIndex,
+  index,
   check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -280,12 +282,10 @@ export const actividades = pgTable(
     eliminada: boolean("eliminada").notNull().default(false), // baja lógica durante ejecución (Fase 3)
   },
   (table) => [
-    unique("actividades_codigo_unico").on(
-      table.propuestaId,
-      table.periodo,
-      table.semana,
-      table.numero
-    ),
+    // Único solo entre actividades vigentes: las eliminadas conservan su código histórico.
+    uniqueIndex("actividades_codigo_unico")
+      .on(table.propuestaId, table.periodo, table.semana, table.numero)
+      .where(sql`${table.eliminada} = false`),
   ]
 );
 
@@ -306,6 +306,10 @@ export const solicitudesCambioActividad = pgTable(
     semanaDestino: smallint("semana_destino"),
     tituloPropuesto: text("titulo_propuesto"), // para 'agregar' y 'modificar'
     descripcionPropuesta: text("descripcion_propuesta"),
+
+    // Nota de solicitud o aprobación del supervisor empresarial (obligatoria en todo cambio)
+    documentoSupervisorUrl: text("documento_supervisor_url"),
+    documentoSupervisorNombre: varchar("documento_supervisor_nombre", { length: 255 }),
 
     justificacion: text("justificacion").notNull(),
     estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // 'pendiente', 'aprobada', 'rechazada'
@@ -339,12 +343,13 @@ export const registrosActividad = pgTable(
 
     estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // 'pendiente', 'guardado', 'enviado', 'observado', 'aprobado'
 
-    fecha: date("fecha"), // fecha en que se realizó la actividad
+    fecha: date("fecha"), // fecha de realización; se asigna automáticamente al enviar la semana
     descriptor: text("descriptor"), // 401-500 palabras
     marcoTeorico: text("marco_teorico"), // antes de la descripción
     citaApa: text("cita_apa"), // referencia/citación APA 7
+    conclusionTecnica: text("conclusion_tecnica"), // máx. 200 palabras, después de la imagen de soporte
 
-    imagenUrl: text("imagen_url"), // PNG 5x5cm opcional
+    imagenUrl: text("imagen_url"), // PNG recortado a 5x5cm, opcional; si existe requiere pie de imagen
     leyendaImagen: varchar("leyenda_imagen", { length: 255 }),
     numeroImagen: integer("numero_imagen"), // numeración correlativa para índice/tabla de contenido
 
@@ -714,12 +719,16 @@ export const informesMensuales = pgTable(
     cerrado: boolean("cerrado").notNull().default(false),
     cerradoEn: timestamp("cerrado_en", { withTimezone: true }),
 
+    // Comentarios del asesor para el decanato (categorías del documento institucional + comentario general)
+    comentariosDecanato: jsonb("comentarios_decanato"),
+    comentariosDecanatoEn: timestamp("comentarios_decanato_en", { withTimezone: true }),
+
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
   },
   (table) => [
     unique("informes_mensuales_unique").on(table.propuestaId, table.numero),
-    check("numero_informe_mensual_check", sql`${table.numero} BETWEEN 1 AND 4`),
+    check("numero_informe_mensual_check", sql`${table.numero} BETWEEN 1 AND 5`),
     check(
       "estado_informe_mensual_check",
       sql`${table.estado} IN ('redactando', 'enviado', 'observado', 'aprobado')`
@@ -758,4 +767,59 @@ export const evidenciasInformeMensual = pgTable(
   }
 );
 
+// Notas de seguimiento semanal del asesor (opcionales; apoyan los comentarios del informe al cierre del período)
+export const notasSeguimientoAsesor = pgTable(
+  "notas_seguimiento_asesor",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    periodo: smallint("periodo").notNull(),
+    semana: smallint("semana").notNull(),
+    nota: text("nota").notNull(),
+    asesorId: integer("asesor_id").references(() => usuarios.id),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("notas_seguimiento_asesor_unique").on(table.propuestaId, table.periodo, table.semana)]
+);
 
+// Informe de visita del asesor a la empresa (formulario institucional + fotografías); se exige para aprobar el informe 3
+export const informesVisita = pgTable(
+  "informes_visita",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .unique()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    asesorId: integer("asesor_id").references(() => usuarios.id),
+    estado: varchar("estado", { length: 20 }).notNull().default("borrador"), // 'borrador', 'completado'
+    respuestas: jsonb("respuestas").notNull().default({}),
+    fotos: jsonb("fotos").notNull().default([]), // [{ url, leyenda }]
+    completadoEn: timestamp("completado_en", { withTimezone: true }),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check("estado_informe_visita_check", sql`${table.estado} IN ('borrador', 'completado')`)]
+);
+
+// Bitácora del proceso de seguimiento: registro inmutable de lo que hace cada parte (egresado, asesor, sistema).
+// Es visible para el egresado, su asesor y la coordinación; garantiza la transparencia del proceso.
+export const bitacoraEventos = pgTable(
+  "bitacora_eventos",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    actorId: integer("actor_id").references(() => usuarios.id), // null = sistema
+    actorRol: varchar("actor_rol", { length: 20 }).notNull(), // 'egresado', 'asesor', 'coordinador', 'admin', 'sistema'
+    tipo: varchar("tipo", { length: 50 }).notNull(),
+    descripcion: text("descripcion").notNull(),
+    detalle: text("detalle"), // texto completo de observaciones, justificaciones o comentarios
+    referencia: varchar("referencia", { length: 60 }), // p. ej. 'actividad:265', 'informe:3'; agrupa eventos repetidos
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("bitacora_eventos_propuesta_idx").on(table.propuestaId, table.creadoEn)]
+);

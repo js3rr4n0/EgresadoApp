@@ -5,9 +5,11 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  Footer,
   HeadingLevel,
   ImageRun,
   Packer,
+  PageNumber,
   Paragraph,
   ShadingType,
   Table,
@@ -19,12 +21,14 @@ import {
   type ISectionOptions,
 } from "docx";
 import type { getInformeCompilado } from "@/app/actions/informeCompilado";
-import { formatearFechaLarga, mesAnioTexto, rangoFechasTexto } from "@/lib/periodosPasantia";
+import { formatearFechaLarga, rangoFechasTexto } from "@/lib/periodosPasantia";
+import { CATEGORIAS_COMENTARIO } from "@/lib/comentariosAsesor";
 
 export type InformeCompilado = Extract<Awaited<ReturnType<typeof getInformeCompilado>>, { semanas: unknown }>;
 
-// Formato digital oficial: carta, márgenes izq. 4 cm y 2.5 cm en los demás (1 cm = 567 twips).
-const PAGINA = { ancho: 12240, alto: 15840, margenIzq: 2268, margenOtros: 1418 };
+// Formato general de trabajos de graduación: carta, margen izquierdo 3 cm (encuadernado) y 2.54 cm (1 pulgada) en los
+// demás (1 cm = 567 twips), páginas numeradas en la parte inferior derecha.
+const PAGINA = { ancho: 12240, alto: 15840, margenIzq: 1701, margenOtros: 1440 };
 const ANCHO_CONTENIDO = PAGINA.ancho - PAGINA.margenIzq - PAGINA.margenOtros;
 const FUENTE = "Times New Roman";
 const TAMANO_TEXTO = 24; // 12 pt (medios puntos)
@@ -69,11 +73,22 @@ function dimensionesImagen(datos: Buffer, tipo: TipoImagen): { ancho: number; al
   return null;
 }
 
-/** Altura fija de 5 cm; el ancho conserva la proporción (máximo 10 cm). */
+/** Imagen de soporte de 5 x 5 cm (las cargadas por el sistema ya vienen recortadas a cuadrado); si no es cuadrada, conserva la proporción dentro de 5 x 5 cm. */
 function tamanoImagen(datos: Buffer, tipo: TipoImagen) {
   const dim = dimensionesImagen(datos, tipo);
   if (!dim || dim.ancho <= 0 || dim.alto <= 0) return { width: LADO_IMAGEN_PX, height: LADO_IMAGEN_PX };
-  return { width: Math.min(Math.round((LADO_IMAGEN_PX * dim.ancho) / dim.alto), LADO_IMAGEN_PX * 2), height: LADO_IMAGEN_PX };
+  const factor = LADO_IMAGEN_PX / Math.max(dim.ancho, dim.alto);
+  return { width: Math.round(dim.ancho * factor), height: Math.round(dim.alto * factor) };
+}
+
+/** Fotografía de la visita: hasta 10 x 8 cm conservando la proporción. */
+function tamanoFoto(datos: Buffer, tipo: TipoImagen) {
+  const dim = dimensionesImagen(datos, tipo);
+  const maxAncho = LADO_IMAGEN_PX * 2;
+  const maxAlto = Math.round(LADO_IMAGEN_PX * 1.6);
+  if (!dim || dim.ancho <= 0 || dim.alto <= 0) return { width: maxAncho, height: maxAlto };
+  const factor = Math.min(maxAncho / dim.ancho, maxAlto / dim.alto);
+  return { width: Math.round(dim.ancho * factor), height: Math.round(dim.alto * factor) };
 }
 
 function texto(contenido: string, opciones: { bold?: boolean; italics?: boolean; size?: number } = {}) {
@@ -143,7 +158,12 @@ function tablaDatosGenerales(d: InformeCompilado) {
     ["Supervisor empresarial", supervisorNombre],
     ["Cargo", d.supervisor?.cargo || "—"],
     ["Empresa o institución", d.empresa?.nombre || "—"],
-    ["Comentarios u observaciones del asesor para el decanato", "Pendiente de definición."],
+    [
+      "Comentarios u observaciones del asesor para el decanato",
+      d.comentarios.registrados
+        ? "Se presentan en el apartado «Comentarios del asesor para el decanato»."
+        : "Pendiente de registro por el asesor.",
+    ],
   ];
 
   return new Table({
@@ -204,7 +224,7 @@ async function cargarLogo(): Promise<ImageRun | null> {
 
 export async function generarInformeWord(d: InformeCompilado): Promise<Buffer> {
   const contenido: (Paragraph | Table)[] = [];
-  const mesTexto = d.periodo?.inicio ? mesAnioTexto(d.periodo.inicio) : `Mes ${d.informe.numero}`;
+  const rangoPeriodo = d.periodo?.inicio && d.periodo.fin ? rangoFechasTexto(d.periodo.inicio, d.periodo.fin) : null;
 
   // ── Datos generales ──
   const logo = await cargarLogo();
@@ -223,84 +243,124 @@ export async function generarInformeWord(d: InformeCompilado): Promise<Buffer> {
   contenido.push(tituloSeccion("Cronograma de actividades del período"));
   contenido.push(
     parrafo(
-      `Porción del cronograma individual correspondiente al período reportado: ${mesTexto}${
-        d.periodo?.inicio && d.periodo.fin ? ` (${rangoFechasTexto(d.periodo.inicio, d.periodo.fin)})` : ""
-      }.`,
+      `Porción del cronograma individual correspondiente al período ${d.informe.numero} de la pasantía${rangoPeriodo ? `, ${rangoPeriodo}` : ""}.`,
       { justificado: true }
     )
   );
   if (d.actividades.length > 0) {
     contenido.push(tablaCronograma(d));
-    contenido.push(leyenda(`Cronograma de actividades de ${mesTexto.toLowerCase()}.`));
+    contenido.push(leyenda(`Cronograma de actividades del período ${d.informe.numero}.`));
   } else {
     contenido.push(parrafo("El período no tiene actividades registradas en el cronograma."));
   }
 
   // ── Actividades realizadas durante el mes ──
-  contenido.push(tituloSeccion(`Actividades realizadas durante el mes de ${mesTexto}`));
+  contenido.push(tituloSeccion(`Actividades realizadas durante el período ${rangoPeriodo ?? d.informe.numero}`));
 
   const semanasConActividades = d.semanas.filter((s) => s.actividades.length > 0);
   for (const semana of semanasConActividades) {
     const rango = semana.inicio && semana.fin ? rangoFechasTexto(semana.inicio, semana.fin) : null;
     contenido.push(subtitulo1(`Semana ${semana.numero}${rango ? ` (${rango})` : ""}`));
-
-    // A. Marco teórico
-    contenido.push(subtitulo2("A. Marco teórico de las actividades de la semana"));
-    for (const a of semana.actividades) {
-      const r = a.registro;
-      if (!a.registrada || !r?.marcoTeorico) {
-        contenido.push(
-          parrafo([texto(`${a.codigo} ${a.titulo}: `, { bold: true }), texto("actividad no registrada a la fecha de generación.", { italics: true })])
-        );
-        continue;
-      }
-      contenido.push(parrafo([texto(`${a.codigo} ${a.titulo}: `, { bold: true }), texto(r.marcoTeorico)], { justificado: true, despues: 60 }));
-      if (r.citaApa) contenido.push(parrafo([texto("Referencia: ", { bold: true }), texto(r.citaApa)], { justificado: true }));
-    }
-
-    // B. Desarrollo
-    contenido.push(subtitulo2("B. Desarrollo de actividades"));
     contenido.push(parrafo([texto(`Actividades realizadas durante la semana${rango ? ` ${rango}` : ` ${semana.numero}`}`, { bold: true })]));
+
+    // Cada actividad reúne su marco teórico, desarrollo, elemento de soporte y conclusión técnica (sin repetir el código).
     for (const a of semana.actividades) {
       const r = a.registro;
       const fecha = a.registrada && r?.fecha ? ` (${formatearFechaLarga(r.fecha)})` : "";
-      contenido.push(parrafo([texto(`${a.codigo} ${a.titulo}${fecha}:`, { bold: true })], { despues: 60 }));
-      contenido.push(
-        a.registrada && r?.descriptor
-          ? parrafo(r.descriptor, { justificado: true })
-          : parrafo([texto("Actividad no registrada a la fecha de generación.", { italics: true })])
-      );
-    }
-
-    // C. Elementos de soporte
-    contenido.push(subtitulo2("C. Elementos de soporte de las actividades realizadas"));
-    let imagenesSemana = 0;
-    for (const a of semana.actividades) {
-      const r = a.registro;
-      if (!a.registrada || !r?.imagenUrl) continue;
-      const imagen = decodificarImagen(r.imagenUrl);
-      const numero = d.numeroImagenPorActividad[a.id];
-      if (!imagen) {
-        contenido.push(parrafo([texto(`Imagen ${numero} de la actividad ${a.codigo}: formato no compatible con Word.`, { italics: true })]));
-        continue;
-      }
-      imagenesSemana++;
       contenido.push(
         new Paragraph({
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 60 },
-          children: [new ImageRun({ type: imagen.tipo, data: imagen.datos, transformation: tamanoImagen(imagen.datos, imagen.tipo) })],
+          keepNext: true,
+          spacing: { line: INTERLINEADO, before: 120, after: 60 },
+          children: [texto(`${a.codigo} ${a.titulo}${fecha}`, { bold: true })],
         })
       );
-      contenido.push(leyenda(`Imagen ${numero}. ${r.leyendaImagen || "Evidencia de la actividad"} (actividad ${a.codigo}).`));
-    }
-    if (imagenesSemana === 0) {
-      contenido.push(parrafo([texto("No se adjuntaron elementos de soporte para las actividades de esta semana.", { italics: true })]));
+
+      if (!a.registrada || !r) {
+        contenido.push(parrafo([texto("Actividad no registrada a la fecha de generación.", { italics: true })]));
+        continue;
+      }
+
+      if (r.marcoTeorico) {
+        contenido.push(subtitulo2("Marco teórico"));
+        contenido.push(parrafo(r.marcoTeorico, { justificado: true, despues: 60 }));
+        if (r.citaApa) contenido.push(parrafo([texto("Referencia: ", { bold: true }), texto(r.citaApa)], { justificado: true }));
+      }
+
+      if (r.descriptor) {
+        contenido.push(subtitulo2("Desarrollo"));
+        contenido.push(parrafo(r.descriptor, { justificado: true }));
+      }
+
+      if (r.imagenUrl) {
+        const numero = d.numeroImagenPorActividad[a.id];
+        const imagen = decodificarImagen(r.imagenUrl);
+        contenido.push(subtitulo2("Elemento de soporte"));
+        if (imagen) {
+          contenido.push(
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              keepNext: true,
+              // Interlineado sencillo: con 1.5 Word agranda el espacio de la imagen en línea.
+              spacing: { line: 240, after: 60 },
+              children: [new ImageRun({ type: imagen.tipo, data: imagen.datos, transformation: tamanoImagen(imagen.datos, imagen.tipo) })],
+            })
+          );
+          contenido.push(leyenda(`Imagen ${numero}. ${r.leyendaImagen || "Evidencia de la actividad"} (actividad ${a.codigo}).`));
+        } else {
+          contenido.push(parrafo([texto(`Imagen ${numero} de la actividad ${a.codigo}: formato no compatible con Word.`, { italics: true })]));
+        }
+      }
+
+      if (r.conclusionTecnica) {
+        contenido.push(subtitulo2("Conclusión técnica"));
+        contenido.push(parrafo(r.conclusionTecnica, { justificado: true }));
+      }
     }
   }
 
   if (semanasConActividades.length === 0) {
     contenido.push(parrafo("No hay actividades registradas para este período."));
+  }
+
+  // ── Visita del asesor (informe del tercer período) ──
+  if (d.visita) {
+    contenido.push(tituloSeccion("Visita del asesor a la empresa"));
+    contenido.push(
+      parrafo(
+        `La visita del asesor a la empresa o institución se realizó${d.visita.fecha ? ` el ${formatearFechaLarga(d.visita.fecha)}` : ""}${
+          d.visita.modalidad ? ` en modalidad ${d.visita.modalidad.toLowerCase()}` : ""
+        }.`,
+        { justificado: true }
+      )
+    );
+    d.visita.fotos.forEach((f, i) => {
+      const imagen = decodificarImagen(f.url);
+      if (!imagen) return;
+      contenido.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          keepNext: true,
+          spacing: { line: 240, after: 60 },
+          children: [new ImageRun({ type: imagen.tipo, data: imagen.datos, transformation: tamanoFoto(imagen.datos, imagen.tipo) })],
+        })
+      );
+      contenido.push(leyenda(`Fotografía ${i + 1}. ${f.leyenda}`));
+    });
+  }
+
+  // ── Comentarios del asesor para el decanato ──
+  if (d.comentarios.registrados) {
+    contenido.push(tituloSeccion("Comentarios del asesor para el decanato"));
+    for (const cat of CATEGORIAS_COMENTARIO) {
+      const respuesta = d.comentarios.respuestas[cat.id];
+      if (!respuesta) continue;
+      contenido.push(subtitulo1(cat.pregunta));
+      contenido.push(parrafo(respuesta, { justificado: true }));
+    }
+    if (d.comentarios.general) {
+      contenido.push(subtitulo1("Comentario general"));
+      contenido.push(parrafo(d.comentarios.general, { justificado: true }));
+    }
   }
 
   const seccion: ISectionOptions = {
@@ -309,6 +369,11 @@ export async function generarInformeWord(d: InformeCompilado): Promise<Buffer> {
         size: { width: PAGINA.ancho, height: PAGINA.alto },
         margin: { top: PAGINA.margenOtros, right: PAGINA.margenOtros, bottom: PAGINA.margenOtros, left: PAGINA.margenIzq },
       },
+    },
+    footers: {
+      default: new Footer({
+        children: [new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ children: [PageNumber.CURRENT], font: FUENTE, size: TAMANO_TEXTO })] })],
+      }),
     },
     children: contenido,
   };

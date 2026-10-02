@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { aprobarInformeMensual, solicitarCorreccionInformeMensual } from "@/app/actions/informesMensuales";
 import { formatearFechaLarga } from "@/lib/periodosPasantia";
+import type { ComentariosDecanato } from "@/lib/comentariosAsesor";
+import ComentariosAsesorForm from "./ComentariosAsesorForm";
 
 const ESTADO_INFORME: Record<string, { label: string; badge: string }> = {
   redactando: { label: "Borrador", badge: "bg-slate-100 text-slate-700 border-slate-300" },
@@ -30,6 +32,10 @@ export default function RevisionInformeClient({
   informe,
   periodo,
   actividades,
+  comentarios,
+  comentariosCompletos,
+  notasSemanales,
+  visita,
 }: {
   propuestaId: number;
   informe: {
@@ -43,6 +49,10 @@ export default function RevisionInformeClient({
   };
   periodo: { inicio: string | null; fin: string | null } | null;
   actividades: { id: number; codigo: string; titulo: string; estado: string }[];
+  comentarios: ComentariosDecanato;
+  comentariosCompletos: boolean;
+  notasSemanales: { semana: number; nota: string }[];
+  visita: { requerida: boolean; completada: boolean };
 }) {
   const router = useRouter();
   const [comentario, setComentario] = useState("");
@@ -53,6 +63,10 @@ export default function RevisionInformeClient({
 
   const estado = ESTADO_INFORME[informe.estado] || ESTADO_INFORME.redactando;
   const puedeRevisar = informe.estado === "enviado";
+  const requisitosAprobacion = [
+    ...(comentariosCompletos ? [] : ["Complete y guarde los comentarios del asesor para el decanato."]),
+    ...(visita.requerida && !visita.completada ? ["Complete el informe de visita a la empresa (requisito del Informe #3)."] : []),
+  ];
 
   const alternar = (id: number) =>
     setSeleccionadas((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -84,7 +98,7 @@ export default function RevisionInformeClient({
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-xl font-extrabold text-card-dark">Revisión del Informe Mensual #{informe.numero}</h1>
+          <h1 className="text-xl font-extrabold text-card-dark">Revisión del Informe #{informe.numero}</h1>
           <p className="text-xs text-muted mt-1 font-semibold">Pasantía como Trabajo de Graduación</p>
         </div>
         <Link
@@ -143,6 +157,33 @@ export default function RevisionInformeClient({
         </div>
       )}
 
+      {visita.requerida && (
+        <div
+          className={`p-4 rounded-xl border text-xs font-semibold flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+            visita.completada ? "bg-emerald-50 border-emerald-200 text-emerald-900" : "bg-amber-50 border-amber-300 text-amber-900"
+          }`}
+        >
+          <span>
+            {visita.completada
+              ? "El informe de visita a la empresa está completado."
+              : "Este informe requiere el informe de visita a la empresa, con las fotografías de la visita, antes de su aprobación."}
+          </span>
+          <Link
+            href={`/asesor/seguimiento/${propuestaId}/visita`}
+            className="px-4 py-2 rounded-lg bg-white border border-current font-bold text-[11px] text-center shrink-0"
+          >
+            {visita.completada ? "Ver informe de visita" : "Completar informe de visita"}
+          </Link>
+        </div>
+      )}
+
+      <ComentariosAsesorForm
+        informeId={informe.id}
+        inicial={comentarios}
+        editable={informe.estado !== "aprobado"}
+        notasSemanales={notasSemanales}
+      />
+
       {puedeRevisar ? (
         <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-4">
           <div>
@@ -174,13 +215,13 @@ export default function RevisionInformeClient({
 
           <div className="space-y-1">
             <label className="block text-[10px] font-bold uppercase text-slate-400">
-              Comentarios u observaciones del asesor
+              Observaciones para el estudiante
             </label>
             <textarea
               rows={4}
               value={comentario}
               onChange={(e) => setComentario(e.target.value)}
-              placeholder="Información relevante sobre el proceso desarrollado por el estudiante, su desempeño y grado de avance. Obligatorio si solicita correcciones."
+              placeholder="Observaciones sobre las actividades del informe. Obligatorio si solicita correcciones."
               className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-brand-red outline-none resize-none"
             />
           </div>
@@ -196,13 +237,21 @@ export default function RevisionInformeClient({
             </button>
             <button
               type="button"
-              disabled={loading}
+              disabled={loading || requisitosAprobacion.length > 0}
+              title={requisitosAprobacion.join(" ")}
               onClick={() => setConfirmarAprobacion(true)}
               className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md disabled:opacity-50"
             >
               Aprobar informe
             </button>
           </div>
+          {requisitosAprobacion.length > 0 && (
+            <ul className="text-right text-[11px] text-amber-800 font-semibold space-y-0.5">
+              {requisitosAprobacion.map((r) => (
+                <li key={r}>Para aprobar: {r}</li>
+              ))}
+            </ul>
+          )}
         </div>
       ) : (
         <p className="text-xs text-muted font-semibold">
@@ -217,7 +266,7 @@ export default function RevisionInformeClient({
       {confirmarAprobacion && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-extrabold text-slate-900">Aprobar Informe Mensual #{informe.numero}</h3>
+            <h3 className="text-base font-extrabold text-slate-900">Aprobar Informe #{informe.numero}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
               El informe quedará registrado como aprobado y se notificará al estudiante y a la coordinación.
             </p>

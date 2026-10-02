@@ -388,7 +388,7 @@ export default async function EgresadoLandingPage() {
                   href="/egresado/reportes"
                   className="inline-flex items-center gap-2.5 px-6 py-3.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 cursor-pointer"
                 >
-                  <span>📊 Haz clic aquí para ingresar al seguimiento de reportes mensuales</span>
+                  <span>Ingresar a los reportes de actividades</span>
                   <span className="text-sm">➔</span>
                 </Link>
               </div>

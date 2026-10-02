@@ -2,8 +2,9 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getInformeCompilado } from "@/app/actions/informeCompilado";
-import { formatearFechaLarga, mesAnioTexto, rangoFechasTexto } from "@/lib/periodosPasantia";
+import { formatearFechaLarga, rangoFechasTexto } from "@/lib/periodosPasantia";
 import type { InformeCompilado } from "@/lib/informeWord";
+import { CATEGORIAS_COMENTARIO } from "@/lib/comentariosAsesor";
 import PrintButton from "./PrintButton";
 
 const ESTADO_INFORME: Record<string, string> = {
@@ -44,7 +45,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
   };
   const volverHref = volverHrefPorRol[session.rol] || "/";
 
-  const mesTexto = periodo?.inicio ? mesAnioTexto(periodo.inicio) : `Mes ${informe.numero}`;
+  const rangoPeriodo = periodo?.inicio && periodo.fin ? rangoFechasTexto(periodo.inicio, periodo.fin) : null;
   const semanasConActividades = semanas.filter((s) => s.actividades.length > 0);
 
   const datosGenerales: [string, string][] = [
@@ -61,7 +62,12 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
     ["Supervisor empresarial", supervisor ? `${supervisor.nombres} ${supervisor.apellidos}` : "—"],
     ["Cargo", supervisor?.cargo || "—"],
     ["Empresa o institución", empresa?.nombre || "—"],
-    ["Comentarios u observaciones del asesor para el decanato", "Pendiente de definición."],
+    [
+      "Comentarios u observaciones del asesor para el decanato",
+      d.comentarios.registrados
+        ? "Se presentan en el apartado «Comentarios del asesor para el decanato»."
+        : "Pendiente de registro por el asesor.",
+    ],
   ];
 
   return (
@@ -69,7 +75,12 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
       <style>{`
         @page {
           size: letter portrait;
-          margin: 2.5cm 2.5cm 2.5cm 4cm;
+          margin: 2.54cm 2.54cm 2.54cm 3cm;
+          @bottom-right {
+            content: counter(page);
+            font-family: "Times New Roman", Times, serif;
+            font-size: 12pt;
+          }
         }
         @media print {
           header, footer, nav, .no-print {
@@ -120,8 +131,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
         }
         .doc-imagen {
           height: 5cm;
-          width: auto;
-          max-width: 10cm;
+          width: 5cm;
           object-fit: contain;
           display: block;
           margin: 0 auto;
@@ -176,8 +186,8 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
         {/* ────────────── Cronograma del período ────────────── */}
         <h2 className="doc-titulo-seccion">Cronograma de actividades del período</h2>
         <p style={{ textAlign: "justify" }}>
-          Porción del cronograma individual correspondiente al período reportado: {mesTexto}
-          {periodo?.inicio && periodo.fin ? ` (${rangoFechasTexto(periodo.inicio, periodo.fin)})` : ""}.
+          Porción del cronograma individual correspondiente al período {informe.numero} de la pasantía
+          {rangoPeriodo ? `, ${rangoPeriodo}` : ""}.
         </p>
         {actividades.length > 0 ? (
           <>
@@ -205,94 +215,133 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
                 ))}
               </tbody>
             </table>
-            <p className="doc-leyenda">Cronograma de actividades de {mesTexto.toLowerCase()}.</p>
+            <p className="doc-leyenda">Cronograma de actividades del período {informe.numero}.</p>
           </>
         ) : (
           <p>El período no tiene actividades registradas en el cronograma.</p>
         )}
 
         {/* ────────────── Actividades realizadas durante el mes ────────────── */}
-        <h2 className="doc-titulo-seccion">Actividades realizadas durante el mes de {mesTexto}</h2>
+        <h2 className="doc-titulo-seccion">Actividades realizadas durante el período {rangoPeriodo ?? informe.numero}</h2>
 
         {semanasConActividades.length === 0 && <p>No hay actividades registradas para este período.</p>}
 
         {semanasConActividades.map((semana) => {
           const rango = semana.inicio && semana.fin ? rangoFechasTexto(semana.inicio, semana.fin) : null;
-          const conImagen = semana.actividades.filter((a) => a.registrada && a.registro?.imagenUrl);
           return (
             <section key={semana.numero}>
               <h3 className="doc-subtitulo-1">
                 Semana {semana.numero}
                 {rango ? ` (${rango})` : ""}
               </h3>
-
-              <h4 className="doc-subtitulo-2">A. Marco teórico de las actividades de la semana</h4>
-              {semana.actividades.map((a) =>
-                a.registrada && a.registro?.marcoTeorico ? (
-                  <div key={a.id}>
-                    <p style={{ textAlign: "justify" }}>
-                      <strong>
-                        {a.codigo} {a.titulo}:
-                      </strong>{" "}
-                      {a.registro.marcoTeorico}
-                    </p>
-                    {a.registro.citaApa && (
-                      <p style={{ textAlign: "justify" }}>
-                        <strong>Referencia:</strong> {a.registro.citaApa}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p key={a.id}>
-                    <strong>
-                      {a.codigo} {a.titulo}:
-                    </strong>{" "}
-                    <em>actividad no registrada a la fecha de generación.</em>
-                  </p>
-                )
-              )}
-
-              <h4 className="doc-subtitulo-2">B. Desarrollo de actividades</h4>
               <p>
                 <strong>Actividades realizadas durante la semana {rango ?? semana.numero}</strong>
               </p>
-              {semana.actividades.map((a) => (
-                <div key={a.id}>
-                  <p>
-                    <strong>
-                      {a.codigo} {a.titulo}
-                      {a.registrada && a.registro?.fecha ? ` (${formatearFechaLarga(a.registro.fecha)})` : ""}:
-                    </strong>
-                  </p>
-                  {a.registrada && a.registro?.descriptor ? (
-                    <p style={{ textAlign: "justify" }}>{a.registro.descriptor}</p>
-                  ) : (
-                    <p>
-                      <em>Actividad no registrada a la fecha de generación.</em>
-                    </p>
-                  )}
-                </div>
-              ))}
 
-              <h4 className="doc-subtitulo-2">C. Elementos de soporte de las actividades realizadas</h4>
-              {conImagen.length === 0 ? (
-                <p>
-                  <em>No se adjuntaron elementos de soporte para las actividades de esta semana.</em>
-                </p>
-              ) : (
-                conImagen.map((a) => (
-                  <figure key={a.id} style={{ margin: "6pt 0", pageBreakInside: "avoid" }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={a.registro!.imagenUrl!} alt={a.registro!.leyendaImagen || `Evidencia de la actividad ${a.codigo}`} className="doc-imagen" />
-                    <figcaption className="doc-leyenda">
-                      Imagen {numeroImagenPorActividad[a.id]}. {a.registro!.leyendaImagen || "Evidencia de la actividad"} (actividad {a.codigo}).
-                    </figcaption>
-                  </figure>
-                ))
-              )}
+              {/* Cada actividad reúne su marco teórico, desarrollo, elemento de soporte y conclusión técnica. */}
+              {semana.actividades.map((a) => {
+                const r = a.registro;
+                return (
+                  <div key={a.id}>
+                    <p style={{ margin: "6pt 0 3pt 0", breakAfter: "avoid" }}>
+                      <strong>
+                        {a.codigo} {a.titulo}
+                        {a.registrada && r?.fecha ? ` (${formatearFechaLarga(r.fecha)})` : ""}
+                      </strong>
+                    </p>
+
+                    {!a.registrada || !r ? (
+                      <p>
+                        <em>Actividad no registrada a la fecha de generación.</em>
+                      </p>
+                    ) : (
+                      <>
+                        {r.marcoTeorico && (
+                          <>
+                            <h4 className="doc-subtitulo-2">Marco teórico</h4>
+                            <p style={{ textAlign: "justify" }}>{r.marcoTeorico}</p>
+                            {r.citaApa && (
+                              <p style={{ textAlign: "justify" }}>
+                                <strong>Referencia:</strong> {r.citaApa}
+                              </p>
+                            )}
+                          </>
+                        )}
+
+                        {r.descriptor && (
+                          <>
+                            <h4 className="doc-subtitulo-2">Desarrollo</h4>
+                            <p style={{ textAlign: "justify" }}>{r.descriptor}</p>
+                          </>
+                        )}
+
+                        {r.imagenUrl && (
+                          <>
+                            <h4 className="doc-subtitulo-2">Elemento de soporte</h4>
+                            <figure style={{ margin: "6pt 0", pageBreakInside: "avoid" }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={r.imagenUrl} alt={r.leyendaImagen || `Evidencia de la actividad ${a.codigo}`} className="doc-imagen" />
+                              <figcaption className="doc-leyenda">
+                                Imagen {numeroImagenPorActividad[a.id]}. {r.leyendaImagen || "Evidencia de la actividad"} (actividad {a.codigo}).
+                              </figcaption>
+                            </figure>
+                          </>
+                        )}
+
+                        {r.conclusionTecnica && (
+                          <>
+                            <h4 className="doc-subtitulo-2">Conclusión técnica</h4>
+                            <p style={{ textAlign: "justify" }}>{r.conclusionTecnica}</p>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
             </section>
           );
         })}
+
+        {/* ────────────── Visita del asesor (informe del tercer período) ────────────── */}
+        {d.visita && (
+          <section>
+            <h2 className="doc-titulo-seccion">Visita del asesor a la empresa</h2>
+            <p style={{ textAlign: "justify" }}>
+              La visita del asesor a la empresa o institución se realizó
+              {d.visita.fecha ? ` el ${formatearFechaLarga(d.visita.fecha)}` : ""}
+              {d.visita.modalidad ? ` en modalidad ${d.visita.modalidad.toLowerCase()}` : ""}.
+            </p>
+            {d.visita.fotos.map((f, i) => (
+              <figure key={i} style={{ margin: "6pt 0", pageBreakInside: "avoid" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={f.url} alt={f.leyenda} style={{ width: "10cm", maxHeight: "8cm", objectFit: "contain", display: "block", margin: "0 auto" }} />
+                <figcaption className="doc-leyenda">
+                  Fotografía {i + 1}. {f.leyenda}
+                </figcaption>
+              </figure>
+            ))}
+          </section>
+        )}
+
+        {/* ────────────── Comentarios del asesor para el decanato ────────────── */}
+        {d.comentarios.registrados && (
+          <section>
+            <h2 className="doc-titulo-seccion">Comentarios del asesor para el decanato</h2>
+            {CATEGORIAS_COMENTARIO.filter((c) => d.comentarios.respuestas[c.id]).map((c) => (
+              <div key={c.id}>
+                <h3 className="doc-subtitulo-1">{c.pregunta}</h3>
+                <p style={{ textAlign: "justify" }}>{d.comentarios.respuestas[c.id]}</p>
+              </div>
+            ))}
+            {d.comentarios.general && (
+              <div>
+                <h3 className="doc-subtitulo-1">Comentario general</h3>
+                <p style={{ textAlign: "justify" }}>{d.comentarios.general}</p>
+              </div>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );

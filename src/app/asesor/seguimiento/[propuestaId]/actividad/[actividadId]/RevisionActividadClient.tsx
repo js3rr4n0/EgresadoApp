@@ -101,7 +101,7 @@ export default function RevisionActividadClient({ data, propuestaId }: { data: a
 
       <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-3">
         <h2 className="text-sm font-extrabold text-card-dark uppercase tracking-wide border-b border-slate-100 pb-2">
-          Descriptor de la Actividad
+          Descripción de la Actividad Realizada
         </h2>
         <p className="text-xs text-slate-700 font-medium whitespace-pre-wrap">{registro.descriptor}</p>
       </div>
@@ -125,6 +125,15 @@ export default function RevisionActividadClient({ data, propuestaId }: { data: a
           </div>
         </div>
       )}
+
+      <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-3">
+        <h2 className="text-sm font-extrabold text-card-dark uppercase tracking-wide border-b border-slate-100 pb-2">
+          Conclusión Técnica
+        </h2>
+        <p className="text-xs text-slate-700 font-medium whitespace-pre-wrap">
+          {registro.conclusionTecnica || "El estudiante no registró conclusión técnica para esta actividad."}
+        </p>
+      </div>
 
       {puedeRevisar && (
         <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-4">

@@ -1,5 +1,9 @@
 export const DURACION_PASANTIA_DIAS = 150;
-export const NUM_INFORMES_MENSUALES = 4;
+/** La pasantía se divide en períodos de 30 días; cada período corresponde a un informe. */
+export const DIAS_POR_PERIODO = 30;
+/** Cada período se divide en 4 semanas: las 3 primeras de 7 días y la cuarta con los días restantes (9). */
+export const SEMANAS_POR_PERIODO = 4;
+export const NUM_INFORMES_MENSUALES = DURACION_PASANTIA_DIAS / DIAS_POR_PERIODO;
 
 const MESES = [
   "Enero",
@@ -31,46 +35,36 @@ export interface Posicion {
 }
 
 /**
- * Divide la pasantía en períodos por mes calendario desde la fecha de inicio de la carta de aceptación;
- * cada período tiene ceil(días / 7) semanas. Es la regla del editor del cronograma (ActividadesForm).
+ * Divide la pasantía en períodos consecutivos de 30 días desde la fecha de inicio de la carta de aceptación
+ * (150 días = 5 períodos = 5 informes). Cada período tiene 4 semanas. Es la regla del editor del cronograma
+ * (ActividadesForm) y del seguimiento de actividades.
  * Trabaja con getters locales: en servidor, construir `start` con fechaLocalDesdeISO().
  */
 export function generarPeriodosPasantia(start: Date, duracionDias = DURACION_PASANTIA_DIAS): PeriodoPasantia[] {
-  const end = new Date(start);
-  end.setDate(start.getDate() + duracionDias);
+  const formatStr = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const total = Math.ceil(duracionDias / DIAS_POR_PERIODO);
 
-  const periodos: PeriodoPasantia[] = [];
-  let current = new Date(start);
-  let num = 1;
+  return Array.from({ length: total }, (_, i) => {
+    const inicio = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i * DIAS_POR_PERIODO);
+    const dias = Math.min(DIAS_POR_PERIODO, duracionDias - i * DIAS_POR_PERIODO);
+    const fin = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + dias - 1);
+    return {
+      num: i + 1,
+      nombre: MESES[inicio.getMonth()],
+      inicio,
+      fin,
+      rango: `${formatStr(inicio)} al ${formatStr(fin)}`,
+      semanas: SEMANAS_POR_PERIODO,
+    };
+  });
+}
 
-  while (current <= end) {
-    const monthStart = new Date(current);
-    let monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
-    if (monthEnd > end) {
-      monthEnd = new Date(end);
-    }
-
-    const formatStr = (d: Date) =>
-      `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-    const diffTime = Math.abs(monthEnd.getTime() - monthStart.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    const semanas = Math.ceil(diffDays / 7);
-
-    periodos.push({
-      num,
-      nombre: MESES[monthStart.getMonth()],
-      inicio: monthStart,
-      fin: monthEnd,
-      rango: `${formatStr(monthStart)} al ${formatStr(monthEnd)}`,
-      semanas: semanas > 0 ? semanas : 1,
-    });
-
-    current = new Date(current.getFullYear(), current.getMonth() + 1, 1);
-    num++;
-  }
-
-  return periodos;
+/** Fechas (ISO) de la semana `semana` de un período: semanas de 7 días y la última hasta el fin del período. */
+export function rangoSemanaISO(inicioPeriodo: string, finPeriodo: string, semana: number, totalSemanas: number) {
+  const inicio = sumarDiasISO(inicioPeriodo, 7 * (semana - 1));
+  if (inicio > finPeriodo) return null;
+  const finSemana = semana >= totalSemanas ? finPeriodo : sumarDiasISO(inicio, 6);
+  return { inicio, fin: finSemana < finPeriodo ? finSemana : finPeriodo };
 }
 
 export function fechaLocalDesdeISO(iso: string): Date {
@@ -104,12 +98,6 @@ export function rangoFechasTexto(inicio: string, fin: string): string {
   if (yi === yf && mi === mf) return `del ${di} al ${df} de ${mes(mi)} de ${yi}`;
   if (yi === yf) return `del ${di} de ${mes(mi)} al ${df} de ${mes(mf)} de ${yi}`;
   return `del ${di} de ${mes(mi)} de ${yi} al ${df} de ${mes(mf)} de ${yf}`;
-}
-
-/** "2026-09-01" -> "Septiembre 2026". */
-export function mesAnioTexto(iso: string): string {
-  const [y, m] = iso.slice(0, 10).split("-").map(Number);
-  return `${MESES[m - 1]} ${y}`;
 }
 
 export function sumarDiasISO(iso: string, dias: number): string {

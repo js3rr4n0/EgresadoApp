@@ -11,6 +11,7 @@ import {
   notificaciones,
   registrosActividad,
   solicitudesCambioActividad,
+  informesVisita,
 } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { eq, asc, and, inArray } from "drizzle-orm";
@@ -21,8 +22,15 @@ import {
   validarContenidoRegistro,
   getPeriodosPropuesta,
   getPosicionActual,
+  ESTADOS_REGISTRADOS,
 } from "@/lib/habilitacionActividades";
-import { hoyISOElSalvador, sumarDiasISO, formatearFechaLarga } from "@/lib/periodosPasantia";
+import { estimarPaginas, PAGINAS_MINIMAS_INFORME } from "@/lib/metricaPaginas";
+import { leerComentarios, validarComentariosCompletos } from "@/lib/comentariosAsesor";
+import { registrarEvento } from "@/lib/bitacora";
+
+/** El informe del tercer período (alrededor de los 90 días) incluye la visita del asesor a la empresa. */
+const NUMERO_INFORME_VISITA = 3;
+import { hoyISOElSalvador, sumarDiasISO, formatearFechaLarga, NUM_INFORMES_MENSUALES } from "@/lib/periodosPasantia";
 
 async function assertAccesoPropuesta(propuestaId: number) {
   const session = await getSession();
@@ -47,8 +55,8 @@ async function assertAccesoPropuesta(propuestaId: number) {
 }
 
 /**
- * Asegura que exista el "contenedor" de informe mensual (numero 1-4) para cada mes de la pasantía,
- * con la fecha límite tomada de periodos.max*Informe. Este registro es lo que Fase 4 usa para
+ * Asegura que exista el "contenedor" de informe (numero 1-5) para cada período de 30 días de la pasantía,
+ * con la fecha límite tomada de las fechas de la cohorte (periodos.max*Informe; el quinto usa maxInformeFinal). Este registro es lo que Fase 4 usa para
  * detectar el cierre de cada periodo de 30 días y lo que Fase 5 usará como base del informe generado.
  */
 export async function ensureInformesMensuales(propuestaId: number) {
@@ -67,6 +75,7 @@ export async function ensureInformesMensuales(propuestaId: number) {
     periodo.maxSegundoInforme,
     periodo.maxTercerInforme,
     periodo.maxCuartoInforme,
+    periodo.maxInformeFinal,
   ];
 
   let existentes = await db
@@ -76,7 +85,7 @@ export async function ensureInformesMensuales(propuestaId: number) {
     .orderBy(asc(informesMensuales.numero));
 
   const existentesPorNumero = new Set(existentes.map((i) => i.numero));
-  const faltantes = [1, 2, 3, 4].filter((n) => !existentesPorNumero.has(n));
+  const faltantes = Array.from({ length: NUM_INFORMES_MENSUALES }, (_, i) => i + 1).filter((n) => !existentesPorNumero.has(n));
 
   if (faltantes.length > 0) {
     await db.insert(informesMensuales).values(
@@ -194,6 +203,14 @@ export async function verificarCierrePeriodo(
         .update(informesMensuales)
         .set({ alertaCierreEnviada: true })
         .where(eq(informesMensuales.id, informeMes.id));
+
+      await registrarEvento({
+        propuestaId,
+        actorRol: "sistema",
+        tipo: "alerta_cierre",
+        descripcion: `Se notificó al egresado que faltan ${diasRestantes} día(s) para la fecha límite del Informe #${mesActual}. ${pendientesTexto}`,
+        referencia: `informe:${informeMes.id}`,
+      });
     }
 
     // Cierre del periodo: el informe se considera cerrado con lo que haya registrado hasta la fecha,
@@ -206,6 +223,14 @@ export async function verificarCierrePeriodo(
         .set({ cerrado: true, cerradoEn: new Date() })
         .where(eq(informesMensuales.id, informeMes.id));
       cerrado = true;
+
+      await registrarEvento({
+        propuestaId,
+        actorRol: "sistema",
+        tipo: "periodo_cerrado",
+        descripcion: `Venció la fecha límite del Informe #${mesActual} (${formatearFechaLarga(informeMes.fechaLimite)}) con ${actividadesPendientesMes} actividad(es) sin completar.`,
+        referencia: `informe:${informeMes.id}`,
+      });
 
       if (prop.asesorId) {
         await db.insert(notificaciones).values({
@@ -285,7 +310,7 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
 
   // 2. Datos generales de la portada
   const faltantesPortada: string[] = [];
-  if (!prop.asesorId) faltantesPortada.push("No hay docente asesor asignado.");
+  if (!prop.asesorId) faltantesPortada.push("No hay asesor designado.");
   if (!prop.empresaId) faltantesPortada.push("No hay empresa registrada en la propuesta.");
   if (!prop.supervisorId) faltantesPortada.push("No hay supervisor empresarial registrado en la propuesta.");
   requisitos.push({
@@ -325,7 +350,7 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   });
   requisitos.push({
     id: "contenido",
-    titulo: "Contenido obligatorio de cada actividad (marco teórico, descriptor de 401 a 500 palabras y cita APA 7)",
+    titulo: "Contenido obligatorio de cada actividad (marco teórico con cita APA 7, descripción de 401 a 500 palabras, pie de imagen y conclusión técnica)",
     cumplido: problemasContenido.length === 0,
     detalles: problemasContenido,
   });
@@ -352,8 +377,22 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
     }),
   });
 
+  // Extensión estimada del informe frente al mínimo: es una advertencia, no impide el envío.
+  const advertencias: string[] = [];
+  const registrosRegistrados = actsMes
+    .map((a) => registroPorActividad.get(a.id))
+    .filter((r): r is NonNullable<typeof r> => !!r && ESTADOS_REGISTRADOS.includes(r.estado));
+  const paginasEstimadas = estimarPaginas(registrosRegistrados);
+  if (paginasEstimadas < PAGINAS_MINIMAS_INFORME) {
+    advertencias.push(
+      `La extensión estimada del informe es de ${paginasEstimadas} páginas y el mínimo requerido es de ${PAGINAS_MINIMAS_INFORME}. Se recomienda complementar el cronograma con actividades adicionales mediante una solicitud de cambio.`
+    );
+  }
+
   return {
     requisitos,
+    advertencias,
+    paginasEstimadas,
     periodo,
     actividadesMes: actsMes.map((a) => ({
       id: a.id,
@@ -372,7 +411,7 @@ export async function getEnvioInformeMensual(informeId: number) {
     const access = await assertAccesoPropuesta(informe.propuestaId);
     if (!access.ok) return { success: false, error: access.error };
 
-    const { requisitos, periodo, actividadesMes } = await evaluarRequisitosInforme(informe, access.prop);
+    const { requisitos, advertencias, paginasEstimadas, periodo, actividadesMes } = await evaluarRequisitosInforme(informe, access.prop);
     const estadoPermiteEnvio = informe.estado === "redactando" || informe.estado === "observado";
 
     return {
@@ -381,6 +420,8 @@ export async function getEnvioInformeMensual(informeId: number) {
       propuestaId: access.prop.id,
       periodo,
       requisitos,
+      advertencias,
+      paginasEstimadas,
       actividadesMes,
       puedeEnviar: estadoPermiteEnvio && requisitos.every((r) => r.cumplido),
       rol: access.session.rol,
@@ -409,7 +450,7 @@ export async function enviarInformeMensual(informeId: number) {
       return { success: false, error: "El informe ya fue enviado y se encuentra en revisión." };
     }
     if (informe.estado === "aprobado") {
-      return { success: false, error: "El informe ya fue aprobado por su docente asesor." };
+      return { success: false, error: "El informe ya fue aprobado por su asesor designado." };
     }
 
     const { requisitos } = await evaluarRequisitosInforme(informe, prop);
@@ -441,11 +482,20 @@ export async function enviarInformeMensual(informeId: number) {
       })
       .where(eq(informesMensuales.id, informeId));
 
+    await registrarEvento({
+      propuestaId: prop.id,
+      actorId: session.userId,
+      actorRol: "egresado",
+      tipo: "informe_enviado",
+      descripcion: `Envió el Informe #${informe.numero} al asesor (${hoy <= informe.fechaLimite ? "a tiempo" : "fuera de tiempo"}).`,
+      referencia: `informe:${informeId}`,
+    });
+
     if (prop.asesorId) {
       await db.insert(notificaciones).values({
         usuarioId: prop.asesorId,
         tipo: "informe_mensual_enviado",
-        mensaje: `El estudiante de la propuesta #${prop.numero} envió el Informe Mensual #${informe.numero} para su revisión.`,
+        mensaje: `El estudiante de la propuesta #${prop.numero} envió el Informe #${informe.numero} para su revisión.`,
       });
     }
 
@@ -476,11 +526,35 @@ async function cargarInformeParaAsesor(informeId: number) {
   return { session, informe, prop };
 }
 
+/** Lo que el asesor debe registrar antes de aprobar: sus comentarios para el decanato y, en el Informe #3, el informe de visita. */
+async function requisitosAprobacionAsesor(informe: InformeMensual) {
+  const pendientes: string[] = [];
+  if (validarComentariosCompletos(leerComentarios(informe.comentariosDecanato)).length > 0) {
+    pendientes.push("Debe completar los comentarios del asesor para el decanato antes de aprobar el informe.");
+  }
+  if (informe.numero === NUMERO_INFORME_VISITA) {
+    const [visita] = await db
+      .select({ estado: informesVisita.estado })
+      .from(informesVisita)
+      .where(eq(informesVisita.propuestaId, informe.propuestaId))
+      .limit(1);
+    if (visita?.estado !== "completado") {
+      pendientes.push(`Debe completar el informe de visita a la empresa antes de aprobar el Informe #${NUMERO_INFORME_VISITA}.`);
+    }
+  }
+  return pendientes;
+}
+
 export async function aprobarInformeMensual(informeId: number, comentario?: string) {
   try {
     const ctx = await cargarInformeParaAsesor(informeId);
     if ("error" in ctx) return { success: false, error: ctx.error };
     const { session, informe, prop } = ctx;
+
+    const pendientes = await requisitosAprobacionAsesor(informe);
+    if (pendientes.length > 0) {
+      return { success: false, error: pendientes.join(" ") };
+    }
 
     await db
       .update(informesMensuales)
@@ -496,13 +570,22 @@ export async function aprobarInformeMensual(informeId: number, comentario?: stri
     await db.insert(notificaciones).values({
       usuarioId: prop.egresadoId,
       tipo: "informe_mensual_aprobado",
-      mensaje: `Su docente asesor aprobó el Informe Mensual #${informe.numero}.`,
+      mensaje: `Su asesor designado aprobó el Informe #${informe.numero}.`,
+    });
+    await registrarEvento({
+      propuestaId: prop.id,
+      actorId: session.userId,
+      actorRol: "asesor",
+      tipo: "informe_aprobado",
+      descripcion: `Aprobó el Informe #${informe.numero}.`,
+      detalle: comentario,
+      referencia: `informe:${informeId}`,
     });
     if (prop.coordinadorId) {
       await db.insert(notificaciones).values({
         usuarioId: prop.coordinadorId,
         tipo: "informe_mensual_aprobado_coordinador",
-        mensaje: `El Informe Mensual #${informe.numero} de la propuesta #${prop.numero} fue aprobado por el docente asesor.`,
+        mensaje: `El Informe #${informe.numero} de la propuesta #${prop.numero} fue aprobado por el asesor designado.`,
       });
     }
 
@@ -564,7 +647,17 @@ export async function solicitarCorreccionInformeMensual(informeId: number, comen
     await db.insert(notificaciones).values({
       usuarioId: prop.egresadoId,
       tipo: "informe_mensual_observado",
-      mensaje: `Su docente asesor solicitó correcciones en el Informe Mensual #${informe.numero}. Revise las observaciones, corrija lo indicado y vuelva a enviarlo.`,
+      mensaje: `Su asesor designado solicitó correcciones en el Informe #${informe.numero}. Revise las observaciones, corrija lo indicado y vuelva a enviarlo.`,
+    });
+
+    await registrarEvento({
+      propuestaId: prop.id,
+      actorId: session.userId,
+      actorRol: "asesor",
+      tipo: "informe_observado",
+      descripcion: `Solicitó correcciones en el Informe #${informe.numero}${idsValidos.length ? ` (${idsValidos.length} actividad(es) devueltas)` : ""}.`,
+      detalle: comentario,
+      referencia: `informe:${informeId}`,
     });
 
     revalidatePath(`/asesor/seguimiento/${prop.id}`);

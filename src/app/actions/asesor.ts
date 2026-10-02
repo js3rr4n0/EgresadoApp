@@ -476,7 +476,7 @@ export async function solicitarAjustesPropuestaAsesor(propuestaId: number, obser
     await db.insert(notificaciones).values({
       usuarioId: prop.egresadoId,
       tipo: "observaciones_propuesta",
-      mensaje: `El docente asesor ha solicitado ajustes en tu propuesta #${prop.numero}: ${observaciones.trim()}`,
+      mensaje: `Tu asesor designado ha solicitado ajustes en tu propuesta #${prop.numero}: ${observaciones.trim()}`,
       leida: false,
       creadoEn: new Date(),
     });
@@ -555,7 +555,7 @@ export async function aprobarPropuestaAsesor(propuestaId: number) {
     await db.insert(notificaciones).values({
       usuarioId: prop.egresadoId,
       tipo: "propuesta_aprobada",
-      mensaje: `¡Felicidades! El docente asesor ha aprobado tu plan de trabajo y propuesta #${prop.numero}.`,
+      mensaje: `¡Felicidades! Tu asesor designado ha aprobado tu plan de trabajo y propuesta #${prop.numero}.`,
       leida: false,
       creadoEn: new Date(),
     });

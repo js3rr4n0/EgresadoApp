@@ -2,9 +2,14 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { crearSolicitudCambioActividad } from "@/app/actions/cambiosActividad";
+import { crearSolicitudCambioActividad, getDocumentoSupervisorSolicitud } from "@/app/actions/cambiosActividad";
+import { openDocument } from "@/lib/pdfViewer";
+import ReglasCambios from "./ReglasCambios";
 
 type Tipo = "agregar" | "modificar" | "eliminar" | "posponer" | "reubicar";
+
+const TAMANO_MAXIMO_DOCUMENTO = 5 * 1024 * 1024;
+const TIPOS_DOCUMENTO = ["application/pdf", "image/png", "image/jpeg"];
 
 const TIPO_LABEL: Record<Tipo, string> = {
   agregar: "Agregar actividad nueva",
@@ -16,9 +21,11 @@ const TIPO_LABEL: Record<Tipo, string> = {
 
 const TIPO_AYUDA: Record<Tipo, string> = {
   agregar: "Crea una actividad que no estaba contemplada en el cronograma.",
-  modificar: "Cambia el título y la descripción de una actividad del cronograma.",
-  eliminar: "Retira una actividad del cronograma.",
-  posponer: "Mueve una actividad aún no enviada a una semana posterior.",
+  modificar: "Cambia el título y la descripción de una actividad que aún no ha sido realizada ni enviada.",
+  eliminar:
+    "Retira una actividad que aún no ha sido realizada. Los códigos de las actividades siguientes del período se renumeran automáticamente. Se permite una eliminación por período de 30 días; una segunda requiere autorización del decanato.",
+  posponer:
+    "Mueve una actividad aún no realizada a una semana posterior dentro de su mismo período de 30 días. No es posible posponerla más allá del período.",
   reubicar:
     "Adelanta una actividad existente (aún no enviada) a una semana anterior, sin duplicarla. Opcionalmente puede intercambiarla con una actividad de la semana destino.",
 };
@@ -67,7 +74,13 @@ export default function SolicitudesCambioActividad({
   solicitudesIniciales,
 }: {
   propuestaId: number;
-  opciones: { meses: MesOpcion[]; posicionActual: { mes: number; semana: number }; actividades: ActividadOpcion[] };
+  opciones: {
+    meses: MesOpcion[];
+    posicionActual: { mes: number; semana: number };
+    actividades: ActividadOpcion[];
+    eliminacionesPorMes: Record<number, number>;
+    maxEliminacionesPorMes: number;
+  };
   solicitudesIniciales: any[];
 }) {
   const router = useRouter();
@@ -82,6 +95,7 @@ export default function SolicitudesCambioActividad({
   const [tituloPropuesto, setTituloPropuesto] = useState("");
   const [descripcionPropuesta, setDescripcionPropuesta] = useState("");
   const [justificacion, setJustificacion] = useState("");
+  const [documento, setDocumento] = useState<{ nombre: string; dataUrl: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,14 +103,16 @@ export default function SolicitudesCambioActividad({
   const usaDestino = tipo === "agregar" || tipo === "posponer" || tipo === "reubicar";
   const usaTexto = tipo === "agregar" || tipo === "modificar";
 
-  const actividadesSelector = useMemo(() => {
-    if (tipo === "posponer") return opciones.actividades.filter((a) => a.editable && sinEnviar(a));
-    return opciones.actividades.filter((a) => a.editable);
-  }, [tipo, opciones.actividades]);
+  // Solo actividades aún no realizadas ni enviadas: lo ya reportado no admite cambios.
+  const actividadesSelector = useMemo(
+    () => opciones.actividades.filter((a) => a.editable && sinEnviar(a)),
+    [opciones.actividades]
+  );
 
   // Meses y semanas válidos según el tipo de cambio y la ubicación de la actividad.
   const mesesDisponibles = useMemo(() => {
     return opciones.meses
+      .filter((m) => tipo !== "posponer" || !actividadSeleccionada || m.mes === actividadSeleccionada.periodo)
       .map((m) => ({
         ...m,
         semanas: m.semanas.filter((s) => {
@@ -134,7 +150,30 @@ export default function SolicitudesCambioActividad({
     setTituloPropuesto("");
     setDescripcionPropuesta("");
     setJustificacion("");
+    setDocumento(null);
     setError(null);
+  };
+
+  const seleccionarDocumento = (file: File) => {
+    setError(null);
+    if (!TIPOS_DOCUMENTO.includes(file.type)) {
+      setError("El documento del supervisor debe ser un archivo PDF, PNG o JPG.");
+      return;
+    }
+    if (file.size > TAMANO_MAXIMO_DOCUMENTO) {
+      setError("El documento del supervisor excede el tamaño máximo de 5 MB.");
+      return;
+    }
+    const lector = new FileReader();
+    lector.onload = () => setDocumento({ nombre: file.name, dataUrl: String(lector.result) });
+    lector.onerror = () => setError("No se pudo leer el documento seleccionado.");
+    lector.readAsDataURL(file);
+  };
+
+  const verDocumento = async (solicitudId: number) => {
+    const res = await getDocumentoSupervisorSolicitud(solicitudId);
+    if (res.success && res.url) openDocument(res.url, res.nombre);
+    else alert(res.error || "No se pudo abrir el documento.");
   };
 
   const cambiarTipo = (nuevo: Tipo) => {
@@ -165,7 +204,7 @@ export default function SolicitudesCambioActividad({
       return;
     }
     if (!sinEnviar(encontrada)) {
-      setBusquedaError(`La actividad ${codigo} ya fue enviada; solo se pueden reubicar actividades sin enviar.`);
+      setBusquedaError(`La actividad ${codigo} ya fue realizada y enviada; solo se pueden reubicar actividades por realizar.`);
       return;
     }
     const hayDestinos = opciones.meses.some((m) =>
@@ -180,6 +219,7 @@ export default function SolicitudesCambioActividad({
 
   const puedeEnviar =
     justificacion.trim().length >= 15 &&
+    !!documento &&
     (tipo === "agregar" || !!actividadSeleccionada) &&
     (!usaDestino || (!!mesDestino && !!semanaDestino)) &&
     (!usaTexto || (!!tituloPropuesto.trim() && !!descripcionPropuesta.trim()));
@@ -196,6 +236,7 @@ export default function SolicitudesCambioActividad({
       tituloPropuesto: usaTexto ? tituloPropuesto : null,
       descripcionPropuesta: usaTexto ? descripcionPropuesta : null,
       justificacion,
+      documentoSupervisor: documento,
     });
     setLoading(false);
     if (res.success) {
@@ -218,7 +259,9 @@ export default function SolicitudesCambioActividad({
         <div>
           <h3 className="text-sm font-extrabold text-slate-900">Cambios al Cronograma (Gantt)</h3>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-            Todo cambio requiere justificación y la aprobación de su docente asesor antes de aplicarse.
+            Aplican únicamente a actividades no realizadas o por realizar: lo que ya fue enviado al asesor no puede modificarse. Todo
+            cambio requiere justificación, la nota de solicitud o aprobación del supervisor empresarial y la aprobación de su asesor
+            designado antes de aplicarse.
           </p>
         </div>
         <button
@@ -229,6 +272,12 @@ export default function SolicitudesCambioActividad({
           Solicitar cambio
         </button>
       </div>
+
+      <ReglasCambios
+        mesActual={opciones.posicionActual.mes}
+        eliminacionesMesActual={opciones.eliminacionesPorMes[opciones.posicionActual.mes] || 0}
+        maxEliminacionesPorMes={opciones.maxEliminacionesPorMes}
+      />
 
       {solicitudesIniciales.length === 0 ? (
         <p className="text-[11px] text-slate-400 font-semibold">No ha realizado solicitudes de cambio.</p>
@@ -254,6 +303,15 @@ export default function SolicitudesCambioActividad({
                   </p>
                 )}
                 <p className="text-[11px] text-slate-500 font-medium">{s.justificacion}</p>
+                {s.tieneDocumento && (
+                  <button
+                    type="button"
+                    onClick={() => verDocumento(s.id)}
+                    className="text-[11px] font-bold text-slate-700 underline hover:text-brand-red"
+                  >
+                    Ver documento del supervisor{s.documentoSupervisorNombre ? ` (${s.documentoSupervisorNombre})` : ""}
+                  </button>
+                )}
                 {s.respuestaAsesor && (
                   <p className="text-[11px] text-amber-800 font-semibold">Respuesta del asesor: {s.respuestaAsesor}</p>
                 )}
@@ -299,6 +357,12 @@ export default function SolicitudesCambioActividad({
                 <p className="text-[11px] text-slate-500">{TIPO_AYUDA[tipo]}</p>
               </div>
 
+              <ReglasCambios
+                mesActual={opciones.posicionActual.mes}
+                eliminacionesMesActual={opciones.eliminacionesPorMes[opciones.posicionActual.mes] || 0}
+                maxEliminacionesPorMes={opciones.maxEliminacionesPorMes}
+              />
+
               {(tipo === "modificar" || tipo === "eliminar" || tipo === "posponer") && (
                 <div className="space-y-1">
                   <label className="block text-[10px] font-bold uppercase text-slate-400">Actividad</label>
@@ -317,8 +381,20 @@ export default function SolicitudesCambioActividad({
                       </option>
                     ))}
                   </select>
-                  {tipo === "posponer" && (
-                    <p className="text-[11px] text-slate-500">Solo se listan actividades que aún no han sido enviadas.</p>
+                  <p className="text-[11px] text-slate-500">Solo se listan actividades que aún no han sido realizadas ni enviadas.</p>
+                  {tipo === "eliminar" && actividadSeleccionada && (
+                    <p
+                      className={`text-[11px] font-bold ${
+                        (opciones.eliminacionesPorMes[actividadSeleccionada.periodo] || 0) >= opciones.maxEliminacionesPorMes
+                          ? "text-red-700"
+                          : "text-slate-600"
+                      }`}
+                    >
+                      Eliminaciones solicitadas en el Mes {actividadSeleccionada.periodo}:{" "}
+                      {opciones.eliminacionesPorMes[actividadSeleccionada.periodo] || 0} de {opciones.maxEliminacionesPorMes}.
+                      {(opciones.eliminacionesPorMes[actividadSeleccionada.periodo] || 0) >= opciones.maxEliminacionesPorMes &&
+                        " Este período ya alcanzó el límite; una nueva eliminación requiere autorización del decanato."}
+                    </p>
                   )}
                 </div>
               )}
@@ -475,6 +551,33 @@ export default function SolicitudesCambioActividad({
                   placeholder="Explique por qué es necesario este cambio (mínimo 15 caracteres)."
                   className={`${inputClass} font-medium resize-none`}
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase text-slate-400">
+                  Nota de solicitud o aprobación del supervisor empresarial (obligatoria)
+                </label>
+                <label className="flex items-center justify-between gap-3 px-3 py-2 border border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50">
+                  <span className="text-xs font-semibold text-slate-600 truncate">
+                    {documento ? documento.nombre : "Seleccionar archivo (PDF, PNG o JPG, máximo 5 MB)"}
+                  </span>
+                  <span className="px-3 py-1 rounded-md bg-slate-900 text-white text-[11px] font-bold shrink-0">
+                    {documento ? "Cambiar" : "Examinar"}
+                  </span>
+                  <input
+                    type="file"
+                    accept="application/pdf,image/png,image/jpeg"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) seleccionarDocumento(file);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+                <p className="text-[11px] text-slate-500">
+                  El cambio afecta un cronograma firmado por el asesor y el supervisor; debe respaldarse con la conformidad del supervisor.
+                </p>
               </div>
             </div>
 

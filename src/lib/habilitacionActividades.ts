@@ -2,46 +2,32 @@ import "server-only";
 import { db } from "@/lib/db";
 import { actividades, registrosActividad, cartasAceptacion } from "@/lib/schema";
 import { eq, and, asc, inArray, max } from "drizzle-orm";
-import { generarPeriodosPasantia, fechaLocalDesdeISO, aISOLocal, type Posicion } from "@/lib/periodosPasantia";
+import {
+  generarPeriodosPasantia,
+  fechaLocalDesdeISO,
+  aISOLocal,
+  hoyISOElSalvador,
+  NUM_INFORMES_MENSUALES,
+  type Posicion,
+} from "@/lib/periodosPasantia";
+import { estimarPaginas, nivelRitmo, PAGINAS_MINIMAS_INFORME } from "@/lib/metricaPaginas";
 
-export const DESCRIPTOR_MIN_PALABRAS = 401;
-export const DESCRIPTOR_MAX_PALABRAS = 500;
+export {
+  DESCRIPTOR_MIN_PALABRAS,
+  DESCRIPTOR_MAX_PALABRAS,
+  CONCLUSION_MIN_PALABRAS,
+  CONCLUSION_MAX_PALABRAS,
+  contarPalabras,
+  validarContenidoRegistro,
+} from "@/lib/reglasRegistroActividad";
+
 export const ESTADOS_REGISTRADOS = ["enviado", "observado", "aprobado"];
 
 type Actividad = typeof actividades.$inferSelect;
 type RegistroActividad = typeof registrosActividad.$inferSelect;
 
-export function contarPalabras(texto: string): number {
-  return texto
-    .trim()
-    .split(/\s+/)
-    .filter((w) => w.length > 0).length;
-}
-
 export function codigoActividad(a: { periodo: number; semana: number; numero: number }) {
   return `${a.periodo}.${a.semana}.${a.numero}`;
-}
-
-/** Reglas de contenido obligatorio de una actividad; devuelve la lista de problemas (vacía si es válida). */
-export function validarContenidoRegistro(r: Pick<RegistroActividad, "marcoTeorico" | "citaApa" | "descriptor">): string[] {
-  const problemas: string[] = [];
-  if (!r.marcoTeorico || r.marcoTeorico.trim().length < 10) {
-    problemas.push("Debe redactar el marco teórico.");
-  }
-  if (!r.citaApa || r.citaApa.trim().length < 5) {
-    problemas.push("Debe incluir la cita/referencia en formato APA 7.");
-  }
-  if (!r.descriptor) {
-    problemas.push("Debe redactar el descriptor de la actividad.");
-  } else {
-    const n = contarPalabras(r.descriptor);
-    if (n < DESCRIPTOR_MIN_PALABRAS || n > DESCRIPTOR_MAX_PALABRAS) {
-      problemas.push(
-        `El descriptor debe tener entre ${DESCRIPTOR_MIN_PALABRAS} y ${DESCRIPTOR_MAX_PALABRAS} palabras (actualmente tiene ${n}).`
-      );
-    }
-  }
-  return problemas;
 }
 
 /** Asegura que exista un registro (estado 'pendiente') para cada actividad vigente de la propuesta. */
@@ -68,7 +54,10 @@ export async function ensureRegistros(propuestaId: number) {
   return { actividades: acts, registros };
 }
 
-/** Agrupa actividades por (periodo, semana) en orden del Gantt; la semana N+1 se habilita cuando la N está completa. */
+/**
+ * Agrupa actividades por (periodo, semana) en orden del Gantt. La semana N+1 se habilita cuando todas las actividades
+ * de la semana N fueron aprobadas por el asesor. Una semana enviada a revisión queda "en_revision" (sin acciones del egresado).
+ */
 export function calcularHabilitacion(acts: Actividad[], registrosPorActividad: Map<number, RegistroActividad>) {
   const grupos: {
     periodo: number;
@@ -88,7 +77,8 @@ export function calcularHabilitacion(acts: Actividad[], registrosPorActividad: M
 
   const gruposConEstado = grupos.map((g) => ({
     ...g,
-    completo: g.actividades.every((x) => ESTADOS_REGISTRADOS.includes(x.registro?.estado || "")),
+    completo: g.actividades.every((x) => x.registro?.estado === "aprobado"),
+    enRevision: g.actividades.every((x) => x.registro?.estado === "enviado" || x.registro?.estado === "aprobado"),
   }));
 
   let grupoActualIdx = gruposConEstado.findIndex((g) => !g.completo);
@@ -99,9 +89,16 @@ export function calcularHabilitacion(acts: Actividad[], registrosPorActividad: M
     estadoGrupo: g.completo
       ? ("completada" as const)
       : idx === grupoActualIdx
-        ? ("habilitada" as const)
+        ? g.enRevision
+          ? ("en_revision" as const)
+          : ("habilitada" as const)
         : ("bloqueada" as const),
   }));
+}
+
+/** Grupo (semana) en el que se encuentra el egresado: el primero no aprobado por completo, o el último si ya terminó. */
+export function grupoActualDe<T extends { estadoGrupo: string }>(grupos: T[]): T | undefined {
+  return grupos.find((g) => g.estadoGrupo === "habilitada" || g.estadoGrupo === "en_revision") || grupos[grupos.length - 1];
 }
 
 /** Semana en la que se encuentra el egresado (primer grupo incompleto del cronograma). */
@@ -109,7 +106,7 @@ export async function getPosicionActual(propuestaId: number): Promise<Posicion |
   const { actividades: acts, registros } = await ensureRegistros(propuestaId);
   if (acts.length === 0) return null;
   const grupos = calcularHabilitacion(acts, new Map(registros.map((r) => [r.actividadId, r])));
-  const actual = grupos.find((g) => g.estadoGrupo === "habilitada") || grupos[grupos.length - 1];
+  const actual = grupoActualDe(grupos)!;
   return { mes: actual.periodo, semana: actual.semana };
 }
 
@@ -153,4 +150,65 @@ export async function getPeriodosPropuesta(propuestaId: number): Promise<Periodo
   return Array.from(maxSemanaPorPeriodo.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([num, semanas]) => ({ num, nombre: `Mes ${num}`, inicio: null, fin: null, semanas }));
+}
+
+export interface MetricaPaginas {
+  minimoPorInforme: number;
+  porInforme: { numero: number; paginas: number; minimo: number; inicio: string | null; fin: string | null }[];
+  paginasTotales: number;
+  minimoTotal: number;
+  paginasEsperadasHoy: number;
+  nivel: "adecuado" | "atencion" | "critico";
+}
+
+/**
+ * Extensión estimada de los informes (actividades enviadas o aprobadas) frente al mínimo por informe y al ritmo esperado
+ * según el tiempo transcurrido desde el inicio de la pasantía.
+ */
+export async function calcularMetricaPaginas(
+  propuestaId: number,
+  acts: Actividad[],
+  registros: RegistroActividad[]
+): Promise<MetricaPaginas> {
+  const periodos = (await getPeriodosPropuesta(propuestaId)).filter((p) => p.num <= NUM_INFORMES_MENSUALES);
+  const registroPorActividad = new Map(registros.map((r) => [r.actividadId, r]));
+
+  const porInforme = Array.from({ length: NUM_INFORMES_MENSUALES }, (_, i) => {
+    const numero = i + 1;
+    const registrosMes = acts
+      .filter((a) => a.periodo === numero)
+      .map((a) => registroPorActividad.get(a.id))
+      .filter((r): r is RegistroActividad => !!r && ESTADOS_REGISTRADOS.includes(r.estado));
+    const periodo = periodos.find((p) => p.num === numero);
+    return {
+      numero,
+      paginas: estimarPaginas(registrosMes),
+      minimo: PAGINAS_MINIMAS_INFORME,
+      inicio: periodo?.inicio ?? null,
+      fin: periodo?.fin ?? null,
+    };
+  });
+
+  const paginasTotales = Math.round(porInforme.reduce((t, i) => t + i.paginas, 0) * 10) / 10;
+  const minimoTotal = PAGINAS_MINIMAS_INFORME * NUM_INFORMES_MENSUALES;
+
+  // Ritmo esperado: proporción del tiempo transcurrido entre el inicio del primer período y el fin del último.
+  const inicioPasantia = periodos[0]?.inicio;
+  const finPasantia = periodos[periodos.length - 1]?.fin;
+  let fraccion = 0;
+  if (inicioPasantia && finPasantia) {
+    const hoy = Date.parse(hoyISOElSalvador());
+    const total = Date.parse(finPasantia) - Date.parse(inicioPasantia);
+    fraccion = total > 0 ? Math.min(1, Math.max(0, (hoy - Date.parse(inicioPasantia)) / total)) : 0;
+  }
+  const paginasEsperadasHoy = Math.round(minimoTotal * fraccion * 10) / 10;
+
+  return {
+    minimoPorInforme: PAGINAS_MINIMAS_INFORME,
+    porInforme,
+    paginasTotales,
+    minimoTotal,
+    paginasEsperadasHoy,
+    nivel: nivelRitmo(paginasTotales, paginasEsperadasHoy),
+  };
 }
