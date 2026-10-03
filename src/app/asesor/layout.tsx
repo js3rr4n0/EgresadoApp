@@ -32,6 +32,12 @@ export default async function AsesorLayout({
           </div>
 
           <div className="flex items-center gap-4">
+            <Link
+              href="/asesor/notificaciones"
+              className="hidden md:inline-flex text-[11px] font-bold text-white/90 hover:text-white underline-offset-4 hover:underline"
+            >
+              Preferencias de notificaciones
+            </Link>
             <NotificationBell roleName="asesor" />
 
             <div className="flex items-center gap-3 border-l border-white/20 pl-4">

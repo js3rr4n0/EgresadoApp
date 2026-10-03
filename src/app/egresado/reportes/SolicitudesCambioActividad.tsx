@@ -13,15 +13,17 @@ const TIPOS_DOCUMENTO = ["application/pdf", "image/png", "image/jpeg"];
 
 const TIPO_LABEL: Record<Tipo, string> = {
   agregar: "Agregar actividad nueva",
-  modificar: "Modificar actividad existente",
+  modificar: "Modificar actividad existente (opción retirada)",
   eliminar: "Eliminar actividad",
   posponer: "Posponer actividad",
   reubicar: "Intercambiar / reubicar actividad existente",
 };
 
+const TIPOS_DISPONIBLES: Tipo[] = ["agregar", "eliminar", "posponer", "reubicar"];
+
 const TIPO_AYUDA: Record<Tipo, string> = {
   agregar: "Crea una actividad que no estaba contemplada en el cronograma.",
-  modificar: "Cambia el título y la descripción de una actividad que aún no ha sido realizada ni enviada.",
+  modificar: "",
   eliminar:
     "Retira una actividad que aún no ha sido realizada. Los códigos de las actividades siguientes del período se renumeran automáticamente. Se permite una eliminación por período de 30 días; una segunda requiere autorización del decanato.",
   posponer:
@@ -101,7 +103,7 @@ export default function SolicitudesCambioActividad({
 
   const actividadSeleccionada = opciones.actividades.find((a) => a.id === actividadId) || null;
   const usaDestino = tipo === "agregar" || tipo === "posponer" || tipo === "reubicar";
-  const usaTexto = tipo === "agregar" || tipo === "modificar";
+  const usaTexto = tipo === "agregar";
 
   // Solo actividades aún no realizadas ni enviadas: lo ya reportado no admite cambios.
   const actividadesSelector = useMemo(
@@ -200,7 +202,7 @@ export default function SolicitudesCambioActividad({
       return;
     }
     if (!encontrada.editable) {
-      setBusquedaError(`La actividad ${codigo} pertenece a un informe ya enviado o cuyo período cerró.`);
+      setBusquedaError(`La actividad ${codigo} no pertenece a su período actual (Mes ${opciones.posicionActual.mes}); solo puede reubicar actividades de ese período.`);
       return;
     }
     if (!sinEnviar(encontrada)) {
@@ -259,8 +261,8 @@ export default function SolicitudesCambioActividad({
         <div>
           <h3 className="text-sm font-extrabold text-slate-900">Cambios al Cronograma (Gantt)</h3>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-            Aplican únicamente a actividades no realizadas o por realizar: lo que ya fue enviado al asesor no puede modificarse. Todo
-            cambio requiere justificación, la nota de solicitud o aprobación del supervisor empresarial y la aprobación de su asesor
+            Aplican únicamente a actividades no realizadas de su período actual (Mes {opciones.posicionActual.mes}): lo que ya fue
+            enviado al asesor no puede modificarse. Todo cambio requiere justificación, la nota de solicitud o aprobación del supervisor empresarial y la aprobación de su asesor
             designado antes de aplicarse.
           </p>
         </div>
@@ -348,7 +350,7 @@ export default function SolicitudesCambioActividad({
               <div className="space-y-1">
                 <label className="block text-[10px] font-bold uppercase text-slate-400">Tipo de cambio</label>
                 <select value={tipo} onChange={(e) => cambiarTipo(e.target.value as Tipo)} className={inputClass}>
-                  {(Object.keys(TIPO_LABEL) as Tipo[]).map((t) => (
+                  {TIPOS_DISPONIBLES.map((t) => (
                     <option key={t} value={t}>
                       {TIPO_LABEL[t]}
                     </option>
@@ -363,7 +365,7 @@ export default function SolicitudesCambioActividad({
                 maxEliminacionesPorMes={opciones.maxEliminacionesPorMes}
               />
 
-              {(tipo === "modificar" || tipo === "eliminar" || tipo === "posponer") && (
+              {(tipo === "eliminar" || tipo === "posponer") && (
                 <div className="space-y-1">
                   <label className="block text-[10px] font-bold uppercase text-slate-400">Actividad</label>
                   <select
@@ -381,7 +383,15 @@ export default function SolicitudesCambioActividad({
                       </option>
                     ))}
                   </select>
-                  <p className="text-[11px] text-slate-500">Solo se listan actividades que aún no han sido realizadas ni enviadas.</p>
+                  <p className="text-[11px] text-slate-500">
+                    Solo se listan actividades del período actual (Mes {opciones.posicionActual.mes}) que aún no han sido realizadas ni enviadas.
+                  </p>
+                  {actividadesSelector.length === 0 && (
+                    <p className="text-[11px] text-red-700 font-semibold">
+                      No hay actividades disponibles para cambios: las de su período actual ya fueron enviadas o el informe del período ya
+                      fue enviado.
+                    </p>
+                  )}
                   {tipo === "eliminar" && actividadSeleccionada && (
                     <p
                       className={`text-[11px] font-bold ${
@@ -519,7 +529,7 @@ export default function SolicitudesCambioActividad({
                 <>
                   <div className="space-y-1">
                     <label className="block text-[10px] font-bold uppercase text-slate-400">
-                      {tipo === "agregar" ? "Título de la nueva actividad" : "Nuevo título propuesto"}
+                      Título de la nueva actividad
                     </label>
                     <input
                       type="text"
@@ -530,7 +540,7 @@ export default function SolicitudesCambioActividad({
                   </div>
                   <div className="space-y-1">
                     <label className="block text-[10px] font-bold uppercase text-slate-400">
-                      {tipo === "agregar" ? "Descripción de la nueva actividad" : "Nueva descripción propuesta"}
+                      Descripción de la nueva actividad
                     </label>
                     <textarea
                       rows={3}

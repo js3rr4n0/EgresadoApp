@@ -139,6 +139,9 @@ function validarDestino(ctx: ContextoCronograma, mes: number | null | undefined,
   if (ctx.mesesNoEditables.has(mes)) {
     return `El informe del Mes ${mes} ya fue enviado o su período cerró; no admite cambios en el cronograma.`;
   }
+  if (mes !== ctx.posicionActual.mes) {
+    return `Los cambios solo pueden programarse dentro de su período actual (Mes ${ctx.posicionActual.mes}).`;
+  }
   if (compararPosicion({ mes, semana }, ctx.posicionActual) < 0) {
     return `No es posible programar actividades en una semana anterior a su semana actual (Mes ${ctx.posicionActual.mes}, Semana ${ctx.posicionActual.semana}).`;
   }
@@ -164,6 +167,9 @@ async function tieneSolicitudPendiente(actividadId: number, excluirSolicitudId?:
 
 /** Valida una solicitud contra el estado actual del cronograma. Se usa al crearla y nuevamente al aprobarla. */
 async function validarSolicitud(ctx: ContextoCronograma, datos: DatosSolicitud, excluirSolicitudId?: number) {
+  if (datos.tipo === "modificar") {
+    return "La opción de modificar actividades ya no está disponible.";
+  }
   if (datos.tipo === "agregar") {
     if (!datos.tituloPropuesto?.trim() || !datos.descripcionPropuesta?.trim()) {
       return "Debe indicar el título y la descripción de la nueva actividad.";
@@ -175,6 +181,9 @@ async function validarSolicitud(ctx: ContextoCronograma, datos: DatosSolicitud, 
   if (!actividad) return "La actividad seleccionada no existe en el cronograma vigente.";
   const origen: Posicion = { mes: actividad.periodo, semana: actividad.semana };
 
+  if (actividad.periodo !== ctx.posicionActual.mes) {
+    return `Solo se pueden solicitar cambios sobre actividades de su período actual (Mes ${ctx.posicionActual.mes}); la actividad ${codigoActividad(actividad)} pertenece al Mes ${actividad.periodo}.`;
+  }
   if (ctx.mesesNoEditables.has(actividad.periodo)) {
     return `La actividad ${codigoActividad(actividad)} pertenece a un informe ya enviado o cuyo período cerró.`;
   }
@@ -185,13 +194,6 @@ async function validarSolicitud(ctx: ContextoCronograma, datos: DatosSolicitud, 
   // Los cambios solo proceden sobre actividades aún no realizadas: lo reportado y enviado al asesor no se modifica.
   if (!estaSinEnviar(ctx, actividad.id)) {
     return `Solo se pueden solicitar cambios sobre actividades que aún no han sido realizadas ni enviadas; la actividad ${codigoActividad(actividad)} ya fue enviada.`;
-  }
-
-  if (datos.tipo === "modificar") {
-    if (!datos.tituloPropuesto?.trim() || !datos.descripcionPropuesta?.trim()) {
-      return "Debe indicar el nuevo título y la nueva descripción propuestos.";
-    }
-    return null;
   }
 
   if (datos.tipo === "eliminar") {
@@ -253,7 +255,7 @@ export async function getOpcionesDestinoCambio(propuestaId: number) {
     const ctx = await cargarContextoCronograma(propuestaId);
 
     const meses = ctx.periodos
-      .filter((p) => !ctx.mesesNoEditables.has(p.num) && p.num >= ctx.posicionActual.mes)
+      .filter((p) => !ctx.mesesNoEditables.has(p.num) && p.num === ctx.posicionActual.mes)
       .map((p) => ({
         mes: p.num,
         nombre: p.nombre,
@@ -272,7 +274,7 @@ export async function getOpcionesDestinoCambio(propuestaId: number) {
       periodo: a.periodo,
       semana: a.semana,
       estado: ctx.registroPorActividad.get(a.id)?.estado ?? "pendiente",
-      editable: !ctx.mesesNoEditables.has(a.periodo),
+      editable: a.periodo === ctx.posicionActual.mes && !ctx.mesesNoEditables.has(a.periodo),
     }));
 
     // Eliminaciones ya solicitadas (pendientes o aprobadas) por período, para informar el límite al egresado.
@@ -336,7 +338,7 @@ export async function crearSolicitudCambioActividad(
     if (error) return { success: false, error };
 
     const usaDestino = datos.tipo === "agregar" || datos.tipo === "posponer" || datos.tipo === "reubicar";
-    const usaTexto = datos.tipo === "agregar" || datos.tipo === "modificar";
+    const usaTexto = datos.tipo === "agregar";
 
     await db.insert(solicitudesCambioActividad).values({
       propuestaId,
@@ -560,18 +562,6 @@ export async function responderSolicitudCambioActividad(
           })
           .returning();
         await db.insert(registrosActividad).values({ actividadId: nuevaActividad.id, estado: "pendiente" });
-      } else if (tipo === "modificar") {
-        const actividad = ctx.acts.find((a) => a.id === solicitud.actividadId)!;
-        await db
-          .update(actividades)
-          .set({
-            tituloAnterior: actividad.titulo,
-            descripcionAnterior: actividad.descripcion,
-            titulo: solicitud.tituloPropuesto,
-            descripcion: solicitud.descripcionPropuesta!,
-            esModificada: true,
-          })
-          .where(eq(actividades.id, actividad.id));
       } else if (tipo === "eliminar") {
         // Baja lógica; la renumeración automática del mes se aplica al final.
         await db.update(actividades).set({ eliminada: true }).where(eq(actividades.id, solicitud.actividadId!));
@@ -602,7 +592,7 @@ export async function responderSolicitudCambioActividad(
       }
     }
 
-    if (decision === "aprobada" && tipo !== "modificar") {
+    if (decision === "aprobada") {
       const meses = new Set<number>();
       if (periodoOrigen) meses.add(periodoOrigen);
       if (solicitud.periodoDestino) meses.add(solicitud.periodoDestino);

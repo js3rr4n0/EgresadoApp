@@ -22,6 +22,7 @@ import {
   validarContenidoRegistro,
   getPeriodosPropuesta,
   getPosicionActual,
+  getActividadesPospuestas,
   ESTADOS_REGISTRADOS,
 } from "@/lib/habilitacionActividades";
 import { estimarPaginas, PAGINAS_MINIMAS_INFORME } from "@/lib/metricaPaginas";
@@ -325,6 +326,7 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   const actsMes = acts.filter((a) => a.periodo === informe.numero);
   const registroPorActividad = new Map(registros.map((r) => [r.actividadId, r]));
 
+  const pospuestas = await getActividadesPospuestas(prop.id);
   const pendientesActividad: string[] = [];
   const problemasContenido: string[] = [];
   if (actsMes.length === 0) {
@@ -335,7 +337,11 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
     const estado = r?.estado ?? "pendiente";
     const nombre = `${codigoActividad(a)} — ${a.titulo || a.descripcion}`;
     if (ETIQUETA_ESTADO_ACTIVIDAD[estado]) {
-      pendientesActividad.push(`${nombre}: ${ETIQUETA_ESTADO_ACTIVIDAD[estado]}.`);
+      pendientesActividad.push(
+        pospuestas.has(a.id)
+          ? `${nombre}: actividad pospuesta; debe completarla o solicitar su eliminación para enviar el informe.`
+          : `${nombre}: ${ETIQUETA_ESTADO_ACTIVIDAD[estado]}.`
+      );
     } else if (r) {
       for (const problema of validarContenidoRegistro(r)) {
         problemasContenido.push(`${codigoActividad(a)}: ${problema}`);

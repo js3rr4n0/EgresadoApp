@@ -19,6 +19,7 @@ import {
   ensureRegistros,
   calcularHabilitacion,
   calcularMetricaPaginas,
+  getActividadesPospuestas,
   grupoActualDe,
   codigoActividad,
   validarContenidoRegistro,
@@ -67,6 +68,7 @@ export async function getSeguimientoEgresado(propuestaId: number) {
 
     const registrosPorActividad = new Map(registros.map((r) => [r.actividadId, r]));
     const grupos = calcularHabilitacion(acts, registrosPorActividad);
+    const pospuestas = await getActividadesPospuestas(propuestaId);
 
     const totalActividades = acts.length;
     const completadas = registros.filter((r) => ESTADOS_REGISTRADOS.includes(r.estado)).length;
@@ -103,6 +105,7 @@ export async function getSeguimientoEgresado(propuestaId: number) {
           codigo: codigoActividad(x.actividad),
           titulo: x.actividad.titulo,
           descripcion: x.actividad.descripcion,
+          pospuesta: pospuestas.has(x.actividad.id),
           registro: x.registro
             ? {
                 id: x.registro.id,

@@ -21,8 +21,8 @@ export default function ReglasCambios({
         <ul className="list-disc pl-5 space-y-1">
           <li>
             El cronograma fue aprobado y firmado por usted, su asesor designado y su supervisor empresarial. Solo se pueden
-            solicitar cambios sobre actividades <strong>no realizadas o por realizar</strong>; lo que ya fue enviado al asesor no
-            puede modificarse.
+            solicitar cambios sobre actividades <strong>no realizadas de su período actual de 30 días</strong> (Mes {mesActual}); lo
+            que ya fue enviado al asesor y las actividades de otros períodos no pueden cambiarse.
           </li>
           <li>
             Toda solicitud requiere una justificación y la <strong>nota de solicitud o aprobación del supervisor empresarial</strong>{" "}
@@ -34,21 +34,18 @@ export default function ReglasCambios({
             del decanato. Al eliminar, los códigos de las actividades siguientes del período se renumeran automáticamente.
           </li>
           <li>
-            <strong>Posponer:</strong> la actividad solo puede moverse a una semana posterior dentro de su mismo período de 30 días.
-            Al finalizar el período no podrá enviar el informe con actividades pendientes: debe completarlas o solicitar su
-            eliminación.
+            <strong>Posponer:</strong> no elimina la actividad; la deja pendiente en una semana posterior de su mismo período de 30
+            días. Para enviar el informe del período debe completarla o solicitar su eliminación.
           </li>
           <li>
             <strong>Agregar:</strong> permite incorporar actividades nuevas, por ejemplo para alcanzar la extensión mínima de 20
             páginas por informe.
           </li>
           <li>
-            <strong>Modificar:</strong> cambia el título y la descripción de una actividad aún no realizada.
-          </li>
-          <li>
-            <strong>Reubicar:</strong> adelanta una actividad existente a una semana anterior, sin duplicarla, y opcionalmente la
+            <strong>Reubicar:</strong> adelanta una actividad del período a una semana anterior, sin duplicarla, y opcionalmente la
             intercambia con una actividad de la semana destino.
           </li>
+          <li>Al aprobarse un cambio, los códigos de las actividades del período se reordenan automáticamente.</li>
           <li>No es posible programar actividades en semanas anteriores a su semana actual ni en informes ya enviados.</li>
         </ul>
         <p className="font-bold text-slate-700">

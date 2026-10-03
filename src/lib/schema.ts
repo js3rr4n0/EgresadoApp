@@ -823,3 +823,40 @@ export const bitacoraEventos = pgTable(
   },
   (table) => [index("bitacora_eventos_propuesta_idx").on(table.propuestaId, table.creadoEn)]
 );
+
+// ─────────────────────────── Notificaciones por correo (preferencias) ───────────────────────────
+// Configuración independiente de las notificaciones internas: estas siempre se muestran en el sistema.
+
+// Qué notificaciones pueden enviarse por correo a cada rol y si el usuario puede desactivarlas (definido por el administrador)
+export const configNotificacionesCorreo = pgTable(
+  "config_notificaciones_correo",
+  {
+    id: serial("id").primaryKey(),
+    rol: varchar("rol", { length: 20 }).notNull(), // 'egresado', 'asesor', 'admin'
+    clave: varchar("clave", { length: 50 }).notNull(),
+    nombre: varchar("nombre", { length: 120 }).notNull(),
+    descripcion: text("descripcion"),
+    correoHabilitado: boolean("correo_habilitado").notNull().default(true),
+    obligatoria: boolean("obligatoria").notNull().default(false), // true = el usuario no puede desactivarla
+    orden: smallint("orden").notNull().default(0),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("config_notificaciones_correo_unique").on(table.rol, table.clave)]
+);
+
+// Elección de cada usuario sobre las notificaciones configurables (sin registro = recibir por correo)
+export const preferenciasNotificacionCorreo = pgTable(
+  "preferencias_notificacion_correo",
+  {
+    id: serial("id").primaryKey(),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    configId: integer("config_id")
+      .notNull()
+      .references(() => configNotificacionesCorreo.id, { onDelete: "cascade" }),
+    recibirCorreo: boolean("recibir_correo").notNull(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("preferencias_notificacion_correo_unique").on(table.usuarioId, table.configId)]
+);

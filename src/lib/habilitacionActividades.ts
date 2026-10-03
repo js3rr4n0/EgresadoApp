@@ -1,6 +1,6 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { actividades, registrosActividad, cartasAceptacion } from "@/lib/schema";
+import { actividades, registrosActividad, cartasAceptacion, solicitudesCambioActividad } from "@/lib/schema";
 import { eq, and, asc, inArray, max } from "drizzle-orm";
 import {
   generarPeriodosPasantia,
@@ -94,6 +94,21 @@ export function calcularHabilitacion(acts: Actividad[], registrosPorActividad: M
           : ("habilitada" as const)
         : ("bloqueada" as const),
   }));
+}
+
+/** Actividades pospuestas (con una solicitud de posponer aprobada): quedan pendientes y deben completarse o eliminarse antes de cerrar su período. */
+export async function getActividadesPospuestas(propuestaId: number) {
+  const filas = await db
+    .select({ actividadId: solicitudesCambioActividad.actividadId })
+    .from(solicitudesCambioActividad)
+    .where(
+      and(
+        eq(solicitudesCambioActividad.propuestaId, propuestaId),
+        eq(solicitudesCambioActividad.tipo, "posponer"),
+        eq(solicitudesCambioActividad.estado, "aprobada")
+      )
+    );
+  return new Set(filas.map((f) => f.actividadId).filter((id): id is number => id !== null));
 }
 
 /** Grupo (semana) en el que se encuentra el egresado: el primero no aprobado por completo, o el último si ya terminó. */

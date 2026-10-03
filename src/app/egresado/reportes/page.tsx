@@ -424,6 +424,14 @@ export default async function SeguimientoEgresadoPage({
                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${info.badge}`}>
                               {info.label}
                             </span>
+                            {a.pospuesta && !["enviado", "aprobado"].includes(estado) && (
+                              <span
+                                className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border bg-amber-50 text-amber-900 border-amber-300"
+                                title="Debe completarla o solicitar su eliminación antes de enviar el informe del período."
+                              >
+                                Pospuesta
+                              </span>
+                            )}
                           </div>
                           <p className="text-xs font-bold text-slate-800">{a.titulo || a.descripcion}</p>
                           <div className="flex flex-wrap items-center gap-1.5">
