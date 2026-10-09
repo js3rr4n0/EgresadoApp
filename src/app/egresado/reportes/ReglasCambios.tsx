@@ -21,7 +21,7 @@ export default function ReglasCambios({
         <ul className="list-disc pl-5 space-y-1">
           <li>
             El cronograma fue aprobado y firmado por usted, su asesor designado y su supervisor empresarial. Solo se pueden
-            solicitar cambios sobre actividades <strong>no realizadas de su período actual de 30 días</strong> (Mes {mesActual}); lo
+            solicitar cambios sobre actividades <strong>no realizadas de su período actual de 30 días</strong> (Período {mesActual}); lo
             que ya fue enviado al asesor y las actividades de otros períodos no pueden cambiarse.
           </li>
           <li>
@@ -49,7 +49,7 @@ export default function ReglasCambios({
           <li>No es posible programar actividades en semanas anteriores a su semana actual ni en informes ya enviados.</li>
         </ul>
         <p className="font-bold text-slate-700">
-          Eliminaciones solicitadas en el Mes {mesActual}: {eliminacionesMesActual} de {maxEliminacionesPorMes}.
+          Eliminaciones solicitadas en el Período {mesActual}: {eliminacionesMesActual} de {maxEliminacionesPorMes}.
         </p>
       </div>
     </details>

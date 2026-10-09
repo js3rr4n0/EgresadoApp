@@ -1,10 +1,11 @@
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { formatearFechaHoraElSalvador } from "@/lib/periodosPasantia";
+import { formatearFechaHoraElSalvador, esInformeFinal } from "@/lib/periodosPasantia";
+import { leerCartaFinalizacion } from "@/lib/informeFinal";
 import { getEnvioInformeMensual } from "@/app/actions/informesMensuales";
 import { getNotasSeguimiento } from "@/app/actions/comentariosAsesor";
 import { getInformeVisita } from "@/app/actions/informeVisita";
-import { leerComentarios, validarComentariosCompletos } from "@/lib/comentariosAsesor";
+import { leerComentarios, validarComentariosCompletos, leerNotaSemanal } from "@/lib/comentariosAsesor";
 import RevisionInformeClient from "./RevisionInformeClient";
 
 export default async function RevisionInformePage({
@@ -36,7 +37,7 @@ export default async function RevisionInformePage({
   ]);
   const notasSemanales =
     notasRes.success && notasRes.notas
-      ? notasRes.notas.filter((n) => n.periodo === res.informe!.numero).map((n) => ({ semana: n.semana, nota: n.nota }))
+      ? notasRes.notas.filter((n) => n.periodo === res.informe!.numero).map((n) => leerNotaSemanal(n.semana, n.respuestas, n.nota))
       : [];
   const comentarios = leerComentarios(res.informe.comentariosDecanato);
   const visita =
@@ -44,8 +45,14 @@ export default async function RevisionInformePage({
       ? { requerida: true, completada: !!(visitaRes && visitaRes.success && visitaRes.visita?.estado === "completado") }
       : { requerida: false, completada: true };
 
+  const carta = leerCartaFinalizacion(res.informe.cartaFinalizacion);
   return (
     <RevisionInformeClient
+      cartaFinal={
+        esInformeFinal(res.informe.numero)
+          ? { carta: carta ? { nombre: carta.nombre, url: carta.url } : null, verificada: !!res.informe.cartaFinalizacionVerificadaEn }
+          : null
+      }
       propuestaId={Number(propuestaId)}
       informe={{
         id: res.informe.id,
@@ -62,6 +69,7 @@ export default async function RevisionInformePage({
       comentariosCompletos={validarComentariosCompletos(comentarios).length === 0}
       notasSemanales={notasSemanales}
       visita={visita}
+      rubrica={res.rubrica ?? []}
     />
   );
 }

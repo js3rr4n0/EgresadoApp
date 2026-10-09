@@ -1,4 +1,5 @@
 import { getInformeCompilado } from "@/app/actions/informeCompilado";
+import { esInformeFinal } from "@/lib/periodosPasantia";
 import { generarInformeWord, type InformeCompilado } from "@/lib/informeWord";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ informeId: string }> }) {
@@ -9,7 +10,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ inf
   }
 
   const res = await getInformeCompilado(id);
-  if (!res.success || !res.informe || !res.semanas) {
+  if (!res.success || !res.informe || !res.secciones) {
     const status = res.error === "No autenticado" ? 401 : res.error === "Informe no encontrado" ? 404 : 403;
     return new Response(res.error || "No se pudo generar el informe.", { status });
   }
@@ -17,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ inf
   const informe = res as InformeCompilado;
   const archivo = await generarInformeWord(informe);
   const carnet = (informe.egresado?.carnet || "egresado").replace(/[^A-Za-z0-9-]/g, "");
-  const nombre = `Informe_Mensual_${informe.informe.numero}_${carnet}.docx`;
+  const nombre = `${esInformeFinal(informe.informe.numero) ? "Informe_Final" : `Informe_Periodo_${informe.informe.numero}`}_${carnet}.docx`;
 
   return new Response(new Uint8Array(archivo), {
     headers: {

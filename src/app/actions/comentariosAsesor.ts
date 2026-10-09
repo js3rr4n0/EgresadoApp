@@ -5,16 +5,16 @@ import { informesMensuales, propuestas, notasSeguimientoAsesor } from "@/lib/sch
 import { getSession } from "@/lib/session";
 import { eq, and, asc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { contarPalabras } from "@/lib/reglasRegistroActividad";
 import {
   CATEGORIAS_COMENTARIO,
-  validarLimitesComentarios,
   validarComentariosCompletos,
+  leerNotaSemanal,
+  resumenNotaSemanal,
   type ComentariosDecanato,
+  type NotaSemanal,
 } from "@/lib/comentariosAsesor";
 import { registrarEvento } from "@/lib/bitacora";
 
-const NOTA_MAX_PALABRAS = 300;
 
 async function propuestaDelAsesor(propuestaId: number) {
   const session = await getSession();
@@ -40,9 +40,6 @@ export async function guardarComentariosInforme(informeId: number, datos: Coment
       respuestas: Object.fromEntries(CATEGORIAS_COMENTARIO.map((c) => [c.id, (datos.respuestas?.[c.id] || "").trim()])),
       general: (datos.general || "").trim(),
     };
-    const problemas = validarLimitesComentarios(limpio);
-    if (problemas.length > 0) return { success: false, error: problemas[0] };
-
     await db
       .update(informesMensuales)
       .set({ comentariosDecanato: limpio, comentariosDecanatoEn: new Date(), actualizadoEn: new Date() })
@@ -91,8 +88,16 @@ export async function getNotasSeguimiento(propuestaId: number) {
   }
 }
 
-/** Registra o actualiza la nota opcional de una semana; una nota vacía se elimina. */
-export async function guardarNotaSeguimiento(propuestaId: number, periodo: number, semana: number, nota: string) {
+/**
+ * Registra o actualiza la nota opcional de una semana, con las mismas preguntas de los comentarios del período (todas
+ * opcionales). Las notas se acumulan en los comentarios del informe mensual. Una nota vacía se elimina.
+ */
+export async function guardarNotaSeguimiento(
+  propuestaId: number,
+  periodo: number,
+  semana: number,
+  datos: Omit<NotaSemanal, "semana">
+) {
   try {
     const ctx = await propuestaDelAsesor(propuestaId);
     if ("error" in ctx) return { success: false, error: ctx.error };
@@ -100,7 +105,9 @@ export async function guardarNotaSeguimiento(propuestaId: number, periodo: numbe
       return { success: false, error: "Semana no válida." };
     }
 
-    const texto = nota.trim();
+    const nota = leerNotaSemanal(semana, { ...datos.respuestas, general: datos.general }, null);
+    const texto = resumenNotaSemanal(nota);
+    const respuestas = { ...nota.respuestas, ...(nota.general ? { general: nota.general } : {}) };
     const condicion = and(
       eq(notasSeguimientoAsesor.propuestaId, propuestaId),
       eq(notasSeguimientoAsesor.periodo, periodo),
@@ -110,15 +117,12 @@ export async function guardarNotaSeguimiento(propuestaId: number, periodo: numbe
     if (!texto) {
       await db.delete(notasSeguimientoAsesor).where(condicion);
     } else {
-      if (contarPalabras(texto) > NOTA_MAX_PALABRAS) {
-        return { success: false, error: `La nota admite un máximo de ${NOTA_MAX_PALABRAS} palabras.` };
-      }
       await db
         .insert(notasSeguimientoAsesor)
-        .values({ propuestaId, periodo, semana, nota: texto, asesorId: ctx.session.userId })
+        .values({ propuestaId, periodo, semana, nota: texto, respuestas, asesorId: ctx.session.userId })
         .onConflictDoUpdate({
           target: [notasSeguimientoAsesor.propuestaId, notasSeguimientoAsesor.periodo, notasSeguimientoAsesor.semana],
-          set: { nota: texto, asesorId: ctx.session.userId, actualizadoEn: new Date() },
+          set: { nota: texto, respuestas, asesorId: ctx.session.userId, actualizadoEn: new Date() },
         });
     }
 
@@ -128,7 +132,7 @@ export async function guardarNotaSeguimiento(propuestaId: number, periodo: numbe
         actorId: ctx.session.userId,
         actorRol: "asesor",
         tipo: "nota_seguimiento",
-        descripcion: `Registró una nota de seguimiento de la Semana ${semana} del Mes ${periodo}.`,
+        descripcion: `Registró una nota de seguimiento de la Semana ${semana} del Período ${periodo}.`,
         detalle: texto,
         referencia: `nota:${periodo}.${semana}`,
         agruparMinutos: 60,

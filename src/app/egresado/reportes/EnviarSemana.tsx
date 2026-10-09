@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { enviarSemanaActividades } from "@/app/actions/registrosActividad";
+import DeclaracionAutoria from "./DeclaracionAutoria";
 
 /** Envío de todas las actividades de la semana al asesor: se habilita solo cuando cada actividad está completa. */
 export default function EnviarSemana({
@@ -20,13 +21,14 @@ export default function EnviarSemana({
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [declaracion, setDeclaracion] = useState<"si" | "no" | null>(null);
 
   const listo = pendientes.length === 0;
 
   const handleEnviar = async () => {
     setError(null);
     setEnviando(true);
-    const res = await enviarSemanaActividades(propuestaId);
+    const res = await enviarSemanaActividades(propuestaId, declaracion === "si");
     setEnviando(false);
     setConfirmando(false);
     if (res.success) {
@@ -58,9 +60,12 @@ export default function EnviarSemana({
         </div>
         <button
           type="button"
-          onClick={() => setConfirmando(true)}
+          onClick={() => {
+            setDeclaracion(null);
+            setConfirmando(true);
+          }}
           disabled={!listo}
-          className="px-5 py-2.5 rounded-xl bg-brand-red hover:bg-brand-red-hover text-white font-extrabold text-xs shadow-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+          className="px-5 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs shadow-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
         >
           Enviar semana al asesor
         </button>
@@ -73,9 +78,10 @@ export default function EnviarSemana({
             <h3 className="text-base font-extrabold text-slate-900">Confirmar envío de la {etiquetaSemana}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
               Se enviarán las actividades de la semana a su asesor designado para su revisión. No podrá editarlas mientras estén en
-              revisión, y la semana siguiente se habilitará cuando el asesor las apruebe. La fecha de realización de las actividades
+              revisión. Mientras tanto podrá adelantar el borrador de la semana siguiente, que podrá enviar cuando el asesor apruebe esta. La fecha de realización de las actividades
               quedará registrada con la fecha de hoy.
             </p>
+            <DeclaracionAutoria valor={declaracion} onChange={setDeclaracion} />
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setConfirmando(false)}
@@ -86,8 +92,8 @@ export default function EnviarSemana({
               </button>
               <button
                 onClick={handleEnviar}
-                disabled={enviando}
-                className="px-5 py-2 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white text-xs font-extrabold disabled:opacity-50"
+                disabled={enviando || declaracion !== "si"}
+                className="px-5 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-xs font-extrabold disabled:opacity-50"
               >
                 {enviando ? "Enviando..." : "Confirmar envío"}
               </button>

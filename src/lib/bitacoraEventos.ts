@@ -7,6 +7,8 @@ export const TIPOS_EVENTO = {
   semana_enviada: "Semana enviada",
   actividad_aprobada: "Actividad aprobada",
   actividad_observada: "Actividad con observaciones",
+  semana_aprobada: "Semana aprobada",
+  semana_observada: "Semana con observaciones",
   cambio_solicitado: "Solicitud de cambio",
   cambio_aprobado: "Cambio aprobado",
   cambio_rechazado: "Cambio rechazado",
@@ -19,6 +21,8 @@ export const TIPOS_EVENTO = {
   visita_completada: "Visita completada",
   alerta_cierre: "Aviso de cierre",
   periodo_cerrado: "Cierre de período",
+  informe_final_elemento: "Informe final",
+  carta_finalizacion_verificada: "Carta de finalización verificada",
 } as const;
 
 export type TipoEvento = keyof typeof TIPOS_EVENTO;

@@ -7,17 +7,18 @@ import { contarPalabras } from "@/lib/reglasRegistroActividad";
 import {
   CATEGORIAS_COMENTARIO,
   COMENTARIO_MIN_PALABRAS,
-  COMENTARIO_MAX_PALABRAS,
-  COMENTARIO_GENERAL_MAX_PALABRAS,
   EJEMPLO_COMENTARIOS,
   PROPOSITO_COMENTARIOS,
   validarComentariosCompletos,
+  tieneComentarios,
+  acumularNotasSemanales,
   type ComentariosDecanato,
+  type NotaSemanal,
 } from "@/lib/comentariosAsesor";
 import AyudaEjemplo from "@/components/AyudaEjemplo";
 
 const areaTexto =
-  "w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-brand-red outline-none resize-none disabled:bg-slate-50 disabled:text-slate-600";
+  "w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-unicaes outline-none resize-none disabled:bg-slate-50 disabled:text-slate-600";
 
 /** Comentarios del asesor para el decanato: una respuesta por categoría del documento institucional y un comentario general opcional. */
 export default function ComentariosAsesorForm({
@@ -29,13 +30,24 @@ export default function ComentariosAsesorForm({
   informeId: number;
   inicial: ComentariosDecanato;
   editable: boolean;
-  notasSemanales: { semana: number; nota: string }[];
+  notasSemanales: NotaSemanal[];
 }) {
   const router = useRouter();
+  // Si aún no hay comentarios guardados, se precargan las notas semanales del período en orden para revisarlas y completarlas.
+  const precargado = editable && !tieneComentarios(inicial) && notasSemanales.length > 0;
+  const base = precargado ? acumularNotasSemanales(notasSemanales) : inicial;
   const [respuestas, setRespuestas] = useState<Record<string, string>>(() =>
-    Object.fromEntries(CATEGORIAS_COMENTARIO.map((c) => [c.id, inicial.respuestas[c.id] || ""]))
+    Object.fromEntries(CATEGORIAS_COMENTARIO.map((c) => [c.id, base.respuestas[c.id] || ""]))
   );
-  const [general, setGeneral] = useState(inicial.general || "");
+  const [general, setGeneral] = useState(base.general || "");
+  const notasOrdenadas = [...notasSemanales].sort((a, b) => a.semana - b.semana);
+  const notasDe = (id: string) =>
+    notasOrdenadas
+      .map((n) => ({ semana: n.semana, texto: id === "general" ? n.general : n.respuestas[id as keyof NotaSemanal["respuestas"]] || "" }))
+      .filter((n) => n.texto);
+  /** Agrega al texto las notas semanales que todavía no contiene. */
+  const insertarNotas = (actual: string, id: string) =>
+    [actual.trim(), ...notasDe(id).map((n) => n.texto).filter((t) => !actual.includes(t))].filter(Boolean).join("\n");
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
@@ -73,25 +85,17 @@ export default function ComentariosAsesorForm({
 
       <AyudaEjemplo ejemplo={EJEMPLO_COMENTARIOS} />
 
-      {notasSemanales.length > 0 && (
-        <details className="bg-slate-50 border border-slate-200 rounded-xl text-[11px]">
-          <summary className="cursor-pointer select-none px-4 py-2.5 font-extrabold text-slate-700">
-            Sus notas de seguimiento semanal de este período ({notasSemanales.length})
-          </summary>
-          <ul className="px-4 pb-3 space-y-1.5 text-slate-600 font-medium">
-            {notasSemanales.map((n) => (
-              <li key={n.semana}>
-                <span className="font-bold text-slate-700">Semana {n.semana}:</span> {n.nota}
-              </li>
-            ))}
-          </ul>
-        </details>
+      {precargado && (
+        <div className="p-3 rounded-lg border border-blue-200 bg-blue-50 text-[11px] text-blue-900 font-semibold">
+          Se precargaron sus notas de seguimiento semanal de este período ({notasSemanales.length}), en orden. Revíselas, complételas y
+          guarde los comentarios.
+        </div>
       )}
 
       <div className="space-y-4">
         {CATEGORIAS_COMENTARIO.map((c, i) => {
           const n = contarPalabras(respuestas[c.id] || "");
-          const ok = n >= COMENTARIO_MIN_PALABRAS && n <= COMENTARIO_MAX_PALABRAS;
+          const ok = n >= COMENTARIO_MIN_PALABRAS;
           return (
             <div key={c.id} className="space-y-1">
               <div className="flex items-start justify-between gap-3">
@@ -99,7 +103,7 @@ export default function ComentariosAsesorForm({
                   {i + 1}. {c.pregunta}
                 </label>
                 <span className={`text-[11px] font-extrabold shrink-0 ${ok ? "text-emerald-600" : "text-amber-600"}`}>
-                  {n} / {COMENTARIO_MAX_PALABRAS}
+                  {n} palabras{ok ? "" : ` · mínimo ${COMENTARIO_MIN_PALABRAS}`}
                 </span>
               </div>
               <textarea
@@ -112,6 +116,29 @@ export default function ComentariosAsesorForm({
                 spellCheck
                 className={areaTexto}
               />
+              {notasDe(c.id).length > 0 && (
+                <details className="text-[11px]">
+                  <summary className="cursor-pointer select-none font-bold text-slate-500">
+                    Sus notas semanales sobre esta pregunta ({notasDe(c.id).length})
+                  </summary>
+                  <ul className="mt-1.5 space-y-1 text-slate-600 font-medium">
+                    {notasDe(c.id).map((n) => (
+                      <li key={n.semana}>
+                        <span className="font-bold text-slate-700">Semana {n.semana}:</span> {n.texto}
+                      </li>
+                    ))}
+                  </ul>
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={() => setRespuestas((prev) => ({ ...prev, [c.id]: insertarNotas(prev[c.id] || "", c.id) }))}
+                      className="mt-1.5 text-[11px] font-bold text-unicaes hover:underline"
+                    >
+                      Agregar las notas que faltan al texto
+                    </button>
+                  )}
+                </details>
+              )}
             </div>
           );
         })}
@@ -121,9 +148,7 @@ export default function ComentariosAsesorForm({
             <label htmlFor="cat-general" className="text-xs font-bold text-slate-800">
               Comentario general (opcional): información importante adicional que desee comunicar
             </label>
-            <span className="text-[11px] font-extrabold shrink-0 text-slate-500">
-              {contarPalabras(general)} / {COMENTARIO_GENERAL_MAX_PALABRAS}
-            </span>
+            <span className="text-[11px] font-extrabold shrink-0 text-slate-500">{contarPalabras(general)} palabras</span>
           </div>
           <textarea
             id="cat-general"
@@ -153,7 +178,7 @@ export default function ComentariosAsesorForm({
           <p className="text-[11px] text-muted font-semibold">
             {completos
               ? "Los comentarios están completos. Guárdelos antes de aprobar el informe."
-              : `Para aprobar el informe, cada categoría debe tener entre ${COMENTARIO_MIN_PALABRAS} y ${COMENTARIO_MAX_PALABRAS} palabras.`}
+              : `Para aprobar el informe, cada pregunta debe tener al menos ${COMENTARIO_MIN_PALABRAS} palabras.`}
           </p>
           <button
             type="button"

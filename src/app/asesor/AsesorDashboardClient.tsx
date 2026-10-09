@@ -3,17 +3,31 @@
 import { useState, useEffect } from "react";
 import { responderSolicitudAsesor, getDetallePropuestaAsesor } from "@/app/actions/asesor";
 import Link from "next/link";
+import type { EntradaBandejaAsesor } from "@/app/actions/registrosActividad";
+import BandejaRevisionGlobal from "./BandejaRevisionGlobal";
+
+const ESTILO_ESTATUS: Record<string, string> = {
+  semana: "bg-red-50 text-unicaes border-red-200",
+  informe: "bg-blue-50 text-blue-800 border-blue-200",
+  correccion: "bg-amber-50 text-amber-900 border-amber-300",
+  atrasado: "bg-red-100 text-red-800 border-red-300",
+  al_dia: "bg-emerald-50 text-emerald-800 border-emerald-200",
+};
 
 interface AsesorDashboardClientProps {
   initialPropuestas: any[];
   initialSolicitudes: any[];
   seguimiento?: any[];
+  bandeja?: EntradaBandejaAsesor[];
+  diasPlazoRevision?: number;
 }
 
 export default function AsesorDashboardClient({
   initialPropuestas,
   initialSolicitudes,
   seguimiento = [],
+  bandeja = [],
+  diasPlazoRevision = 3,
 }: AsesorDashboardClientProps) {
   const [propuestas, setPropuestas] = useState<any[]>(initialPropuestas);
   const [solicitudes, setSolicitudes] = useState<any[]>(initialSolicitudes);
@@ -197,6 +211,9 @@ export default function AsesorDashboardClient({
         </div>
       )}
 
+      {/* Bandeja global de revisión: semanas e informes por revisar de todos los estudiantes */}
+      {seguimiento.length > 0 && <BandejaRevisionGlobal entradas={bandeja} diasPlazo={diasPlazoRevision} />}
+
       {/* Seguimiento de Actividades (registro progresivo) */}
       {seguimiento.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-border p-6 md:p-8 space-y-4">
@@ -211,25 +228,22 @@ export default function AsesorDashboardClient({
                 href={`/asesor/seguimiento/${s.propuestaId}`}
                 className="p-4 bg-slate-50 hover:bg-slate-100 border border-border rounded-xl transition-colors flex flex-col gap-2"
               >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-extrabold text-card-dark">{s.egresado?.nombreCompleto}</span>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    {s.pendientesRevision > 0 && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800 border border-blue-300">
-                        {s.pendientesRevision} actividades por revisar
-                      </span>
-                    )}
-                    {s.informesPorRevisar > 0 && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-red-50 text-brand-red border border-red-200">
-                        {s.informesPorRevisar} informe{s.informesPorRevisar > 1 ? "s" : ""} por revisar
-                      </span>
-                    )}
-                  </div>
+                <span className="text-xs font-extrabold text-card-dark">{s.egresado?.nombreCompleto}</span>
+                {/* Estatus del estudiante: lo que requiere atención */}
+                <div className="flex flex-wrap gap-1">
+                  {(s.estatus ?? []).map((e: { id: string; label: string }) => (
+                    <span
+                      key={e.id}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${ESTILO_ESTATUS[e.id] ?? ESTILO_ESTATUS.al_dia}`}
+                    >
+                      {e.label}
+                    </span>
+                  ))}
                 </div>
-                <p className="text-[11px] text-muted font-semibold">Mes {s.mesActual}, Semana {s.semanaActual}</p>
+                <p className="text-[11px] text-muted font-semibold">Período {s.mesActual}, Semana {s.semanaActual}</p>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div className="h-full bg-brand-red rounded-full" style={{ width: `${s.porcentajeAvance}%` }} />
+                    <div className="h-full bg-unicaes rounded-full" style={{ width: `${s.porcentajeAvance}%` }} />
                   </div>
                   <span className="text-[10px] font-extrabold text-slate-600">{s.porcentajeAvance}%</span>
                 </div>

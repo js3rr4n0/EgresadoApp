@@ -14,6 +14,10 @@ export interface PreguntaVisita {
   requerida: boolean;
   /** La pregunta solo aplica cuando la respuesta indicada está (o no está) entre los valores. */
   visibleSi?: { id: string; valores: string[]; negado?: boolean };
+  /** Opciones que piden explicación; si se define, reemplaza la regla general de "No" y "Parcialmente". */
+  explicarEn?: string[];
+  /** Opción de selección múltiple que excluye a las demás (por ejemplo, "Ninguna"). */
+  exclusiva?: string;
   ayuda?: string;
 }
 
@@ -32,6 +36,23 @@ export interface FotoVisita {
 export const OTRO = "Otro";
 const SI_NO = ["Sí", "No"];
 const SI_PARCIAL_NO = ["Sí", "Parcialmente", "No"];
+const NINGUNA_INSTITUCION = "Ninguna, no ha recibido pasantes de otras instituciones";
+
+/** Principales instituciones de educación superior del país (las demás se indican en "Otro"). */
+const INSTITUCIONES_SUPERIOR = [
+  "Universidad de El Salvador (UES)",
+  "Universidad Centroamericana José Simeón Cañas (UCA)",
+  "Universidad Don Bosco (UDB)",
+  "Universidad Francisco Gavidia (UFG)",
+  "Universidad Tecnológica de El Salvador (UTEC)",
+  "Universidad Dr. José Matías Delgado (UJMD)",
+  "Escuela Superior de Economía y Negocios (ESEN)",
+  "ITCA-FEPADE",
+];
+
+/** Días después del inicio de la pasantía en que debe realizarse la visita del asesor (documentación oficial). */
+export const DIA_INICIO_VISITA = 90;
+export const DIA_FIN_VISITA = 100;
 
 export const SECCIONES_VISITA: SeccionVisita[] = [
   {
@@ -44,7 +65,8 @@ export const SECCIONES_VISITA: SeccionVisita[] = [
         tipo: "opcion",
         opciones: ["Presencial", "Virtual"],
         requerida: true,
-        ayuda: "La visita virtual solo procede en pasantías internacionales o con autorización previa del decanato.",
+        ayuda:
+          "La visita virtual solo procede en pasantías internacionales o cuando se cuenta con autorización previa del decanato; en ese caso debe adjuntar el correo de autorización.",
       },
       {
         id: "justificacion_virtual",
@@ -60,22 +82,6 @@ export const SECCIONES_VISITA: SeccionVisita[] = [
         opciones: ["Un mes antes", "Quince días antes", "Una semana antes", "Un par de días antes"],
         otro: true,
         requerida: true,
-      },
-      {
-        id: "realizada",
-        texto: "¿Logró realizar la visita a la institución o empresa?",
-        tipo: "opcion",
-        opciones: SI_NO,
-        requerida: true,
-      },
-      {
-        id: "motivo_no_realizada",
-        texto: "Indique la causa o justificación por la que no se realizó la visita",
-        tipo: "texto_largo",
-        requerida: true,
-        visibleSi: { id: "realizada", valores: ["No"] },
-        ayuda:
-          "Si no logró realizar la visita por causas ajenas o imputables a terceros, además debe notificar al decanato vía correo, identificando el caso con el nombre y carnet del alumno, la empresa o institución y la causa.",
       },
     ],
   },
@@ -166,7 +172,7 @@ export const SECCIONES_VISITA: SeccionVisita[] = [
         id: "espacio_adecuado",
         texto: "¿Cuenta la empresa con espacio adecuado, seguro y en condiciones adecuadas para el egresado?",
         tipo: "opcion",
-        opciones: ["Sí, de forma permanente", "No de forma permanente", "No"],
+        opciones: ["Sí, de forma permanente", "No, de forma permanente", "No"],
         requerida: true,
       },
       {
@@ -197,8 +203,11 @@ export const SECCIONES_VISITA: SeccionVisita[] = [
       },
       {
         id: "pasantes_otras_instituciones",
-        texto: "¿Recibe la empresa o ha recibido pasantes o egresados de otras instituciones de educación superior? Indique de qué instituciones o NO",
-        tipo: "texto",
+        texto: "¿Recibe la empresa o ha recibido pasantes o egresados de otras instituciones de educación superior? Indique de cuáles",
+        tipo: "multiple",
+        opciones: [...INSTITUCIONES_SUPERIOR, NINGUNA_INSTITUCION],
+        otro: true,
+        exclusiva: NINGUNA_INSTITUCION,
         requerida: true,
       },
       {
@@ -341,13 +350,6 @@ export const SECCIONES_VISITA: SeccionVisita[] = [
         visibleSi: { id: "egresado_comodo", valores: ["No"] },
       },
       {
-        id: "plan_sin_desviaciones",
-        texto: "¿Ha seguido el pasante el desarrollo del plan de trabajo sin desviaciones?",
-        tipo: "opcion",
-        opciones: ["Sí", "Sí, con algunas pequeñas desviaciones", "No, lo solicitado por la empresa está fuera del plan de trabajo"],
-        requerida: true,
-      },
-      {
         id: "condiciones_adecuadas_egresado",
         texto: "¿Considera el egresado que la empresa o institución posee las condiciones adecuadas para realizar su trabajo?",
         tipo: "opcion",
@@ -411,8 +413,10 @@ export const SECCIONES_VISITA: SeccionVisita[] = [
         id: "posicion_acorde",
         texto: "¿Está el egresado en una posición o realizando actividades acordes al grado académico al que aspira?",
         tipo: "opcion",
+        explicarEn: ["Parcialmente"],
         opciones: [
           "Sí",
+          "Parcialmente",
           "No, el trabajo que realiza más parece un trabajo para una contratación temporal de una persona sin mayor instrucción profesional",
           "No, el trabajo que realiza no involucra al pasante directamente; solo se limita a ser parte de un proyecto puntual que no continuará en el tiempo",
           "No, el pasante solo se dedica a recibir inducciones y capacitaciones y su involucramiento en el desarrollo de actividades es mínimo",
@@ -478,7 +482,7 @@ export const SECCIONES_VISITA: SeccionVisita[] = [
 
 export const REGLAS_FOTOS_VISITA = [
   "La fotografía es la evidencia de que la visita fue realizada: en ella deben aparecer el asesor, el egresado y el supervisor empresarial.",
-  "La visita solo puede realizarse de forma virtual en pasantías internacionales o con autorización previa del decanato; en ese caso adjunte la captura de la reunión con los tres participantes.",
+  "La visita solo puede realizarse de forma virtual en pasantías internacionales o cuando se cuenta con autorización previa del decanato; en ese caso adjunte la captura de la reunión con los tres participantes.",
   "Cada fotografía debe llevar su pie de imagen.",
 ];
 
@@ -488,8 +492,38 @@ function valorTexto(v: string | string[] | undefined) {
   return Array.isArray(v) ? v.join(", ") : (v ?? "");
 }
 
+/** El formulario se registra al realizar la visita; solo los informes anteriores pudieron indicar que no se realizó. */
 export function visitaRealizada(r: Respuestas) {
-  return r.realizada === "Sí";
+  return r.realizada !== "No";
+}
+
+export function esVisitaVirtual(r: Respuestas) {
+  return r.modalidad === "Virtual";
+}
+
+export interface AutorizacionVisita {
+  url: string;
+  nombre: string;
+}
+
+/**
+ * Cuenta regresiva de la visita: debe realizarse entre los días 90 y 100 después del inicio de la pasantía.
+ * Devuelve la ventana y el estado respecto de hoy (fechas ISO).
+ */
+export function cuentaRegresivaVisita(inicioPasantia: string | null, hoy: string, completada: boolean) {
+  if (!inicioPasantia) return null;
+  const sumar = (iso: string, dias: number) => {
+    const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+    const f = new Date(Date.UTC(y, m - 1, d + dias));
+    return f.toISOString().slice(0, 10);
+  };
+  const desde = sumar(inicioPasantia, DIA_INICIO_VISITA);
+  const hasta = sumar(inicioPasantia, DIA_FIN_VISITA);
+  const diferencia = (a: string, b: string) => Math.round((Date.parse(a) - Date.parse(b)) / 86400000);
+  if (completada) return { desde, hasta, estado: "completada" as const, dias: 0 };
+  if (hoy < desde) return { desde, hasta, estado: "faltan" as const, dias: diferencia(desde, hoy) };
+  if (hoy <= hasta) return { desde, hasta, estado: "en_curso" as const, dias: diferencia(hasta, hoy) };
+  return { desde, hasta, estado: "vencida" as const, dias: diferencia(hoy, hasta) };
 }
 
 export function seccionVisible(s: SeccionVisita, r: Respuestas) {
@@ -504,17 +538,42 @@ export function preguntaVisible(p: PreguntaVisita, r: Respuestas) {
   return p.visibleSi.negado ? !coincide : coincide;
 }
 
-/** Texto legible de una respuesta, incluido el detalle de la opción "Otro". */
+// Preguntas que ya tienen su propia pregunta de seguimiento (otra pregunta depende de su respuesta).
+const CON_SEGUIMIENTO = new Set(SECCIONES_VISITA.flatMap((s) => s.preguntas.flatMap((p) => (p.visibleSi ? [p.visibleSi.id] : []))));
+// Respuestas negativas que no requieren explicación: no son una valoración desfavorable.
+const SIN_EXPLICACION = new Set(["pasantes_fiya", "conoce_demanda_contratacion", "espera_contratacion"]);
+
+/** Campo donde se guarda la explicación de una respuesta "No" o "Parcialmente". */
+export function idExplicacion(p: PreguntaVisita) {
+  return `${p.id}_explicacion`;
+}
+
+/**
+ * Cuando la respuesta de una pregunta de opción es "No" o "Parcialmente" (o una variante, como "No, ..."), el asesor debe
+ * explicarla. No aplica a las preguntas que ya tienen su propia pregunta de seguimiento.
+ */
+export function requiereExplicacion(p: PreguntaVisita, r: Respuestas) {
+  const v = r[p.id];
+  if (p.tipo !== "opcion" || typeof v !== "string" || CON_SEGUIMIENTO.has(p.id) || SIN_EXPLICACION.has(p.id)) return false;
+  if (p.explicarEn) return p.explicarEn.includes(v);
+  // Respuestas que indican falta de información, no una valoración desfavorable.
+  if (["No responde", "No sabe", "No fue observada"].some((x) => v.startsWith(x))) return false;
+  return /^(No|Parcialmente)(?![a-záéíóúñ])/.test(v) && !v.startsWith("No (");
+}
+
+/** Texto legible de una respuesta, incluido el detalle de la opción "Otro" y la explicación de un "No" o "Parcialmente". */
 export function respuestaTexto(p: PreguntaVisita, r: Respuestas) {
   const v = r[p.id];
   const otro = typeof r[`${p.id}_otro`] === "string" ? (r[`${p.id}_otro`] as string).trim() : "";
   if (Array.isArray(v)) return v.map((x) => (x === OTRO && otro ? `Otro: ${otro}` : x)).join("; ");
   if (v === OTRO && otro) return `Otro: ${otro}`;
+  const explicacion = typeof r[idExplicacion(p)] === "string" ? (r[idExplicacion(p)] as string).trim() : "";
+  if (v && explicacion && requiereExplicacion(p, r)) return `${v}. Explicación: ${explicacion}`;
   return v ?? "";
 }
 
 /** Requisitos para completar el informe de visita. */
-export function validarInformeVisita(r: Respuestas, fotos: FotoVisita[]): string[] {
+export function validarInformeVisita(r: Respuestas, fotos: FotoVisita[], autorizacion: AutorizacionVisita | null = null): string[] {
   const problemas: string[] = [];
   for (const s of SECCIONES_VISITA) {
     if (!seccionVisible(s, r)) continue;
@@ -530,7 +589,16 @@ export function validarInformeVisita(r: Respuestas, fotos: FotoVisita[]): string
       if (p.otro && eligioOtro && !String(r[`${p.id}_otro`] || "").trim()) {
         problemas.push(`${s.titulo}: especifique la opción "Otro" en "${p.texto}".`);
       }
+      if (p.exclusiva && Array.isArray(v) && v.includes(p.exclusiva) && v.length > 1) {
+        problemas.push(`${s.titulo}: "${p.exclusiva}" no puede combinarse con otras opciones en "${p.texto}".`);
+      }
+      if (requiereExplicacion(p, r) && !String(r[idExplicacion(p)] || "").trim()) {
+        problemas.push(`${s.titulo}: explique la respuesta "${v}" en "${p.texto}".`);
+      }
     }
+  }
+  if (esVisitaVirtual(r) && !autorizacion) {
+    problemas.push("Realización de la visita: adjunte el correo de autorización del decanato para la visita virtual.");
   }
   if (visitaRealizada(r)) {
     if (fotos.length === 0) problemas.push("Debe adjuntar al menos una fotografía de la visita.");

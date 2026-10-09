@@ -3,7 +3,7 @@ import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getInformeVisita } from "@/app/actions/informeVisita";
 import { formatearFechaLarga, formatearFechaHoraElSalvador } from "@/lib/periodosPasantia";
-import { SECCIONES_VISITA, preguntaVisible, seccionVisible, respuestaTexto, visitaRealizada } from "@/lib/formularioVisita";
+import { SECCIONES_VISITA, preguntaVisible, seccionVisible, respuestaTexto, visitaRealizada, esVisitaVirtual } from "@/lib/formularioVisita";
 import PrintButton from "@/app/informes/[informeId]/imprimir/PrintButton";
 
 export default async function InformeVisitaDocumentoPage({ params }: { params: Promise<{ propuestaId: string }> }) {
@@ -95,6 +95,12 @@ export default async function InformeVisitaDocumentoPage({ params }: { params: P
                       <td>{(p.tipo === "fecha" && r[p.id] ? formatearFechaLarga(r[p.id] as string) : respuestaTexto(p, r)) || "—"}</td>
                     </tr>
                   ))}
+                {s.preguntas.some((p) => p.id === "modalidad") && esVisitaVirtual(r) && (
+                  <tr>
+                    <td style={{ width: "55%" }}>Correo de autorización del decanato para la visita virtual</td>
+                    <td>{res.autorizacion ? `Adjunto (${res.autorizacion.nombre})` : "No adjunto"}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </section>

@@ -85,12 +85,12 @@ export default function SolicitudesCambioAsesor({ solicitudes }: { solicitudes: 
 
                 {mueve && s.actividad && (
                   <p className="text-[11px] text-slate-600 font-semibold">
-                    De Mes {s.actividad.periodo}, Semana {s.actividad.semana} a Mes {s.periodoDestino}, Semana {s.semanaDestino}
+                    De Período {s.actividad.periodo}, Semana {s.actividad.semana} a Período {s.periodoDestino}, Semana {s.semanaDestino}
                   </p>
                 )}
                 {s.tipo === "agregar" && (
                   <p className="text-[11px] text-slate-600 font-semibold">
-                    Destino: Mes {s.periodoDestino}, Semana {s.semanaDestino}
+                    Destino: Período {s.periodoDestino}, Semana {s.semanaDestino}
                   </p>
                 )}
                 {s.tipo === "reubicar" && (
@@ -117,7 +117,7 @@ export default function SolicitudesCambioAsesor({ solicitudes }: { solicitudes: 
                   <button
                     type="button"
                     onClick={() => verDocumento(s.id)}
-                    className="text-[11px] font-bold text-slate-700 underline hover:text-brand-red"
+                    className="text-[11px] font-bold text-slate-700 underline hover:text-unicaes"
                   >
                     Ver nota del supervisor empresarial{s.documentoSupervisorNombre ? ` (${s.documentoSupervisorNombre})` : ""}
                   </button>
@@ -133,7 +133,7 @@ export default function SolicitudesCambioAsesor({ solicitudes }: { solicitudes: 
                       value={respuesta}
                       onChange={(e) => setRespuesta(e.target.value)}
                       placeholder="Respuesta o justificación (obligatoria si rechaza)."
-                      className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-brand-red outline-none resize-none"
+                      className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-unicaes outline-none resize-none"
                     />
                     <div className="flex gap-2 justify-end">
                       <button

@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { enviarInformeMensual, type RequisitoInforme } from "@/app/actions/informesMensuales";
-import { formatearFechaLarga } from "@/lib/periodosPasantia";
+import { formatearFechaLarga, nombreInforme } from "@/lib/periodosPasantia";
+import ElementosInformeFinal from "./ElementosInformeFinal";
 
 interface InformeResumen {
   id: number;
@@ -34,8 +35,11 @@ export default function EnvioInformeClient({
   advertencias,
   paginasEstimadas,
   puedeEnviar,
+  final,
 }: {
   informe: InformeResumen;
+  /** Solo en el informe final: elementos que aporta el egresado. */
+  final: { agradecimientos: string; carta: { nombre: string; url: string } | null; cartaVerificada: boolean } | null;
   periodo: { inicio: string | null; fin: string | null } | null;
   requisitos: RequisitoInforme[];
   advertencias: string[];
@@ -43,7 +47,9 @@ export default function EnvioInformeClient({
   puedeEnviar: boolean;
 }) {
   const router = useRouter();
-  const [requisitos, setRequisitos] = useState(requisitosIniciales);
+  // Los requisitos vienen del servidor (se actualizan al refrescar); tras un envío fallido se muestran los que devolvió.
+  const [requisitosEnvio, setRequisitosEnvio] = useState<RequisitoInforme[] | null>(null);
+  const requisitos = requisitosEnvio ?? requisitosIniciales;
   const [confirmando, setConfirmando] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +68,7 @@ export default function EnvioInformeClient({
       router.refresh();
     } else {
       setError(res.error || "No se pudo enviar el informe.");
-      if ("requisitos" in res && res.requisitos) setRequisitos(res.requisitos);
+      if ("requisitos" in res && res.requisitos) setRequisitosEnvio(res.requisitos);
     }
   };
 
@@ -70,7 +76,7 @@ export default function EnvioInformeClient({
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900">Informe #{informe.numero}</h1>
+          <h1 className="text-xl font-extrabold text-slate-900">{nombreInforme(informe.numero)}</h1>
           <p className="text-xs text-slate-500 font-medium mt-1">Pasantía como Trabajo de Graduación</p>
         </div>
         <Link
@@ -117,8 +123,11 @@ export default function EnvioInformeClient({
             </span>
           </div>
           <div>
-            <span className="block text-[10px] font-bold uppercase text-slate-400">Fecha límite de entrega</span>
-            <span className="font-bold text-slate-800">{formatearFechaLarga(informe.fechaLimite)}</span>
+            <span className="block text-[10px] font-bold uppercase text-slate-400">Fecha de entrega</span>
+            <span className="font-bold text-slate-800">{formatearFechaLarga(periodo?.fin ?? informe.fechaLimite)}</span>
+            <span className="block text-[11px] text-slate-500 font-semibold">
+              Límite de la cohorte: {formatearFechaLarga(informe.fechaLimite)}
+            </span>
           </div>
           <div>
             <span className="block text-[10px] font-bold uppercase text-slate-400">Extensión estimada</span>
@@ -146,6 +155,16 @@ export default function EnvioInformeClient({
           ))}
           <p className="font-medium">Esta advertencia no impide el envío.</p>
         </div>
+      )}
+
+      {final && (
+        <ElementosInformeFinal
+          informeId={informe.id}
+          editable={estadoPermiteEnvio}
+          agradecimientos={final.agradecimientos}
+          carta={final.carta}
+          cartaVerificada={final.cartaVerificada}
+        />
       )}
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
@@ -197,7 +216,7 @@ export default function EnvioInformeClient({
             type="button"
             onClick={() => setConfirmando(true)}
             disabled={!puedeEnviar || pendientes > 0}
-            className="px-6 py-3 rounded-xl bg-brand-red hover:bg-brand-red-hover text-white font-extrabold text-xs shadow-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-6 py-3 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs shadow-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Enviar informe
           </button>
@@ -212,7 +231,7 @@ export default function EnvioInformeClient({
       {confirmando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-extrabold text-slate-900">Confirmar envío del Informe #{informe.numero}</h3>
+            <h3 className="text-base font-extrabold text-slate-900">Confirmar envío del {nombreInforme(informe.numero).toLowerCase()}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
               Una vez enviado, el informe quedará en revisión por su asesor designado y no podrá modificar las actividades de este mes
               salvo que el asesor solicite correcciones. La fecha y hora de envío quedarán registradas.
@@ -228,7 +247,7 @@ export default function EnvioInformeClient({
               <button
                 onClick={handleEnviar}
                 disabled={enviando}
-                className="px-5 py-2 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white text-xs font-extrabold disabled:opacity-50"
+                className="px-5 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-xs font-extrabold disabled:opacity-50"
               >
                 {enviando ? "Enviando..." : "Confirmar envío"}
               </button>

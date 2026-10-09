@@ -44,7 +44,7 @@ export default async function SeguimientoCoordinadorPage() {
                 <th className="py-3.5 px-4">Asesor</th>
                 <th className="py-3.5 px-4">Mes / Semana</th>
                 <th className="py-3.5 px-4">Avance</th>
-                <th className="py-3.5 px-4">Por Revisar</th>
+                <th className="py-3.5 px-4">Semanas por revisar</th>
                 <th className="py-3.5 px-4">Informes</th>
               </tr>
             </thead>
@@ -75,7 +75,7 @@ export default async function SeguimientoCoordinadorPage() {
                     )}
                   </td>
                   <td className="py-4 px-4 text-xs font-semibold text-slate-600">
-                    Mes {e.mesActual}, Sem. {e.semanaActual}
+                    Período {e.mesActual}, Sem. {e.semanaActual}
                   </td>
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-2 min-w-[120px]">

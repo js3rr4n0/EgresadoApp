@@ -3,54 +3,43 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { guardarInformeVisita, subirFotoVisita, eliminarFotoVisita } from "@/app/actions/informeVisita";
+import { reducirImagen } from "@/lib/reducirImagen";
+import {
+  guardarInformeVisita,
+  subirFotoVisita,
+  eliminarFotoVisita,
+  subirAutorizacionVisita,
+  eliminarAutorizacionVisita,
+} from "@/app/actions/informeVisita";
+import CuentaRegresivaVisita from "@/components/CuentaRegresivaVisita";
 import { openDocument } from "@/lib/pdfViewer";
-import { formatearFechaLarga } from "@/lib/periodosPasantia";
 import {
   SECCIONES_VISITA,
   REGLAS_FOTOS_VISITA,
   MAX_FOTOS_VISITA,
   OTRO,
+  idExplicacion,
+  requiereExplicacion,
   preguntaVisible,
   seccionVisible,
   visitaRealizada,
+  esVisitaVirtual,
   validarInformeVisita,
+  type cuentaRegresivaVisita,
+  type AutorizacionVisita,
   type PreguntaVisita,
   type Respuestas,
   type FotoVisita,
 } from "@/lib/formularioVisita";
 
-const LADO_MAXIMO_FOTO = 1600;
-
-/** Reduce la fotografía a un máximo de 1600 px por lado en JPEG para no almacenar archivos innecesariamente pesados. */
-async function reducirFoto(archivo: File): Promise<File> {
-  const url = URL.createObjectURL(archivo);
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const i = new Image();
-      i.onload = () => resolve(i);
-      i.onerror = reject;
-      i.src = url;
-    });
-    const factor = Math.min(1, LADO_MAXIMO_FOTO / Math.max(img.naturalWidth, img.naturalHeight));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(img.naturalWidth * factor);
-    canvas.height = Math.round(img.naturalHeight * factor);
-    canvas.getContext("2d")?.drawImage(img, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.85));
-    return blob ? new File([blob], "visita.jpg", { type: "image/jpeg" }) : archivo;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}
-
 const inputClass =
-  "w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-brand-red outline-none disabled:bg-slate-50 disabled:text-slate-600";
+  "w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-unicaes outline-none disabled:bg-slate-50 disabled:text-slate-600";
 
 export default function InformeVisitaClient({
   propuestaId,
   datos,
-  ventanaVisita,
+  cuentaRegresiva,
+  autorizacion,
   estado,
   respuestasIniciales,
   fotos,
@@ -59,7 +48,8 @@ export default function InformeVisitaClient({
 }: {
   propuestaId: number;
   datos: { tipoTrabajo: string; egresado: string; carnet: string; asesor: string; empresa: string; supervisor: string; cargoSupervisor: string };
-  ventanaVisita: { inicio: string; fin: string } | null;
+  cuentaRegresiva: ReturnType<typeof cuentaRegresivaVisita>;
+  autorizacion: AutorizacionVisita | null;
   estado: string;
   respuestasIniciales: Respuestas;
   fotos: FotoVisita[];
@@ -76,13 +66,36 @@ export default function InformeVisitaClient({
   const [subiendo, setSubiendo] = useState(false);
 
   const completado = estado === "completado";
-  const pendientesCliente = validarInformeVisita(respuestas, fotos);
+  const pendientesCliente = validarInformeVisita(respuestas, fotos, autorizacion);
+  const [subiendoAutorizacion, setSubiendoAutorizacion] = useState(false);
 
   const cambiar = (id: string, valor: string | string[]) => setRespuestas((prev) => ({ ...prev, [id]: valor }));
 
   const alternarMultiple = (id: string, opcion: string) => {
     const actual = Array.isArray(respuestas[id]) ? (respuestas[id] as string[]) : [];
-    cambiar(id, actual.includes(opcion) ? actual.filter((x) => x !== opcion) : [...actual, opcion]);
+    // Una opción exclusiva (por ejemplo, "Ninguna") reemplaza a las demás, y elegir otra la quita.
+    const exclusiva = SECCIONES_VISITA.flatMap((s) => s.preguntas).find((p) => p.id === id)?.exclusiva;
+    if (actual.includes(opcion)) return cambiar(id, actual.filter((x) => x !== opcion));
+    if (exclusiva && opcion === exclusiva) return cambiar(id, [opcion]);
+    cambiar(id, [...actual.filter((x) => x !== exclusiva), opcion]);
+  };
+
+  const adjuntarAutorizacion = async (archivo: File) => {
+    setMensaje(null);
+    setSubiendoAutorizacion(true);
+    const fd = new FormData();
+    fd.append("archivo", archivo);
+    const res = await subirAutorizacionVisita(propuestaId, fd);
+    setSubiendoAutorizacion(false);
+    if (res.success) router.refresh();
+    else setMensaje({ tipo: "error", texto: res.error || "No se pudo adjuntar el correo de autorización." });
+  };
+
+  const quitarAutorizacion = async () => {
+    if (!confirm("¿Eliminar el correo de autorización?")) return;
+    const res = await eliminarAutorizacionVisita(propuestaId);
+    if (res.success) router.refresh();
+    else setMensaje({ tipo: "error", texto: res.error || "No se pudo eliminar el archivo." });
   };
 
   const guardar = async (completar: boolean) => {
@@ -105,7 +118,7 @@ export default function InformeVisitaClient({
     setMensaje(null);
     setSubiendo(true);
     const fd = new FormData();
-    fd.append("archivo", await reducirFoto(fotoPendiente));
+    fd.append("archivo", await reducirImagen(fotoPendiente, "visita.jpg"));
     fd.append("leyenda", pieFoto.trim());
     const res = await subirFotoVisita(propuestaId, fd);
     setSubiendo(false);
@@ -131,7 +144,7 @@ export default function InformeVisitaClient({
     const etiqueta = (
       <span className="block text-xs font-bold text-slate-800 mb-1.5">
         {p.texto}
-        {p.requerida && <span className="text-brand-red"> *</span>}
+        {p.requerida && <span className="text-unicaes"> *</span>}
       </span>
     );
     const campoOtro = (activo: boolean) =>
@@ -161,13 +174,30 @@ export default function InformeVisitaClient({
                   checked={seleccion.includes(o)}
                   disabled={deshabilitado}
                   onChange={() => (p.tipo === "multiple" ? alternarMultiple(p.id, o) : cambiar(p.id, o))}
-                  className="mt-0.5 accent-brand-red"
+                  className="mt-0.5 accent-unicaes"
                 />
                 <span>{o}</span>
               </label>
             ))}
           </div>
           {campoOtro(seleccion.includes(OTRO))}
+          {requiereExplicacion(p, respuestas) && (
+            <label className="block pt-1.5 space-y-1 max-w-2xl">
+              <span className="block text-[11px] font-bold text-slate-700">
+                Explique la respuesta<span className="text-unicaes"> *</span>
+              </span>
+              <textarea
+                rows={2}
+                value={(respuestas[idExplicacion(p)] as string) || ""}
+                disabled={deshabilitado}
+                onChange={(e) => cambiar(idExplicacion(p), e.target.value)}
+                placeholder="Describa brevemente por qué eligió esta respuesta."
+                lang="es"
+                spellCheck
+                className={`${inputClass} font-medium resize-none`}
+              />
+            </label>
+          )}
           {p.ayuda && <p className="text-[11px] text-slate-500 font-semibold">{p.ayuda}</p>}
         </fieldset>
       );
@@ -245,17 +275,58 @@ export default function InformeVisitaClient({
             </div>
           ))}
         </div>
-        {ventanaVisita && (
-          <p className="text-[11px] text-slate-600 font-semibold">
-            Período de visitas de la cohorte: del {formatearFechaLarga(ventanaVisita.inicio)} al {formatearFechaLarga(ventanaVisita.fin)}.
-          </p>
-        )}
+        {cuentaRegresiva && <CuentaRegresivaVisita cuenta={cuentaRegresiva} />}
       </div>
 
       {SECCIONES_VISITA.filter((s) => seccionVisible(s, respuestas)).map((s) => (
         <div key={s.titulo} className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-4">
           <h2 className="text-sm font-extrabold text-card-dark uppercase tracking-wide border-b border-slate-100 pb-2">{s.titulo}</h2>
           {s.preguntas.filter((p) => preguntaVisible(p, respuestas)).map(renderPregunta)}
+          {s.preguntas.some((p) => p.id === "modalidad") && esVisitaVirtual(respuestas) && (
+            <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-2">
+              <p className="text-xs font-bold text-slate-800">
+                Correo de autorización del decanato para la visita virtual<span className="text-unicaes"> *</span>
+              </p>
+              <p className="text-[11px] text-slate-600 font-semibold">Adjunte el correo en PDF o una captura (PNG o JPG), máximo 5 MB.</p>
+              {autorizacion ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => openDocument(autorizacion.url)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-[11px] font-bold text-slate-800 hover:bg-slate-50"
+                  >
+                    Ver {autorizacion.nombre}
+                  </button>
+                  {puedeEditar && (
+                    <button type="button" onClick={quitarAutorizacion} className="text-[11px] font-bold text-red-600 hover:text-red-700">
+                      Eliminar
+                    </button>
+                  )}
+                </div>
+              ) : puedeEditar ? (
+                <label
+                  className={`inline-flex items-center px-4 py-2 rounded-lg text-[11px] font-bold transition-colors ${
+                    subiendoAutorizacion ? "bg-slate-100 text-slate-400" : "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
+                  }`}
+                >
+                  {subiendoAutorizacion ? "Adjuntando..." : "Adjuntar correo de autorización"}
+                  <input
+                    type="file"
+                    accept="application/pdf,image/png,image/jpeg"
+                    className="hidden"
+                    disabled={subiendoAutorizacion}
+                    onChange={(e) => {
+                      const archivo = e.target.files?.[0];
+                      if (archivo) adjuntarAutorizacion(archivo);
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              ) : (
+                <p className="text-[11px] text-red-700 font-semibold">Falta el correo de autorización.</p>
+              )}
+            </div>
+          )}
         </div>
       ))}
 
@@ -333,7 +404,7 @@ export default function InformeVisitaClient({
                     type="button"
                     onClick={adjuntarFoto}
                     disabled={subiendo || pieFoto.trim().length < 3}
-                    className="px-4 py-2 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white text-[11px] font-bold disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-[11px] font-bold disabled:opacity-50"
                   >
                     {subiendo ? "Adjuntando..." : "Adjuntar fotografía"}
                   </button>
@@ -378,7 +449,7 @@ export default function InformeVisitaClient({
               type="button"
               onClick={() => guardar(true)}
               disabled={guardando !== null}
-              className="px-6 py-3 rounded-xl bg-brand-red hover:bg-brand-red-hover text-white font-extrabold text-xs shadow-md disabled:opacity-50"
+              className="px-6 py-3 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs shadow-md disabled:opacity-50"
             >
               {guardando === "completar" ? "Guardando..." : completado ? "Guardar cambios" : "Completar informe de visita"}
             </button>

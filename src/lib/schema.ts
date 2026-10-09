@@ -344,16 +344,22 @@ export const registrosActividad = pgTable(
     estado: varchar("estado", { length: 20 }).notNull().default("pendiente"), // 'pendiente', 'guardado', 'enviado', 'observado', 'aprobado'
 
     fecha: date("fecha"), // fecha de realización; se asigna automáticamente al enviar la semana
-    descriptor: text("descriptor"), // 401-500 palabras
+    descriptor: text("descriptor"), // 200-300 palabras
     marcoTeorico: text("marco_teorico"), // antes de la descripción
-    citaApa: text("cita_apa"), // referencia/citación APA 7
-    conclusionTecnica: text("conclusion_tecnica"), // máx. 200 palabras, después de la imagen de soporte
+    citaApa: text("cita_apa"), // referencia/citación APA 7 (texto ya formateado)
+    citaApaDatos: jsonb("cita_apa_datos"), // campos de la referencia (citaApa.ts); null en referencias de texto libre
+    conclusionTecnica: text("conclusion_tecnica"), // 40-60 palabras, después de la imagen de soporte
 
     imagenUrl: text("imagen_url"), // PNG recortado a 5x5cm, opcional; si existe requiere pie de imagen
     leyendaImagen: varchar("leyenda_imagen", { length: 255 }),
     numeroImagen: integer("numero_imagen"), // numeración correlativa para índice/tabla de contenido
+    imagenOrigen: varchar("imagen_origen", { length: 10 }), // 'propia' | 'externa' (imagen de soporte principal)
+    imagenFuente: jsonb("imagen_fuente"), // datos de la fuente cuando la imagen es externa (fuenteImagen.ts)
 
     comentarioAsesor: text("comentario_asesor"),
+    comentariosSecciones: jsonb("comentarios_secciones"), // comentarios del asesor por apartado (comentariosRevision.ts)
+    versionRevisada: jsonb("version_revisada"), // contenido al momento de la última revisión, para comparar al reenviar
+    declaracionAutoriaEn: timestamp("declaracion_autoria_en", { withTimezone: true }), // el egresado declaró que el contenido es de su autoría al enviar
     enviadoEn: timestamp("enviado_en", { withTimezone: true }),
     revisadoPor: integer("revisado_por").references(() => usuarios.id),
     revisadoEn: timestamp("revisado_en", { withTimezone: true }),
@@ -367,6 +373,48 @@ export const registrosActividad = pgTable(
       sql`${table.estado} IN ('pendiente', 'guardado', 'enviado', 'observado', 'aprobado')`
     ),
   ]
+);
+
+// Imágenes adicionales de una actividad: de soporte (van en el informe y cuentan para el límite semanal, junto con la
+// imagen principal del registro) y anexos (figuras adicionales para los anexos del informe final).
+export const imagenesActividad = pgTable(
+  "imagenes_actividad",
+  {
+    id: serial("id").primaryKey(),
+    registroId: integer("registro_id")
+      .notNull()
+      .references(() => registrosActividad.id, { onDelete: "cascade" }),
+    tipo: varchar("tipo", { length: 10 }).notNull(), // 'soporte' | 'anexo'
+    url: text("url").notNull(),
+    leyenda: varchar("leyenda", { length: 255 }).notNull(),
+    origen: varchar("origen", { length: 10 }).notNull(), // 'propia' | 'externa'
+    fuente: jsonb("fuente"),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("imagenes_actividad_registro_idx").on(table.registroId),
+    check("tipo_imagen_actividad_check", sql`${table.tipo} IN ('soporte', 'anexo')`),
+    check("origen_imagen_actividad_check", sql`${table.origen} IN ('propia', 'externa')`),
+  ]
+);
+
+// Borrador de la revisión semanal del asesor: comentarios aún no registrados. El egresado no lo ve.
+export const borradoresRevision = pgTable(
+  "borradores_revision",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    periodo: smallint("periodo").notNull(),
+    semana: smallint("semana").notNull(),
+    asesorId: integer("asesor_id")
+      .notNull()
+      .references(() => usuarios.id),
+    datos: jsonb("datos").notNull(), // { comentarios: Record<actividadId, ComentariosSecciones>, vistas: number[] }
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("borradores_revision_semana_unica").on(table.propuestaId, table.periodo, table.semana)]
 );
 
 export const semanasJustificadas = pgTable(
@@ -723,6 +771,12 @@ export const informesMensuales = pgTable(
     comentariosDecanato: jsonb("comentarios_decanato"),
     comentariosDecanatoEn: timestamp("comentarios_decanato_en", { withTimezone: true }),
 
+    // Elementos propios del informe final (informe 5): agradecimientos del egresado y carta de finalización satisfactoria
+    agradecimientos: text("agradecimientos"), // opcional; una página, máximo 4 párrafos
+    cartaFinalizacion: jsonb("carta_finalizacion"), // { url, nombre, subidaEn }: imagen de la carta emitida por la empresa
+    cartaFinalizacionVerificadaEn: timestamp("carta_finalizacion_verificada_en", { withTimezone: true }),
+    cartaFinalizacionVerificadaPor: integer("carta_finalizacion_verificada_por").references(() => usuarios.id),
+
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).defaultNow(),
   },
@@ -777,7 +831,8 @@ export const notasSeguimientoAsesor = pgTable(
       .references(() => propuestas.id, { onDelete: "cascade" }),
     periodo: smallint("periodo").notNull(),
     semana: smallint("semana").notNull(),
-    nota: text("nota").notNull(),
+    nota: text("nota").notNull(), // resumen en texto de la nota
+    respuestas: jsonb("respuestas"), // respuestas por pregunta de los comentarios del asesor (comentariosAsesor.ts)
     asesorId: integer("asesor_id").references(() => usuarios.id),
     actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -797,6 +852,7 @@ export const informesVisita = pgTable(
     estado: varchar("estado", { length: 20 }).notNull().default("borrador"), // 'borrador', 'completado'
     respuestas: jsonb("respuestas").notNull().default({}),
     fotos: jsonb("fotos").notNull().default([]), // [{ url, leyenda }]
+    autorizacion: jsonb("autorizacion"), // { url, nombre }: correo de autorización del decanato para la visita virtual
     completadoEn: timestamp("completado_en", { withTimezone: true }),
     creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
     actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),

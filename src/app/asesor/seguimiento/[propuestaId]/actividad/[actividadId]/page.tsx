@@ -1,8 +1,10 @@
 import { redirect, notFound } from "next/navigation";
+import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
-import { getRegistroActividadRevision } from "@/app/actions/registrosActividad";
-import RevisionActividadClient from "./RevisionActividadClient";
+import { db } from "@/lib/db";
+import { actividades } from "@/lib/schema";
 
+/** La revisión es por semana: el enlace de una actividad abre su semana, posicionado en esa actividad. */
 export default async function RevisionActividadPage({
   params,
 }: {
@@ -17,14 +19,12 @@ export default async function RevisionActividadPage({
   const id = Number(actividadId);
   if (!Number.isFinite(id)) notFound();
 
-  const res = await getRegistroActividadRevision(id);
-  if (!res.success || !res.actividad) {
-    return (
-      <div className="p-5 bg-red-50 text-red-600 border border-red-200 rounded-xl text-sm font-bold">
-        {res.error || "No se pudo cargar la actividad."}
-      </div>
-    );
-  }
+  const [actividad] = await db
+    .select({ periodo: actividades.periodo, semana: actividades.semana, propuestaId: actividades.propuestaId })
+    .from(actividades)
+    .where(eq(actividades.id, id))
+    .limit(1);
+  if (!actividad || String(actividad.propuestaId) !== propuestaId) notFound();
 
-  return <RevisionActividadClient data={res as any} propuestaId={propuestaId} />;
+  redirect(`/asesor/seguimiento/${propuestaId}/semana/${actividad.periodo}/${actividad.semana}?actividad=${id}`);
 }

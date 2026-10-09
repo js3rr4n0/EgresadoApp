@@ -3,22 +3,24 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { guardarRegistroActividad, enviarSemanaActividades } from "@/app/actions/registrosActividad";
+import { leerFuenteImagen, leerOrigenImagen } from "@/lib/fuenteImagen";
 import {
-  guardarRegistroActividad,
-  uploadImagenRegistroActividad,
-  deleteImagenRegistroActividad,
-} from "@/app/actions/registrosActividad";
-import { openDocument } from "@/lib/pdfViewer";
-import {
-  contarPalabras,
   DESCRIPTOR_MIN_PALABRAS,
   DESCRIPTOR_MAX_PALABRAS,
   CONCLUSION_MIN_PALABRAS,
   CONCLUSION_MAX_PALABRAS,
 } from "@/lib/reglasRegistroActividad";
-import { EJEMPLOS_REGISTRO } from "@/lib/ejemplosInforme";
+import { datosCitaVacios, leerDatosCita, type DatosCitaApa } from "@/lib/citaApa";
+import { EJEMPLOS_REGISTRO, AVISO_EJEMPLOS } from "@/lib/ejemplosInforme";
 import AyudaEjemplo from "@/components/AyudaEjemplo";
-import RecortadorImagen from "./RecortadorImagen";
+import ImagenesActividad from "./ImagenesActividad";
+import ComentarioAsesor from "./ComentarioAsesor";
+import DeclaracionAutoria from "../../DeclaracionAutoria";
+import { leerComentariosSecciones, contarComentarios, OBSERVACIONES_ESTANDAR } from "@/lib/comentariosRevision";
+import type { DatosOrigenImagen } from "./OrigenImagenCampos";
+import TextoRedaccion from "./TextoRedaccion";
+import CitaApaCampos from "./CitaApaCampos";
 
 function formatoFecha(d: string | Date | null) {
   if (!d) return null;
@@ -38,37 +40,49 @@ const ESTADO_BANNER: Record<string, { className: string; title: string }> = {
 
 const tarjeta = "bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3";
 const tituloTarjeta = "text-sm font-extrabold text-slate-900 uppercase tracking-wide";
-const areaTexto =
-  "w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-brand-red outline-none resize-none disabled:bg-slate-100 disabled:text-slate-500";
 
 export default function RegistroActividadClient({ data }: { data: any }) {
   const router = useRouter();
   const { actividad, registro, estadoGrupo, semana } = data;
 
   const bloqueadaPorSemana = estadoGrupo === "bloqueada";
+  // Semana adelantada: se redacta en borrador mientras el asesor revisa la anterior, pero aún no se envía.
+  const soloBorrador = estadoGrupo === "adelantada";
   const isLocked = registro.estado === "enviado" || registro.estado === "aprobado" || bloqueadaPorSemana;
 
   const [descriptor, setDescriptor] = useState(registro.descriptor || "");
   const [marcoTeorico, setMarcoTeorico] = useState(registro.marcoTeorico || "");
-  const [citaApa, setCitaApa] = useState(registro.citaApa || "");
+  // Referencia por campos; las registradas antes en texto libre se muestran como referencia anterior.
+  const [citaDatos, setCitaDatos] = useState<DatosCitaApa>(() => leerDatosCita(registro.citaApaDatos) ?? datosCitaVacios());
+  const citaAnterior: string | null = !registro.citaApaDatos && registro.citaApa ? registro.citaApa : null;
   const [conclusionTecnica, setConclusionTecnica] = useState(registro.conclusionTecnica || "");
   const [leyendaImagen, setLeyendaImagen] = useState(registro.leyendaImagen || "");
-  const [saving, setSaving] = useState<"borrador" | "siguiente" | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [archivoPorRecortar, setArchivoPorRecortar] = useState<File | null>(null);
+  const [saving, setSaving] = useState<"borrador" | "siguiente" | "enviar" | null>(null);
+  const [confirmandoEnvio, setConfirmandoEnvio] = useState(false);
+  const [declaracion, setDeclaracion] = useState<"si" | "no" | null>(null);
+  const [origenPrincipal, setOrigenPrincipal] = useState<DatosOrigenImagen>({
+    origen: leerOrigenImagen(registro.imagenOrigen),
+    fuente: leerFuenteImagen(registro.imagenFuente),
+  });
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
-  const nPalabras = contarPalabras(descriptor);
-  const palabrasOk = nPalabras >= DESCRIPTOR_MIN_PALABRAS && nPalabras <= DESCRIPTOR_MAX_PALABRAS;
-  const nConclusion = contarPalabras(conclusionTecnica);
-  const conclusionOk = nConclusion >= CONCLUSION_MIN_PALABRAS && nConclusion <= CONCLUSION_MAX_PALABRAS;
-
   const fechaRegistro = formatoFecha(registro.fecha);
   const siguienteId: number | null = semana?.siguienteId ?? null;
+  // En la última actividad de la semana habilitada, el botón principal envía la semana completa al asesor.
+  const enviaSemana = !siguienteId && estadoGrupo === "habilitada";
 
+  // Si los campos de la referencia siguen vacíos se conserva la referencia anterior de texto libre.
+  const citaUsada = !!(citaDatos.titulo.trim() || citaDatos.autores.some((a) => a.apellidos.trim()) || citaDatos.autorInstitucional.trim());
   const guardar = async () =>
-    guardarRegistroActividad(actividad.id, { descriptor, marcoTeorico, citaApa, conclusionTecnica, leyendaImagen });
+    guardarRegistroActividad(actividad.id, {
+      descriptor,
+      marcoTeorico,
+      citaApaDatos: citaUsada ? citaDatos : null,
+      conclusionTecnica,
+      leyendaImagen,
+      ...(registro.imagenUrl ? { imagenOrigen: origenPrincipal.origen, imagenFuente: origenPrincipal.fuente } : {}),
+    });
 
   const handleGuardar = async () => {
     setError(null);
@@ -97,43 +111,46 @@ export default function RegistroActividadClient({ data }: { data: any }) {
     router.push(siguienteId ? `/egresado/reportes/actividad/${siguienteId}` : "/egresado/reportes");
   };
 
-  const handleUpload = async (imagen: Blob, pie: string) => {
+  const handleGuardarYEnviar = async () => {
     setError(null);
-    setUploading(true);
-    const fd = new FormData();
-    fd.append("archivo", new File([imagen], "soporte.png", { type: "image/png" }));
-    fd.append("leyenda", pie);
-    const res = await uploadImagenRegistroActividad(actividad.id, fd);
-    setUploading(false);
-    if (!res.success) {
-      setError(res.error || "No se pudo subir la imagen.");
-    } else {
-      setArchivoPorRecortar(null);
-      setLeyendaImagen(pie);
-      router.refresh();
+    setOkMsg(null);
+    setSaving("enviar");
+    const guardado = await guardar();
+    if (!guardado.success) {
+      setSaving(null);
+      setConfirmandoEnvio(false);
+      setError(guardado.error || "No se pudo guardar la actividad.");
+      return;
     }
-  };
-
-  const handleDeleteImagen = async () => {
-    if (!confirm("¿Eliminar esta imagen?")) return;
-    const res = await deleteImagenRegistroActividad(actividad.id);
+    const res = await enviarSemanaActividades(actividad.propuestaId, declaracion === "si");
+    setSaving(null);
+    setConfirmandoEnvio(false);
     if (res.success) {
-      setLeyendaImagen("");
+      router.push("/egresado/reportes");
+    } else {
+      setError(res.error || "No se pudo enviar la semana.");
       router.refresh();
     }
   };
 
-  const banner = bloqueadaPorSemana ? null : ESTADO_BANNER[registro.estado as string];
+  // Comentarios del asesor por apartado: correcciones (semana devuelta) o retroalimentación (semana aprobada).
+  const comentariosAsesor =
+    registro.estado === "observado" || registro.estado === "aprobado" ? leerComentariosSecciones(registro.comentariosSecciones) : {};
+  const observado = registro.estado === "observado";
+  const hayComentariosPorApartado = contarComentarios(comentariosAsesor) > 0;
+
+  // Con comentarios por apartado, el recuadro de correcciones ya informa el estado observado.
+  const banner =
+    bloqueadaPorSemana || soloBorrador || (observado && hayComentariosPorApartado) ? null : ESTADO_BANNER[registro.estado as string];
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900">Actividad {actividad.codigo}</h1>
-          <p className="text-xs text-slate-500 font-medium mt-1">{actividad.titulo || actividad.descripcion}</p>
+          <h1 className="text-xl font-extrabold text-slate-900">Registro de actividad</h1>
           {semana && (
             <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
-              Actividad {semana.posicion} de {semana.total} de la Semana {semana.semana}, Mes {semana.periodo}
+              Actividad {semana.posicion} de {semana.total} de la Semana {semana.semana}, Período {semana.periodo}
             </p>
           )}
         </div>
@@ -147,27 +164,53 @@ export default function RegistroActividadClient({ data }: { data: any }) {
 
       {bloqueadaPorSemana && (
         <div className="p-4 rounded-xl border bg-slate-100 border-slate-300 text-slate-600 text-xs font-bold">
-          Esta actividad pertenece a una semana que aún no está habilitada. La semana siguiente se habilita cuando su asesor designado
-          aprueba las actividades de la semana actual.
+          Esta actividad pertenece a una semana que aún no está habilitada. Las semanas se habilitan conforme su asesor designado
+          aprueba la anterior.
+        </div>
+      )}
+      {soloBorrador && (
+        <div className="p-4 rounded-xl border bg-slate-50 border-slate-300 text-slate-700 text-xs font-bold">
+          Esta semana está disponible solo en borrador. Puede adelantar su redacción mientras su asesor designado revisa la semana
+          anterior; podrá enviarla en cuanto sea aprobada.
         </div>
       )}
       {banner && <div className={`p-4 rounded-xl border text-xs font-bold ${banner.className}`}>{banner.title}</div>}
 
-      {registro.comentarioAsesor && (
-        <div className="p-4 bg-white border-2 border-amber-300 rounded-xl space-y-1.5">
-          <h3 className="text-xs font-extrabold text-amber-900 uppercase tracking-wide">Observaciones del asesor</h3>
-          <p className="text-xs text-slate-700 font-medium whitespace-pre-wrap">{registro.comentarioAsesor}</p>
+      {hayComentariosPorApartado ? (
+        <div className={`p-4 bg-white border-2 rounded-xl space-y-2 ${observado ? "border-amber-300" : "border-slate-200"}`}>
+          <h3 className={`text-xs font-extrabold uppercase tracking-wide ${observado ? "text-amber-900" : "text-slate-700"}`}>
+            {observado ? "Correcciones solicitadas por su asesor designado" : "Comentarios de su asesor designado"}
+          </h3>
+          <p className="text-[11px] text-slate-600 font-semibold">
+            {contarComentarios(comentariosAsesor)} comentario{contarComentarios(comentariosAsesor) > 1 ? "s" : ""}. Cada uno aparece junto al
+            apartado al que se refiere{observado ? "; corríjalos y vuelva a enviar la semana." : "."}
+          </p>
+          {OBSERVACIONES_ESTANDAR.filter((o) => comentariosAsesor.estandar?.includes(o.id)).map((o) => (
+            <div key={o.id} className="p-3 rounded-lg border-l-4 border-amber-400 bg-amber-50 text-amber-950 space-y-0.5">
+              <p className="text-xs font-extrabold">{o.label}</p>
+              <p className="text-xs font-medium">{o.detalle}</p>
+            </div>
+          ))}
+          <ComentarioAsesor texto={comentariosAsesor.general} observado={observado} />
         </div>
+      ) : (
+        registro.comentarioAsesor && (
+          <div className="p-4 bg-white border-2 border-amber-300 rounded-xl space-y-1.5">
+            <h3 className="text-xs font-extrabold text-amber-900 uppercase tracking-wide">Observaciones del asesor</h3>
+            <p className="text-xs text-slate-700 font-medium whitespace-pre-wrap">{registro.comentarioAsesor}</p>
+          </div>
+        )
       )}
 
       {error && <div className="p-4 bg-red-50 text-red-600 border border-red-200 rounded-xl text-xs font-bold">{error}</div>}
       {okMsg && <div className="p-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold">{okMsg}</div>}
 
       <div className={tarjeta}>
-        <h2 className={`${tituloTarjeta} border-b border-slate-100 pb-2`}>Datos de la Actividad (Gantt)</h2>
+        <h2 className={`${tituloTarjeta} border-b border-slate-100 pb-2`}>Datos de la actividad (cronograma)</h2>
+        <p className="text-2xl font-extrabold text-slate-900 leading-tight">
+          <span className="font-mono text-unicaes">{actividad.codigo}</span> {actividad.titulo || "Sin título"}
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div><span className="block text-slate-400 font-bold uppercase text-[10px]">Código</span><span className="font-mono font-bold text-slate-800">{actividad.codigo}</span></div>
-          <div><span className="block text-slate-400 font-bold uppercase text-[10px]">Título</span><span className="font-bold text-slate-800">{actividad.titulo || "—"}</span></div>
           <div className="sm:col-span-2"><span className="block text-slate-400 font-bold uppercase text-[10px]">Descripción planificada</span><span className="font-medium text-slate-700">{actividad.descripcion}</span></div>
           <div className="sm:col-span-2">
             <span className="block text-slate-400 font-bold uppercase text-[10px]">Fecha de realización</span>
@@ -181,143 +224,77 @@ export default function RegistroActividadClient({ data }: { data: any }) {
           <h2 className={tituloTarjeta}>Marco teórico correspondiente a la actividad realizada</h2>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Fundamente teóricamente la actividad que realizó.</p>
         </div>
-        <AyudaEjemplo ejemplo={EJEMPLOS_REGISTRO.marcoTeorico} />
-        <textarea
-          rows={4}
-          value={marcoTeorico}
-          disabled={isLocked}
-          onChange={(e) => setMarcoTeorico(e.target.value)}
-          placeholder="Fundamento teórico que respalda la actividad realizada..."
-          lang="es"
-          spellCheck
-          className={areaTexto}
+        <ComentarioAsesor texto={comentariosAsesor.marco} marcas={comentariosAsesor.marcas?.filter((m) => m.seccion === "marco")} observado={observado} />
+        <AyudaEjemplo ejemplo={EJEMPLOS_REGISTRO.marcoTeorico} aviso={AVISO_EJEMPLOS} />
+        <TextoRedaccion
+          id="marco-teorico"
+          valor={marcoTeorico}
+          onChange={setMarcoTeorico}
+          deshabilitado={isLocked}
+          filas={5}
+          placeholder="Fundamento teórico que respalda la actividad realizada."
         />
-        <div className="space-y-1">
-          <label className="block text-[10px] font-bold uppercase text-slate-400">Cita / Referencia (formato APA 7)</label>
-          <textarea
-            rows={2}
-            value={citaApa}
-            disabled={isLocked}
-            onChange={(e) => setCitaApa(e.target.value)}
-            placeholder="Apellido, A. A. (Año). Título de la obra. Editorial."
-            lang="es"
-          spellCheck
-          className={areaTexto}
-          />
+        <div className="space-y-2 pt-2">
+          <h3 className="text-[11px] font-extrabold uppercase tracking-wide text-slate-700">Referencia (formato APA 7)</h3>
+          <CitaApaCampos datos={citaDatos} onChange={setCitaDatos} deshabilitado={isLocked} citaAnterior={citaAnterior} />
         </div>
-      </div>
-
-      <div className={tarjeta}>
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
-          <h2 className={tituloTarjeta}>Descripción de la actividad realizada por el pasante</h2>
-          <span className={`text-[11px] font-extrabold shrink-0 ${palabrasOk ? "text-emerald-600" : "text-amber-600"}`}>
-            {nPalabras} / {DESCRIPTOR_MIN_PALABRAS}–{DESCRIPTOR_MAX_PALABRAS} palabras
-          </span>
-        </div>
-        <p className="text-[11px] text-slate-600 font-semibold">
-          Reporte lo que usted realizó. Redáctelo en tiempo pasado (por ejemplo: &quot;el pasante elaboró, revisó, presentó...&quot;).
-        </p>
-        <AyudaEjemplo ejemplo={EJEMPLOS_REGISTRO.descripcion} />
-        <textarea
-          rows={10}
-          value={descriptor}
-          disabled={isLocked}
-          onChange={(e) => setDescriptor(e.target.value)}
-          placeholder={`Describa con detalle lo que usted realizó en esta actividad, en tiempo pasado (${DESCRIPTOR_MIN_PALABRAS} a ${DESCRIPTOR_MAX_PALABRAS} palabras).`}
-          lang="es"
-          spellCheck
-          className={areaTexto}
-        />
       </div>
 
       <div className={tarjeta}>
         <div className="border-b border-slate-100 pb-2">
-          <h2 className={tituloTarjeta}>Imagen de soporte (opcional)</h2>
+          <h2 className={tituloTarjeta}>Descripción de la actividad realizada por el pasante</h2>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-            Se recorta a 5 x 5 cm para el informe. Toda imagen requiere su pie de imagen.
+            Reporte lo que usted realizó, en tiempo pasado (por ejemplo: &quot;El pasante elaboró, revisó, presentó...&quot;). Separe los
+            párrafos con un solo Enter.
           </p>
         </div>
-        <AyudaEjemplo ejemplo={EJEMPLOS_REGISTRO.imagen} />
-
-        {!isLocked && !registro.imagenUrl && (
-          <label
-            className={`inline-flex items-center justify-center px-4 py-2 rounded-lg text-[11px] font-bold cursor-pointer transition-colors ${
-              uploading ? "bg-slate-100 text-slate-400" : "bg-slate-900 hover:bg-slate-800 text-white"
-            }`}
-          >
-            Seleccionar imagen
-            <input
-              type="file"
-              accept="image/png,image/jpeg"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) setArchivoPorRecortar(file);
-                e.target.value = "";
-              }}
-            />
-          </label>
-        )}
-
-        {registro.imagenUrl ? (
-          <div className="flex items-start gap-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={registro.imagenUrl}
-              alt={registro.leyendaImagen || "evidencia"}
-              className="w-32 h-32 object-cover rounded-lg border border-slate-200 cursor-pointer"
-              onClick={() => openDocument(registro.imagenUrl)}
-            />
-            <div className="flex-1 space-y-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase">Imagen N° {registro.numeroImagen}</p>
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold uppercase text-slate-400">Pie de imagen</label>
-                <input
-                  type="text"
-                  value={leyendaImagen}
-                  maxLength={255}
-                  disabled={isLocked}
-                  onChange={(e) => setLeyendaImagen(e.target.value)}
-                  placeholder="Descripción breve de la imagen"
-                  className="w-full bg-white border border-border rounded-lg px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-brand-red outline-none disabled:bg-slate-100 disabled:text-slate-500"
-                />
-                {leyendaImagen.trim().length < 3 && (
-                  <p className="text-[11px] text-amber-700 font-semibold">El pie de imagen es obligatorio para poder enviar la semana.</p>
-                )}
-              </div>
-              {!isLocked && (
-                <button type="button" onClick={handleDeleteImagen} className="text-[11px] font-bold text-red-600 hover:text-red-700">
-                  Eliminar imagen
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <p className="text-[11px] text-slate-400 font-semibold">Sin imagen adjunta.</p>
-        )}
+        <ComentarioAsesor texto={comentariosAsesor.descripcion} marcas={comentariosAsesor.marcas?.filter((m) => m.seccion === "descripcion")} observado={observado} />
+        <AyudaEjemplo ejemplo={EJEMPLOS_REGISTRO.descripcion} aviso={AVISO_EJEMPLOS} />
+        <TextoRedaccion
+          id="descripcion"
+          valor={descriptor}
+          onChange={setDescriptor}
+          deshabilitado={isLocked}
+          filas={16}
+          placeholder={`Describa lo que usted realizó en esta actividad, en tiempo pasado (${DESCRIPTOR_MIN_PALABRAS} a ${DESCRIPTOR_MAX_PALABRAS} palabras).`}
+          minimo={DESCRIPTOR_MIN_PALABRAS}
+          maximo={DESCRIPTOR_MAX_PALABRAS}
+        />
       </div>
 
+      <ImagenesActividad
+        actividadId={actividad.id}
+        imagenUrl={registro.imagenUrl}
+        numeroImagen={registro.numeroImagen}
+        leyenda={leyendaImagen}
+        onLeyenda={setLeyendaImagen}
+        origenPrincipal={origenPrincipal}
+        onOrigenPrincipal={setOrigenPrincipal}
+        imagenes={data.imagenes ?? []}
+        imagenesSemana={data.imagenesSemana ?? { usadas: 0, limite: 9, faltantesPrincipal: 0 }}
+        bloqueado={isLocked}
+        onError={setError}
+        comentario={<ComentarioAsesor texto={comentariosAsesor.imagenes} observado={observado} />}
+      />
+
       <div className={tarjeta}>
-        <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
+        <div className="border-b border-slate-100 pb-2">
           <h2 className={tituloTarjeta}>Conclusión técnica de la actividad</h2>
-          <span className={`text-[11px] font-extrabold shrink-0 ${conclusionOk ? "text-emerald-600" : "text-amber-600"}`}>
-            {nConclusion} / máx. {CONCLUSION_MAX_PALABRAS} palabras
-          </span>
+          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+            Indique el resultado técnico obtenido y su fundamento. No incluya opiniones ni valoraciones personales.
+          </p>
         </div>
-        <p className="text-[11px] text-slate-600 font-semibold">
-          Indique el resultado técnico obtenido y su fundamento. No incluya opiniones ni valoraciones personales.
-        </p>
-        <AyudaEjemplo ejemplo={EJEMPLOS_REGISTRO.conclusion} />
-        <textarea
-          rows={5}
-          value={conclusionTecnica}
-          disabled={isLocked}
-          onChange={(e) => setConclusionTecnica(e.target.value)}
-          placeholder="Conclusión técnica derivada de la actividad realizada..."
-          lang="es"
-          spellCheck
-          className={areaTexto}
+        <ComentarioAsesor texto={comentariosAsesor.conclusion} marcas={comentariosAsesor.marcas?.filter((m) => m.seccion === "conclusion")} observado={observado} />
+        <AyudaEjemplo ejemplo={EJEMPLOS_REGISTRO.conclusion} aviso={AVISO_EJEMPLOS} />
+        <TextoRedaccion
+          id="conclusion"
+          valor={conclusionTecnica}
+          onChange={setConclusionTecnica}
+          deshabilitado={isLocked}
+          filas={4}
+          placeholder={`Conclusión técnica derivada de la actividad realizada (${CONCLUSION_MIN_PALABRAS} a ${CONCLUSION_MAX_PALABRAS} palabras).`}
+          minimo={CONCLUSION_MIN_PALABRAS}
+          maximo={CONCLUSION_MAX_PALABRAS}
         />
       </div>
 
@@ -333,31 +310,81 @@ export default function RegistroActividadClient({ data }: { data: any }) {
           </button>
           <button
             type="button"
-            onClick={handleGuardarYContinuar}
+            onClick={
+              enviaSemana
+                ? () => {
+                    setDeclaracion(null);
+                    setConfirmandoEnvio(true);
+                  }
+                : handleGuardarYContinuar
+            }
             disabled={saving !== null}
-            className="px-6 py-3 rounded-xl bg-brand-red hover:bg-brand-red-hover text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50"
+            className="px-6 py-3 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50"
           >
             {saving === "siguiente"
               ? "Guardando..."
               : siguienteId
-                ? `Guardar y pasar a la siguiente actividad (${semana.siguienteCodigo})`
-                : "Guardar y volver a la semana"}
+                ? `Siguiente actividad (${semana.siguienteCodigo})`
+                : enviaSemana
+                  ? "Enviar semana al asesor"
+                  : "Guardar y volver a la semana"}
           </button>
         </div>
       )}
       {!isLocked && (
         <p className="text-right text-[11px] text-slate-500 font-semibold">
-          Las actividades se envían al asesor todas juntas, una vez completadas las de la semana, desde la pantalla de seguimiento.
+          {siguienteId
+            ? "Al pasar a la siguiente actividad, esta se guarda como borrador."
+            : enviaSemana
+              ? "Es la última actividad de la semana: al enviar, todas las actividades de la semana pasan juntas a revisión."
+              : soloBorrador
+                ? "Podrá enviar esta semana cuando su asesor designado apruebe la anterior."
+                : "Las actividades se envían al asesor todas juntas, una vez completadas las de la semana."}
         </p>
       )}
+      {isLocked && !bloqueadaPorSemana && siguienteId && (
+        <div className="flex justify-end">
+          <Link
+            href={`/egresado/reportes/actividad/${siguienteId}`}
+            className="px-5 py-3 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs transition-colors"
+          >
+            Siguiente actividad ({semana.siguienteCodigo})
+          </Link>
+        </div>
+      )}
 
-      {archivoPorRecortar && (
-        <RecortadorImagen
-          archivo={archivoPorRecortar}
-          enviando={uploading}
-          onCancelar={() => setArchivoPorRecortar(null)}
-          onConfirmar={handleUpload}
-        />
+      {confirmandoEnvio && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 className="text-base font-extrabold text-slate-900">
+              Enviar la Semana {semana.semana} del Período {semana.periodo}
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Se guardará esta actividad y se enviarán las {semana.total} actividades de la semana a su asesor designado para su
+              revisión. No podrá editarlas mientras estén en revisión. Mientras tanto podrá adelantar el borrador de la semana
+              siguiente. La fecha de realización quedará registrada con la fecha de hoy.
+            </p>
+            <DeclaracionAutoria valor={declaracion} onChange={setDeclaracion} />
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmandoEnvio(false)}
+                disabled={saving !== null}
+                className="px-4 py-2 rounded-lg border border-border text-xs font-bold text-slate-700 hover:bg-slate-100"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleGuardarYEnviar}
+                disabled={saving !== null || declaracion !== "si"}
+                className="px-5 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-xs font-extrabold disabled:opacity-50"
+              >
+                {saving === "enviar" ? "Enviando..." : "Confirmar envío"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
-import { formatearFechaHoraElSalvador } from "@/lib/periodosPasantia";
+import { formatearFechaHoraElSalvador, esInformeFinal } from "@/lib/periodosPasantia";
+import { leerCartaFinalizacion } from "@/lib/informeFinal";
 import { getEnvioInformeMensual } from "@/app/actions/informesMensuales";
 import EnvioInformeClient from "./EnvioInformeClient";
 
@@ -23,8 +24,18 @@ export default async function EnvioInformePage({ params }: { params: Promise<{ i
     );
   }
 
+  const carta = leerCartaFinalizacion(res.informe.cartaFinalizacion);
   return (
     <EnvioInformeClient
+      final={
+        esInformeFinal(res.informe.numero)
+          ? {
+              agradecimientos: res.informe.agradecimientos ?? "",
+              carta: carta ? { nombre: carta.nombre, url: carta.url } : null,
+              cartaVerificada: !!res.informe.cartaFinalizacionVerificadaEn,
+            }
+          : null
+      }
       informe={{
         id: res.informe.id,
         numero: res.informe.numero,

@@ -202,7 +202,7 @@ export default function SolicitudesCambioActividad({
       return;
     }
     if (!encontrada.editable) {
-      setBusquedaError(`La actividad ${codigo} no pertenece a su período actual (Mes ${opciones.posicionActual.mes}); solo puede reubicar actividades de ese período.`);
+      setBusquedaError(`La actividad ${codigo} no pertenece a su período actual (Período ${opciones.posicionActual.mes}); solo puede reubicar actividades de ese período.`);
       return;
     }
     if (!sinEnviar(encontrada)) {
@@ -253,7 +253,7 @@ export default function SolicitudesCambioActividad({
   const intercambioSeleccionado = candidatasIntercambio.find((a) => a.id === intercambioId) || null;
 
   const inputClass =
-    "w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-brand-red outline-none disabled:bg-slate-50 disabled:text-slate-400";
+    "w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-unicaes outline-none disabled:bg-slate-50 disabled:text-slate-400";
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
@@ -261,7 +261,7 @@ export default function SolicitudesCambioActividad({
         <div>
           <h3 className="text-sm font-extrabold text-slate-900">Cambios al Cronograma (Gantt)</h3>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-            Aplican únicamente a actividades no realizadas de su período actual (Mes {opciones.posicionActual.mes}): lo que ya fue
+            Aplican únicamente a actividades no realizadas de su período actual (Período {opciones.posicionActual.mes}): lo que ya fue
             enviado al asesor no puede modificarse. Todo cambio requiere justificación, la nota de solicitud o aprobación del supervisor empresarial y la aprobación de su asesor
             designado antes de aplicarse.
           </p>
@@ -300,7 +300,7 @@ export default function SolicitudesCambioActividad({
                 </div>
                 {s.periodoDestino && (
                   <p className="text-[11px] text-slate-600 font-semibold">
-                    Destino: Mes {s.periodoDestino}, Semana {s.semanaDestino}
+                    Destino: Período {s.periodoDestino}, Semana {s.semanaDestino}
                     {s.actividadIntercambio && ` — intercambio con ${s.actividadIntercambio.codigo}`}
                   </p>
                 )}
@@ -309,7 +309,7 @@ export default function SolicitudesCambioActividad({
                   <button
                     type="button"
                     onClick={() => verDocumento(s.id)}
-                    className="text-[11px] font-bold text-slate-700 underline hover:text-brand-red"
+                    className="text-[11px] font-bold text-slate-700 underline hover:text-unicaes"
                   >
                     Ver documento del supervisor{s.documentoSupervisorNombre ? ` (${s.documentoSupervisorNombre})` : ""}
                   </button>
@@ -344,7 +344,7 @@ export default function SolicitudesCambioActividad({
               {error && <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-bold">{error}</div>}
 
               <p className="text-[11px] text-slate-500 font-semibold">
-                Semana actual: Mes {opciones.posicionActual.mes}, Semana {opciones.posicionActual.semana}.
+                Semana actual: Período {opciones.posicionActual.mes}, Semana {opciones.posicionActual.semana}.
               </p>
 
               <div className="space-y-1">
@@ -384,7 +384,7 @@ export default function SolicitudesCambioActividad({
                     ))}
                   </select>
                   <p className="text-[11px] text-slate-500">
-                    Solo se listan actividades del período actual (Mes {opciones.posicionActual.mes}) que aún no han sido realizadas ni enviadas.
+                    Solo se listan actividades del período actual (Período {opciones.posicionActual.mes}) que aún no han sido realizadas ni enviadas.
                   </p>
                   {actividadesSelector.length === 0 && (
                     <p className="text-[11px] text-red-700 font-semibold">
@@ -400,7 +400,7 @@ export default function SolicitudesCambioActividad({
                           : "text-slate-600"
                       }`}
                     >
-                      Eliminaciones solicitadas en el Mes {actividadSeleccionada.periodo}:{" "}
+                      Eliminaciones solicitadas en el Período {actividadSeleccionada.periodo}:{" "}
                       {opciones.eliminacionesPorMes[actividadSeleccionada.periodo] || 0} de {opciones.maxEliminacionesPorMes}.
                       {(opciones.eliminacionesPorMes[actividadSeleccionada.periodo] || 0) >= opciones.maxEliminacionesPorMes &&
                         " Este período ya alcanzó el límite; una nueva eliminación requiere autorización del decanato."}
@@ -441,7 +441,7 @@ export default function SolicitudesCambioActividad({
                         {actividadSeleccionada.codigo} — {actividadSeleccionada.titulo}
                       </p>
                       <p className="text-slate-500 font-semibold">
-                        Ubicación actual: Mes {actividadSeleccionada.periodo}, Semana {actividadSeleccionada.semana}
+                        Ubicación actual: Período {actividadSeleccionada.periodo}, Semana {actividadSeleccionada.semana}
                       </p>
                     </div>
                   )}
@@ -464,7 +464,7 @@ export default function SolicitudesCambioActividad({
                       <option value="">Seleccione</option>
                       {mesesDisponibles.map((m) => (
                         <option key={m.mes} value={m.mes}>
-                          Mes {m.mes} ({m.nombre})
+                          Período {m.mes} ({m.nombre})
                         </option>
                       ))}
                     </select>
@@ -490,7 +490,7 @@ export default function SolicitudesCambioActividad({
                   </div>
                   {mesSeleccionado?.inicio && (
                     <p className="col-span-2 text-[11px] text-slate-500 font-semibold">
-                      El Mes {mesSeleccionado.mes} comprende del {formatoCorto(mesSeleccionado.inicio)} al{" "}
+                      El Período {mesSeleccionado.mes} comprende del {formatoCorto(mesSeleccionado.inicio)} al{" "}
                       {formatoCorto(mesSeleccionado.fin)}.
                     </p>
                   )}
@@ -519,8 +519,8 @@ export default function SolicitudesCambioActividad({
                   </select>
                   <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2 font-medium">
                     {intercambioSeleccionado
-                      ? `La actividad ${actividadSeleccionada.codigo} tomará la posición de ${intercambioSeleccionado.codigo} (Mes ${mesDestino}, Semana ${semanaDestino}) y ${intercambioSeleccionado.codigo} pasará a la ubicación original (Mes ${actividadSeleccionada.periodo}, Semana ${actividadSeleccionada.semana}). Ambas intercambian su código.`
-                      : `La actividad ${actividadSeleccionada.codigo} se moverá al final de Mes ${mesDestino}, Semana ${semanaDestino} y recibirá un nuevo código. Las actividades que ya están en esa semana conservan su código.`}
+                      ? `La actividad ${actividadSeleccionada.codigo} tomará la posición de ${intercambioSeleccionado.codigo} (Período ${mesDestino}, Semana ${semanaDestino}) y ${intercambioSeleccionado.codigo} pasará a la ubicación original (Período ${actividadSeleccionada.periodo}, Semana ${actividadSeleccionada.semana}). Ambas intercambian su código.`
+                      : `La actividad ${actividadSeleccionada.codigo} se moverá al final de Período ${mesDestino}, Semana ${semanaDestino} y recibirá un nuevo código. Las actividades que ya están en esa semana conservan su código.`}
                   </p>
                 </div>
               )}
@@ -604,7 +604,7 @@ export default function SolicitudesCambioActividad({
               <button
                 onClick={handleSubmit}
                 disabled={loading || !puedeEnviar}
-                className="px-5 py-2 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white text-xs font-extrabold transition-colors disabled:opacity-50"
+                className="px-5 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-xs font-extrabold transition-colors disabled:opacity-50"
               >
                 {loading ? "Enviando..." : "Enviar solicitud"}
               </button>

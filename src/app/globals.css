@@ -7,6 +7,10 @@
   --brand-red: #c1121f;
   --brand-red-hover: #780000;
   
+  /* Color institucional UNICAES */
+  --unicaes: #800000;
+  --unicaes-hover: #5c0000;
+  
   --card-bg: #ffffff;
   --card-dark: #1e293b;
   --card-yellow: #fffdeb;
@@ -21,6 +25,8 @@
   --color-foreground: var(--foreground);
   --color-brand-red: var(--brand-red);
   --color-brand-red-hover: var(--brand-red-hover);
+  --color-unicaes: var(--unicaes);
+  --color-unicaes-hover: var(--unicaes-hover);
   
   --color-card-bg: var(--card-bg);
   --color-card-dark: var(--card-dark);

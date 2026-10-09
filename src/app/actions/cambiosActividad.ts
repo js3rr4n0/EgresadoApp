@@ -18,7 +18,7 @@ import { registrarEvento } from "@/lib/bitacora";
 
 function textoSolicitud(tipo: TipoCambio, codigo: string | null, destino: { periodo: number | null; semana: number | null }) {
   const sobre = codigo ? ` ${codigo}` : "";
-  const hacia = destino.periodo && destino.semana ? ` (destino: Mes ${destino.periodo}, Semana ${destino.semana})` : "";
+  const hacia = destino.periodo && destino.semana ? ` (destino: Período ${destino.periodo}, Semana ${destino.semana})` : "";
   return `${TIPO_TEXTO[tipo]}${sobre}${hacia}`;
 }
 
@@ -134,16 +134,16 @@ function validarDestino(ctx: ContextoCronograma, mes: number | null | undefined,
     return `El mes seleccionado está fuera del período configurado (meses 1 a ${ctx.periodos.length}).`;
   }
   if (semana < 1 || semana > periodo.semanas) {
-    return `El Mes ${mes} tiene ${periodo.semanas} semana${periodo.semanas === 1 ? "" : "s"}; la semana ${semana} no es válida.`;
+    return `El Período ${mes} tiene ${periodo.semanas} semana${periodo.semanas === 1 ? "" : "s"}; la semana ${semana} no es válida.`;
   }
   if (ctx.mesesNoEditables.has(mes)) {
-    return `El informe del Mes ${mes} ya fue enviado o su período cerró; no admite cambios en el cronograma.`;
+    return `El informe del Período ${mes} ya fue enviado o su período cerró; no admite cambios en el cronograma.`;
   }
   if (mes !== ctx.posicionActual.mes) {
-    return `Los cambios solo pueden programarse dentro de su período actual (Mes ${ctx.posicionActual.mes}).`;
+    return `Los cambios solo pueden programarse dentro de su período actual (Período ${ctx.posicionActual.mes}).`;
   }
   if (compararPosicion({ mes, semana }, ctx.posicionActual) < 0) {
-    return `No es posible programar actividades en una semana anterior a su semana actual (Mes ${ctx.posicionActual.mes}, Semana ${ctx.posicionActual.semana}).`;
+    return `No es posible programar actividades en una semana anterior a su semana actual (Período ${ctx.posicionActual.mes}, Semana ${ctx.posicionActual.semana}).`;
   }
   return null;
 }
@@ -182,7 +182,7 @@ async function validarSolicitud(ctx: ContextoCronograma, datos: DatosSolicitud, 
   const origen: Posicion = { mes: actividad.periodo, semana: actividad.semana };
 
   if (actividad.periodo !== ctx.posicionActual.mes) {
-    return `Solo se pueden solicitar cambios sobre actividades de su período actual (Mes ${ctx.posicionActual.mes}); la actividad ${codigoActividad(actividad)} pertenece al Mes ${actividad.periodo}.`;
+    return `Solo se pueden solicitar cambios sobre actividades de su período actual (Período ${ctx.posicionActual.mes}); la actividad ${codigoActividad(actividad)} pertenece al Período ${actividad.periodo}.`;
   }
   if (ctx.mesesNoEditables.has(actividad.periodo)) {
     return `La actividad ${codigoActividad(actividad)} pertenece a un informe ya enviado o cuyo período cerró.`;
@@ -198,7 +198,7 @@ async function validarSolicitud(ctx: ContextoCronograma, datos: DatosSolicitud, 
 
   if (datos.tipo === "eliminar") {
     if ((await contarEliminacionesDelMes(actividad.propuestaId, actividad.periodo, excluirSolicitudId)) >= MAX_ELIMINACIONES_POR_MES) {
-      return `Solo se permite eliminar una actividad por mes con la aprobación del asesor. Eliminar una segunda actividad del Mes ${actividad.periodo} requiere la autorización del decanato.`;
+      return `Solo se permite eliminar una actividad por período con la aprobación del asesor. Eliminar una segunda actividad del Período ${actividad.periodo} requiere la autorización del decanato.`;
     }
     return null;
   }
@@ -209,17 +209,17 @@ async function validarSolicitud(ctx: ContextoCronograma, datos: DatosSolicitud, 
 
   if (datos.tipo === "posponer") {
     if (compararPosicion(destino, origen) <= 0) {
-      return `Para posponer, el destino debe ser posterior a la ubicación actual de la actividad (Mes ${origen.mes}, Semana ${origen.semana}).`;
+      return `Para posponer, el destino debe ser posterior a la ubicación actual de la actividad (Período ${origen.mes}, Semana ${origen.semana}).`;
     }
     if (destino.mes !== origen.mes) {
-      return `Una actividad solo puede posponerse dentro de su período (Mes ${origen.mes}); no es posible trasladarla al Mes ${destino.mes}. Si ya no se realizará, solicite su eliminación.`;
+      return `Una actividad solo puede posponerse dentro de su período (Período ${origen.mes}); no es posible trasladarla al Período ${destino.mes}. Si ya no se realizará, solicite su eliminación.`;
     }
     return null;
   }
 
   // reubicar
   if (compararPosicion(destino, origen) >= 0) {
-    return `Para reubicar, el destino debe ser anterior a la ubicación actual de la actividad (Mes ${origen.mes}, Semana ${origen.semana}). Para moverla a una semana posterior utilice "Posponer actividad".`;
+    return `Para reubicar, el destino debe ser anterior a la ubicación actual de la actividad (Período ${origen.mes}, Semana ${origen.semana}). Para moverla a una semana posterior utilice "Posponer actividad".`;
   }
 
   if (datos.actividadIntercambioId) {

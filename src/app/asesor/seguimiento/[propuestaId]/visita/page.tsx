@@ -1,7 +1,8 @@
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getInformeVisita } from "@/app/actions/informeVisita";
-import { formatearFechaHoraElSalvador } from "@/lib/periodosPasantia";
+import { formatearFechaHoraElSalvador, hoyISOElSalvador } from "@/lib/periodosPasantia";
+import { cuentaRegresivaVisita } from "@/lib/formularioVisita";
 import InformeVisitaClient from "./InformeVisitaClient";
 
 export default async function InformeVisitaPage({ params }: { params: Promise<{ propuestaId: string }> }) {
@@ -27,7 +28,12 @@ export default async function InformeVisitaPage({ params }: { params: Promise<{ 
     <InformeVisitaClient
       propuestaId={id}
       datos={res.datos}
-      ventanaVisita={res.ventanaVisita ?? null}
+      cuentaRegresiva={cuentaRegresivaVisita(
+        res.ventanaVisita?.inicioPasantia ?? null,
+        hoyISOElSalvador(),
+        res.visita.estado === "completado"
+      )}
+      autorizacion={res.autorizacion ?? null}
       estado={res.visita.estado}
       respuestasIniciales={res.visita.respuestas}
       fotos={res.visita.fotos}

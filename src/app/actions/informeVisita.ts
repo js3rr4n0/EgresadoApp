@@ -10,13 +10,32 @@ import {
   SECCIONES_VISITA,
   MAX_FOTOS_VISITA,
   validarInformeVisita,
+  idExplicacion,
+  esVisitaVirtual,
+  DIA_INICIO_VISITA,
+  DIA_FIN_VISITA,
   type Respuestas,
   type FotoVisita,
+  type AutorizacionVisita,
 } from "@/lib/formularioVisita";
+import { getPeriodosPropuesta } from "@/lib/habilitacionActividades";
+import { sumarDiasISO } from "@/lib/periodosPasantia";
+
+const TAMANO_MAXIMO_AUTORIZACION = 5 * 1024 * 1024;
+const TIPOS_AUTORIZACION = ["application/pdf", "image/png", "image/jpeg"];
+
+/** Inicio de la pasantía: primer día del primer período de 30 días. */
+async function inicioPasantia(propuestaId: number) {
+  return (await getPeriodosPropuesta(propuestaId))[0]?.inicio ?? null;
+}
 
 const TAMANO_MAXIMO_FOTO = 6 * 1024 * 1024;
 const LARGO_MAXIMO_TEXTO = 3000;
-const IDS_PREGUNTAS = new Set(SECCIONES_VISITA.flatMap((s) => s.preguntas.flatMap((p) => (p.otro ? [p.id, `${p.id}_otro`] : [p.id]))));
+const IDS_PREGUNTAS = new Set(
+  SECCIONES_VISITA.flatMap((s) =>
+    s.preguntas.flatMap((p) => [p.id, ...(p.otro ? [`${p.id}_otro`] : []), ...(p.tipo === "opcion" ? [idExplicacion(p)] : [])])
+  )
+);
 
 /** Acceso de lectura: asesor asignado, coordinador, administrador o decanato. Edición: solo el asesor asignado. */
 async function cargarPropuesta(propuestaId: number) {
@@ -95,7 +114,13 @@ export async function getInformeVisita(propuestaId: number) {
         supervisor: supervisor ? `${supervisor.nombres} ${supervisor.apellidos}` : "—",
         cargoSupervisor: supervisor?.cargo || "—",
       },
-      ventanaVisita: periodo ? { inicio: periodo.visitaAsesorInicio, fin: periodo.visitaAsesorFin } : null,
+      // Ventana oficial: entre los días 90 y 100 después del inicio de la pasantía (si no se conoce el inicio, la de la cohorte).
+      ventanaVisita: await (async () => {
+        const inicio = await inicioPasantia(propuestaId);
+        if (inicio) return { inicio: sumarDiasISO(inicio, DIA_INICIO_VISITA), fin: sumarDiasISO(inicio, DIA_FIN_VISITA), inicioPasantia: inicio };
+        return periodo ? { inicio: periodo.visitaAsesorInicio, fin: periodo.visitaAsesorFin, inicioPasantia: null } : null;
+      })(),
+      autorizacion: (visita?.autorizacion as AutorizacionVisita | null) ?? null,
       visita: visita
         ? {
             estado: visita.estado,
@@ -120,8 +145,9 @@ export async function guardarInformeVisita(propuestaId: number, respuestas: Resp
 
     const limpias = limpiarRespuestas(respuestas);
     const fotos = (ctx.visita?.fotos || []) as FotoVisita[];
+    const autorizacion = (ctx.visita?.autorizacion as AutorizacionVisita | null) ?? null;
     if (completar) {
-      const problemas = validarInformeVisita(limpias, fotos);
+      const problemas = validarInformeVisita(limpias, fotos, autorizacion);
       if (problemas.length > 0) {
         return { success: false, error: "Faltan apartados por completar:", problemas };
       }
@@ -130,6 +156,8 @@ export async function guardarInformeVisita(propuestaId: number, respuestas: Resp
     const ahora = new Date();
     const valores = {
       respuestas: limpias,
+      // Si la visita deja de ser virtual, el correo de autorización ya no aplica.
+      ...(esVisitaVirtual(limpias) ? {} : { autorizacion: null }),
       estado: completar ? "completado" : "borrador",
       completadoEn: completar ? ahora : null,
       asesorId: ctx.session.userId,
@@ -201,6 +229,65 @@ export async function subirFotoVisita(propuestaId: number, formData: FormData) {
   } catch (err: any) {
     console.error("Error al subir fotografía de visita:", err);
     return { success: false, error: err.message || "Error al subir la fotografía" };
+  }
+}
+
+/** Correo de autorización del decanato para la visita virtual (PDF o imagen). */
+export async function subirAutorizacionVisita(propuestaId: number, formData: FormData) {
+  try {
+    const ctx = await cargarParaEditar(propuestaId);
+    if ("error" in ctx) return { success: false, error: ctx.error };
+
+    const archivo = formData.get("archivo");
+    if (!archivo || typeof archivo === "string") return { success: false, error: "Debe seleccionar el archivo del correo de autorización." };
+    if (!TIPOS_AUTORIZACION.includes(archivo.type)) return { success: false, error: "El archivo debe ser PDF, PNG o JPG." };
+    if (archivo.size > TAMANO_MAXIMO_AUTORIZACION) return { success: false, error: "El archivo excede el tamaño máximo de 5 MB." };
+
+    const buffer = Buffer.from(await archivo.arrayBuffer());
+    const autorizacion: AutorizacionVisita = {
+      url: `data:${archivo.type};base64,${buffer.toString("base64")}`,
+      nombre: (archivo.name || "autorizacion").slice(0, 200),
+    };
+    if (ctx.visita) {
+      await db.update(informesVisita).set({ autorizacion, actualizadoEn: new Date() }).where(eq(informesVisita.propuestaId, propuestaId));
+    } else {
+      await db.insert(informesVisita).values({ propuestaId, autorizacion, asesorId: ctx.session.userId });
+    }
+
+    await registrarEvento({
+      propuestaId,
+      actorId: ctx.session.userId,
+      actorRol: "asesor",
+      tipo: "visita_actualizada",
+      descripcion: `Adjuntó el correo de autorización del decanato para la visita virtual (${autorizacion.nombre}).`,
+      referencia: "visita",
+    });
+
+    revalidatePath(`/asesor/seguimiento/${propuestaId}/visita`);
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error al subir la autorización de la visita:", err);
+    return { success: false, error: err.message || "Error al subir el archivo" };
+  }
+}
+
+export async function eliminarAutorizacionVisita(propuestaId: number) {
+  try {
+    const ctx = await cargarParaEditar(propuestaId);
+    if ("error" in ctx) return { success: false, error: ctx.error };
+    if (!ctx.visita) return { success: false, error: "No hay un correo de autorización registrado." };
+    // Sin la autorización, una visita virtual deja de estar completa.
+    const virtual = esVisitaVirtual((ctx.visita.respuestas || {}) as Respuestas);
+    const estado = virtual && ctx.visita.estado === "completado" ? "borrador" : ctx.visita.estado;
+    await db
+      .update(informesVisita)
+      .set({ autorizacion: null, estado, completadoEn: estado === "completado" ? ctx.visita.completadoEn : null, actualizadoEn: new Date() })
+      .where(eq(informesVisita.propuestaId, propuestaId));
+    revalidatePath(`/asesor/seguimiento/${propuestaId}/visita`);
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error al eliminar la autorización de la visita:", err);
+    return { success: false, error: err.message || "Error al eliminar el archivo" };
   }
 }
 

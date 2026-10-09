@@ -21,17 +21,20 @@ import {
   codigoActividad,
   validarContenidoRegistro,
   getPeriodosPropuesta,
-  getPosicionActual,
   getActividadesPospuestas,
+  conImagenesAdicionales,
   ESTADOS_REGISTRADOS,
 } from "@/lib/habilitacionActividades";
 import { estimarPaginas, PAGINAS_MINIMAS_INFORME } from "@/lib/metricaPaginas";
 import { leerComentarios, validarComentariosCompletos } from "@/lib/comentariosAsesor";
 import { registrarEvento } from "@/lib/bitacora";
+import { palabrasDudosas } from "@/lib/ortografia";
+import { leerComentariosSecciones } from "@/lib/comentariosRevision";
 
 /** El informe del tercer período (alrededor de los 90 días) incluye la visita del asesor a la empresa. */
 const NUMERO_INFORME_VISITA = 3;
-import { hoyISOElSalvador, sumarDiasISO, formatearFechaLarga, NUM_INFORMES_MENSUALES } from "@/lib/periodosPasantia";
+import { hoyISOElSalvador, formatearFechaLarga, NUM_INFORMES_MENSUALES, esInformeFinal } from "@/lib/periodosPasantia";
+import { leerCartaFinalizacion, validarAgradecimientos } from "@/lib/informeFinal";
 
 async function assertAccesoPropuesta(propuestaId: number) {
   const session = await getSession();
@@ -56,9 +59,9 @@ async function assertAccesoPropuesta(propuestaId: number) {
 }
 
 /**
- * Asegura que exista el "contenedor" de informe (numero 1-5) para cada período de 30 días de la pasantía,
- * con la fecha límite tomada de las fechas de la cohorte (periodos.max*Informe; el quinto usa maxInformeFinal). Este registro es lo que Fase 4 usa para
- * detectar el cierre de cada periodo de 30 días y lo que Fase 5 usará como base del informe generado.
+ * Asegura que exista el "contenedor" de informe (numero 1-5) para cada período de 30 días de la pasantía.
+ * fechaLimite guarda el límite máximo de la cohorte (periodos.max*Informe; el quinto usa maxInformeFinal): al vencer, el período
+ * se cierra. La fecha de entrega esperada es el último día de cada período (día 30, y día 150 para el quinto); ver fechaEntregaInforme.
  */
 export async function ensureInformesMensuales(propuestaId: number) {
   const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
@@ -105,6 +108,15 @@ export async function ensureInformesMensuales(propuestaId: number) {
   }
 
   return { prop, informes: existentes };
+}
+
+/**
+ * Fecha de entrega esperada del informe: el último día de su período de 30 días (día 150 para el quinto). Desde esa fecha
+ * corre el retraso. Sin fecha de inicio de la pasantía se usa el límite de la cohorte.
+ */
+async function fechaEntregaInforme(propuestaId: number, numero: number, fechaLimiteCohorte: string) {
+  const periodo = (await getPeriodosPropuesta(propuestaId)).find((p) => p.num === numero);
+  return periodo?.fin ?? fechaLimiteCohorte;
 }
 
 export async function getInformesMensuales(propuestaId: number) {
@@ -185,10 +197,12 @@ export async function verificarCierrePeriodo(
 
     const hoy = new Date();
     const fechaLimite = new Date(`${informeMes.fechaLimite}T23:59:59`);
-    const diasRestantes = Math.ceil((fechaLimite.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+    const fechaEntrega = await fechaEntregaInforme(propuestaId, mesActual, informeMes.fechaLimite);
+    const diasRestantes = Math.round((Date.parse(fechaEntrega) - Date.parse(hoyISOElSalvador())) / (1000 * 60 * 60 * 24));
+    const informePresentado = informeMes.estado === "enviado" || informeMes.estado === "aprobado";
 
-    // Notificación 3 días antes del cierre (una sola vez por mes)
-    if (diasRestantes <= 3 && diasRestantes >= 0 && !informeMes.alertaCierreEnviada) {
+    // Aviso 3 días antes de la fecha de entrega (día 30 del período), una sola vez por informe
+    if (diasRestantes <= 3 && diasRestantes >= 0 && !informeMes.alertaCierreEnviada && !informePresentado) {
       const pendientesTexto =
         actividadesPendientesMes > 0
           ? `Tiene ${actividadesPendientesMes} actividad${actividadesPendientesMes > 1 ? "es" : ""} pendiente${actividadesPendientesMes > 1 ? "s" : ""} de registrar/enviar.`
@@ -197,7 +211,7 @@ export async function verificarCierrePeriodo(
       await db.insert(notificaciones).values({
         usuarioId: prop.egresadoId,
         tipo: "cierre_periodo_proximo",
-        mensaje: `Faltan ${diasRestantes} día(s) para la fecha límite del informe del Mes ${mesActual} de su pasantía (${formatearFechaLarga(informeMes.fechaLimite)}). ${pendientesTexto}`,
+        mensaje: `Faltan ${diasRestantes} día(s) para la fecha de entrega del informe del Período ${mesActual} de su pasantía (${formatearFechaLarga(fechaEntrega)}). ${pendientesTexto}`,
       });
 
       await db
@@ -209,13 +223,13 @@ export async function verificarCierrePeriodo(
         propuestaId,
         actorRol: "sistema",
         tipo: "alerta_cierre",
-        descripcion: `Se notificó al egresado que faltan ${diasRestantes} día(s) para la fecha límite del Informe #${mesActual}. ${pendientesTexto}`,
+        descripcion: `Se notificó al egresado que faltan ${diasRestantes} día(s) para la fecha de entrega del Informe #${mesActual}. ${pendientesTexto}`,
         referencia: `informe:${informeMes.id}`,
       });
     }
 
-    // Cierre del periodo: el informe se considera cerrado con lo que haya registrado hasta la fecha,
-    // aunque existan actividades incompletas. La entrega formal al asesor sigue dependiendo de la
+    // Cierre del periodo al vencer el límite de la cohorte: el informe se considera cerrado con lo que haya registrado hasta
+    // la fecha, aunque existan actividades incompletas. La entrega formal al asesor sigue dependiendo de la
     // revisión (Fase 2) y de la generación del documento (Fase 5).
     let cerrado = informeMes.cerrado;
     if (hoy.getTime() > fechaLimite.getTime() && !informeMes.cerrado) {
@@ -229,7 +243,7 @@ export async function verificarCierrePeriodo(
         propuestaId,
         actorRol: "sistema",
         tipo: "periodo_cerrado",
-        descripcion: `Venció la fecha límite del Informe #${mesActual} (${formatearFechaLarga(informeMes.fechaLimite)}) con ${actividadesPendientesMes} actividad(es) sin completar.`,
+        descripcion: `Venció el límite de la cohorte del Informe #${mesActual} (${formatearFechaLarga(informeMes.fechaLimite)}) con ${actividadesPendientesMes} actividad(es) sin completar.`,
         referencia: `informe:${informeMes.id}`,
       });
 
@@ -237,7 +251,7 @@ export async function verificarCierrePeriodo(
         await db.insert(notificaciones).values({
           usuarioId: prop.asesorId,
           tipo: "periodo_cerrado",
-          mensaje: `El Mes ${mesActual} de la propuesta #${prop.numero} cerró con la información registrada hasta la fecha límite.`,
+          mensaje: `El Período ${mesActual} de la propuesta #${prop.numero} cerró con la información registrada hasta la fecha límite.`,
         });
       }
 
@@ -248,12 +262,19 @@ export async function verificarCierrePeriodo(
         await db.insert(notificaciones).values({
           usuarioId: prop.coordinadorId,
           tipo: "periodo_cerrado_coordinador",
-          mensaje: `El Mes ${mesActual} de la propuesta #${prop.numero} cerró con ${actividadesPendientesMes} actividad(es) sin completar.${avanceTexto}`,
+          mensaje: `El Período ${mesActual} de la propuesta #${prop.numero} cerró con ${actividadesPendientesMes} actividad(es) sin completar.${avanceTexto}`,
         });
       }
     }
 
-    return { success: true, diasRestantes, cerrado, fechaLimite: informeMes.fechaLimite };
+    return {
+      success: true,
+      diasRestantes,
+      fechaEntrega,
+      cerrado,
+      fechaLimite: informeMes.fechaLimite,
+      estadoInforme: informeMes.estado,
+    };
   } catch (err: any) {
     console.error("Error en verificarCierrePeriodo:", err);
     return { success: false, error: err.message || "Error al verificar el cierre del periodo" };
@@ -275,41 +296,31 @@ export interface RequisitoInforme {
 const ETIQUETA_ESTADO_ACTIVIDAD: Record<string, string> = {
   pendiente: "sin registrar",
   guardado: "guardada como borrador; falta enviarla",
+  enviado: "enviada; falta que su asesor designado apruebe la semana",
   observado: "tiene observaciones del asesor pendientes de corregir",
 };
+
+/**
+ * La aprobación es acumulativa: si el asesor aprobó todas las semanas del período, el informe mensual ya está validado.
+ * Por eso el informe solo se envía y se aprueba con todas las actividades del período aprobadas.
+ */
+async function actividadesSinAprobar(propuestaId: number, numero: number) {
+  const { actividades: acts, registros } = await ensureRegistros(propuestaId);
+  const estadoPorActividad = new Map(registros.map((r) => [r.actividadId, r.estado]));
+  return acts
+    .filter((a) => a.periodo === numero && estadoPorActividad.get(a.id) !== "aprobado")
+    .map((a) => codigoActividad(a));
+}
 
 /** Evalúa en servidor si el informe mensual cumple todas las condiciones para enviarse. */
 async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta) {
   const requisitos: RequisitoInforme[] = [];
-  const hoy = hoyISOElSalvador();
-
-  // 1. Período del informe cumplido
+  // El informe puede enviarse antes de que termine el período, en cuanto el asesor apruebe todas sus semanas;
+  // la fecha de entrega esperada es el último día del período (día 30).
   const periodosProp = await getPeriodosPropuesta(prop.id);
   const periodo = periodosProp.find((p) => p.num === informe.numero) || null;
-  if (periodo?.fin) {
-    const cumplido = hoy > periodo.fin;
-    requisitos.push({
-      id: "periodo",
-      titulo: "Período del informe finalizado",
-      cumplido,
-      detalles: cumplido
-        ? []
-        : [
-            `El Mes ${informe.numero} comprende del ${formatearFechaLarga(periodo.inicio)} al ${formatearFechaLarga(periodo.fin)}. El informe podrá enviarse a partir del ${formatearFechaLarga(sumarDiasISO(periodo.fin, 1))}.`,
-          ],
-    });
-  } else {
-    const posicion = await getPosicionActual(prop.id);
-    const cumplido = !posicion || posicion.mes > informe.numero;
-    requisitos.push({
-      id: "periodo",
-      titulo: "Período del informe finalizado",
-      cumplido,
-      detalles: cumplido ? [] : [`Debe concluir las semanas del Mes ${informe.numero} antes de enviar el informe.`],
-    });
-  }
 
-  // 2. Datos generales de la portada
+  // 1. Datos generales de la portada
   const faltantesPortada: string[] = [];
   if (!prop.asesorId) faltantesPortada.push("No hay asesor designado.");
   if (!prop.empresaId) faltantesPortada.push("No hay empresa registrada en la propuesta.");
@@ -321,7 +332,7 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
     detalles: faltantesPortada,
   });
 
-  // 3. Actividades del mes registradas y enviadas
+  // 2. Actividades del mes aprobadas por el asesor (todas sus semanas)
   const { actividades: acts, registros } = await ensureRegistros(prop.id);
   const actsMes = acts.filter((a) => a.periodo === informe.numero);
   const registroPorActividad = new Map(registros.map((r) => [r.actividadId, r]));
@@ -330,7 +341,7 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   const pendientesActividad: string[] = [];
   const problemasContenido: string[] = [];
   if (actsMes.length === 0) {
-    pendientesActividad.push(`El Mes ${informe.numero} no tiene actividades en el cronograma.`);
+    pendientesActividad.push(`El Período ${informe.numero} no tiene actividades en el cronograma.`);
   }
   for (const a of actsMes) {
     const r = registroPorActividad.get(a.id);
@@ -342,7 +353,9 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
           ? `${nombre}: actividad pospuesta; debe completarla o solicitar su eliminación para enviar el informe.`
           : `${nombre}: ${ETIQUETA_ESTADO_ACTIVIDAD[estado]}.`
       );
-    } else if (r) {
+    }
+    // El contenido se valida en toda actividad ya enviada a revisión (enviada o aprobada).
+    if (r && (estado === "enviado" || estado === "aprobado")) {
       for (const problema of validarContenidoRegistro(r)) {
         problemasContenido.push(`${codigoActividad(a)}: ${problema}`);
       }
@@ -350,18 +363,18 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   }
   requisitos.push({
     id: "actividades",
-    titulo: "Actividades del mes registradas y enviadas",
+    titulo: "Actividades del mes aprobadas por su asesor designado",
     cumplido: pendientesActividad.length === 0,
     detalles: pendientesActividad,
   });
   requisitos.push({
     id: "contenido",
-    titulo: "Contenido obligatorio de cada actividad (marco teórico con cita APA 7, descripción de 401 a 500 palabras, pie de imagen y conclusión técnica)",
+    titulo: "Contenido obligatorio de cada actividad (marco teórico con cita APA 7, descripción de 200 a 300 palabras, pie de imagen y conclusión técnica de 40 a 60 palabras)",
     cumplido: problemasContenido.length === 0,
     detalles: problemasContenido,
   });
 
-  // 4. Sin cambios pendientes en el cronograma del mes
+  // 3. Sin cambios pendientes en el cronograma del mes
   const actIdsMes = new Set(actsMes.map((a) => a.id));
   const solicitudesPendientes = await db
     .select()
@@ -383,16 +396,40 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
     }),
   });
 
-  // Extensión estimada del informe frente al mínimo: es una advertencia, no impide el envío.
+  // 4. Extensión mínima del informe: impide el envío si no alcanza las páginas requeridas.
   const advertencias: string[] = [];
   const registrosRegistrados = actsMes
     .map((a) => registroPorActividad.get(a.id))
     .filter((r): r is NonNullable<typeof r> => !!r && ESTADOS_REGISTRADOS.includes(r.estado));
-  const paginasEstimadas = estimarPaginas(registrosRegistrados);
-  if (paginasEstimadas < PAGINAS_MINIMAS_INFORME) {
-    advertencias.push(
-      `La extensión estimada del informe es de ${paginasEstimadas} páginas y el mínimo requerido es de ${PAGINAS_MINIMAS_INFORME}. Se recomienda complementar el cronograma con actividades adicionales mediante una solicitud de cambio.`
-    );
+  const paginasEstimadas = estimarPaginas(await conImagenesAdicionales(registrosRegistrados));
+  requisitos.push({
+    id: "extension",
+    titulo: `Extensión mínima de ${PAGINAS_MINIMAS_INFORME} páginas`,
+    cumplido: paginasEstimadas >= PAGINAS_MINIMAS_INFORME,
+    detalles:
+      paginasEstimadas >= PAGINAS_MINIMAS_INFORME
+        ? []
+        : [
+            `La extensión estimada es de ${Math.round(paginasEstimadas)} páginas. Complete el período con actividades adicionales mediante una solicitud de cambio al cronograma.`,
+          ],
+  });
+
+  // 5. Elementos propios del informe final: agradecimientos (opcionales) y carta de finalización satisfactoria.
+  if (esInformeFinal(informe.numero)) {
+    const problemasAgradecimientos = validarAgradecimientos(informe.agradecimientos || "");
+    requisitos.push({
+      id: "agradecimientos",
+      titulo: "Agradecimientos (opcionales): una página, máximo 4 párrafos",
+      cumplido: problemasAgradecimientos.length === 0,
+      detalles: problemasAgradecimientos,
+    });
+    const carta = leerCartaFinalizacion(informe.cartaFinalizacion);
+    requisitos.push({
+      id: "carta",
+      titulo: "Carta de finalización satisfactoria emitida por la empresa",
+      cumplido: !!carta,
+      detalles: carta ? [] : ["Adjunte la imagen de la carta de finalización satisfactoria emitida por la empresa."],
+    });
   }
 
   return {
@@ -409,6 +446,108 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   };
 }
 
+export interface PuntoRubrica {
+  id: string;
+  titulo: string;
+  estado: "cumple" | "pendiente" | "revisar";
+  detalle: string;
+  automatico: boolean;
+}
+
+/**
+ * Lista de verificación de la rúbrica del informe: el sistema valida casi todos los puntos por sí solo para que el
+ * asesor se concentre en el contenido. Los criterios de redacción, involucramiento y valor de la actividad provienen
+ * de las observaciones estándar que el asesor marcó en la revisión semanal.
+ */
+async function verificarRubrica(
+  informe: InformeMensual,
+  prop: Propuesta,
+  requisitos: RequisitoInforme[],
+  paginasEstimadas: number
+): Promise<PuntoRubrica[]> {
+  const { actividades: acts, registros } = await ensureRegistros(prop.id);
+  const actsPeriodo = acts.filter((a) => a.periodo === informe.numero);
+  const registroPorActividad = new Map(registros.map((r) => [r.actividadId, r]));
+  const registrosPeriodo = actsPeriodo.map((a) => ({ a, r: registroPorActividad.get(a.id) }));
+  const req = (id: string) => requisitos.find((r) => r.id === id);
+  const sinAprobar = registrosPeriodo.filter((x) => x.r?.estado !== "aprobado").length;
+  const sinDeclaracion = registrosPeriodo.filter((x) => !x.r?.declaracionAutoriaEn).length;
+  const dudosas = [
+    ...new Set(
+      (
+        await Promise.all(
+          registrosPeriodo.map((x) => palabrasDudosas(x.r?.marcoTeorico, x.r?.descriptor, x.r?.conclusionTecnica))
+        )
+      ).flat()
+    ),
+  ];
+  const conObservacion = (id: string) =>
+    registrosPeriodo.filter((x) => leerComentariosSecciones(x.r?.comentariosSecciones).estandar?.includes(id as never)).map((x) => codigoActividad(x.a));
+
+  const punto = (id: string, titulo: string, cumple: boolean | null, detalle: string, automatico = true): PuntoRubrica => ({
+    id,
+    titulo,
+    estado: cumple === null ? "pendiente" : cumple ? "cumple" : "revisar",
+    detalle,
+    automatico,
+  });
+  const observacionEstandar = (id: string, titulo: string) => {
+    const codigos = conObservacion(id);
+    return punto(
+      id,
+      titulo,
+      codigos.length === 0,
+      codigos.length === 0 ? "Sin observaciones en la revisión semanal." : `Observado en: ${codigos.join(", ")}.`,
+      false
+    );
+  };
+
+  return [
+    punto(
+      "a_tiempo",
+      "Entregado a tiempo",
+      informe.cumplimiento ? informe.cumplimiento === "a_tiempo" : null,
+      informe.cumplimiento ? (informe.cumplimiento === "a_tiempo" ? "Enviado dentro del plazo." : "Enviado fuera del plazo.") : "Aún no se ha enviado."
+    ),
+    punto("formato", "Formato institucional (márgenes, tipografía, interlineado)", true, "Lo aplica el sistema al generar el documento."),
+    punto(
+      "extension",
+      "Extensión mínima de 20 páginas",
+      paginasEstimadas >= 20,
+      `Extensión estimada: ${Math.round(paginasEstimadas)} páginas.`
+    ),
+    punto(
+      "cronograma",
+      "Actividades conforme al cronograma, aprobadas semana a semana",
+      sinAprobar === 0,
+      sinAprobar === 0 ? "Todas las actividades del período están aprobadas." : `${sinAprobar} actividad(es) sin aprobar.`
+    ),
+    punto(
+      "contenido",
+      "Marco teórico con cita APA 7, descripción, imagen con fuente y conclusión",
+      req("contenido")?.cumplido ?? false,
+      req("contenido")?.cumplido ? "Todos los apartados cumplen." : (req("contenido")?.detalles[0] ?? "Hay apartados incompletos.")
+    ),
+    punto(
+      "ortografia",
+      "Ortografía",
+      dudosas.length === 0,
+      dudosas.length === 0
+        ? "Sin palabras desconocidas."
+        : `Revise: ${dudosas.slice(0, 8).join(", ")}${dudosas.length > 8 ? "..." : ""} (pueden ser errores o palabras en otro idioma).`
+    ),
+    punto(
+      "produccion_propia",
+      "Producción propia del egresado",
+      sinDeclaracion === 0,
+      sinDeclaracion === 0 ? "Declarada al enviar cada semana." : `${sinDeclaracion} actividad(es) sin declaración de autoría.`
+    ),
+    observacionEstandar("redaccion", "Redacción acorde al nivel del egresado"),
+    observacionEstandar("involucramiento", "Involucramiento del egresado en las actividades"),
+    observacionEstandar("no_reportable", "Actividades reportables con valor para el egresado"),
+  ];
+}
+
 export async function getEnvioInformeMensual(informeId: number) {
   try {
     const [informe] = await db.select().from(informesMensuales).where(eq(informesMensuales.id, informeId)).limit(1);
@@ -419,12 +558,16 @@ export async function getEnvioInformeMensual(informeId: number) {
 
     const { requisitos, advertencias, paginasEstimadas, periodo, actividadesMes } = await evaluarRequisitosInforme(informe, access.prop);
     const estadoPermiteEnvio = informe.estado === "redactando" || informe.estado === "observado";
+    // La lista de verificación de la rúbrica es para quien revisa el informe.
+    const rubrica = access.session.rol === "egresado" ? [] : await verificarRubrica(informe, access.prop, requisitos, paginasEstimadas);
 
     return {
       success: true,
       informe,
+      rubrica,
       propuestaId: access.prop.id,
       periodo,
+      fechaEntrega: periodo?.fin ?? informe.fechaLimite,
       requisitos,
       advertencias,
       paginasEstimadas,
@@ -471,7 +614,9 @@ export async function enviarInformeMensual(informeId: number) {
 
     const ahora = new Date();
     const hoy = hoyISOElSalvador();
-    const desviacionDias = Math.round((Date.parse(hoy) - Date.parse(informe.fechaLimite)) / (1000 * 60 * 60 * 24));
+    const fechaEntrega = await fechaEntregaInforme(prop.id, informe.numero, informe.fechaLimite);
+    const aTiempo = hoy <= fechaEntrega;
+    const desviacionDias = Math.round((Date.parse(hoy) - Date.parse(fechaEntrega)) / (1000 * 60 * 60 * 24));
 
     await db
       .update(informesMensuales)
@@ -479,7 +624,7 @@ export async function enviarInformeMensual(informeId: number) {
         estado: "enviado",
         enviadoEn: ahora,
         fechaPresentacion: hoy,
-        cumplimiento: hoy <= informe.fechaLimite ? "a_tiempo" : "fuera_de_tiempo",
+        cumplimiento: aTiempo ? "a_tiempo" : "fuera_de_tiempo",
         desviacionDias,
         comentarioAsesor: null,
         revisadoPor: null,
@@ -493,7 +638,7 @@ export async function enviarInformeMensual(informeId: number) {
       actorId: session.userId,
       actorRol: "egresado",
       tipo: "informe_enviado",
-      descripcion: `Envió el Informe #${informe.numero} al asesor (${hoy <= informe.fechaLimite ? "a tiempo" : "fuera de tiempo"}).`,
+      descripcion: `Envió el Informe #${informe.numero} al asesor (${aTiempo ? "a tiempo" : "fuera de tiempo"}).`,
       referencia: `informe:${informeId}`,
     });
 
@@ -532,11 +677,23 @@ async function cargarInformeParaAsesor(informeId: number) {
   return { session, informe, prop };
 }
 
-/** Lo que el asesor debe registrar antes de aprobar: sus comentarios para el decanato y, en el Informe #3, el informe de visita. */
+/**
+ * Lo que debe cumplirse antes de que el asesor apruebe: todas las semanas del período aprobadas, sus comentarios para el
+ * decanato y, en el Informe #3, el informe de visita.
+ */
 async function requisitosAprobacionAsesor(informe: InformeMensual) {
   const pendientes: string[] = [];
+  const sinAprobar = await actividadesSinAprobar(informe.propuestaId, informe.numero);
+  if (sinAprobar.length > 0) {
+    pendientes.push(
+      `Debe aprobar todas las semanas del Período ${informe.numero} antes de aprobar el informe. Actividades sin aprobar: ${sinAprobar.join(", ")}.`
+    );
+  }
   if (validarComentariosCompletos(leerComentarios(informe.comentariosDecanato)).length > 0) {
     pendientes.push("Debe completar los comentarios del asesor para el decanato antes de aprobar el informe.");
+  }
+  if (esInformeFinal(informe.numero) && !informe.cartaFinalizacionVerificadaEn) {
+    pendientes.push("Debe verificar la carta de finalización satisfactoria antes de aprobar el informe final.");
   }
   if (informe.numero === NUMERO_INFORME_VISITA) {
     const [visita] = await db

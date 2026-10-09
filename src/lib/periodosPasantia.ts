@@ -129,3 +129,23 @@ export function formatearFechaLarga(iso: string | null | undefined): string {
     day: "numeric",
   });
 }
+
+/** El informe del último período es el informe final: consolida los cinco períodos (no hay un informe final aparte). */
+export function esInformeFinal(numero: number) {
+  return numero === NUM_INFORMES_MENSUALES;
+}
+
+/** Nombre corto del informe para tarjetas y encabezados: "Informe del período 2" o "Informe final". */
+export function nombreInforme(numero: number) {
+  return esInformeFinal(numero) ? "Informe final" : `Informe del período ${numero}`;
+}
+
+/** Título del documento en la portada institucional: "INFORME FINAL DE PASANTÍA" o "INFORME DEL PERÍODO N DE PASANTÍA". */
+export function tituloDocumentoInforme(numero: number) {
+  return esInformeFinal(numero) ? "INFORME FINAL DE PASANTÍA" : `INFORME DEL PERÍODO ${numero} DE PASANTÍA`;
+}
+
+/** Nombre breve para tarjetas: "Informe #2" o "Informe final". */
+export function nombreCortoInforme(numero: number) {
+  return esInformeFinal(numero) ? "Informe final" : `Informe #${numero}`;
+}

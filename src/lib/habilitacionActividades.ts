@@ -1,7 +1,8 @@
 import "server-only";
 import { db } from "@/lib/db";
-import { actividades, registrosActividad, cartasAceptacion, solicitudesCambioActividad } from "@/lib/schema";
+import { actividades, registrosActividad, cartasAceptacion, solicitudesCambioActividad, imagenesActividad } from "@/lib/schema";
 import { eq, and, asc, inArray, max } from "drizzle-orm";
+import { limiteImagenesSemana } from "@/lib/fuenteImagen";
 import {
   generarPeriodosPasantia,
   fechaLocalDesdeISO,
@@ -57,6 +58,8 @@ export async function ensureRegistros(propuestaId: number) {
 /**
  * Agrupa actividades por (periodo, semana) en orden del Gantt. La semana N+1 se habilita cuando todas las actividades
  * de la semana N fueron aprobadas por el asesor. Una semana enviada a revisión queda "en_revision" (sin acciones del egresado).
+ * Margen de una semana: cuando la semana actual ya fue enviada (en revisión o devuelta con observaciones), la siguiente queda
+ * "adelantada": el egresado puede redactarla en borrador, pero solo la envía cuando el asesor aprueba la semana actual.
  */
 export function calcularHabilitacion(acts: Actividad[], registrosPorActividad: Map<number, RegistroActividad>) {
   const grupos: {
@@ -79,10 +82,12 @@ export function calcularHabilitacion(acts: Actividad[], registrosPorActividad: M
     ...g,
     completo: g.actividades.every((x) => x.registro?.estado === "aprobado"),
     enRevision: g.actividades.every((x) => x.registro?.estado === "enviado" || x.registro?.estado === "aprobado"),
+    yaEnviado: g.actividades.every((x) => ESTADOS_REGISTRADOS.includes(x.registro?.estado || "")),
   }));
 
   let grupoActualIdx = gruposConEstado.findIndex((g) => !g.completo);
   if (grupoActualIdx === -1) grupoActualIdx = gruposConEstado.length - 1;
+  const grupoAdelantadoIdx = gruposConEstado[grupoActualIdx]?.yaEnviado ? grupoActualIdx + 1 : -1;
 
   return gruposConEstado.map((g, idx) => ({
     ...g,
@@ -92,8 +97,86 @@ export function calcularHabilitacion(acts: Actividad[], registrosPorActividad: M
         ? g.enRevision
           ? ("en_revision" as const)
           : ("habilitada" as const)
-        : ("bloqueada" as const),
+        : idx === grupoAdelantadoIdx
+          ? ("adelantada" as const)
+          : ("bloqueada" as const),
   }));
+}
+
+/** Semana siguiente que el egresado puede redactar en borrador mientras el asesor revisa la actual. */
+export function grupoAdelantadoDe<T extends { estadoGrupo: string }>(grupos: T[]): T | undefined {
+  return grupos.find((g) => g.estadoGrupo === "adelantada");
+}
+
+/**
+ * Estado de una semana desde la perspectiva del asesor. La revisión y la aprobación son por semana completa.
+ * - por_revisar: todas sus actividades fueron enviadas y al menos una espera revisión.
+ * - en_correccion: el asesor devolvió la semana con observaciones y el estudiante aún no la reenvía
+ *   (las actividades observadas conservan ese estado mientras se corrigen).
+ * - en_redaccion: el estudiante aún no la envía completa (el asesor puede ver el borrador).
+ */
+export type EstadoSemanaAsesor = "aprobada" | "por_revisar" | "en_correccion" | "en_redaccion";
+
+export function estadoSemanaAsesor(estados: string[]): EstadoSemanaAsesor {
+  if (estados.every((e) => e === "aprobado")) return "aprobada";
+  if (estados.every((e) => e === "enviado" || e === "aprobado")) return "por_revisar";
+  if (estados.some((e) => e === "observado")) return "en_correccion";
+  return "en_redaccion";
+}
+
+/** Semanas enviadas que esperan la revisión del asesor. */
+export function contarSemanasPorRevisar(grupos: { actividades: { registro: RegistroActividad | undefined }[] }[]) {
+  return grupos.filter((g) => estadoSemanaAsesor(g.actividades.map((x) => x.registro?.estado || "pendiente")) === "por_revisar")
+    .length;
+}
+
+/** Agrega a cada registro cuántas imágenes de soporte adicionales tiene (para estimar la extensión del informe). */
+export async function conImagenesAdicionales<T extends { id: number }>(registros: T[]) {
+  const filas = registros.length
+    ? await db
+        .select({ registroId: imagenesActividad.registroId })
+        .from(imagenesActividad)
+        .where(and(inArray(imagenesActividad.registroId, registros.map((r) => r.id)), eq(imagenesActividad.tipo, "soporte")))
+    : [];
+  const cuenta = new Map<number, number>();
+  for (const f of filas) cuenta.set(f.registroId, (cuenta.get(f.registroId) ?? 0) + 1);
+  return registros.map((r) => ({ ...r, imagenesAdicionales: cuenta.get(r.id) ?? 0 }));
+}
+
+/**
+ * Imágenes de soporte de una semana: la principal de cada actividad más las adicionales. Las actividades sin imagen
+ * principal tienen su espacio reservado, porque la imagen principal es obligatoria.
+ */
+export async function conteoImagenesSemana(propuestaId: number, periodo: number, semana: number) {
+  const acts = await db
+    .select({ id: actividades.id })
+    .from(actividades)
+    .where(
+      and(
+        eq(actividades.propuestaId, propuestaId),
+        eq(actividades.periodo, periodo),
+        eq(actividades.semana, semana),
+        eq(actividades.eliminada, false)
+      )
+    );
+  const registros = acts.length
+    ? await db
+        .select({ id: registrosActividad.id, imagenUrl: registrosActividad.imagenUrl })
+        .from(registrosActividad)
+        .where(inArray(registrosActividad.actividadId, acts.map((a) => a.id)))
+    : [];
+  const adicionales = registros.length
+    ? await db
+        .select({ id: imagenesActividad.id })
+        .from(imagenesActividad)
+        .where(and(inArray(imagenesActividad.registroId, registros.map((r) => r.id)), eq(imagenesActividad.tipo, "soporte")))
+    : [];
+  const principales = registros.filter((r) => r.imagenUrl).length;
+  return {
+    usadas: principales + adicionales.length,
+    faltantesPrincipal: acts.length - principales,
+    limite: limiteImagenesSemana(acts.length),
+  };
 }
 
 /** Actividades pospuestas (con una solicitud de posponer aprobada): quedan pendientes y deben completarse o eliminarse antes de cerrar su período. */
@@ -164,7 +247,7 @@ export async function getPeriodosPropuesta(propuestaId: number): Promise<Periodo
 
   return Array.from(maxSemanaPorPeriodo.entries())
     .sort((a, b) => a[0] - b[0])
-    .map(([num, semanas]) => ({ num, nombre: `Mes ${num}`, inicio: null, fin: null, semanas }));
+    .map(([num, semanas]) => ({ num, nombre: `Período ${num}`, inicio: null, fin: null, semanas }));
 }
 
 export interface MetricaPaginas {
@@ -186,14 +269,14 @@ export async function calcularMetricaPaginas(
   registros: RegistroActividad[]
 ): Promise<MetricaPaginas> {
   const periodos = (await getPeriodosPropuesta(propuestaId)).filter((p) => p.num <= NUM_INFORMES_MENSUALES);
-  const registroPorActividad = new Map(registros.map((r) => [r.actividadId, r]));
+  const registroPorActividad = new Map((await conImagenesAdicionales(registros)).map((r) => [r.actividadId, r]));
 
   const porInforme = Array.from({ length: NUM_INFORMES_MENSUALES }, (_, i) => {
     const numero = i + 1;
     const registrosMes = acts
       .filter((a) => a.periodo === numero)
       .map((a) => registroPorActividad.get(a.id))
-      .filter((r): r is RegistroActividad => !!r && ESTADOS_REGISTRADOS.includes(r.estado));
+      .filter((r): r is NonNullable<typeof r> => !!r && ESTADOS_REGISTRADOS.includes(r.estado));
     const periodo = periodos.find((p) => p.num === numero);
     return {
       numero,
