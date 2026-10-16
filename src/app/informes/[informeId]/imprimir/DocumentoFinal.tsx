@@ -1,9 +1,18 @@
-// Cuerpo del informe final según la estructura oficial: autoridades, agradecimientos, índice, descripción de la empresa,
-// actividades en orden cronológico, conclusiones y anexos. La portada la muestra la página antes de este componente.
+// Cuerpo del informe final según la estructura oficial: autoridades, agradecimientos, índices de contenidos y de imágenes,
+// introducción, descripción de la empresa, actividades en orden cronológico, conclusiones y anexos. La portada la muestra la
+// página antes de este componente.
 import type { InformeCompilado } from "@/lib/informeWord";
-import { formatearFechaLarga, rangoFechasTexto } from "@/lib/periodosPasantia";
-import { APARTADOS_FINAL, tituloActividadFinal } from "@/lib/informeFinal";
-import { ImagenesDocumento, ParrafosCuerpo, Referencia } from "./BloquesActividad";
+import { rangoFechasTexto } from "@/lib/periodosPasantia";
+import { APARTADOS_FINAL, anexosFinal, tituloActividadFinal } from "@/lib/informeFinal";
+import {
+  ImagenesDocumento,
+  MarcoTeorico,
+  ParrafosCuerpo,
+  Segmentos,
+  TablaCronogramaEjecutado,
+  TablaCronogramaReal,
+  TablaModificaciones,
+} from "./BloquesActividad";
 
 interface EntradaIndice {
   id: string;
@@ -24,19 +33,24 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
   const idActividad = (codigo: string) => `actividad-${codigo.replace(/\./g, "-")}`;
 
   const indice: EntradaIndice[] = [
-    ...(f.agradecimientos.length ? [{ id: "agradecimientos", texto: APARTADOS_FINAL.agradecimientos, nivel: 1 as const }] : []),
+    { id: "introduccion", texto: APARTADOS_FINAL.introduccion, nivel: 1 },
     { id: "empresa", texto: APARTADOS_FINAL.empresa, nivel: 1 },
     { id: "actividades", texto: APARTADOS_FINAL.actividades, nivel: 1 },
     ...d.secciones.flatMap((s) => [
       { id: `periodo-${s.numero}`, texto: tituloPeriodo(s), nivel: 2 as const },
-      ...actividades.filter((a) => a.periodo === s.numero).map((a) => ({ id: idActividad(a.codigo), texto: a.encabezado, nivel: 3 as const })),
+      ...actividades
+        .filter((a) => a.periodo === s.numero)
+        .map((a) => ({ id: idActividad(a.codigo), texto: `${a.codigo}. ${a.titulo}`, nivel: 3 as const })),
     ]),
     { id: "conclusiones", texto: APARTADOS_FINAL.conclusiones, nivel: 1 },
-    { id: "anexos", texto: APARTADOS_FINAL.anexos, nivel: 1 },
-    { id: "anexo-1", texto: APARTADOS_FINAL.cronograma, nivel: 2 },
-    { id: "anexo-2", texto: APARTADOS_FINAL.modificaciones, nivel: 2 },
-    { id: "anexo-3", texto: APARTADOS_FINAL.adicional, nivel: 2 },
-    { id: "anexo-4", texto: APARTADOS_FINAL.carta, nivel: 2 },
+  ];
+
+  // Índice de imágenes: las ilustraciones de la empresa y las imágenes de cada actividad (1.1.1.A, 1.1.1.B).
+  const indiceImagenes = [
+    ...f.empresa.ilustraciones.map((il) => ({ id: `ilustracion-${il.tipo}`, texto: `${il.etiqueta} ${il.leyenda}` })),
+    ...actividades.flatMap((a) =>
+      (d.imagenesPorActividad[a.id] ?? []).map((img) => ({ id: `imagen-${img.etiqueta.replace(/\./g, "-")}`, texto: `${img.etiqueta} ${img.leyenda}` }))
+    ),
   ];
 
   const supervisor = d.supervisor ? `${d.supervisor.nombres} ${d.supervisor.apellidos}` : "";
@@ -85,6 +99,36 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
         </ul>
       </section>
 
+      {/* ────────────── Índice de imágenes, fotografías e ilustraciones ────────────── */}
+      <section className="doc-salto">
+        <h2 className="doc-titulo-seccion doc-capitulo">{APARTADOS_FINAL.indiceImagenes}</h2>
+        {indiceImagenes.length === 0 ? (
+          <p>El informe no contiene imágenes.</p>
+        ) : (
+          <ul className="doc-indice">
+            {indiceImagenes.map((e) => (
+              <li key={e.id} className="doc-indice-2" style={{ paddingLeft: 0 }}>
+                <a href={`#${e.id}`}>{e.texto}</a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* ────────────── Introducción: cuatro párrafos redactados por el egresado ────────────── */}
+      <section className="doc-salto">
+        <h2 id="introduccion" className="doc-titulo-seccion doc-capitulo">
+          {APARTADOS_FINAL.introduccion}
+        </h2>
+        {f.introduccion.some((p) => p.trim()) ? (
+          <ParrafosCuerpo texto={f.introduccion.filter((p) => p.trim()).join("\n")} />
+        ) : (
+          <p className="doc-parrafo">
+            <em>Pendiente: el egresado debe redactar la introducción.</em>
+          </p>
+        )}
+      </section>
+
       {/* ────────────── Descripción de la empresa ────────────── */}
       <section className="doc-salto">
         <h2 id="empresa" className="doc-titulo-seccion doc-capitulo">
@@ -94,14 +138,48 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
           <p className="doc-parrafo">
             <strong>{f.empresa.nombre}</strong>
             {f.empresa.area ? `, ${f.empresa.area}.` : "."}
-            {f.empresa.direccion ? ` Dirección: ${f.empresa.direccion}` : ""}
+            {f.empresa.direccion ? ` Dirección: ${f.empresa.direccion.replace(/\.+$/, "")}.` : ""}
+            {f.empresa.sucursal
+              ? ` Sucursal: ${f.empresa.sucursal.nombre}${f.empresa.sucursal.telefono ? `, teléfono ${f.empresa.sucursal.telefono}` : ""}.`
+              : ""}
           </p>
         )}
-        {f.empresa.parrafos.length > 0 ? (
-          <ParrafosCuerpo texto={f.empresa.parrafos.join("\n")} />
+        <p className="doc-subtitulo-2">Descripción</p>
+        {f.empresa.descripcion.length > 0 ? (
+          <ParrafosCuerpo texto={f.empresa.descripcion.join("\n")} />
         ) : (
           <p className="doc-parrafo">
             <em>La empresa no tiene descripción registrada en el sistema.</em>
+          </p>
+        )}
+        {f.empresa.antecedentes.length > 0 && (
+          <>
+            <p className="doc-subtitulo-2">Antecedentes</p>
+            <ParrafosCuerpo texto={f.empresa.antecedentes.join("\n")} />
+          </>
+        )}
+        {f.empresa.ilustraciones.map((il) => (
+          <div key={il.tipo}>
+            <p className="doc-subtitulo-2">{il.tipo === "mapa" ? "Ubicación" : "Organigrama"}</p>
+            <figure id={`ilustracion-${il.tipo}`} style={{ margin: "6pt 0", pageBreakInside: "avoid" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={il.tipo === "mapa" ? `/api/map?coords=${f.empresa.coordenadas}` : f.empresa.organigrama!.url}
+                alt={il.leyenda}
+                style={{ width: "100%", maxHeight: il.tipo === "mapa" ? "8cm" : "17cm", objectFit: "contain", display: "block", margin: "0 auto" }}
+              />
+              <figcaption className="doc-leyenda">
+                <span className="doc-pie">
+                  {il.etiqueta}. {il.leyenda}.
+                </span>
+                <span className="doc-nota">{il.nota}</span>
+              </figcaption>
+            </figure>
+          </div>
+        ))}
+        {f.empresa.organigrama && !f.empresa.organigrama.esImagen && (
+          <p className="doc-parrafo">
+            <em>El organigrama de la empresa se registró como documento PDF en la propuesta y puede consultarse en el sistema.</em>
           </p>
         )}
       </section>
@@ -135,8 +213,7 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
                         {r.marcoTeorico && (
                           <>
                             <p className="doc-subtitulo-2">Marco teórico</p>
-                            <ParrafosCuerpo texto={r.marcoTeorico} />
-                            {r.citaApa && <Referencia citaApa={r.citaApa} citaApaDatos={r.citaApaDatos} />}
+                            <MarcoTeorico texto={r.marcoTeorico} citaApa={r.citaApa} citaApaDatos={r.citaApaDatos} />
                           </>
                         )}
                         {r.descriptor && (
@@ -147,8 +224,8 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
                         )}
                         {imagenes.length > 0 && (
                           <>
-                            <p className="doc-subtitulo-2">{imagenes.length > 1 ? "Imágenes" : "Imagen"}</p>
-                            <ImagenesDocumento imagenes={imagenes} codigo={a.codigo} />
+                            <p className="doc-subtitulo-2">{imagenes.length > 1 ? "Imágenes de soporte de la actividad" : "Imagen de soporte de la actividad"}</p>
+                            <ImagenesDocumento imagenes={imagenes} />
                           </>
                         )}
                       </>
@@ -169,7 +246,7 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
           .filter((a) => a.registrada && a.registro?.conclusionTecnica)
           .map((a) => (
             <div key={a.id}>
-              <p className="doc-subtitulo-2" style={{ fontWeight: "bold" }}>
+              <p className="doc-subtitulo-2">
                 Actividad {a.codigo}. {a.titulo}
               </p>
               <ParrafosCuerpo texto={a.registro!.conclusionTecnica} />
@@ -183,106 +260,89 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
           {APARTADOS_FINAL.anexos}
         </h2>
 
-        <h3 id="anexo-1" className="doc-subtitulo-1">
-          {APARTADOS_FINAL.cronograma}
-        </h3>
-        <p style={{ textAlign: "justify" }}>
-          Cronograma de las actividades desarrolladas durante la pasantía, con los cambios aprobados al cronograma original
-          (actividades agregadas, modificadas, pospuestas, reubicadas y eliminadas).
-        </p>
-        {f.cronograma.map((p) => (
-          <div key={p.numero} style={{ marginBottom: "10pt" }}>
-            <table className="doc-tabla" style={{ fontSize: "10pt" }}>
-              <thead>
-                <tr style={{ background: "#d9d9d9" }}>
-                  <th style={{ width: "10%" }}>Código</th>
-                  <th style={{ textAlign: "left" }}>Actividades del período {p.numero}</th>
-                  {Array.from({ length: p.semanas }, (_, i) => (
-                    <th key={i} style={{ width: "6%" }}>
-                      S{i + 1}
-                    </th>
-                  ))}
-                  <th style={{ width: "22%" }}>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {p.filas.map((fila) => (
-                  <tr key={fila.id} style={fila.eliminada ? { color: "#595959", fontStyle: "italic" } : undefined}>
-                    <td style={{ textAlign: "center" }}>{fila.codigo}</td>
-                    <td style={fila.eliminada ? { textDecoration: "line-through" } : undefined}>{fila.titulo}</td>
-                    {Array.from({ length: p.semanas }, (_, i) => (
-                      <td key={i} style={i + 1 === fila.semana ? { background: fila.eliminada ? "#bfbfbf" : "#7f7f7f" } : undefined} />
-                    ))}
-                    <td>{fila.estado}</td>
-                  </tr>
+        {anexosFinal(f.glosario.length > 0).map((anexo, i) => (
+          <div key={anexo.id}>
+            <h3 id={`anexo-${anexo.id}`} className={`doc-subtitulo-1${i > 0 ? " doc-salto" : ""}`}>
+              {anexo.titulo}
+            </h3>
+            {anexo.id === "cronogramaReal" && (
+              <>
+                <p style={{ textAlign: "justify" }}>
+                  Cronograma de las actividades de la pasantía con el estado final de cada una y los cambios aprobados al cronograma
+                  original (actividades agregadas, pospuestas, reubicadas y eliminadas).
+                </p>
+                {f.cronograma.map((p) => (
+                  <TablaCronogramaReal key={p.numero} periodo={p} />
                 ))}
-              </tbody>
-            </table>
+                {/* El cronograma real se imprime y lo firman las tres partes (no se aceptan firmas electrónicas). */}
+                <div className="doc-firmas">
+                  {[
+                    { nombre: d.egresado?.nombreCompleto ?? "", cargo: "Pasante" },
+                    { nombre: supervisor, cargo: "Supervisor empresarial" },
+                    { nombre: d.asesor?.nombreCompleto ?? "", cargo: "Asesor designado" },
+                  ].map((firma) => (
+                    <div key={firma.cargo}>
+                      <div className="doc-linea-firma" />
+                      <p>{firma.nombre}</p>
+                      <p>
+                        <strong>{firma.cargo}</strong>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            {anexo.id === "modificaciones" &&
+              (f.modificaciones.length === 0 ? (
+                <p>El cronograma original no tuvo modificaciones durante la pasantía.</p>
+              ) : (
+                <>
+                  <p style={{ textAlign: "justify" }}>
+                    Registro cronológico de las modificaciones al cronograma original autorizadas durante la pasantía, con su
+                    justificación y su validación.
+                  </p>
+                  <TablaModificaciones modificaciones={f.modificaciones} />
+                </>
+              ))}
+            {anexo.id === "cronogramaFinal" && (
+              <>
+                <p style={{ textAlign: "justify" }}>
+                  Cronograma con las actividades que finalmente se ejecutaron, en la ubicación definitiva de cada una.
+                </p>
+                {f.cronograma.map((p) => (
+                  <TablaCronogramaEjecutado key={p.numero} periodo={p} />
+                ))}
+              </>
+            )}
+            {anexo.id === "adicional" &&
+              (f.anexos.length === 0 ? <p>No se adjuntó contenido adicional.</p> : <ImagenesDocumento imagenes={f.anexos} />)}
+            {anexo.id === "bibliografia" &&
+              (f.bibliografia.length === 0 ? (
+                <p>No se registraron referencias.</p>
+              ) : (
+                f.bibliografia.map((referencia, k) => (
+                  <p key={k} className="doc-referencia">
+                    <Segmentos segmentos={referencia} />
+                  </p>
+                ))
+              ))}
+            {anexo.id === "glosario" &&
+              f.glosario.map((t) => (
+                <p key={t.termino} className="doc-parrafo">
+                  <strong>{t.termino}:</strong> {t.definicion}
+                </p>
+              ))}
+            {anexo.id === "carta" &&
+              (f.carta ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={f.carta.url} alt={f.carta.nombre} style={{ width: "100%", maxHeight: "21cm", objectFit: "contain", display: "block" }} />
+              ) : (
+                <p>
+                  <em>Pendiente: el egresado debe adjuntar la carta de finalización satisfactoria emitida por la empresa.</em>
+                </p>
+              ))}
           </div>
         ))}
-        {/* El cronograma real se imprime y lo firman las tres partes (no se aceptan firmas electrónicas). */}
-        <div className="doc-firmas">
-          {[
-            { nombre: d.egresado?.nombreCompleto ?? "", cargo: "Pasante" },
-            { nombre: supervisor, cargo: "Supervisor empresarial" },
-            { nombre: d.asesor?.nombreCompleto ?? "", cargo: "Asesor designado" },
-          ].map((firma) => (
-            <div key={firma.cargo}>
-              <div className="doc-linea-firma" />
-              <p>{firma.nombre}</p>
-              <p>
-                <strong>{firma.cargo}</strong>
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <h3 id="anexo-2" className="doc-subtitulo-1 doc-salto">
-          {APARTADOS_FINAL.modificaciones}
-        </h3>
-        {f.modificaciones.length === 0 ? (
-          <p>El cronograma original no tuvo modificaciones durante la pasantía.</p>
-        ) : (
-          <table className="doc-tabla" style={{ fontSize: "10pt" }}>
-            <thead>
-              <tr style={{ background: "#d9d9d9" }}>
-                <th style={{ width: "12%" }}>Fecha</th>
-                <th style={{ width: "14%" }}>Modificación</th>
-                <th style={{ width: "22%" }}>Actividad</th>
-                <th>Justificación</th>
-                <th style={{ width: "24%" }}>Validación</th>
-              </tr>
-            </thead>
-            <tbody>
-              {f.modificaciones.map((m) => (
-                <tr key={m.id}>
-                  <td>{m.fecha ? formatearFechaLarga(m.fecha) : "—"}</td>
-                  <td>{m.tipo}</td>
-                  <td>{m.actividad}</td>
-                  <td style={{ textAlign: "justify" }}>{m.justificacion}</td>
-                  <td>{m.validacion}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        <h3 id="anexo-3" className="doc-subtitulo-1 doc-salto">
-          {APARTADOS_FINAL.adicional}
-        </h3>
-        {f.anexos.length === 0 ? <p>No se adjuntó contenido adicional.</p> : <ImagenesDocumento imagenes={f.anexos} />}
-
-        <h3 id="anexo-4" className="doc-subtitulo-1 doc-salto">
-          {APARTADOS_FINAL.carta}
-        </h3>
-        {f.carta ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={f.carta.url} alt={f.carta.nombre} style={{ width: "100%", maxHeight: "21cm", objectFit: "contain", display: "block" }} />
-        ) : (
-          <p>
-            <em>Pendiente: el egresado debe adjuntar la carta de finalización satisfactoria emitida por la empresa.</em>
-          </p>
-        )}
       </section>
     </>
   );

@@ -4,9 +4,8 @@ import { getSession } from "@/lib/session";
 import { getInformeCompilado } from "@/app/actions/informeCompilado";
 import { formatearFechaLarga, rangoFechasTexto } from "@/lib/periodosPasantia";
 import type { InformeCompilado } from "@/lib/informeWord";
-import { CATEGORIAS_COMENTARIO } from "@/lib/comentariosAsesor";
 import PrintButton from "./PrintButton";
-import { ImagenesDocumento, ParrafosCuerpo, Referencia } from "./BloquesActividad";
+import { ImagenesDocumento, MarcoTeorico, ParrafosCuerpo, TablaCronogramaReal, TablaModificaciones } from "./BloquesActividad";
 import DocumentoFinal from "./DocumentoFinal";
 
 const ESTADO_INFORME: Record<string, string> = {
@@ -49,7 +48,8 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
 
 
   const datosGenerales: [string, string][] = [
-    ["Fecha de presentación al asesor", informe.fechaPresentacion ? formatearFechaLarga(informe.fechaPresentacion) : "Pendiente de envío"],
+    ["Fecha de envío del informe", d.fechas.envio ? formatearFechaLarga(d.fechas.envio) : "Pendiente de envío"],
+    ["Fecha de aprobación del asesor", d.fechas.aprobacion ? formatearFechaLarga(d.fechas.aprobacion) : "Pendiente de aprobación"],
     [
       "Período reportado",
       periodo?.inicio && periodo.fin
@@ -62,12 +62,6 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
     ["Supervisor empresarial", supervisor ? `${supervisor.nombres} ${supervisor.apellidos}` : "—"],
     ["Cargo", supervisor?.cargo || "—"],
     ["Empresa o institución", empresa?.nombre || "—"],
-    [
-      "Comentarios u observaciones del asesor para el decanato",
-      d.comentarios.registrados
-        ? "Se presentan en el apartado «Comentarios del asesor para el decanato»."
-        : "Pendiente de registro por el asesor.",
-    ],
   ];
 
   return (
@@ -102,6 +96,8 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
         .doc-body p { margin: 0 0 6pt 0; }
         /* Texto de las actividades: justificado y 12 pt de espacio anterior y posterior (entre párrafos queda 12 pt, como en Word). */
         .doc-body p.doc-parrafo { margin: 12pt 0; text-align: justify; }
+        /* Bibliografía (APA 7): sangría francesa de 1.27 cm. */
+        .doc-body p.doc-referencia { margin: 0 0 12pt 0; padding-left: 1.27cm; text-indent: -1.27cm; text-align: left; }
         .doc-titulo-seccion {
           font-size: 12pt;
           font-weight: bold;
@@ -115,7 +111,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
         }
         .doc-subtitulo-2 {
           font-size: 12pt;
-          font-weight: normal;
+          font-weight: bold;
           margin: 10pt 0 4pt 0;
         }
         .doc-leyenda {
@@ -124,6 +120,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
           text-align: center;
           margin: 2pt 0 8pt 0;
         }
+        .doc-pie { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .doc-tabla {
           width: 100%;
           border-collapse: collapse;
@@ -184,7 +181,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
           <div className="flex flex-wrap gap-2">
             <a
               href={`/api/informes/${informe.id}/word`}
-              className="inline-flex items-center px-6 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold shadow-md transition-colors"
+              className="inline-flex items-center px-6 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white font-bold shadow-md transition-colors"
             >
               Descargar Word
             </a>
@@ -262,7 +259,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
                           <th style={{ textAlign: "left" }}>Actividades</th>
                           {semanas.map((s) => (
                             <th key={s.numero} style={{ width: "7%" }} title={s.inicio && s.fin ? rangoFechasTexto(s.inicio, s.fin) : undefined}>
-                              S{s.numero}
+                              SP{s.numero}
                             </th>
                           ))}
                         </tr>
@@ -287,7 +284,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
 
                 {/* ────────────── Actividades realizadas durante el mes ────────────── */}
                 <h2 className={esFinal ? "doc-subtitulo-1" : "doc-titulo-seccion"}>
-                  Actividades realizadas durante el período {rangoPeriodo ?? seccion.numero}
+                  Actividades realizadas por el(la) pasante en el período {rangoPeriodo ?? seccion.numero}
                 </h2>
 
                 {semanasConActividades.length === 0 && <p>No hay actividades registradas para este período.</p>}
@@ -296,13 +293,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
                   const rango = semana.inicio && semana.fin ? rangoFechasTexto(semana.inicio, semana.fin) : null;
                   return (
                     <section key={semana.numero}>
-                      <h3 className="doc-subtitulo-1">
-                        Semana {semana.numero}
-                        {rango ? ` (${rango})` : ""}
-                      </h3>
-                      <p>
-                        <strong>Actividades realizadas durante la semana {rango ?? semana.numero}</strong>
-                      </p>
+                      <h3 className="doc-subtitulo-1">Actividades realizadas en el subperíodo {rango ?? semana.numero}</h3>
 
                       {/* Cada actividad reúne su marco teórico, desarrollo, elemento de soporte y conclusión técnica. */}
                       {semana.actividades.map((a) => {
@@ -325,8 +316,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
                                 {r.marcoTeorico && (
                                   <>
                                     <h4 className="doc-subtitulo-2">Marco teórico</h4>
-                                    <ParrafosCuerpo texto={r.marcoTeorico} />
-                                    {r.citaApa && <Referencia citaApa={r.citaApa} citaApaDatos={r.citaApaDatos} />}
+                                    <MarcoTeorico texto={r.marcoTeorico} citaApa={r.citaApa} citaApaDatos={r.citaApaDatos} />
                                   </>
                                 )}
 
@@ -342,7 +332,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
                                     <h4 className="doc-subtitulo-2">
                                       {imagenesPorActividad[a.id].length > 1 ? "Elementos de soporte" : "Elemento de soporte"}
                                     </h4>
-                                    <ImagenesDocumento imagenes={imagenesPorActividad[a.id]} codigo={a.codigo} />
+                                    <ImagenesDocumento imagenes={imagenesPorActividad[a.id]} />
                                   </>
                                 )}
 
@@ -385,21 +375,22 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
               </section>
             )}
 
-            {/* ────────────── Comentarios del asesor para el decanato ────────────── */}
-            {d.comentarios.registrados && (
+            {/* ────────────── Cambios al cronograma del período ────────────── */}
+            {d.cambiosPeriodo && (
               <section>
-                <h2 className="doc-titulo-seccion">Comentarios del asesor para el decanato</h2>
-                {CATEGORIAS_COMENTARIO.filter((c) => d.comentarios.respuestas[c.id]).map((c) => (
-                  <div key={c.id}>
-                    <h3 className="doc-subtitulo-1">{c.pregunta}</h3>
-                    <p style={{ textAlign: "justify" }}>{d.comentarios.respuestas[c.id]}</p>
-                  </div>
+                <h2 className="doc-titulo-seccion">Cambios al cronograma</h2>
+                <p style={{ textAlign: "justify" }}>
+                  Actividades ejecutadas durante el período {informe.numero}, con los cambios autorizados al cronograma original
+                  (actividades agregadas, pospuestas, reubicadas y eliminadas).
+                </p>
+                {d.cambiosPeriodo.cronograma.map((p) => (
+                  <TablaCronogramaReal key={p.numero} periodo={p} />
                 ))}
-                {d.comentarios.general && (
-                  <div>
-                    <h3 className="doc-subtitulo-1">Comentario general</h3>
-                    <p style={{ textAlign: "justify" }}>{d.comentarios.general}</p>
-                  </div>
+                <h3 className="doc-subtitulo-1">Modificaciones autorizadas al cronograma original</h3>
+                {d.cambiosPeriodo.modificaciones.length === 0 ? (
+                  <p>Durante el período no se realizaron modificaciones al cronograma original.</p>
+                ) : (
+                  <TablaModificaciones modificaciones={d.cambiosPeriodo.modificaciones} />
                 )}
               </section>
             )}

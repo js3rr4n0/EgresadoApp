@@ -27,9 +27,9 @@ const TIPO_AYUDA: Record<Tipo, string> = {
   eliminar:
     "Retira una actividad que aún no ha sido realizada. Los códigos de las actividades siguientes del período se renumeran automáticamente. Se permite una eliminación por período de 30 días; una segunda requiere autorización del decanato.",
   posponer:
-    "Mueve una actividad aún no realizada a una semana posterior dentro de su mismo período de 30 días. No es posible posponerla más allá del período.",
+    "Mueve una actividad aún no realizada a un subperíodo posterior dentro de su mismo período de 30 días. No es posible posponerla más allá del período.",
   reubicar:
-    "Adelanta una actividad existente (aún no enviada) a una semana anterior, sin duplicarla. Opcionalmente puede intercambiarla con una actividad de la semana destino.",
+    "Adelanta una actividad existente (aún no enviada) a un subperíodo anterior, sin duplicarla. Opcionalmente puede intercambiarla con una actividad del subperíodo destino.",
 };
 
 const ESTADO_SOLICITUD: Record<string, { label: string; badge: string }> = {
@@ -213,7 +213,7 @@ export default function SolicitudesCambioActividad({
       m.semanas.some((s) => compararPos({ mes: m.mes, semana: s }, { mes: encontrada.periodo, semana: encontrada.semana }) < 0)
     );
     if (!hayDestinos) {
-      setBusquedaError(`La actividad ${codigo} ya se encuentra en tu semana actual o en una anterior; no hay semanas válidas a las cuales adelantarla.`);
+      setBusquedaError(`La actividad ${codigo} ya se encuentra en tu subperíodo actual o en uno anterior; no hay subperíodos válidos a los cuales adelantarla.`);
       return;
     }
     setActividadId(encontrada.id);
@@ -269,7 +269,7 @@ export default function SolicitudesCambioActividad({
         <button
           type="button"
           onClick={() => setShowModal(true)}
-          className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition-colors shadow-2xs shrink-0"
+          className="px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs transition-colors shadow-2xs shrink-0"
         >
           Solicitar cambio
         </button>
@@ -300,7 +300,7 @@ export default function SolicitudesCambioActividad({
                 </div>
                 {s.periodoDestino && (
                   <p className="text-[11px] text-slate-600 font-semibold">
-                    Destino: Período {s.periodoDestino}, Semana {s.semanaDestino}
+                    Destino: Período {s.periodoDestino}, Subperíodo {s.semanaDestino}
                     {s.actividadIntercambio && ` — intercambio con ${s.actividadIntercambio.codigo}`}
                   </p>
                 )}
@@ -344,7 +344,7 @@ export default function SolicitudesCambioActividad({
               {error && <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-bold">{error}</div>}
 
               <p className="text-[11px] text-slate-500 font-semibold">
-                Semana actual: Período {opciones.posicionActual.mes}, Semana {opciones.posicionActual.semana}.
+                Subperíodo actual: Período {opciones.posicionActual.mes}, Subperíodo {opciones.posicionActual.semana}.
               </p>
 
               <div className="space-y-1">
@@ -429,7 +429,7 @@ export default function SolicitudesCambioActividad({
                     <button
                       type="button"
                       onClick={buscarPorCodigo}
-                      className="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shrink-0"
+                      className="px-4 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-xs font-bold shrink-0"
                     >
                       Buscar
                     </button>
@@ -441,7 +441,7 @@ export default function SolicitudesCambioActividad({
                         {actividadSeleccionada.codigo} — {actividadSeleccionada.titulo}
                       </p>
                       <p className="text-slate-500 font-semibold">
-                        Ubicación actual: Período {actividadSeleccionada.periodo}, Semana {actividadSeleccionada.semana}
+                        Ubicación actual: Período {actividadSeleccionada.periodo}, Subperíodo {actividadSeleccionada.semana}
                       </p>
                     </div>
                   )}
@@ -451,7 +451,7 @@ export default function SolicitudesCambioActividad({
               {usaDestino && (tipo === "agregar" || actividadSeleccionada) && (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-bold uppercase text-slate-400">Mes destino</label>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400">Período destino</label>
                     <select
                       value={mesDestino}
                       onChange={(e) => {
@@ -470,7 +470,7 @@ export default function SolicitudesCambioActividad({
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="block text-[10px] font-bold uppercase text-slate-400">Semana destino</label>
+                    <label className="block text-[10px] font-bold uppercase text-slate-400">Subperíodo destino</label>
                     <select
                       value={semanaDestino}
                       onChange={(e) => {
@@ -483,7 +483,7 @@ export default function SolicitudesCambioActividad({
                       <option value="">Seleccione</option>
                       {mesSeleccionado?.semanas.map((s) => (
                         <option key={s} value={s}>
-                          Semana {s}
+                          Subperíodo {s}
                         </option>
                       ))}
                     </select>
@@ -496,7 +496,7 @@ export default function SolicitudesCambioActividad({
                   )}
                   {mesesDisponibles.length === 0 && (
                     <p className="col-span-2 text-[11px] text-red-700 font-semibold">
-                      No hay semanas válidas disponibles para este cambio dentro del período de los informes mensuales.
+                      No hay subperíodos válidos disponibles para este cambio dentro del período del informe.
                     </p>
                   )}
                 </div>
@@ -510,7 +510,7 @@ export default function SolicitudesCambioActividad({
                     onChange={(e) => setIntercambioId(e.target.value ? Number(e.target.value) : "")}
                     className={inputClass}
                   >
-                    <option value="">No intercambiar: agregar al final de la semana destino</option>
+                    <option value="">No intercambiar: agregar al final del subperíodo destino</option>
                     {candidatasIntercambio.map((a) => (
                       <option key={a.id} value={a.id}>
                         Intercambiar con {a.codigo} — {a.titulo}
@@ -519,8 +519,8 @@ export default function SolicitudesCambioActividad({
                   </select>
                   <p className="text-[11px] text-slate-600 bg-slate-50 border border-slate-200 rounded-lg p-2 font-medium">
                     {intercambioSeleccionado
-                      ? `La actividad ${actividadSeleccionada.codigo} tomará la posición de ${intercambioSeleccionado.codigo} (Período ${mesDestino}, Semana ${semanaDestino}) y ${intercambioSeleccionado.codigo} pasará a la ubicación original (Período ${actividadSeleccionada.periodo}, Semana ${actividadSeleccionada.semana}). Ambas intercambian su código.`
-                      : `La actividad ${actividadSeleccionada.codigo} se moverá al final de Período ${mesDestino}, Semana ${semanaDestino} y recibirá un nuevo código. Las actividades que ya están en esa semana conservan su código.`}
+                      ? `La actividad ${actividadSeleccionada.codigo} tomará la posición de ${intercambioSeleccionado.codigo} (Período ${mesDestino}, Subperíodo ${semanaDestino}) y ${intercambioSeleccionado.codigo} pasará a la ubicación original (Período ${actividadSeleccionada.periodo}, Subperíodo ${actividadSeleccionada.semana}). Ambas intercambian su código.`
+                      : `La actividad ${actividadSeleccionada.codigo} se moverá al final del Subperíodo ${semanaDestino} del Período ${mesDestino} y recibirá un nuevo código. Las actividades que ya están en ese subperíodo conservan su código.`}
                   </p>
                 </div>
               )}
@@ -571,7 +571,7 @@ export default function SolicitudesCambioActividad({
                   <span className="text-xs font-semibold text-slate-600 truncate">
                     {documento ? documento.nombre : "Seleccionar archivo (PDF, PNG o JPG, máximo 5 MB)"}
                   </span>
-                  <span className="px-3 py-1 rounded-md bg-slate-900 text-white text-[11px] font-bold shrink-0">
+                  <span className="px-3 py-1 rounded-md bg-unicaes text-white text-[11px] font-bold shrink-0">
                     {documento ? "Cambiar" : "Examinar"}
                   </span>
                   <input

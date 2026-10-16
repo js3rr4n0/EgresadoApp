@@ -9,12 +9,13 @@ import {
   eliminarImagenAdicional,
 } from "@/app/actions/registrosActividad";
 import { openDocument } from "@/lib/pdfViewer";
-import { AVISO_ORIGEN_IMAGEN, notaImagen } from "@/lib/fuenteImagen";
+import { AVISO_ORIGEN_IMAGEN, notaImagen, MAX_IMAGENES_ACTIVIDAD } from "@/lib/fuenteImagen";
 import { EJEMPLOS_REGISTRO, AVISO_EJEMPLOS } from "@/lib/ejemplosInforme";
 import AyudaEjemplo from "@/components/AyudaEjemplo";
 import RecortadorImagen from "./RecortadorImagen";
 import SubirAnexo from "./SubirAnexo";
 import OrigenImagenCampos, { type DatosOrigenImagen } from "./OrigenImagenCampos";
+import { MAX_CARACTERES_LEYENDA } from "@/lib/reglasRegistroActividad";
 
 export interface ImagenAdicional {
   id: number;
@@ -77,8 +78,9 @@ export default function ImagenesActividad({
 
   const adicionales = imagenes.filter((i) => i.tipo === "soporte");
   const anexos = imagenes.filter((i) => i.tipo === "anexo");
-  const { usadas, limite, faltantesPrincipal } = imagenesSemana;
-  const hayEspacioAdicional = usadas + faltantesPrincipal < limite;
+  const { usadas, limite } = imagenesSemana;
+  // Máximo dos imágenes de soporte por actividad: la principal (A) y una adicional (B).
+  const hayEspacioAdicional = adicionales.length < MAX_IMAGENES_ACTIVIDAD - 1;
 
   const elegirArchivo = (tipo: Carga["tipo"]) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const archivo = e.target.files?.[0];
@@ -133,7 +135,7 @@ export default function ImagenesActividad({
   const botonArchivo = (tipo: Carga["tipo"], texto: string, deshabilitado = false) => (
     <label
       className={`inline-flex items-center justify-center px-4 py-2 rounded-lg text-[11px] font-bold transition-colors ${
-        deshabilitado || subiendo ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
+        deshabilitado || subiendo ? "bg-slate-100 text-slate-400 cursor-not-allowed" : "bg-unicaes hover:bg-unicaes-hover text-white cursor-pointer"
       }`}
     >
       {texto}
@@ -181,9 +183,9 @@ export default function ImagenesActividad({
           className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold border w-fit shrink-0 ${
             usadas >= limite ? "bg-amber-50 text-amber-900 border-amber-300" : "bg-slate-50 text-slate-600 border-slate-200"
           }`}
-          title="Imagen principal de cada actividad más las adicionales de la semana"
+          title="Dos imágenes por actividad: la principal y una adicional"
         >
-          Imágenes de soporte de la semana: {usadas} de {limite}
+          Imágenes de soporte del subperíodo: {usadas} de {limite}
         </span>
       </div>
 
@@ -210,14 +212,17 @@ export default function ImagenesActividad({
                 id="pie-principal"
                 type="text"
                 value={leyenda}
-                maxLength={255}
+                maxLength={MAX_CARACTERES_LEYENDA}
                 disabled={bloqueado}
                 onChange={(e) => onLeyenda(e.target.value)}
                 placeholder="Descripción breve de la imagen"
                 className="w-full bg-white border border-border rounded-lg px-3 py-1.5 text-xs font-semibold focus:ring-1 focus:ring-unicaes outline-none disabled:bg-slate-100 disabled:text-slate-500"
               />
+              <p className="text-[10px] text-slate-400 font-semibold text-right">
+                {leyenda.length}/{MAX_CARACTERES_LEYENDA} caracteres · máximo dos líneas debajo de la imagen
+              </p>
               {leyenda.trim().length < 3 && (
-                <p className="text-[11px] text-amber-700 font-semibold">El pie de imagen es obligatorio para poder enviar la semana.</p>
+                <p className="text-[11px] text-amber-700 font-semibold">El pie de imagen es obligatorio para poder enviar el subperíodo.</p>
               )}
             </div>
             <OrigenImagenCampos idBase="principal" valor={origenPrincipal} onChange={onOrigenPrincipal} deshabilitado={bloqueado} />
@@ -233,16 +238,16 @@ export default function ImagenesActividad({
       ) : (
         <div className="space-y-1.5">
           {botonArchivo("principal", "Seleccionar imagen principal")}
-          <p className="text-[11px] text-amber-700 font-semibold">La imagen de soporte principal es obligatoria para poder enviar la semana.</p>
+          <p className="text-[11px] text-amber-700 font-semibold">La imagen de soporte principal es obligatoria para poder enviar el subperíodo.</p>
         </div>
       )}
 
       {/* Imágenes de soporte adicionales: van en el informe, junto a la principal */}
       <div className="pt-4 border-t border-slate-100 space-y-2">
-        <h3 className={subtitulo}>Imágenes de soporte adicionales (opcional)</h3>
+        <h3 className={subtitulo}>Imagen de soporte adicional (opcional)</h3>
         <p className="text-[11px] text-slate-500 font-semibold">
-          Aparecen en el informe junto a la imagen principal. Cada semana admite hasta {limite} imágenes de soporte en total, contando la
-          principal de cada actividad.
+          Aparece en el informe junto a la imagen principal. Cada actividad admite como máximo {MAX_IMAGENES_ACTIVIDAD} imágenes de soporte: la
+          principal y una adicional.
         </p>
         {adicionales.length > 0 && <ul className="space-y-2">{adicionales.map(miniatura)}</ul>}
         {!bloqueado &&
@@ -250,9 +255,7 @@ export default function ImagenesActividad({
             botonArchivo("soporte", "Agregar imagen de soporte", !imagenUrl)
           ) : (
             <p className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-[11px] text-amber-900 font-semibold">
-              Usted ya alcanzó el límite de imágenes de soporte por semana
-              {faltantesPrincipal > 0 ? ` (se reservan ${faltantesPrincipal} para las imágenes principales pendientes)` : ""}. Si desea
-              incluir otra imagen, agréguela como anexo.
+              Esta actividad ya tiene sus {MAX_IMAGENES_ACTIVIDAD} imágenes de soporte. Si desea incluir otra imagen, agréguela como anexo.
             </p>
           ))}
         {!bloqueado && !imagenUrl && hayEspacioAdicional && (
@@ -265,7 +268,7 @@ export default function ImagenesActividad({
         <h3 className={subtitulo}>Anexos (opcional)</h3>
         <p className="text-[11px] text-slate-500 font-semibold">
           Imágenes o figuras adicionales de la actividad que formarán parte de los anexos del informe final. No cuentan para el límite
-          semanal.
+          de imágenes de soporte.
         </p>
         {anexos.length > 0 && <ul className="space-y-2">{anexos.map(miniatura)}</ul>}
         {!bloqueado && botonArchivo("anexo", "Agregar anexo")}

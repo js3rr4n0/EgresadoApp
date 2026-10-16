@@ -7,8 +7,17 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { registrarEvento } from "@/lib/bitacora";
 import { esInformeFinal } from "@/lib/periodosPasantia";
-import { normalizarTexto } from "@/lib/reglasRegistroActividad";
-import { leerCartaFinalizacion, validarAgradecimientos, type CartaFinalizacion } from "@/lib/informeFinal";
+import { contarPalabras, normalizarTexto } from "@/lib/reglasRegistroActividad";
+import {
+  leerCartaFinalizacion,
+  validarAgradecimientos,
+  PARRAFOS_INTRODUCCION,
+  MAX_PALABRAS_PARRAFO_INTRODUCCION,
+  validarGlosario,
+  glosarioOrdenado,
+  type TerminoGlosario,
+  type CartaFinalizacion,
+} from "@/lib/informeFinal";
 
 const TAMANO_MAXIMO_CARTA = 5 * 1024 * 1024;
 const TIPOS_CARTA = ["image/png", "image/jpeg"];
@@ -61,6 +70,77 @@ export async function guardarAgradecimientos(informeId: number, texto: string) {
   } catch (err) {
     console.error("Error al guardar los agradecimientos:", err);
     return { success: false, error: err instanceof Error ? err.message : "Error al guardar los agradecimientos" };
+  }
+}
+
+/**
+ * Introducción del informe final: cuatro párrafos según los criterios de la métrica. Se guardan aunque estén incompletos
+ * (borrador); para enviar el informe final deben cumplir todas las reglas.
+ */
+export async function guardarIntroduccion(informeId: number, parrafos: string[]) {
+  try {
+    const ctx = await cargarParaEgresado(informeId);
+    if ("error" in ctx) return { success: false, error: ctx.error };
+    // Cada párrafo es un solo bloque de texto; se guarda aunque esté incompleto (borrador), pero no si excede el límite.
+    const limpios = PARRAFOS_INTRODUCCION.map((_, i) => normalizarTexto(parrafos[i] ?? "").split("\n").join(" "));
+    const excedidos = limpios
+      .map((p, i) => ({ i, n: contarPalabras(p) }))
+      .filter((x) => x.n > MAX_PALABRAS_PARRAFO_INTRODUCCION)
+      .map((x) => `Párrafo ${x.i + 1}: máximo ${MAX_PALABRAS_PARRAFO_INTRODUCCION} palabras, unos cinco renglones (tiene ${x.n}).`);
+    if (excedidos.length > 0) return { success: false, error: excedidos.join(" ") };
+
+    await db
+      .update(informesMensuales)
+      .set({ introduccion: limpios, actualizadoEn: new Date() })
+      .where(eq(informesMensuales.id, informeId));
+    await registrarEvento({
+      propuestaId: ctx.prop.id,
+      actorId: ctx.session.userId,
+      actorRol: "egresado",
+      tipo: "informe_final_elemento",
+      descripcion: "Registró la introducción del informe final.",
+      referencia: `informe:${informeId}`,
+      agruparMinutos: 60,
+    });
+    revalidar(informeId, ctx.prop.id);
+    return { success: true, parrafos: limpios };
+  } catch (err) {
+    console.error("Error al guardar la introducción:", err);
+    return { success: false, error: err instanceof Error ? err.message : "Error al guardar la introducción" };
+  }
+}
+
+/** Glosario de términos (opcional): si tiene términos, forma parte de los anexos del informe final. */
+export async function guardarGlosario(informeId: number, terminos: TerminoGlosario[]) {
+  try {
+    const ctx = await cargarParaEgresado(informeId);
+    if ("error" in ctx) return { success: false, error: ctx.error };
+    const limpios = terminos
+      .map((t) => ({ termino: normalizarTexto(t.termino ?? "").split("\n").join(" "), definicion: normalizarTexto(t.definicion ?? "").split("\n").join(" ") }))
+      .filter((t) => t.termino || t.definicion);
+    const problemas = validarGlosario(limpios);
+    if (problemas.length > 0) return { success: false, error: problemas.slice(0, 3).join(" ") };
+
+    await db
+      .update(informesMensuales)
+      .set({ glosario: limpios.length ? glosarioOrdenado(limpios) : null, actualizadoEn: new Date() })
+      .where(eq(informesMensuales.id, informeId));
+    await registrarEvento({
+      propuestaId: ctx.prop.id,
+      actorId: ctx.session.userId,
+      actorRol: "egresado",
+      tipo: "informe_final_elemento",
+      descripcion: limpios.length
+        ? `Registró el glosario de términos del informe final (${limpios.length} término${limpios.length === 1 ? "" : "s"}).`
+        : "Quitó el glosario de términos del informe final.",
+      referencia: `informe:${informeId}`,
+      agruparMinutos: 60,
+    });
+    revalidar(informeId, ctx.prop.id);
+    return { success: true, terminos: glosarioOrdenado(limpios) };
+  } catch (err) {
+    console.error("Error al guardar el glosario:", err);
+    return { success: false, error: err instanceof Error ? err.message : "Error al guardar el glosario" };
   }
 }
 

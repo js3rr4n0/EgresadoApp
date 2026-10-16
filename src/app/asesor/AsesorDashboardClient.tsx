@@ -219,7 +219,7 @@ export default function AsesorDashboardClient({
         <div className="bg-white rounded-2xl shadow-sm border border-border p-6 md:p-8 space-y-4">
           <div>
             <h2 className="text-lg font-extrabold text-card-dark">Seguimiento de actividades: pasantías en ejecución</h2>
-            <p className="text-xs text-muted mt-0.5">Avance semanal de sus estudiantes según el cronograma (Gantt).</p>
+            <p className="text-xs text-muted mt-0.5">Avance por subperíodo de sus estudiantes según el cronograma (Gantt).</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {seguimiento.map((s) => (
@@ -240,7 +240,7 @@ export default function AsesorDashboardClient({
                     </span>
                   ))}
                 </div>
-                <p className="text-[11px] text-muted font-semibold">Período {s.mesActual}, Semana {s.semanaActual}</p>
+                <p className="text-[11px] text-muted font-semibold">Período {s.mesActual}, Subperíodo {s.semanaActual}</p>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
                     <div className="h-full bg-unicaes rounded-full" style={{ width: `${s.porcentajeAvance}%` }} />

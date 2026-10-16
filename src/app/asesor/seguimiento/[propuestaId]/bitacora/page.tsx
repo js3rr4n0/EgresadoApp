@@ -36,7 +36,7 @@ export default async function BitacoraAsesorPage({
         </div>
         <Link
           href={`/asesor/seguimiento/${id}`}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
         >
           Volver al seguimiento
         </Link>

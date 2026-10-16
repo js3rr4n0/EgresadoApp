@@ -102,7 +102,7 @@ export async function guardarNotaSeguimiento(
     const ctx = await propuestaDelAsesor(propuestaId);
     if ("error" in ctx) return { success: false, error: ctx.error };
     if (!Number.isInteger(periodo) || !Number.isInteger(semana) || periodo < 1 || semana < 1) {
-      return { success: false, error: "Semana no válida." };
+      return { success: false, error: "Subperíodo no válido." };
     }
 
     const nota = leerNotaSemanal(semana, { ...datos.respuestas, general: datos.general }, null);
@@ -132,7 +132,7 @@ export async function guardarNotaSeguimiento(
         actorId: ctx.session.userId,
         actorRol: "asesor",
         tipo: "nota_seguimiento",
-        descripcion: `Registró una nota de seguimiento de la Semana ${semana} del Período ${periodo}.`,
+        descripcion: `Registró una nota de seguimiento del Subperíodo ${semana} del Período ${periodo}.`,
         detalle: texto,
         referencia: `nota:${periodo}.${semana}`,
         agruparMinutos: 60,

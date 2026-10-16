@@ -82,7 +82,7 @@ export default function ElementosInformeFinal({
         <h2 className="text-sm font-extrabold text-slate-900">Elementos del informe final</h2>
         <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
           El sistema genera la portada, las autoridades académicas, el índice, la descripción de la empresa, las actividades, las
-          conclusiones y los anexos del cronograma. Usted aporta los agradecimientos (opcionales) y la carta de finalización.
+          conclusiones y los anexos del cronograma. Usted aporta la introducción, los agradecimientos (opcionales) y la carta de finalización.
         </p>
       </div>
 

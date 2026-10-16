@@ -270,7 +270,7 @@ export async function enviarInformePrimerContacto(
 
     // R8
     if (datos.aceptaInformesMensuales === null || datos.aceptaInformesMensuales === undefined) {
-      return { success: false, error: "Debe registrar si el supervisor acepta las expectativas de informes mensuales." };
+      return { success: false, error: "Debe registrar si el supervisor acepta las expectativas de informes de período." };
     }
 
     // R9 & R10

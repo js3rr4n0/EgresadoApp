@@ -33,7 +33,7 @@ import {
 } from "@/lib/habilitacionActividades";
 import { hoyISOElSalvador, rangoSemanaISO, nombreInforme } from "@/lib/periodosPasantia";
 import { registrarEvento } from "@/lib/bitacora";
-import { normalizarTexto, mencionaPasante } from "@/lib/reglasRegistroActividad";
+import { normalizarTexto, mencionaPasante, MAX_CARACTERES_LEYENDA } from "@/lib/reglasRegistroActividad";
 import { palabrasDudosas } from "@/lib/ortografia";
 import {
   leerComentariosSecciones,
@@ -50,6 +50,7 @@ import {
   leerFuenteImagen,
   validarOrigenImagen,
   type FuenteImagen,
+  MAX_IMAGENES_ACTIVIDAD,
 } from "@/lib/fuenteImagen";
 
 const MAX_ANEXOS_ACTIVIDAD = 10;
@@ -286,7 +287,7 @@ export async function guardarRegistroActividad(
     const grupos = calcularHabilitacion(acts, registrosPorActividad);
     const grupo = grupos.find((g) => g.periodo === actividad.periodo && g.semana === actividad.semana);
     if (grupo && grupo.estadoGrupo === "bloqueada") {
-      return { success: false, error: "Esta actividad pertenece a una semana que aún no está habilitada." };
+      return { success: false, error: "Esta actividad pertenece a un subperíodo que aún no está habilitado." };
     }
 
     const citaDatos = leerDatosCita(datos.citaApaDatos);
@@ -343,7 +344,7 @@ export async function enviarSemanaActividades(propuestaId: number, declaraAutori
     }
     // Declaración de producción propia (rúbrica): sin ella no se envía la semana.
     if (declaraAutoria !== true) {
-      return { success: false, error: "Para enviar la semana debe declarar que todo el contenido es de su autoría." };
+      return { success: false, error: "Para enviar el subperíodo debe declarar que todo el contenido es de su autoría." };
     }
 
     const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
@@ -356,15 +357,15 @@ export async function enviarSemanaActividades(propuestaId: number, declaraAutori
     const grupos = calcularHabilitacion(acts, registroPorActividad);
     const grupo = grupoActualDe(grupos);
     if (!grupo || grupo.estadoGrupo === "completada") {
-      return { success: false, error: "No hay una semana pendiente de envío." };
+      return { success: false, error: "No hay un subperíodo pendiente de envío." };
     }
     if (grupo.estadoGrupo === "en_revision") {
-      return { success: false, error: "La semana actual ya fue enviada y se encuentra en revisión por su asesor designado." };
+      return { success: false, error: "El subperíodo actual ya fue enviado y se encuentra en revisión por su asesor designado." };
     }
 
     const porEnviar = grupo.actividades.filter((x) => ["pendiente", "guardado", "observado"].includes(x.registro?.estado || "pendiente"));
     if (porEnviar.length === 0) {
-      return { success: false, error: "No hay actividades por enviar en la semana actual." };
+      return { success: false, error: "No hay actividades por enviar en el subperíodo actual." };
     }
 
     const problemas: string[] = [];
@@ -376,7 +377,7 @@ export async function enviarSemanaActividades(propuestaId: number, declaraAutori
     if (problemas.length > 0) {
       return {
         success: false,
-        error: `La semana no puede enviarse hasta completar todas sus actividades. ${problemas.slice(0, 3).join(" ")}${problemas.length > 3 ? ` (y ${problemas.length - 3} pendiente(s) más)` : ""}`,
+        error: `El subperíodo no puede enviarse hasta completar todas sus actividades. ${problemas.slice(0, 3).join(" ")}${problemas.length > 3 ? ` (y ${problemas.length - 3} pendiente(s) más)` : ""}`,
       };
     }
 
@@ -403,7 +404,7 @@ export async function enviarSemanaActividades(propuestaId: number, declaraAutori
       actorId: session.userId,
       actorRol: "egresado",
       tipo: "semana_enviada",
-      descripcion: `Envió al asesor la Semana ${grupo.semana} del Período ${grupo.periodo}: ${porEnviar.map((x) => codigoActividad(x.actividad)).join(", ")}. Declaró que el contenido es de su autoría.`,
+      descripcion: `Envió al asesor el Subperíodo ${grupo.semana} del Período ${grupo.periodo}: ${porEnviar.map((x) => codigoActividad(x.actividad)).join(", ")}. Declaró que el contenido es de su autoría.`,
       referencia: `semana:${grupo.periodo}.${grupo.semana}`,
     });
 
@@ -411,7 +412,7 @@ export async function enviarSemanaActividades(propuestaId: number, declaraAutori
       await db.insert(notificaciones).values({
         usuarioId: prop.asesorId,
         tipo: "actividad_registrada",
-        mensaje: `El estudiante de la propuesta #${prop.numero} envió ${porEnviar.length} actividad${porEnviar.length > 1 ? "es" : ""} de la Semana ${grupo.semana} del Período ${grupo.periodo} para su revisión.`,
+        mensaje: `El estudiante de la propuesta #${prop.numero} envió ${porEnviar.length} actividad${porEnviar.length > 1 ? "es" : ""} del Subperíodo ${grupo.semana} del Período ${grupo.periodo} para su revisión.`,
       });
     }
 
@@ -419,8 +420,8 @@ export async function enviarSemanaActividades(propuestaId: number, declaraAutori
     revalidatePath(`/asesor/seguimiento/${propuestaId}`);
     return { success: true, enviadas: porEnviar.length };
   } catch (err: any) {
-    console.error("Error al enviar la semana de actividades:", err);
-    return { success: false, error: err.message || "Error al enviar la semana" };
+    console.error("Error al enviar el subperíodo de actividades:", err);
+    return { success: false, error: err.message || "Error al enviar el subperíodo" };
   }
 }
 
@@ -464,6 +465,9 @@ export async function uploadImagenRegistroActividad(actividadId: number, formDat
     const leyenda = ((formData.get("leyenda") as string) || "").trim();
     if (leyenda.length < 3) {
       return { success: false, error: "Debe indicar el pie de imagen antes de adjuntarla." };
+    }
+    if (leyenda.length > MAX_CARACTERES_LEYENDA) {
+      return { success: false, error: `El pie de imagen admite como máximo ${MAX_CARACTERES_LEYENDA} caracteres.` };
     }
     const { origen, fuente } = leerOrigenFormulario(formData);
     const problemasOrigen = validarOrigenImagen(origen, fuente);
@@ -566,6 +570,9 @@ export async function subirImagenAdicional(actividadId: number, formData: FormDa
 
     const leyenda = ((formData.get("leyenda") as string) || "").trim();
     if (leyenda.length < 3) return { success: false, error: "Debe indicar el pie de imagen antes de adjuntarla." };
+    if (leyenda.length > MAX_CARACTERES_LEYENDA) {
+      return { success: false, error: `El pie de imagen admite como máximo ${MAX_CARACTERES_LEYENDA} caracteres.` };
+    }
     const { origen, fuente } = leerOrigenFormulario(formData);
     const problemasOrigen = validarOrigenImagen(origen, fuente);
     if (problemasOrigen.length > 0) return { success: false, error: problemasOrigen[0] };
@@ -575,13 +582,11 @@ export async function subirImagenAdicional(actividadId: number, formData: FormDa
       if (!registro.imagenUrl) {
         return { success: false, error: "Primero adjunte la imagen de soporte principal de la actividad." };
       }
-      const conteo = await conteoImagenesSemana(actividad.propuestaId, actividad.periodo, actividad.semana);
-      if (conteo.usadas + conteo.faltantesPrincipal >= conteo.limite) {
+      // Máximo dos imágenes de soporte por actividad: la principal y una adicional.
+      if (existentes.filter((i) => i.tipo === "soporte").length >= MAX_IMAGENES_ACTIVIDAD - 1) {
         return {
           success: false,
-          error: `Usted ya alcanzó el límite de ${conteo.limite} imágenes de soporte por semana${
-            conteo.faltantesPrincipal > 0 ? ` (se reservan ${conteo.faltantesPrincipal} para las imágenes principales pendientes)` : ""
-          }. Puede agregar esta imagen como anexo.`,
+          error: `Cada actividad admite como máximo ${MAX_IMAGENES_ACTIVIDAD} imágenes de soporte: la principal y una adicional. Puede agregar esta imagen como anexo.`,
         };
       }
     } else if (existentes.filter((i) => i.tipo === "anexo").length >= MAX_ANEXOS_ACTIVIDAD) {
@@ -719,7 +724,7 @@ export async function getResumenSeguimientoAsesor() {
               tipo: "semana" as const,
               propuestaId: prop.id,
               egresado: datosEgresado,
-              titulo: `Período ${g.periodo}, Semana ${g.semana}`,
+              titulo: `Período ${g.periodo}, Subperíodo ${g.semana}`,
               detalle: `${porRevisar} de ${g.actividades.length} actividad${g.actividades.length === 1 ? "" : "es"} por revisar`,
               enviadoEn,
               diasEsperando: dias,
@@ -757,7 +762,7 @@ export async function getResumenSeguimientoAsesor() {
           return entrega < hoy;
         });
         const estatus: { id: "semana" | "informe" | "correccion" | "atrasado" | "al_dia"; label: string }[] = [
-          ...(semanasPendientes.length ? [{ id: "semana" as const, label: semanasPendientes.length > 1 ? `${semanasPendientes.length} semanas por revisar` : "Semana por revisar" }] : []),
+          ...(semanasPendientes.length ? [{ id: "semana" as const, label: semanasPendientes.length > 1 ? `${semanasPendientes.length} subperíodos por revisar` : "Subperíodo por revisar" }] : []),
           ...(informesPendientes.length ? [{ id: "informe" as const, label: informesPendientes.length > 1 ? `${informesPendientes.length} informes por aprobar` : "Informe por aprobar" }] : []),
           ...(enCorreccion ? [{ id: "correccion" as const, label: "En corrección" }] : []),
           ...(informesAtrasados.length
@@ -910,7 +915,7 @@ async function cargarSemanaAsesor(propuestaId: number, periodo: number, semana: 
   const { actividades: acts, registros } = await ensureRegistros(propuestaId);
   const grupos = calcularHabilitacion(acts, new Map(registros.map((r) => [r.actividadId, r])));
   const indice = grupos.findIndex((g) => g.periodo === periodo && g.semana === semana);
-  if (indice === -1) return { error: "La semana indicada no tiene actividades en el cronograma." };
+  if (indice === -1) return { error: "El subperíodo indicado no tiene actividades en el cronograma." };
 
   return { error: undefined, session, prop, grupos, indice, grupo: grupos[indice] };
 }
@@ -1017,7 +1022,7 @@ export async function getSemanaRevision(propuestaId: number, periodo: number, se
     };
   } catch (err: any) {
     console.error("Error en getSemanaRevision:", err);
-    return { success: false as const, error: err.message || "Error al obtener la semana" };
+    return { success: false as const, error: err.message || "Error al obtener el subperíodo" };
   }
 }
 
@@ -1040,7 +1045,7 @@ export async function revisarSemanaActividades(
     const { session, prop, grupo } = ctx;
 
     if (estadoSemanaAsesor(grupo.actividades.map((x) => x.registro?.estado || "pendiente")) !== "por_revisar") {
-      return { success: false, error: "Esta semana no está pendiente de revisión." };
+      return { success: false, error: "Este subperíodo no está pendiente de revisión." };
     }
 
     const porRevisar = grupo.actividades.filter((x) => x.registro?.estado === "enviado");
@@ -1054,7 +1059,7 @@ export async function revisarSemanaActividades(
     }
     const observadas = porRevisar.filter((x) => comentariosPorActividad.has(x.actividad.id));
     if (decision === "corregir" && observadas.length === 0) {
-      return { success: false, error: "Escriba al menos un comentario en alguna actividad para devolver la semana." };
+      return { success: false, error: "Escriba al menos un comentario en alguna actividad para devolver el subperíodo." };
     }
     const comentariosDe = (actividadId: number) => comentariosPorActividad.get(actividadId) ?? null;
 
@@ -1105,7 +1110,7 @@ export async function revisarSemanaActividades(
       .delete(borradoresRevision)
       .where(and(eq(borradoresRevision.propuestaId, propuestaId), eq(borradoresRevision.periodo, periodo), eq(borradoresRevision.semana, semana)));
 
-    const etiquetaSemana = `la Semana ${semana} del Período ${periodo}`;
+    const etiquetaSemana = `el Subperíodo ${semana} del Período ${periodo}`;
     const codigosObservados = observadas.map((x) => codigoActividad(x.actividad)).join(", ");
     await db.insert(notificaciones).values({
       usuarioId: prop.egresadoId,
@@ -1113,7 +1118,7 @@ export async function revisarSemanaActividades(
       mensaje:
         decision === "aprobar"
           ? `Su asesor designado aprobó ${etiquetaSemana}.`
-          : `Su asesor designado solicitó correcciones en ${etiquetaSemana} (actividades ${codigosObservados}). Corríjalas y vuelva a enviar la semana.`,
+          : `Su asesor designado solicitó correcciones en ${etiquetaSemana} (actividades ${codigosObservados}). Corríjalas y vuelva a enviar el subperíodo.`,
     });
 
     await registrarEvento({
@@ -1135,7 +1140,7 @@ export async function revisarSemanaActividades(
     revalidatePath(`/egresado/reportes`);
     return { success: true };
   } catch (err: any) {
-    console.error("Error al revisar la semana de actividades:", err);
+    console.error("Error al revisar el subperíodo de actividades:", err);
     return { success: false, error: err.message || "Error al registrar la revisión" };
   }
 }
@@ -1155,7 +1160,7 @@ export async function guardarBorradorRevision(
     if (ctx.error !== undefined) return { success: false, error: ctx.error };
     const { session, grupo } = ctx;
     if (estadoSemanaAsesor(grupo.actividades.map((x) => x.registro?.estado || "pendiente")) !== "por_revisar") {
-      return { success: false, error: "Esta semana no está pendiente de revisión." };
+      return { success: false, error: "Este subperíodo no está pendiente de revisión." };
     }
 
     const idsSemana = new Set(grupo.actividades.map((x) => x.actividad.id));

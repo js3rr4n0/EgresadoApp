@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { validarOrigenImagen } from "@/lib/fuenteImagen";
 import { reducirImagen } from "@/lib/reducirImagen";
 import OrigenImagenCampos, { type DatosOrigenImagen } from "./OrigenImagenCampos";
+import { MAX_CARACTERES_LEYENDA } from "@/lib/reglasRegistroActividad";
 
 /** Imagen de anexo: conserva su proporción (no se recorta) y solicita el pie de imagen y su origen. */
 export default function SubirAnexo({
@@ -62,11 +63,14 @@ export default function SubirAnexo({
               id="pie-anexo"
               type="text"
               value={pie}
-              maxLength={255}
+              maxLength={MAX_CARACTERES_LEYENDA}
               onChange={(e) => setPie(e.target.value)}
               placeholder="Descripción breve de la imagen"
               className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-unicaes outline-none"
             />
+            <p className="text-[10px] text-slate-400 font-semibold text-right">
+              {pie.length}/{MAX_CARACTERES_LEYENDA} caracteres · máximo dos líneas debajo de la imagen
+            </p>
           </div>
           <OrigenImagenCampos idBase="anexo" valor={origen} onChange={setOrigen} />
         </div>

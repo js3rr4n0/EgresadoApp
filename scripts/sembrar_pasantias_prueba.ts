@@ -2,12 +2,14 @@
 // Uso: npx tsx --env-file=.env.local scripts/sembrar_pasantias_prueba.ts [a|b|todos]
 // Es idempotente: elimina primero los usuarios sembrados (por correo) y todo lo que depende de ellos.
 import { readFileSync } from "fs";
+import { createHash } from "crypto";
 import path from "path";
 import { db } from "../src/lib/db";
 import { eq, inArray, sql } from "drizzle-orm";
 import {
   actividades,
   bitacoraEventos,
+  borradoresRevision,
   cartasAceptacion,
   historialEstados,
   imagenesActividad,
@@ -29,6 +31,7 @@ import { textoCitaApa } from "../src/lib/citaApa";
 import { validarContenidoRegistro } from "../src/lib/reglasRegistroActividad";
 import { validarComentariosCompletos, resumenNotaSemanal } from "../src/lib/comentariosAsesor";
 import { validarOrigenImagen } from "../src/lib/fuenteImagen";
+import { resumenComentarios } from "../src/lib/comentariosRevision";
 import {
   SECCIONES_VISITA,
   preguntaVisible,
@@ -87,8 +90,12 @@ interface ConfigPasantia {
   /** Semanas aprobadas por el asesor, en orden (p. ej. 20 = todo el cronograma). */
   semanasAprobadas: number;
   informesAprobados: number;
-  /** Cambios aprobados al cronograma (actividad eliminada, agregada, modificada y pospuesta) para los anexos del informe final. */
+  /** Cambios aprobados al cronograma (actividad eliminada, agregada y pospuesta) para los anexos del informe final. */
   cambiosCronograma?: boolean;
+  /** Informe enviado que espera la revisión del asesor (el siguiente a los aprobados). */
+  informeEnRevision?: number;
+  /** Semana reenviada por revisar, semana adelantada en borrador y solicitud de cambio pendiente (ver sembrarEnCurso). */
+  escenarioEnCurso?: boolean;
 }
 
 const PASANTIA_A: ConfigPasantia = {
@@ -119,8 +126,8 @@ const PASANTIA_B: ConfigPasantia = {
   primerNombre: "Kevin",
   correo: "kevin.rivas@catolica.edu.sv",
   carnet: "2021RP318",
-  cohorte: { id: 6, nombre: "C2-2026" },
-  inicio: "2026-09-07",
+  cohorte: { id: 7, nombre: "C3-2026 Ejemplo" },
+  inicio: "2026-06-01",
   empresaId: 23,
   supervisorId: 24,
   titulo: "Sistema de citas médicas y expediente clínico electrónico para el Hospital Centro Médico de Santa Ana",
@@ -130,8 +137,11 @@ const PASANTIA_B: ConfigPasantia = {
     "Se propone desarrollar un sistema de citas médicas y expediente clínico electrónico que centralice la agenda, registre la atención de cada consulta y permita al paciente consultar sus citas y resultados. El proyecto mejorará la calidad de la atención y permitirá al pasante aplicar sus conocimientos de ingeniería de software en un entorno real.",
   ].join("\n\n"),
   cronograma: CRONOGRAMA_HOSPITAL,
-  semanasAprobadas: 4,
-  informesAprobados: 1,
+  // Períodos 1 a 4 y la primera semana del 5 aprobados; la semana 5.2 por revisar y la 5.3 adelantada.
+  semanasAprobadas: 17,
+  informesAprobados: 3,
+  informeEnRevision: 4,
+  escenarioEnCurso: true,
 };
 
 // ── Limpieza ──
@@ -302,6 +312,11 @@ function planSemanas(inicio: string): SemanaPlan[] {
   return plan;
 }
 
+/** Recorta un texto en una palabra completa sin superar el largo indicado. */
+function recortar(texto: string, largo: number) {
+  return texto.length <= largo ? texto : texto.slice(0, texto.lastIndexOf(" ", largo)).replace(/[,:;]$/, "");
+}
+
 function contenido(c: ConfigPasantia, periodo: number, semana: number, numero: number, titulo: string) {
   const idx = (semana - 1) * 4 + (numero - 1);
   const marco = MARCOS[MARCOS_POR_PERIODO[periodo - 1][idx % MARCOS_POR_PERIODO[periodo - 1].length]];
@@ -314,7 +329,8 @@ function contenido(c: ConfigPasantia, periodo: number, semana: number, numero: n
     descriptor: DESCRIPCIONES[(idx + periodo) % DESCRIPCIONES.length].map(sustituir).join("\n"),
     conclusionTecnica: sustituir(CONCLUSIONES[(idx + periodo) % CONCLUSIONES.length]),
     imagenUrl: IMAGEN,
-    leyendaImagen: `Evidencia de la actividad: ${actividad}`.slice(0, 250),
+    // Pie de imagen de máximo 80 caracteres (dos líneas en el documento).
+    leyendaImagen: recortar(`Evidencia de la actividad: ${actividad}`, 80),
     imagenOrigen: "propia",
     imagenFuente: null,
   };
@@ -373,7 +389,7 @@ function respuestasVisita(fecha: string, c: ConfigPasantia): Respuestas {
     contratar_pasante: "Sí",
     egresado_comodo: "Sí",
     espera_contratacion: "Sí",
-    recomendacion_universidad: `La empresa recomienda reforzar en la carrera el trabajo con metodologías ágiles y la redacción de documentación técnica. Destaca la disposición de ${c.primerNombre} para aprender y su responsabilidad en las entregas semanales.`,
+    recomendacion_universidad: `La empresa recomienda reforzar en la carrera el trabajo con metodologías ágiles y la redacción de documentación técnica. Destaca la disposición de ${c.primerNombre} para aprender y su responsabilidad en las entregas por subperíodo.`,
   };
   // Completa las demás preguntas visibles con la primera opción (las respuestas favorables van primero).
   for (let vuelta = 0; vuelta < 3; vuelta++) {
@@ -407,6 +423,25 @@ const AGRADECIMIENTOS = (c: ConfigPasantia) =>
     `Al personal de la empresa y a mi supervisor empresarial, por la confianza depositada y por compartir su experiencia en cada una de las actividades desarrolladas en el proyecto «${c.titulo}».`,
     "A mi asesor designado y a la Universidad Católica de El Salvador, por su acompañamiento y orientación durante todo el proceso.",
   ].join("\n");
+
+/** Introducción de prueba: cuatro párrafos según los criterios de la métrica (presente, futuro, pasado y documentación). */
+const INTRODUCCION = (c: ConfigPasantia) => {
+  const empresa = c.empresaId === 22 ? "la Caja de Crédito de Santa Ana" : "el Hospital Centro Médico de Santa Ana";
+  return [
+    `Se seleccionó a ${empresa} porque es una institución con procesos definidos, un área de informática activa y una necesidad concreta de automatizar su operación. Cuenta con personal dispuesto a acompañar a un pasante y con la infraestructura necesaria para desarrollar y poner en marcha un sistema de información.`,
+    "Al realizar la pasantía, el egresado logrará aplicar en un entorno real los conocimientos de ingeniería de software adquiridos en la carrera. Obtendrá experiencia en el análisis, el diseño y la implementación de un sistema, y fortalecerá su comunicación con usuarios y supervisores.",
+    `Durante la pasantía se le asignaron actividades de análisis de requerimientos, diseño de la base de datos y de la interfaz, desarrollo de los módulos del proyecto «${c.titulo}», pruebas de aceptación, migración de datos, capacitación de usuarios y puesta en producción.`,
+    "Cada actividad se documentó con un marco teórico y su referencia en formato APA 7, una descripción de lo realizado, imágenes de soporte con su fuente y una conclusión técnica. Las actividades se presentan en orden cronológico por período, y los cambios al cronograma se detallan en los anexos.",
+  ];
+};
+
+/** Glosario de prueba (opcional en el informe final). */
+const GLOSARIO = [
+  { termino: "BPMN", definicion: "Notación estándar para modelar procesos de negocio mediante diagramas de flujo." },
+  { termino: "Cartera vencida", definicion: "Conjunto de créditos cuyos pagos no se realizaron en la fecha acordada." },
+  { termino: "Caso de uso", definicion: "Descripción de la interacción entre un usuario y el sistema para lograr un objetivo concreto." },
+  { termino: "Mora", definicion: "Retraso en el pago de una cuota de un crédito, que genera un recargo según la política de la institución." },
+];
 
 /** Carta de finalización de prueba (imagen PNG generada), firmada por el supervisor de la pasantía. */
 async function generarCarta(c: ConfigPasantia) {
@@ -491,14 +526,6 @@ async function aplicarCambiosCronograma(
       eliminada: true,
     })
     .returning();
-  // Modificada: cambio de título de la actividad 3.1.3.
-  const modificada = acts.find((a) => a.periodo === 3 && a.semana === 1 && a.numero === 3)!;
-  const nuevoTitulo = "Creación y carga inicial de la base de datos de pruebas";
-  await db
-    .update(actividades)
-    .set({ titulo: nuevoTitulo, tituloAnterior: modificada.titulo, descripcionAnterior: modificada.descripcion, esModificada: true })
-    .where(eq(actividades.id, modificada.id));
-  modificada.titulo = nuevoTitulo;
   // Pospuesta: la actividad 1.2.4 pasó a la segunda semana.
   const pospuesta = acts.find((a) => a.periodo === 1 && a.semana === 2 && a.numero === 4)!;
 
@@ -513,7 +540,7 @@ async function aplicarCambiosCronograma(
       codigo: "1.2.4",
       nombre: pospuesta.titulo,
       justificacion:
-        "El área de cobros reprogramó la sesión de levantamiento de requerimientos no funcionales por el cierre contable del mes; el supervisor solicitó trasladarla a la semana siguiente.",
+        "El área de cobros reprogramó la sesión de levantamiento de requerimientos no funcionales por el cierre contable del mes; el supervisor solicitó trasladarla al subperíodo siguiente.",
     },
     {
       tipo: "eliminar",
@@ -524,17 +551,6 @@ async function aplicarCambiosCronograma(
       nombre: eliminada.titulo,
       justificacion:
         "La jefatura decidió que el módulo de cumplimiento normativo lo desarrollará el proveedor del sistema contable, por lo que la actividad quedó fuera del alcance de la pasantía.",
-    },
-    {
-      tipo: "modificar",
-      verbo: "modificar",
-      actividadId: modificada.id,
-      tituloPropuesto: nuevoTitulo,
-      fecha: mas(semana(3, 1).inicio, 1),
-      codigo: "3.1.3",
-      nombre: nuevoTitulo,
-      justificacion:
-        "Además de crear la base de datos de pruebas, el supervisor solicitó cargar un conjunto inicial de datos anonimizados para las pruebas de los módulos.",
     },
     {
       tipo: "agregar",
@@ -557,6 +573,7 @@ async function aplicarCambiosCronograma(
       periodoDestino: k.periodoDestino ?? null,
       semanaDestino: k.semanaDestino ?? null,
       tituloPropuesto: k.tituloPropuesto ?? null,
+      descripcionPropuesta: k.tipo === "agregar" ? `${k.tituloPropuesto} como parte del proyecto.` : null,
       documentoSupervisorUrl: nota,
       documentoSupervisorNombre: "nota_supervisor.pdf",
       justificacion: k.justificacion,
@@ -570,6 +587,242 @@ async function aplicarCambiosCronograma(
     });
     evento("asesor", "cambio_aprobado", `Aprobó la solicitud para ${k.verbo} la actividad ${k.codigo} del cronograma.`, en(k.fecha, "15:00"));
   }
+}
+
+// ── Escenario en curso (pasantía B): semana reenviada por revisar, semana adelantada en borrador y solicitud pendiente ──
+
+const huella = (url: string | null | undefined) => (url ? createHash("sha1").update(url).digest("hex") : null);
+
+/** Descripción sin sujeto de ejecución («El pasante...»), para la observación estándar de involucramiento. */
+const sinSujeto = (texto: string) => texto.replace(/^El pasante (\S+)/, (_m, verbo: string) => `Se ${verbo}`);
+
+/**
+ * Deja la pasantía a mitad del último período, de modo que puedan probarse todas las funciones del módulo:
+ * - Semana `revision` (5.2): se envió, el asesor la devolvió con comentarios por apartado, marcas sobre frases y una
+ *   observación estándar, y el egresado la reenvió corregida (comparación de versiones). Hay un borrador de revisión del asesor.
+ *   Una actividad trae una palabra sin tilde y una descripción sin sujeto (avisos de ortografía y de sujeto de ejecución).
+ * - Semana `adelantada` (5.3): una actividad completa y otra a medias, en borrador.
+ * - Una solicitud de cambio pendiente sobre una actividad de la última semana.
+ */
+async function sembrarEnCurso(
+  c: ConfigPasantia,
+  ids: { usuarioId: number; propuestaId: number },
+  plan: SemanaPlan[],
+  acts: Actividad[],
+  evento: Evento,
+  numeroImagenInicial: number
+) {
+  const revision = plan[c.semanasAprobadas];
+  const adelantada = plan[c.semanasAprobadas + 1];
+  const deSemana = (s: SemanaPlan) => acts.filter((a) => a.periodo === s.periodo && a.semana === s.semana).sort((x, y) => x.numero - y.numero);
+  const codigo = (a: Actividad) => `${a.periodo}.${a.semana}.${a.numero}`;
+  const etiquetaSemana = `el Subperíodo ${revision.semana} del Período ${revision.periodo}`;
+  let numeroImagen = numeroImagenInicial;
+
+  // Fechas del ciclo de revisión: primer envío, devolución con observaciones y reenvío (pendiente desde hace dos días).
+  const primerEnvio = mas(revision.fin, -2);
+  const devolucion = mas(revision.fin, -1);
+  const reenvio = mas(revision.fin, 1);
+
+  const [r1, r2, r3, r4] = deSemana(revision);
+  const base = (a: Actividad) => contenido(c, a.periodo, a.semana, a.numero, a.titulo!);
+
+  // 5.2.2: la descripción original no detallaba resultados; la corregida agrega datos concretos y una imagen adicional.
+  const original2 = base(r2);
+  const parrafos2 = original2.descriptor.split("\n");
+  parrafos2[2] = `${parrafos2[2]} Para ello registró 37 consultas de los usuarios en una hoja de seguimiento y resolvió 31 en la misma jornada.`;
+  const corregida2 = { ...original2, descriptor: parrafos2.join("\n") };
+  // 5.2.3: la descripción original no nombraba al pasante; la corregida sí, y la conclusión se enfocó en la utilidad.
+  const corregida3 = base(r3);
+  const original3 = { ...corregida3, descriptor: sinSujeto(corregida3.descriptor), conclusionTecnica: corregida3.conclusionTecnica };
+  corregida3.conclusionTecnica =
+    "La atención de incidencias permitió estabilizar el sistema durante la primera semana de uso y reducir los reportes repetidos. El registro ordenado de cada caso facilita al área de informática priorizar las mejoras y responder con rapidez a los usuarios del hospital.";
+  // 5.2.4: no fue observada en la primera revisión, pero trae una palabra sin tilde y no nombra al pasante.
+  const actual4 = base(r4);
+  actual4.descriptor = sinSujeto(actual4.descriptor).replace("documentó cada decisión", "registró la documentacion de cada decisión");
+
+  const comentarios2 = {
+    descripcion: "Detalle con mayor precisión qué hizo durante el acompañamiento: cuántas consultas atendió y cómo las resolvió.",
+    marcas: [
+      {
+        id: "m1",
+        seccion: "descripcion" as const,
+        fragmento: "preparó una lista de verificación con los elementos que debía entregar",
+        texto: "Indique qué elementos incluía la lista de verificación y cómo la usó con los usuarios.",
+      },
+    ],
+  };
+  const comentarios3 = {
+    conclusion: "La conclusión repite la descripción; enfóquela en la utilidad de la actividad para la empresa.",
+    estandar: ["involucramiento" as const],
+  };
+
+  const valoresRevision = [
+    { a: r1, actual: base(r1), anterior: base(r1), comentarios: null },
+    { a: r2, actual: corregida2, anterior: original2, comentarios: comentarios2 },
+    { a: r3, actual: corregida3, anterior: original3, comentarios: comentarios3 },
+    { a: r4, actual: actual4, anterior: actual4, comentarios: null },
+  ];
+  const problemas = valoresRevision.flatMap((v) => validarContenidoRegistro(v.actual).map((p) => `${codigo(v.a)}: ${p}`));
+  if (problemas.length) throw new Error(`Contenido inválido en el subperíodo en revisión:\n${problemas.join("\n")}`);
+
+  const insertados = await db
+    .insert(registrosActividad)
+    .values(
+      valoresRevision.map((v) => ({
+        actividadId: v.a.id,
+        estado: "enviado",
+        fecha: v.comentarios ? reenvio : primerEnvio,
+        ...v.actual,
+        numeroImagen: ++numeroImagen,
+        comentariosSecciones: v.comentarios,
+        comentarioAsesor: null,
+        // Contenido que el asesor vio en la primera revisión: permite comparar lo que cambió al reenviar.
+        versionRevisada: {
+          marcoTeorico: v.anterior.marcoTeorico,
+          citaApa: v.anterior.citaApa,
+          descriptor: v.anterior.descriptor,
+          conclusionTecnica: v.anterior.conclusionTecnica,
+          leyendaImagen: v.anterior.leyendaImagen,
+          imagenHash: huella(v.anterior.imagenUrl),
+          adicionales: [],
+        },
+        revisadoPor: v.comentarios ? ASESOR_ID : null,
+        revisadoEn: v.comentarios ? en(devolucion, "11:00") : null,
+        enviadoEn: en(v.comentarios ? reenvio : primerEnvio, v.comentarios ? "19:00" : "17:30"),
+        declaracionAutoriaEn: en(v.comentarios ? reenvio : primerEnvio, v.comentarios ? "19:00" : "17:30"),
+        creadoEn: en(revision.inicio, "08:00"),
+        actualizadoEn: en(v.comentarios ? reenvio : primerEnvio, "19:00"),
+      }))
+    )
+    .returning({ id: registrosActividad.id, actividadId: registrosActividad.actividadId });
+  const registroDe = new Map(insertados.map((r) => [r.actividadId, r.id]));
+
+  // Imagen adicional agregada al corregir 5.2.2 (aparece como cambio de imágenes) y una de fuente externa en 5.2.1.
+  const adicionales = await db.insert(imagenesActividad).values([
+    {
+      registroId: registroDe.get(r2.id)!,
+      tipo: "soporte",
+      url: IMAGEN,
+      leyenda: "Hoja de seguimiento de las consultas atendidas durante el acompañamiento",
+      origen: "propia",
+      creadoEn: en(reenvio, "18:40"),
+    },
+    {
+      registroId: registroDe.get(r1.id)!,
+      tipo: "soporte",
+      url: IMAGEN,
+      leyenda: "Modelo de despliegue por fases utilizado en la puesta en producción piloto",
+      origen: "externa",
+      fuente: { ...FUENTE_EXTERNA, titulo: "Guía de despliegue de aplicaciones web", autor: "Microsoft", anio: "2023", sitio: "Microsoft Learn", url: "https://learn.microsoft.com/es-es/azure/architecture/" },
+      creadoEn: en(revision.inicio, "15:00"),
+    },
+  ]).returning({ id: imagenesActividad.id, registroId: imagenesActividad.registroId });
+  // La imagen de 5.2.1 ya estaba en la primera revisión: forma parte de la versión revisada (no cuenta como cambio).
+  const imagen521 = adicionales.find((i) => i.registroId === registroDe.get(r1.id))!;
+  await db.execute(
+    sql`UPDATE registros_actividad SET version_revisada = jsonb_set(version_revisada, '{adicionales}', ${JSON.stringify([imagen521.id])}::jsonb) WHERE id = ${imagen521.registroId}`
+  );
+
+  // Borrador de la revisión del asesor: ya vio la primera actividad y anotó un comentario en la última.
+  await db.insert(borradoresRevision).values({
+    propuestaId: ids.propuestaId,
+    periodo: revision.periodo,
+    semana: revision.semana,
+    asesorId: ASESOR_ID,
+    datos: {
+      comentarios: { [r4.id]: { general: "Revise la redacción de esta actividad antes de la aprobación." } },
+      vistas: [r1.id],
+    },
+    actualizadoEn: en(reenvio, "21:00"),
+  });
+
+  // Semana adelantada: la primera actividad completa y la segunda a medias (sin imagen ni conclusión).
+  const [a1, a2] = deSemana(adelantada);
+  const completa = base(a1);
+  const mitad = base(a2);
+  await db.insert(registrosActividad).values([
+    {
+      actividadId: a1.id,
+      estado: "guardado",
+      ...completa,
+      numeroImagen: ++numeroImagen,
+      creadoEn: en(adelantada.inicio, "08:00"),
+      actualizadoEn: en(adelantada.inicio, "18:00"),
+    },
+    {
+      actividadId: a2.id,
+      estado: "guardado",
+      marcoTeorico: mitad.marcoTeorico,
+      citaApa: mitad.citaApa,
+      citaApaDatos: mitad.citaApaDatos,
+      descriptor: mitad.descriptor.split("\n").slice(0, 2).join("\n"),
+      creadoEn: en(adelantada.inicio, "08:00"),
+      actualizadoEn: en(mas(adelantada.inicio, 1), "19:30"),
+    },
+  ]);
+
+  // Solicitud de cambio pendiente: agregar una actividad en la última semana.
+  const ultimaSemana = plan[plan.length - 1];
+  const tituloPropuesto = "Elaboración del plan de mantenimiento del sistema";
+  const justificacionCambio =
+    "El director médico solicitó que, además de las recomendaciones, se entregue un plan de mantenimiento del sistema para el área de informática.";
+  await db.insert(solicitudesCambioActividad).values({
+    propuestaId: ids.propuestaId,
+    tipo: "agregar",
+    periodoDestino: ultimaSemana.periodo,
+    semanaDestino: ultimaSemana.semana,
+    tituloPropuesto,
+    descripcionPropuesta: "Elaboración del plan de mantenimiento preventivo y correctivo del sistema para el área de informática.",
+    documentoSupervisorUrl: sql`(SELECT archivo_url FROM cartas_aceptacion WHERE propuesta_id = ${PROPUESTA_PLANTILLA_ID})`,
+    documentoSupervisorNombre: "nota_supervisor.pdf",
+    justificacion: justificacionCambio,
+    estado: "pendiente",
+    creadaEn: en(reenvio, "10:00"),
+  });
+
+  // Bitácora y notificaciones del ciclo.
+  const codigos = deSemana(revision).map(codigo).join(", ");
+  evento("egresado", "semana_enviada", `Envió al asesor el Subperíodo ${revision.semana} del Período ${revision.periodo}: ${codigos}. Declaró que el contenido es de su autoría.`, en(primerEnvio, "17:30"), {
+    referencia: `semana:${revision.periodo}.${revision.semana}`,
+  });
+  evento("asesor", "semana_observada", `Devolvió ${etiquetaSemana} con observaciones en las actividades ${codigo(r2)}, ${codigo(r3)}.`, en(devolucion, "11:00"), {
+    referencia: `semana:${revision.periodo}.${revision.semana}`,
+    detalle: `${codigo(r2)}\n${resumenComentarios(comentarios2)}\n\n${codigo(r3)}\n${resumenComentarios(comentarios3)}`,
+  });
+  evento("egresado", "semana_enviada", `Envió al asesor el Subperíodo ${revision.semana} del Período ${revision.periodo}: ${codigo(r2)}, ${codigo(r3)}. Declaró que el contenido es de su autoría.`, en(reenvio, "19:00"), {
+    referencia: `semana:${revision.periodo}.${revision.semana}`,
+  });
+  evento("egresado", "actividad_borrador", `Guardó el borrador de la actividad ${codigo(a2)} (${a2.titulo}).`, en(mas(adelantada.inicio, 1), "19:30"), {
+    referencia: `actividad:${a2.id}`,
+  });
+  evento("egresado", "cambio_solicitado", `Solicitó agregar la actividad «${tituloPropuesto}» en el Subperíodo ${ultimaSemana.semana} del Período ${ultimaSemana.periodo}.`, en(reenvio, "10:00"), {
+    detalle: justificacionCambio,
+  });
+
+  await db.insert(notificaciones).values([
+    {
+      usuarioId: ids.usuarioId,
+      tipo: "semana_observada",
+      mensaje: `Su asesor designado solicitó correcciones en ${etiquetaSemana} (actividades ${codigo(r2)}, ${codigo(r3)}). Corríjalas y vuelva a enviar el subperíodo.`,
+      leida: true,
+      creadoEn: en(devolucion, "11:00"),
+    },
+    {
+      usuarioId: ASESOR_ID,
+      tipo: "semana_enviada",
+      mensaje: `El estudiante de la propuesta #1 envió 2 actividades del Subperíodo ${revision.semana} del Período ${revision.periodo} para su revisión.`,
+      creadoEn: en(reenvio, "19:00"),
+    },
+    {
+      usuarioId: ASESOR_ID,
+      tipo: "solicitud_cambio_actividad",
+      mensaje: "El estudiante de la propuesta #1 solicitó agregar una actividad del cronograma. Requiere su validación.",
+      creadoEn: en(reenvio, "10:00"),
+    },
+  ]);
+
+  return { registros: insertados.length + 2 };
 }
 
 // ── Pasantía ──
@@ -628,7 +881,7 @@ async function sembrar(c: ConfigPasantia, hoy: string) {
     evento(
       "egresado",
       "semana_enviada",
-      `Envió al asesor la Semana ${s.semana} del Período ${s.periodo}: ${codigos}. Declaró que el contenido es de su autoría.`,
+      `Envió al asesor el Subperíodo ${s.semana} del Período ${s.periodo}: ${codigos}. Declaró que el contenido es de su autoría.`,
       en(conCorreccion ? mas(s.enviadaEl, -2) : s.enviadaEl, "17:30"),
       { referencia: `semana:${s.periodo}.${s.semana}` }
     );
@@ -637,7 +890,7 @@ async function sembrar(c: ConfigPasantia, hoy: string) {
       evento(
         "asesor",
         "semana_observada",
-        `Devolvió la Semana ${s.semana} del Período ${s.periodo} con observaciones en las actividades ${a.periodo}.${a.semana}.${a.numero}.`,
+        `Devolvió el Subperíodo ${s.semana} del Período ${s.periodo} con observaciones en las actividades ${a.periodo}.${a.semana}.${a.numero}.`,
         en(mas(s.enviadaEl, -1), "09:00"),
         {
           referencia: `semana:${s.periodo}.${s.semana}`,
@@ -647,12 +900,12 @@ async function sembrar(c: ConfigPasantia, hoy: string) {
       evento(
         "egresado",
         "semana_enviada",
-        `Envió al asesor la Semana ${s.semana} del Período ${s.periodo}: ${a.periodo}.${a.semana}.${a.numero}. Declaró que el contenido es de su autoría.`,
+        `Envió al asesor el Subperíodo ${s.semana} del Período ${s.periodo}: ${a.periodo}.${a.semana}.${a.numero}. Declaró que el contenido es de su autoría.`,
         en(s.enviadaEl, "17:30"),
         { referencia: `semana:${s.periodo}.${s.semana}` }
       );
     }
-    evento("asesor", "semana_aprobada", `Aprobó la Semana ${s.semana} del Período ${s.periodo}: ${codigos}.`, en(s.revisadaEl, "10:15"), {
+    evento("asesor", "semana_aprobada", `Aprobó el Subperíodo ${s.semana} del Período ${s.periodo}: ${codigos}.`, en(s.revisadaEl, "10:15"), {
       referencia: `semana:${s.periodo}.${s.semana}`,
     });
   });
@@ -687,6 +940,7 @@ async function sembrar(c: ConfigPasantia, hoy: string) {
     }
   });
   if (imagenes.length) await db.insert(imagenesActividad).values(imagenes);
+  const enCurso = c.escenarioEnCurso ? await sembrarEnCurso(c, ids, plan, acts, evento, numeroImagen) : null;
 
   // Notas semanales del asesor (opcionales): semanas 1 y 3 de cada período con semanas aprobadas.
   const notas = plan
@@ -706,7 +960,7 @@ async function sembrar(c: ConfigPasantia, hoy: string) {
     });
   if (notas.length) await db.insert(notasSeguimientoAsesor).values(notas);
   for (const n of notas) {
-    evento("asesor", "nota_seguimiento", `Registró una nota de seguimiento de la Semana ${n.semana} del Período ${n.periodo}.`, n.actualizadoEn, {
+    evento("asesor", "nota_seguimiento", `Registró una nota de seguimiento del Subperíodo ${n.semana} del Período ${n.periodo}.`, n.actualizadoEn, {
       referencia: `nota:${n.periodo}.${n.semana}`,
       detalle: n.nota,
     });
@@ -740,6 +994,7 @@ async function sembrar(c: ConfigPasantia, hoy: string) {
   // Informes de período: enviados el penúltimo día y aprobados el último (los del período en curso quedan en redacción).
   const informes = periodosP.map((p, i) => {
     const aprobado = p.num <= c.informesAprobados;
+    const enRevision = p.num === c.informeEnRevision;
     const enviado = mas(p.fin, -1);
     const comentarios = aprobado ? comentariosDecanato(p.num, c.nombre) : null;
     if (comentarios && validarComentariosCompletos(comentarios).length) throw new Error("Comentarios del decanato incompletos");
@@ -748,12 +1003,12 @@ async function sembrar(c: ConfigPasantia, hoy: string) {
       numero: p.num,
       periodoDesde: aprobado ? p.inicio : null,
       periodoHasta: aprobado ? p.fin : null,
-      fechaPresentacion: aprobado ? enviado : null,
-      estado: aprobado ? "aprobado" : "redactando",
+      fechaPresentacion: aprobado || enRevision ? enviado : null,
+      estado: aprobado ? "aprobado" : enRevision ? "enviado" : "redactando",
       fechaLimite: limites[i],
-      enviadoEn: aprobado ? en(enviado, "16:00") : null,
-      cumplimiento: aprobado ? "a_tiempo" : null,
-      desviacionDias: aprobado ? -1 : null,
+      enviadoEn: aprobado || enRevision ? en(enviado, "16:00") : null,
+      cumplimiento: aprobado || enRevision ? "a_tiempo" : null,
+      desviacionDias: aprobado || enRevision ? -1 : null,
       comentarioAsesor: aprobado ? `El ${nombreInforme(p.num).toLowerCase()} cumple con la extensión y la calidad esperadas.` : null,
       revisadoPor: aprobado ? ASESOR_ID : null,
       revisadoEn: aprobado ? en(p.fin, "11:00") : null,
@@ -764,6 +1019,8 @@ async function sembrar(c: ConfigPasantia, hoy: string) {
       ...(aprobado && p.num === periodosP.length
         ? {
             agradecimientos: AGRADECIMIENTOS(c),
+            introduccion: INTRODUCCION(c),
+            glosario: GLOSARIO,
             cartaFinalizacion: { url: cartaFinalizacion, nombre: "carta_finalizacion.png", subidaEn: en(mas(p.fin, -2), "18:10").toISOString() },
             cartaFinalizacionVerificadaEn: en(p.fin, "10:30"),
             cartaFinalizacionVerificadaPor: ASESOR_ID,
@@ -788,12 +1045,23 @@ async function sembrar(c: ConfigPasantia, hoy: string) {
     });
     notifs.push({ usuarioId: ids.usuarioId, tipo: "informe_mensual_aprobado", mensaje: `Su asesor designado aprobó el ${nombre}.`, leida: true, creadoEn: en(p.fin, "11:00") });
   }
+  for (const inf of infs.filter((x) => x.numero === c.informeEnRevision)) {
+    const p = periodosP[inf.numero - 1];
+    const nombre = nombreInforme(inf.numero);
+    evento("egresado", "informe_enviado", `Envió el ${nombre} al asesor (a tiempo).`, en(mas(p.fin, -1), "16:00"), { referencia: `informe:${inf.id}` });
+    notifs.push({
+      usuarioId: ASESOR_ID,
+      tipo: "informe_mensual_enviado",
+      mensaje: `El estudiante de la propuesta #1 envió el ${nombre} para su revisión.`,
+      creadoEn: en(mas(p.fin, -1), "16:00"),
+    });
+  }
   if (notifs.length) await db.insert(notificaciones).values(notifs);
 
   if (eventos.length) await db.insert(bitacoraEventos).values(eventos);
 
   console.log(
-    `  Usuario ${ids.usuarioId}, propuesta ${ids.propuestaId}: ${acts.length} actividades, ${registros.length} aprobadas, ${imagenes.length} imágenes adicionales, ${notas.length} notas, ${infs.length} informes, ${eventos.length} eventos.`
+    `  Usuario ${ids.usuarioId}, propuesta ${ids.propuestaId}: ${acts.length} actividades, ${registros.length} aprobadas${enCurso ? `, ${enCurso.registros} en revisión o en borrador` : ""}, ${imagenes.length} imágenes adicionales, ${notas.length} notas, ${infs.length} informes, ${eventos.length} eventos.`
   );
   return { ...ids, plan, acts, registroDe, periodosP };
 }

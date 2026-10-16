@@ -247,7 +247,7 @@ export const SECCIONES_VISITA: SeccionVisita[] = [
       },
       {
         id: "familiar_informes",
-        texto: "El supervisor o la persona encargada está familiarizada con los informes mensuales del egresado",
+        texto: "El supervisor o la persona encargada está familiarizada con los informes de período del egresado",
         tipo: "opcion",
         opciones: SI_PARCIAL_NO,
         requerida: true,

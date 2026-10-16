@@ -128,7 +128,7 @@ export default function RegistroActividadClient({ data }: { data: any }) {
     if (res.success) {
       router.push("/egresado/reportes");
     } else {
-      setError(res.error || "No se pudo enviar la semana.");
+      setError(res.error || "No se pudo enviar el subperíodo.");
       router.refresh();
     }
   };
@@ -150,28 +150,28 @@ export default function RegistroActividadClient({ data }: { data: any }) {
           <h1 className="text-xl font-extrabold text-slate-900">Registro de actividad</h1>
           {semana && (
             <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
-              Actividad {semana.posicion} de {semana.total} de la Semana {semana.semana}, Período {semana.periodo}
+              Actividad {semana.posicion} de {semana.total} del Subperíodo {semana.semana}, Período {semana.periodo}
             </p>
           )}
         </div>
         <Link
           href="/egresado/reportes"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
         >
-          Volver a la semana
+          Volver al subperíodo
         </Link>
       </div>
 
       {bloqueadaPorSemana && (
         <div className="p-4 rounded-xl border bg-slate-100 border-slate-300 text-slate-600 text-xs font-bold">
-          Esta actividad pertenece a una semana que aún no está habilitada. Las semanas se habilitan conforme su asesor designado
-          aprueba la anterior.
+          Esta actividad pertenece a un subperíodo que aún no está habilitado. Los subperíodos se habilitan conforme su asesor designado
+          aprueba el anterior.
         </div>
       )}
       {soloBorrador && (
         <div className="p-4 rounded-xl border bg-slate-50 border-slate-300 text-slate-700 text-xs font-bold">
-          Esta semana está disponible solo en borrador. Puede adelantar su redacción mientras su asesor designado revisa la semana
-          anterior; podrá enviarla en cuanto sea aprobada.
+          Este subperíodo está disponible solo en borrador. Puede adelantar su redacción mientras su asesor designado revisa el subperíodo
+          anterior; podrá enviarlo en cuanto este sea aprobado.
         </div>
       )}
       {banner && <div className={`p-4 rounded-xl border text-xs font-bold ${banner.className}`}>{banner.title}</div>}
@@ -183,7 +183,7 @@ export default function RegistroActividadClient({ data }: { data: any }) {
           </h3>
           <p className="text-[11px] text-slate-600 font-semibold">
             {contarComentarios(comentariosAsesor)} comentario{contarComentarios(comentariosAsesor) > 1 ? "s" : ""}. Cada uno aparece junto al
-            apartado al que se refiere{observado ? "; corríjalos y vuelva a enviar la semana." : "."}
+            apartado al que se refiere{observado ? "; corríjalos y vuelva a enviar el subperíodo." : "."}
           </p>
           {OBSERVACIONES_ESTANDAR.filter((o) => comentariosAsesor.estandar?.includes(o.id)).map((o) => (
             <div key={o.id} className="p-3 rounded-lg border-l-4 border-amber-400 bg-amber-50 text-amber-950 space-y-0.5">
@@ -214,7 +214,7 @@ export default function RegistroActividadClient({ data }: { data: any }) {
           <div className="sm:col-span-2"><span className="block text-slate-400 font-bold uppercase text-[10px]">Descripción planificada</span><span className="font-medium text-slate-700">{actividad.descripcion}</span></div>
           <div className="sm:col-span-2">
             <span className="block text-slate-400 font-bold uppercase text-[10px]">Fecha de realización</span>
-            <span className="font-bold text-slate-800">{fechaRegistro || "Se registra automáticamente al enviar la semana"}</span>
+            <span className="font-bold text-slate-800">{fechaRegistro || "Se registra automáticamente al enviar el subperíodo"}</span>
           </div>
         </div>
       </div>
@@ -326,8 +326,8 @@ export default function RegistroActividadClient({ data }: { data: any }) {
               : siguienteId
                 ? `Siguiente actividad (${semana.siguienteCodigo})`
                 : enviaSemana
-                  ? "Enviar semana al asesor"
-                  : "Guardar y volver a la semana"}
+                  ? "Enviar subperíodo al asesor"
+                  : "Guardar y volver al subperíodo"}
           </button>
         </div>
       )}
@@ -338,8 +338,8 @@ export default function RegistroActividadClient({ data }: { data: any }) {
             : enviaSemana
               ? "Es la última actividad de la semana: al enviar, todas las actividades de la semana pasan juntas a revisión."
               : soloBorrador
-                ? "Podrá enviar esta semana cuando su asesor designado apruebe la anterior."
-                : "Las actividades se envían al asesor todas juntas, una vez completadas las de la semana."}
+                ? "Podrá enviar este subperíodo cuando su asesor designado apruebe el anterior."
+                : "Las actividades se envían al asesor todas juntas, una vez completadas las del subperíodo."}
         </p>
       )}
       {isLocked && !bloqueadaPorSemana && siguienteId && (
@@ -357,11 +357,11 @@ export default function RegistroActividadClient({ data }: { data: any }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
             <h3 className="text-base font-extrabold text-slate-900">
-              Enviar la Semana {semana.semana} del Período {semana.periodo}
+              Enviar el Subperíodo {semana.semana} del Período {semana.periodo}
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Se guardará esta actividad y se enviarán las {semana.total} actividades de la semana a su asesor designado para su
-              revisión. No podrá editarlas mientras estén en revisión. Mientras tanto podrá adelantar el borrador de la semana
+              Se guardará esta actividad y se enviarán las {semana.total} actividades del subperíodo a su asesor designado para su
+              revisión. No podrá editarlas mientras estén en revisión. Mientras tanto podrá adelantar el borrador del subperíodo
               siguiente. La fecha de realización quedará registrada con la fecha de hoy.
             </p>
             <DeclaracionAutoria valor={declaracion} onChange={setDeclaracion} />

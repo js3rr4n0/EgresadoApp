@@ -6,7 +6,7 @@ import { getSolicitudesCambioAsesor } from "@/app/actions/cambiosActividad";
 import { getInformesMensualesAsesor } from "@/app/actions/informesMensuales";
 import { getNotasSeguimiento } from "@/app/actions/comentariosAsesor";
 import { getInformeVisita } from "@/app/actions/informeVisita";
-import { formatearFechaLarga, hoyISOElSalvador, nombreCortoInforme } from "@/lib/periodosPasantia";
+import { formatearFechaLarga, hoyISOElSalvador, nombreCortoInforme, nombreInforme } from "@/lib/periodosPasantia";
 import { cuentaRegresivaVisita } from "@/lib/formularioVisita";
 import { leerNotaSemanal } from "@/lib/comentariosAsesor";
 import CuentaRegresivaVisita from "@/components/CuentaRegresivaVisita";
@@ -88,6 +88,10 @@ export default async function SeguimientoAsesorPage({
   const cuentaVisita = cuentaRegresivaVisita(ventanaVisita?.inicioPasantia ?? null, hoyISOElSalvador(), visitaCompletada);
   const solicitudes = solicitudesRes.success && solicitudesRes.solicitudes ? solicitudesRes.solicitudes : [];
   const informesMensualesList = informesRes.success && informesRes.informes ? informesRes.informes : [];
+  // Informes enviados que esperan la aprobación del asesor: aparecen en la bandeja junto con los subperíodos.
+  const informesPorRevisar = informesMensualesList.filter((i) => i.estado === "enviado");
+  // Tras aprobar el informe 3, el informe de visita queda solo de lectura.
+  const visitaEditable = informesMensualesList.find((i) => i.numero === 3)?.estado !== "aprobado";
 
   // La revisión es por semana: cada fila es una semana del cronograma con todas sus actividades.
   const todas = res.grupos.map((g) => {
@@ -119,7 +123,7 @@ export default async function SeguimientoAsesorPage({
   const pestanas: { id: Vista; label: string; total: number }[] = [
     { id: "revisar", label: "Por revisar", total: porRevisar.length },
     { id: "correccion", label: "En corrección", total: enCorreccion.length },
-    { id: "todas", label: "Todas las semanas", total: todas.length },
+    { id: "todas", label: "Todos los subperíodos", total: todas.length },
   ];
 
   return (
@@ -140,7 +144,7 @@ export default async function SeguimientoAsesorPage({
           </Link>
           <Link
             href="/asesor"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
           >
             Volver al panel
           </Link>
@@ -153,12 +157,15 @@ export default async function SeguimientoAsesorPage({
           <div>
             <span className="block text-[10px] font-bold uppercase text-slate-400">Ubicación del estudiante</span>
             <span className="text-sm font-extrabold text-card-dark">
-              {grupoActual ? `Período ${grupoActual.periodo}, Semana ${grupoActual.semana}` : "Cronograma completado"}
+              {grupoActual ? `Período ${grupoActual.periodo}, Subperíodo ${grupoActual.semana}` : "Cronograma completado"}
             </span>
           </div>
           <div>
             <span className="block text-[10px] font-bold uppercase text-slate-400">Pendientes de revisión</span>
-            <span className="text-sm font-extrabold text-card-dark">{res.pendientesRevision} semana{res.pendientesRevision === 1 ? "" : "s"}</span>
+            <span className="text-sm font-extrabold text-card-dark">
+              {res.pendientesRevision} subperíodo{res.pendientesRevision === 1 ? "" : "s"}
+              {informesPorRevisar.length > 0 && ` · ${informesPorRevisar.length} informe${informesPorRevisar.length === 1 ? "" : "s"}`}
+            </span>
           </div>
           <div>
             <span className="block text-[10px] font-bold uppercase text-slate-400">Avance general</span>
@@ -178,23 +185,61 @@ export default async function SeguimientoAsesorPage({
           <div>
             <h2 className="text-sm font-extrabold text-card-dark">Bandeja de revisión</h2>
             <p className="text-[11px] text-muted font-semibold mt-0.5">
-              Semanas enviadas por el estudiante que esperan su revisión. Se recomienda revisarlas en un máximo de {DIAS_PLAZO_REVISION} días
+              Subperíodos enviados por el estudiante que esperan su revisión. Se recomienda revisarlos en un máximo de {DIAS_PLAZO_REVISION} días
               para no detener su avance.
             </p>
           </div>
           <span
             className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border w-fit shrink-0 ${
-              porRevisar.length > 0 ? "bg-red-50 text-unicaes border-red-200" : "bg-emerald-50 text-emerald-800 border-emerald-200"
+              porRevisar.length + informesPorRevisar.length > 0 ? "bg-red-50 text-unicaes border-red-200" : "bg-emerald-50 text-emerald-800 border-emerald-200"
             }`}
           >
-            {porRevisar.length > 0 ? `${porRevisar.length} por revisar` : "Al día"}
+            {porRevisar.length + informesPorRevisar.length > 0 ? `${porRevisar.length + informesPorRevisar.length} por revisar` : "Al día"}
           </span>
         </div>
 
-        {porRevisar.length === 0 ? (
-          <p className="text-xs text-muted font-semibold">No hay semanas pendientes de revisión.</p>
+        {porRevisar.length + informesPorRevisar.length === 0 ? (
+          <p className="text-xs text-muted font-semibold">No hay subperíodos ni informes pendientes de revisión.</p>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {informesPorRevisar.map((inf) => {
+              const dias = diasEsperando(inf.enviadoEn);
+              const atrasado = dias > DIAS_PLAZO_REVISION;
+              return (
+                <div
+                  key={`informe-${inf.id}`}
+                  className={`rounded-xl border p-4 flex flex-col gap-3 ${atrasado ? "border-red-300 bg-red-50/40" : "border-slate-200 bg-slate-50"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wide text-unicaes">Informe</span>
+                      <p className="text-sm font-extrabold text-slate-900">{nombreInforme(inf.numero)}</p>
+                      <p className="text-[11px] text-slate-500 font-semibold">Enviado el {formatFecha(inf.enviadoEn)}</p>
+                    </div>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold border shrink-0 ${
+                        atrasado ? "bg-red-100 text-red-800 border-red-300" : "bg-white text-slate-600 border-slate-200"
+                      }`}
+                    >
+                      {dias === 0 ? "Enviado hoy" : `Esperando ${dias} día${dias === 1 ? "" : "s"}`}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 font-medium">
+                    Todas las actividades del período ya fueron aprobadas. Revise el documento, complete los comentarios para el decanato y
+                    apruebe el informe.
+                  </p>
+                  {atrasado && (
+                    <p className="text-[11px] text-red-800 font-semibold">Supera el plazo recomendado de {DIAS_PLAZO_REVISION} días.</p>
+                  )}
+                  <Link
+                    href={`/asesor/seguimiento/${id}/informe/${inf.id}`}
+                    className="mt-auto block text-center px-4 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-xs font-extrabold transition-colors"
+                  >
+                    Revisar informe
+                  </Link>
+                </div>
+              );
+            })}
             {porRevisar.map((g) => {
               const dias = diasEsperando(g.enviadaEn);
               const atrasada = dias > DIAS_PLAZO_REVISION;
@@ -206,7 +251,7 @@ export default async function SeguimientoAsesorPage({
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="text-sm font-extrabold text-slate-900">
-                        Período {g.periodo}, Semana {g.semana}
+                        Período {g.periodo}, Subperíodo {g.semana}
                       </p>
                       <p className="text-[11px] text-slate-500 font-semibold">
                         {g.total} actividad{g.total === 1 ? "" : "es"} · enviada el {formatFecha(g.enviadaEn)}
@@ -241,7 +286,7 @@ export default async function SeguimientoAsesorPage({
                     href={`/asesor/seguimiento/${id}/semana/${g.periodo}/${g.semana}`}
                     className="block text-center px-4 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-xs font-extrabold transition-colors"
                   >
-                    Revisar semana
+                    Revisar subperíodo
                   </Link>
                 </div>
               );
@@ -259,7 +304,7 @@ export default async function SeguimientoAsesorPage({
                   href={`/asesor/seguimiento/${id}/semana/${g.periodo}/${g.semana}`}
                   className="px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50 text-[11px] font-bold text-amber-900 hover:bg-amber-100"
                 >
-                  Período {g.periodo}, Semana {g.semana} · en corrección
+                  Período {g.periodo}, Subperíodo {g.semana} · en corrección
                 </Link>
               ))}
             </div>
@@ -317,9 +362,7 @@ export default async function SeguimientoAsesorPage({
                   {/* Los comentarios pueden registrarse en cualquier momento del período, antes de aprobar el informe */}
                   <Link
                     href={`/asesor/seguimiento/${id}/informe/${im.id}`}
-                    className={`text-center px-3 py-1.5 rounded-lg text-[11px] font-bold ${
-                      im.estado === "aprobado" ? "bg-slate-900 hover:bg-slate-800 text-white" : "bg-unicaes hover:bg-unicaes-hover text-white"
-                    }`}
+                    className="text-center px-3 py-1.5 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-[11px] font-bold"
                   >
                     {im.estado === "aprobado" ? "Ver comentarios del asesor" : "Añadir comentarios del asesor"}
                   </Link>
@@ -365,9 +408,9 @@ export default async function SeguimientoAsesorPage({
           <div className="flex flex-col gap-1.5 md:w-56">
             <Link
               href={`/asesor/seguimiento/${id}/visita`}
-              className="text-center px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold"
+              className="text-center px-3 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-[11px] font-bold"
             >
-              {visitaCompletada ? "Ver o actualizar informe de visita" : "Registrar informe de visita"}
+              {visitaCompletada ? (visitaEditable ? "Ver o actualizar informe de visita" : "Ver informe de visita") : "Registrar informe de visita"}
             </Link>
             {visitaCompletada && (
               <Link
@@ -392,10 +435,10 @@ export default async function SeguimientoAsesorPage({
 
       <div className="bg-white border border-border rounded-2xl shadow-sm">
         <div className="px-5 pt-5">
-          <h2 className="text-sm font-extrabold text-card-dark">Semanas de actividades</h2>
+          <h2 className="text-sm font-extrabold text-card-dark">Subperíodos de actividades</h2>
           <p className="text-[11px] text-muted font-semibold mt-0.5">
-            El estudiante envía cada semana completa. Ábrala para revisar todas sus actividades y aprobarla o devolverla con
-            observaciones. También puede ver el borrador de las semanas que aún no envía.
+            El estudiante envía cada subperíodo completo. Ábralo para revisar todas sus actividades y aprobarlo o devolverlo con
+            observaciones. También puede ver el borrador de los subperíodos que aún no envía.
           </p>
         </div>
         <div className="flex gap-1 px-5 mt-4 border-b border-slate-200" role="tablist">
@@ -426,9 +469,9 @@ export default async function SeguimientoAsesorPage({
           {paginada.items.length === 0 ? (
             <p className="text-xs text-muted font-semibold">
               {vista === "revisar"
-                ? "No hay semanas pendientes de revisión."
+                ? "No hay subperíodos pendientes de revisión."
                 : vista === "correccion"
-                  ? "No hay semanas devueltas pendientes de corregir."
+                  ? "No hay subperíodos devueltos pendientes de corregir."
                   : "No hay actividades en el cronograma."}
             </p>
           ) : (
@@ -436,7 +479,7 @@ export default async function SeguimientoAsesorPage({
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
-                    <th className="py-2.5 px-3">Semana</th>
+                    <th className="py-2.5 px-3">Subperíodo</th>
                     <th className="py-2.5 px-3">Actividades</th>
                     <th className="py-2.5 px-3">Estado</th>
                     <th className="py-2.5 px-3">Enviada</th>
@@ -451,7 +494,7 @@ export default async function SeguimientoAsesorPage({
                     return (
                       <tr key={g.clave} className={sinAvance ? "text-slate-400" : ""}>
                         <td className="py-2.5 px-3 whitespace-nowrap font-bold">
-                          Período {g.periodo}, Semana {g.semana}
+                          Período {g.periodo}, Subperíodo {g.semana}
                           {esActual && <span className="ml-2 text-[9px] font-extrabold uppercase text-slate-500">actual</span>}
                         </td>
                         <td className="py-2.5 px-3 whitespace-nowrap text-[11px] font-semibold">
@@ -478,10 +521,10 @@ export default async function SeguimientoAsesorPage({
                               }`}
                             >
                               {g.estadoSemana === "por_revisar"
-                                ? "Revisar semana"
+                                ? "Revisar subperíodo"
                                 : g.estadoSemana === "en_redaccion"
                                   ? "Ver borrador"
-                                  : "Ver semana"}
+                                  : "Ver subperíodo"}
                             </Link>
                           )}
                         </td>

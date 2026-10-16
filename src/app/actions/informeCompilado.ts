@@ -14,9 +14,11 @@ import {
   informesVisita,
   imagenesActividad,
   solicitudesCambioActividad,
+  sucursales,
+  organigramasEmpresa,
 } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { eq, and, asc, inArray, lte } from "drizzle-orm";
+import { eq, and, asc, desc, inArray, lte } from "drizzle-orm";
 import { codigoActividad, ESTADOS_REGISTRADOS, getPeriodosPropuesta } from "@/lib/habilitacionActividades";
 import { rangoSemanaISO, esInformeFinal, hoyISOElSalvador } from "@/lib/periodosPasantia";
 import { datosPortada } from "@/lib/portadaInforme";
@@ -25,12 +27,15 @@ import {
   ETIQUETA_CAMBIO,
   ETIQUETA_TIPO_SOLICITUD,
   leerCartaFinalizacion,
+  leerIntroduccion,
+  leerGlosario,
+  glosarioOrdenado,
 } from "@/lib/informeFinal";
-import { parrafosDe } from "@/lib/reglasRegistroActividad";
+import { parrafosDe, leyendaDocumento } from "@/lib/reglasRegistroActividad";
 import { leerComentarios, tieneComentarios, validarComentariosCompletos } from "@/lib/comentariosAsesor";
 import { visitaRealizada, type FotoVisita, type Respuestas } from "@/lib/formularioVisita";
-import { notaImagen } from "@/lib/fuenteImagen";
-import type { SegmentoCita } from "@/lib/citaApa";
+import { notaImagen, letraImagen } from "@/lib/fuenteImagen";
+import { leerDatosCita, segmentosCitaApa, textoCitaApa, type SegmentoCita } from "@/lib/citaApa";
 
 export async function getInformeCompilado(informeId: number) {
   try {
@@ -155,7 +160,7 @@ export async function getInformeCompilado(informeId: number) {
           .orderBy(asc(imagenesActividad.id))
       : [];
     let contadorImagen = 0;
-    const imagenesPorActividad: Record<number, { url: string; leyenda: string; numero: number; nota: SegmentoCita[] }[]> = {};
+    const imagenesPorActividad: Record<number, { url: string; leyenda: string; numero: number; etiqueta: string; nota: SegmentoCita[] }[]> = {};
     for (const a of actividadesCompiladas) {
       if (!a.registrada || !a.registro?.imagenUrl) continue;
       const r = a.registro;
@@ -163,10 +168,11 @@ export async function getInformeCompilado(informeId: number) {
         { url: r.imagenUrl!, leyenda: r.leyendaImagen || "Evidencia de la actividad", origen: r.imagenOrigen, fuente: r.imagenFuente },
         ...adicionales.filter((i) => i.registroId === r.id),
       ];
-      imagenesPorActividad[a.id] = lista.map((i) => ({
+      imagenesPorActividad[a.id] = lista.map((i, k) => ({
         url: i.url,
-        leyenda: i.leyenda,
+        leyenda: leyendaDocumento(i.leyenda),
         numero: ++contadorImagen,
+        etiqueta: `${a.codigo}.${letraImagen(k)}`,
         nota: notaImagen(i.origen, i.fuente),
       }));
     }
@@ -200,13 +206,21 @@ export async function getInformeCompilado(informeId: number) {
     });
 
     // Informe final: apartados propios de la estructura oficial (autoridades, agradecimientos, empresa y anexos).
-    const documentoFinal = final ? await armarDocumentoFinal(prop.id, informe, empresa, portada, registros, contadorImagen) : null;
+    const documentoFinal = final ? await armarDocumentoFinal(prop.id, prop.sucursalId, informe, empresa, portada, registros, contadorImagen) : null;
+    // Informe de período: cronograma ejecutado y modificaciones autorizadas que corresponden al período informado.
+    const cambiosPeriodo = final ? null : await armarCambiosCronograma(prop.id, registros, informe.numero);
+    const fechas = {
+      envio: informe.enviadoEn ? fechaISO(informe.enviadoEn) : null,
+      aprobacion: informe.estado === "aprobado" ? fechaISO(informe.revisadoEn) : null,
+    };
 
     return {
       success: true,
       informe,
       portada,
       documentoFinal,
+      cambiosPeriodo,
+      fechas,
       propuesta: prop,
       comentarios: {
         ...comentarios,
@@ -248,12 +262,71 @@ function fechaISO(t: Date | string | null | undefined) {
  */
 async function armarDocumentoFinal(
   propuestaId: number,
+  sucursalId: number | null,
   informe: Informe,
   empresa: Empresa | null,
   portada: ReturnType<typeof datosPortada>,
   registros: Registro[],
   imagenesPrevias: number
 ) {
+  const { filas, cronograma: periodosCronograma, modificaciones, registroPorActividad } = await armarCambiosCronograma(propuestaId, registros, null);
+
+  // Contenido adicional: imágenes de anexo de las actividades, en el orden del cronograma.
+  const ordenRegistro = new Map(
+    filas.filter((f) => !f.eliminada).flatMap((f, i) => {
+      const r = registroPorActividad.get(f.id);
+      return r ? [[r.id, { orden: i, codigo: f.codigo }] as const] : [];
+    })
+  );
+  const anexos = ordenRegistro.size
+    ? await db
+        .select()
+        .from(imagenesActividad)
+        .where(and(inArray(imagenesActividad.registroId, [...ordenRegistro.keys()]), eq(imagenesActividad.tipo, "anexo")))
+    : [];
+  anexos.sort((a, b) => ordenRegistro.get(a.registroId)!.orden - ordenRegistro.get(b.registroId)!.orden || a.id - b.id);
+  let numero = imagenesPrevias;
+
+  // Bibliografía: las referencias usadas en los marcos teóricos de todo el proceso, sin repetir y en orden alfabético (APA 7).
+  const referencias = new Map<string, SegmentoCita[]>();
+  for (const r of registros) {
+    if (!ESTADOS_REGISTRADOS.includes(r.estado) || !r.citaApa?.trim()) continue;
+    const datos = leerDatosCita(r.citaApaDatos);
+    const textoReferencia = datos ? textoCitaApa(datos) : r.citaApa.trim();
+    const clave = textoReferencia.toLocaleLowerCase("es");
+    if (!referencias.has(clave)) referencias.set(clave, datos ? segmentosCitaApa(datos) : [{ texto: textoReferencia }]);
+  }
+  const bibliografia = [...referencias.entries()].sort(([a], [b]) => a.localeCompare(b, "es")).map(([, segmentos]) => segmentos);
+
+  return {
+    encabezado: portada.encabezado,
+    lugarFecha: portada.grupos[portada.grupos.length - 1]?.[0] ?? "",
+    autoridades: AUTORIDADES_ACADEMICAS,
+    agradecimientos: informe.agradecimientos ? parrafosDe(informe.agradecimientos) : [],
+    introduccion: leerIntroduccion(informe.introduccion),
+    bibliografia,
+    glosario: glosarioOrdenado(leerGlosario(informe.glosario)),
+    empresa: await datosEmpresa(empresa, sucursalId),
+    cronograma: periodosCronograma,
+    modificaciones,
+    anexos: anexos.map((i) => ({
+      url: i.url,
+      leyenda: leyendaDocumento(i.leyenda),
+      numero: ++numero,
+      etiqueta: `de anexo ${numero - imagenesPrevias}`,
+      codigo: ordenRegistro.get(i.registroId)!.codigo,
+      nota: notaImagen(i.origen, i.fuente),
+    })),
+    carta: leerCartaFinalizacion(informe.cartaFinalizacion),
+    cartaVerificada: !!informe.cartaFinalizacionVerificadaEn,
+  };
+}
+
+/**
+ * Cronograma real (cada actividad con su estado final y los cambios aprobados que tuvo) y modificaciones autorizadas al
+ * cronograma original. Con `periodo`, solo lo que corresponde a ese período (informe de período); sin él, toda la pasantía.
+ */
+async function armarCambiosCronograma(propuestaId: number, registros: Registro[], periodo: number | null) {
   const todas = await db
     .select()
     .from(actividades)
@@ -267,7 +340,6 @@ async function armarDocumentoFinal(
   const registroPorActividad = new Map(registros.map((r) => [r.actividadId, r]));
   const actividadPorId = new Map(todas.map((a) => [a.id, a]));
 
-  // Cronograma real: cada actividad con su estado final y los cambios aprobados que tuvo.
   const filas = todas.map((a) => {
     const registro = registroPorActividad.get(a.id);
     const cambios = new Set<string>();
@@ -298,9 +370,14 @@ async function armarDocumentoFinal(
     return { numero, semanas: Math.max(4, ...filasPeriodo.map((f) => f.semana)), filas: filasPeriodo };
   });
 
-  const modificaciones = solicitudes.map((s) => {
+  const delPeriodo = (s: (typeof solicitudes)[number]) => {
+    if (periodo === null) return true;
     const act = s.actividadId ? actividadPorId.get(s.actividadId) : undefined;
-    const destino = s.periodoDestino && s.semanaDestino ? `Período ${s.periodoDestino}, Semana ${s.semanaDestino}` : null;
+    return act?.periodo === periodo || s.periodoDestino === periodo;
+  };
+  const modificaciones = solicitudes.filter(delPeriodo).map((s) => {
+    const act = s.actividadId ? actividadPorId.get(s.actividadId) : undefined;
+    const destino = s.periodoDestino && s.semanaDestino ? `Período ${s.periodoDestino}, Subperíodo ${s.semanaDestino}` : null;
     const actividad =
       s.tipo === "agregar"
         ? `${s.tituloPropuesto || "Actividad nueva"}${destino ? ` (${destino})` : ""}`
@@ -321,43 +398,63 @@ async function armarDocumentoFinal(
     };
   });
 
-  // Contenido adicional: imágenes de anexo de las actividades, en el orden del cronograma.
-  const ordenRegistro = new Map(
-    filas.filter((f) => !f.eliminada).flatMap((f, i) => {
-      const r = registroPorActividad.get(f.id);
-      return r ? [[r.id, { orden: i, codigo: f.codigo }] as const] : [];
-    })
-  );
-  const anexos = ordenRegistro.size
+  return {
+    filas,
+    registroPorActividad,
+    cronograma: periodo === null ? periodosCronograma : periodosCronograma.filter((p) => p.numero === periodo),
+    modificaciones,
+  };
+}
+
+/**
+ * Descripción de la empresa para el informe final: se toma tal cual de lo registrado en la fase de propuesta (datos de la
+ * empresa, sucursal asignada, coordenadas del mapa de ubicación y organigrama más reciente). No modifica esos datos.
+ */
+async function datosEmpresa(empresa: Empresa | null, sucursalId: number | null) {
+  const [sucursal] = sucursalId ? await db.select().from(sucursales).where(eq(sucursales.id, sucursalId)).limit(1) : [];
+  const [organigrama] = empresa
     ? await db
-        .select()
-        .from(imagenesActividad)
-        .where(and(inArray(imagenesActividad.registroId, [...ordenRegistro.keys()]), eq(imagenesActividad.tipo, "anexo")))
+        .select({ url: organigramasEmpresa.url })
+        .from(organigramasEmpresa)
+        .where(eq(organigramasEmpresa.empresaId, empresa.id))
+        .orderBy(desc(organigramasEmpresa.id))
+        .limit(1)
     : [];
-  anexos.sort((a, b) => ordenRegistro.get(a.registroId)!.orden - ordenRegistro.get(b.registroId)!.orden || a.id - b.id);
-  let numero = imagenesPrevias;
+  const urlOrganigrama = organigrama?.url || empresa?.organigramaUrl || null;
+  const textoCoordenadas = (sucursal?.mapaUrl || empresa?.mapaUrl || "").trim();
+  const coordenadas = /^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(textoCoordenadas) ? textoCoordenadas.replace(/\s/g, "") : null;
+  const organigramaImagen = !!urlOrganigrama && /^data:image\/(png|jpe?g|gif|bmp)/i.test(urlOrganigrama);
+
+  // Ilustraciones de la empresa, numeradas en el orden en que aparecen (forman parte del índice de imágenes).
+  const nombre = empresa?.nombre ?? "";
+  const ilustraciones: { tipo: "mapa" | "organigrama"; etiqueta: string; leyenda: string; nota: string }[] = [];
+  if (coordenadas) {
+    ilustraciones.push({
+      tipo: "mapa",
+      etiqueta: "",
+      leyenda: `Mapa de ubicación de la empresa ${nombre}`,
+      nota: "Nota. Adaptado de OpenStreetMap (https://www.openstreetmap.org).",
+    });
+  }
+  if (organigramaImagen) {
+    ilustraciones.push({
+      tipo: "organigrama",
+      etiqueta: "",
+      leyenda: `Organigrama de la empresa ${nombre}`,
+      nota: "Nota. Tomado de la documentación de la empresa registrada en la propuesta.",
+    });
+  }
+  ilustraciones.forEach((il, i) => (il.etiqueta = `Ilustración ${i + 1}`));
 
   return {
-    encabezado: portada.encabezado,
-    lugarFecha: portada.grupos[portada.grupos.length - 1]?.[0] ?? "",
-    autoridades: AUTORIDADES_ACADEMICAS,
-    agradecimientos: informe.agradecimientos ? parrafosDe(informe.agradecimientos) : [],
-    empresa: {
-      nombre: empresa?.nombre ?? null,
-      area: empresa?.area ?? null,
-      direccion: empresa?.direccion ?? null,
-      parrafos: [...parrafosDe(empresa?.descripcion), ...parrafosDe(empresa?.antecedentes)],
-    },
-    cronograma: periodosCronograma,
-    modificaciones,
-    anexos: anexos.map((i) => ({
-      url: i.url,
-      leyenda: i.leyenda,
-      numero: ++numero,
-      codigo: ordenRegistro.get(i.registroId)!.codigo,
-      nota: notaImagen(i.origen, i.fuente),
-    })),
-    carta: leerCartaFinalizacion(informe.cartaFinalizacion),
-    cartaVerificada: !!informe.cartaFinalizacionVerificadaEn,
+    nombre: empresa?.nombre ?? null,
+    area: empresa?.area ?? null,
+    direccion: sucursal?.direccion || empresa?.direccion || null,
+    sucursal: sucursal ? { nombre: sucursal.nombre, telefono: sucursal.telefono } : null,
+    descripcion: [...parrafosDe(empresa?.descripcion), ...parrafosDe(sucursal?.descripcion)],
+    antecedentes: [...parrafosDe(empresa?.antecedentes), ...parrafosDe(sucursal?.antecedentes)],
+    coordenadas,
+    organigrama: urlOrganigrama ? { url: urlOrganigrama, esImagen: organigramaImagen } : null,
+    ilustraciones,
   };
 }

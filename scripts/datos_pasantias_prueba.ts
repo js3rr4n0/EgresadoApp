@@ -334,7 +334,7 @@ export function comentariosDecanato(periodo: number, nombre: string) {
       ambiente: `Se siente bien integrado en la empresa, describe un ambiente laboral ordenado, respetuoso y orientado a resultados. Ha participado en reuniones del equipo de informática y en actividades de coordinación con otras áreas, lo que le ha permitido integrarse laboral y socialmente sin dificultades durante este período.`,
       supervisor: `La relación con el supervisor es cercana y profesional. El supervisor revisa sus avances cada semana, le brinda retroalimentación concreta y le orienta en la toma de decisiones técnicas, por lo que el egresado lo percibe como un verdadero mentor dentro de su proceso de formación profesional.`,
       formacion: `El egresado está aplicando conocimientos de ingeniería de requerimientos, bases de datos, programación orientada a objetos y gestión de proyectos adquiridos en la carrera. Señala que las asignaturas de análisis y diseño de sistemas le han sido especialmente útiles para documentar y modelar la solución propuesta.`,
-      acciones: `Como asesor, mantendré reuniones de seguimiento semanales con el egresado, revisaré oportunamente cada semana enviada y le orientaré en la redacción técnica de sus reportes. Además, reforzaré la planificación de sus actividades para asegurar que cumpla la extensión y la calidad esperadas en cada informe.`,
+      acciones: `Como asesor, mantendré reuniones de seguimiento semanales con el egresado, revisaré oportunamente cada subperíodo enviado y le orientaré en la redacción técnica de sus reportes. Además, reforzaré la planificación de sus actividades para asegurar que cumpla la extensión y la calidad esperadas en cada informe.`,
     },
     general: `El desempeño del egresado durante el período ${periodo} es satisfactorio y cumple con lo planificado en su cronograma.`,
   };
@@ -342,7 +342,7 @@ export function comentariosDecanato(periodo: number, nombre: string) {
 
 export function notaSemanal(semana: number) {
   return {
-    retos: `En la semana ${semana} comentó que le ha costado coordinar el tiempo de los usuarios para las sesiones de trabajo.`,
+    retos: `En el subperíodo ${semana} comentó que le ha costado coordinar el tiempo de los usuarios para las sesiones de trabajo.`,
     supervisor: "El supervisor revisó sus avances y le dio retroalimentación puntual sobre la documentación.",
     acciones: "Le sugerí preparar una agenda previa para cada reunión con los usuarios.",
   };

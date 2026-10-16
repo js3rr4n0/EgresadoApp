@@ -17,14 +17,19 @@ export const AVISO_ORIGEN_IMAGEN =
   "Por tratarse de un documento académico, toda imagen que provenga de internet o que no sea de su autoría debe indicar su fuente. Usar imágenes ajenas sin citarlas se considera plagio.";
 
 /**
- * Imágenes de soporte por semana (la principal de cada actividad más las adicionales). Equilibra la proporción de la
- * rúbrica (30 % de elementos de soporte): unas 1.5 páginas de imágenes por semana, a dos imágenes de 5 x 5 cm por fila.
+ * Imágenes de soporte por actividad: la principal (obligatoria, «A») y una adicional opcional («B»). En los informes se
+ * identifican con el código de la actividad, por ejemplo 1.1.1.A y 1.1.1.B (índice de imágenes del informe final).
  */
-export const MAX_IMAGENES_SOPORTE_SEMANA = 9;
+export const MAX_IMAGENES_ACTIVIDAD = 2;
 
-/** Toda actividad lleva su imagen principal, así que el límite nunca es menor que el número de actividades de la semana. */
+/** Letra de la imagen dentro de su actividad: A para la principal, B para la adicional. */
+export function letraImagen(indice: number) {
+  return String.fromCharCode(65 + indice);
+}
+
+/** Imágenes de soporte posibles en un subperíodo: dos por actividad. */
 export function limiteImagenesSemana(actividadesSemana: number) {
-  return Math.max(MAX_IMAGENES_SOPORTE_SEMANA, actividadesSemana);
+  return MAX_IMAGENES_ACTIVIDAD * actividadesSemana;
 }
 
 export interface FuenteImagen {

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { validarOrigenImagen } from "@/lib/fuenteImagen";
 import OrigenImagenCampos, { type DatosOrigenImagen } from "./OrigenImagenCampos";
+import { MAX_CARACTERES_LEYENDA } from "@/lib/reglasRegistroActividad";
 
 const LADO_VISTA = 288; // px del recuadro de recorte en pantalla
 const LADO_SALIDA = 600; // px de la imagen resultante (5 x 5 cm a ~300 ppp)
@@ -184,11 +185,14 @@ export default function RecortadorImagen({
               id="pie-imagen"
               type="text"
               value={pie}
-              maxLength={255}
+              maxLength={MAX_CARACTERES_LEYENDA}
               onChange={(e) => setPie(e.target.value)}
               placeholder="Descripción breve de la imagen"
               className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-semibold focus:ring-1 focus:ring-unicaes outline-none"
             />
+            <p className="text-[10px] text-slate-400 font-semibold text-right">
+              {pie.length}/{MAX_CARACTERES_LEYENDA} caracteres · máximo dos líneas debajo de la imagen
+            </p>
             {!pieValido && <p className="text-[11px] text-amber-700 font-semibold">Sin pie de imagen no es posible adjuntarla.</p>}
           </div>
 

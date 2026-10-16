@@ -7,6 +7,16 @@ export const DESCRIPTOR_MIN_PALABRAS = 200;
 export const DESCRIPTOR_MAX_PALABRAS = 300;
 export const CONCLUSION_MIN_PALABRAS = 40;
 export const CONCLUSION_MAX_PALABRAS = 60;
+/** Pie de imagen: como máximo dos líneas debajo de la imagen en el documento (fuente de 10 pt en una columna de imagen). */
+export const MAX_CARACTERES_LEYENDA = 80;
+
+/** Pie de imagen para el documento: los registrados antes del límite se acortan en una palabra completa. */
+export function leyendaDocumento(leyenda: string) {
+  const t = leyenda.trim().replace(/[.\s]+$/, "");
+  if (t.length <= MAX_CARACTERES_LEYENDA) return t;
+  const corte = t.slice(0, MAX_CARACTERES_LEYENDA - 1);
+  return `${corte.slice(0, Math.max(corte.lastIndexOf(" "), 40)).trim()}…`;
+}
 
 export function contarPalabras(texto: string): number {
   return texto
@@ -88,6 +98,8 @@ export function validarContenidoRegistro(r: ContenidoRegistro): string[] {
     problemas.push("Debe adjuntar la imagen de soporte principal.");
   } else {
     if (!r.leyendaImagen || r.leyendaImagen.trim().length < 3) problemas.push("La imagen de soporte debe llevar su pie de imagen.");
+    else if (r.leyendaImagen.trim().length > MAX_CARACTERES_LEYENDA)
+      problemas.push(`El pie de imagen admite como máximo ${MAX_CARACTERES_LEYENDA} caracteres (dos líneas en el documento).`);
     const problemasOrigen = validarOrigenImagen(r.imagenOrigen, r.imagenFuente);
     if (problemasOrigen.length > 0) problemas.push(`Imagen de soporte principal: ${problemasOrigen[0]}`);
   }

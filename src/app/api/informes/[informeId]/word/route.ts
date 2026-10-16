@@ -2,7 +2,7 @@ import { getInformeCompilado } from "@/app/actions/informeCompilado";
 import { esInformeFinal } from "@/lib/periodosPasantia";
 import { generarInformeWord, type InformeCompilado } from "@/lib/informeWord";
 
-export async function GET(_request: Request, { params }: { params: Promise<{ informeId: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ informeId: string }> }) {
   const { informeId } = await params;
   const id = Number(informeId);
   if (!Number.isFinite(id)) {
@@ -16,7 +16,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ inf
   }
 
   const informe = res as InformeCompilado;
-  const archivo = await generarInformeWord(informe);
+  const archivo = await generarInformeWord(informe, { origen: new URL(request.url).origin });
   const carnet = (informe.egresado?.carnet || "egresado").replace(/[^A-Za-z0-9-]/g, "");
   const nombre = `${esInformeFinal(informe.informe.numero) ? "Informe_Final" : `Informe_Periodo_${informe.informe.numero}`}_${carnet}.docx`;
 

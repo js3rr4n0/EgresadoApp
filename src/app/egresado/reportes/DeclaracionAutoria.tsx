@@ -38,7 +38,7 @@ export default function DeclaracionAutoria({
       </div>
       {valor === "no" && (
         <p className="text-[11px] text-red-700 font-semibold">
-          No es posible enviar la semana si el contenido no es de su autoría. Revise y redacte con sus propias palabras lo que
+          No es posible enviar el subperíodo si el contenido no es de su autoría. Revise y redacte con sus propias palabras lo que
           realizó; las imágenes ajenas deben indicar su fuente.
         </p>
       )}

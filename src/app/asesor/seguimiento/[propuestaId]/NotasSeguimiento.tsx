@@ -74,7 +74,7 @@ export default function NotasSeguimiento({
               rows={2}
               value={valor}
               onChange={(e) => onChange(e.target.value)}
-              placeholder="Lo que observó o conversó con el egresado esta semana."
+              placeholder="Lo que observó o conversó con el egresado este subperíodo."
               lang="es"
               spellCheck
               className={area}
@@ -88,10 +88,10 @@ export default function NotasSeguimiento({
   return (
     <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-3">
       <div>
-        <h2 className="text-sm font-extrabold text-card-dark">Notas de seguimiento semanal (opcional)</h2>
+        <h2 className="text-sm font-extrabold text-card-dark">Notas de seguimiento por subperíodo (opcional)</h2>
         <p className="text-[11px] text-muted font-semibold mt-0.5">
-          Responda, si lo desea, las mismas preguntas de los comentarios del asesor con lo que observó en la semana. Las notas se van
-          acumulando en orden en los comentarios del informe mensual, que son obligatorios: al cierre del período solo tendrá que
+          Responda, si lo desea, las mismas preguntas de los comentarios del asesor con lo que observó en el subperíodo. Las notas se van
+          acumulando en orden en los comentarios del informe del período, que son obligatorios: al cierre del período solo tendrá que
           revisarlos y completarlos.
         </p>
       </div>
@@ -99,13 +99,13 @@ export default function NotasSeguimiento({
       {semanaActual ? (
         <div className="space-y-2">
           <p className="text-[10px] font-bold uppercase text-slate-400">
-            Período {semanaActual.periodo}, Semana {semanaActual.semana} · {respondidas} de {CATEGORIAS_COMENTARIO.length + 1} preguntas con nota
+            Período {semanaActual.periodo}, Subperíodo {semanaActual.semana} · {respondidas} de {CATEGORIAS_COMENTARIO.length + 1} preguntas con nota
           </p>
           <ul className="space-y-1.5">
             {CATEGORIAS_COMENTARIO.map((c, i) =>
               pregunta(c.id, i + 1, c.pregunta, respuestas[c.id] || "", (v) => setRespuestas((prev) => ({ ...prev, [c.id]: v })))
             )}
-            {pregunta("general", null, "Otras observaciones de la semana", general, setGeneral)}
+            {pregunta("general", null, "Otras observaciones del subperíodo", general, setGeneral)}
           </ul>
           <div className="flex items-center justify-end gap-3">
             {mensaje && <span className="text-[11px] font-semibold text-slate-500">{mensaje}</span>}
@@ -130,7 +130,7 @@ export default function NotasSeguimiento({
             {anteriores.map((n) => (
               <li key={`${n.periodo}-${n.semana}`} className="space-y-0.5">
                 <p className="font-bold text-slate-700">
-                  Período {n.periodo}, Semana {n.semana}
+                  Período {n.periodo}, Subperíodo {n.semana}
                 </p>
                 {CATEGORIAS_COMENTARIO.filter((c) => n.respuestas[c.id]).map((c) => (
                   <p key={c.id}>

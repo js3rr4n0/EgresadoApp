@@ -9,12 +9,11 @@ import {
   supervisores,
   empresas,
   notificaciones,
-  registrosActividad,
   solicitudesCambioActividad,
   informesVisita,
 } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { eq, asc, and, inArray } from "drizzle-orm";
+import { eq, asc, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import {
   ensureRegistros,
@@ -33,8 +32,8 @@ import { leerComentariosSecciones } from "@/lib/comentariosRevision";
 
 /** El informe del tercer período (alrededor de los 90 días) incluye la visita del asesor a la empresa. */
 const NUMERO_INFORME_VISITA = 3;
-import { hoyISOElSalvador, formatearFechaLarga, NUM_INFORMES_MENSUALES, esInformeFinal } from "@/lib/periodosPasantia";
-import { leerCartaFinalizacion, validarAgradecimientos } from "@/lib/informeFinal";
+import { hoyISOElSalvador, formatearFechaLarga, NUM_INFORMES_MENSUALES, esInformeFinal, nombreInforme } from "@/lib/periodosPasantia";
+import { leerCartaFinalizacion, validarAgradecimientos, leerIntroduccion, validarIntroduccion } from "@/lib/informeFinal";
 
 async function assertAccesoPropuesta(propuestaId: number) {
   const session = await getSession();
@@ -68,7 +67,7 @@ export async function ensureInformesMensuales(propuestaId: number) {
   if (!prop) return { error: "Propuesta no encontrada" as const };
 
   if (prop.tipo !== "pasantia") {
-    return { error: "Los informes mensuales están disponibles por ahora únicamente para propuestas de Pasantía." as const };
+    return { error: "Los informes de período están disponibles por ahora únicamente para propuestas de Pasantía." as const };
   }
 
   const [periodo] = await db.select().from(periodos).where(eq(periodos.id, prop.periodoId)).limit(1);
@@ -142,7 +141,7 @@ export async function getInformesMensuales(propuestaId: number) {
     return { success: true, propuesta: prop, egresado, asesor, empresa, supervisor, informes };
   } catch (err: any) {
     console.error("Error en getInformesMensuales:", err);
-    return { success: false, error: err.message || "Error al obtener los informes mensuales" };
+    return { success: false, error: err.message || "Error al obtener los informes de período" };
   }
 }
 
@@ -166,7 +165,7 @@ export async function getInformesMensualesAsesor(propuestaId: number) {
     return { success: true, propuesta: prop, egresado, informes: result.informes };
   } catch (err: any) {
     console.error("Error en getInformesMensualesAsesor:", err);
-    return { success: false, error: err.message || "Error al obtener los informes mensuales" };
+    return { success: false, error: err.message || "Error al obtener los informes de período" };
   }
 }
 
@@ -193,7 +192,7 @@ export async function verificarCierrePeriodo(
     const { prop, informes } = result;
 
     const informeMes = informes.find((i) => i.numero === mesActual);
-    if (!informeMes) return { success: false, error: "Informe del mes no encontrado." };
+    if (!informeMes) return { success: false, error: "Informe del período no encontrado." };
 
     const hoy = new Date();
     const fechaLimite = new Date(`${informeMes.fechaLimite}T23:59:59`);
@@ -296,7 +295,7 @@ export interface RequisitoInforme {
 const ETIQUETA_ESTADO_ACTIVIDAD: Record<string, string> = {
   pendiente: "sin registrar",
   guardado: "guardada como borrador; falta enviarla",
-  enviado: "enviada; falta que su asesor designado apruebe la semana",
+  enviado: "enviada; falta que su asesor designado apruebe el subperíodo",
   observado: "tiene observaciones del asesor pendientes de corregir",
 };
 
@@ -363,7 +362,7 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   }
   requisitos.push({
     id: "actividades",
-    titulo: "Actividades del mes aprobadas por su asesor designado",
+    titulo: "Actividades del período aprobadas por su asesor designado",
     cumplido: pendientesActividad.length === 0,
     detalles: pendientesActividad,
   });
@@ -388,7 +387,7 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   );
   requisitos.push({
     id: "cambios",
-    titulo: "Cronograma del mes sin solicitudes de cambio pendientes",
+    titulo: "Cronograma del período sin solicitudes de cambio pendientes",
     cumplido: cambiosDelMes.length === 0,
     detalles: cambiosDelMes.map((s) => {
       const act = acts.find((a) => a.id === s.actividadId);
@@ -416,6 +415,13 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
 
   // 5. Elementos propios del informe final: agradecimientos (opcionales) y carta de finalización satisfactoria.
   if (esInformeFinal(informe.numero)) {
+    const problemasIntroduccion = validarIntroduccion(leerIntroduccion(informe.introduccion));
+    requisitos.push({
+      id: "introduccion",
+      titulo: "Introducción: cuatro párrafos de no más de cinco renglones",
+      cumplido: problemasIntroduccion.length === 0,
+      detalles: problemasIntroduccion,
+    });
     const problemasAgradecimientos = validarAgradecimientos(informe.agradecimientos || "");
     requisitos.push({
       id: "agradecimientos",
@@ -497,7 +503,7 @@ async function verificarRubrica(
       id,
       titulo,
       codigos.length === 0,
-      codigos.length === 0 ? "Sin observaciones en la revisión semanal." : `Observado en: ${codigos.join(", ")}.`,
+      codigos.length === 0 ? "Sin observaciones en la revisión por subperíodo." : `Observado en: ${codigos.join(", ")}.`,
       false
     );
   };
@@ -518,7 +524,7 @@ async function verificarRubrica(
     ),
     punto(
       "cronograma",
-      "Actividades conforme al cronograma, aprobadas semana a semana",
+      "Actividades conforme al cronograma, aprobadas subperíodo a subperíodo",
       sinAprobar === 0,
       sinAprobar === 0 ? "Todas las actividades del período están aprobadas." : `${sinAprobar} actividad(es) sin aprobar.`
     ),
@@ -540,7 +546,7 @@ async function verificarRubrica(
       "produccion_propia",
       "Producción propia del egresado",
       sinDeclaracion === 0,
-      sinDeclaracion === 0 ? "Declarada al enviar cada semana." : `${sinDeclaracion} actividad(es) sin declaración de autoría.`
+      sinDeclaracion === 0 ? "Declarada al enviar cada subperíodo." : `${sinDeclaracion} actividad(es) sin declaración de autoría.`
     ),
     observacionEstandar("redaccion", "Redacción acorde al nivel del egresado"),
     observacionEstandar("involucramiento", "Involucramiento del egresado en las actividades"),
@@ -686,7 +692,7 @@ async function requisitosAprobacionAsesor(informe: InformeMensual) {
   const sinAprobar = await actividadesSinAprobar(informe.propuestaId, informe.numero);
   if (sinAprobar.length > 0) {
     pendientes.push(
-      `Debe aprobar todas las semanas del Período ${informe.numero} antes de aprobar el informe. Actividades sin aprobar: ${sinAprobar.join(", ")}.`
+      `Debe aprobar todos los subperíodos del Período ${informe.numero} antes de aprobar el informe. Actividades sin aprobar: ${sinAprobar.join(", ")}.`
     );
   }
   if (validarComentariosCompletos(leerComentarios(informe.comentariosDecanato)).length > 0) {
@@ -762,10 +768,11 @@ export async function aprobarInformeMensual(informeId: number, comentario?: stri
 }
 
 /**
- * Devuelve el informe al estudiante. Las actividades indicadas pasan a "observado" con el mismo comentario,
- * de modo que el estudiante pueda corregirlas y luego reenviar el informe.
+ * Devuelve el informe final al estudiante con observaciones sobre los elementos que él aporta (agradecimientos y carta de
+ * finalización). Las actividades no se reabren: ya fueron aprobadas en la revisión de cada subperíodo, y la aprobación es
+ * acumulativa. Los informes de período no se devuelven: se aprueban cuando cumplen sus requisitos.
  */
-export async function solicitarCorreccionInformeMensual(informeId: number, comentario: string, actividadIds: number[]) {
+export async function solicitarCorreccionInformeMensual(informeId: number, comentario: string) {
   try {
     if (!comentario || comentario.trim().length < 5) {
       return { success: false, error: "Debe escribir las observaciones para el estudiante." };
@@ -774,28 +781,14 @@ export async function solicitarCorreccionInformeMensual(informeId: number, comen
     const ctx = await cargarInformeParaAsesor(informeId);
     if ("error" in ctx) return { success: false, error: ctx.error };
     const { session, informe, prop } = ctx;
-
-    const { actividades: acts } = await ensureRegistros(prop.id);
-    const idsMes = new Set(acts.filter((a) => a.periodo === informe.numero).map((a) => a.id));
-    const idsValidos = actividadIds.filter((id) => idsMes.has(id));
-    if (idsValidos.length !== actividadIds.length) {
-      return { success: false, error: "Alguna de las actividades seleccionadas no pertenece a este informe." };
+    if (!esInformeFinal(informe.numero)) {
+      return {
+        success: false,
+        error: "Las actividades de este informe ya fueron aprobadas en la revisión de cada subperíodo; el informe de período solo se aprueba.",
+      };
     }
 
     const ahora = new Date();
-    if (idsValidos.length > 0) {
-      await db
-        .update(registrosActividad)
-        .set({
-          estado: "observado",
-          comentarioAsesor: `Observación del Informe Mensual #${informe.numero}: ${comentario.trim()}`,
-          revisadoPor: session.userId,
-          revisadoEn: ahora,
-          actualizadoEn: ahora,
-        })
-        .where(inArray(registrosActividad.actividadId, idsValidos));
-    }
-
     await db
       .update(informesMensuales)
       .set({
@@ -807,10 +800,11 @@ export async function solicitarCorreccionInformeMensual(informeId: number, comen
       })
       .where(eq(informesMensuales.id, informeId));
 
+    const nombre = nombreInforme(informe.numero);
     await db.insert(notificaciones).values({
       usuarioId: prop.egresadoId,
       tipo: "informe_mensual_observado",
-      mensaje: `Su asesor designado solicitó correcciones en el Informe #${informe.numero}. Revise las observaciones, corrija lo indicado y vuelva a enviarlo.`,
+      mensaje: `Su asesor designado solicitó correcciones en el ${nombre.toLowerCase()}. Revise las observaciones, corrija lo indicado y vuelva a enviarlo.`,
     });
 
     await registrarEvento({
@@ -818,7 +812,7 @@ export async function solicitarCorreccionInformeMensual(informeId: number, comen
       actorId: session.userId,
       actorRol: "asesor",
       tipo: "informe_observado",
-      descripcion: `Solicitó correcciones en el Informe #${informe.numero}${idsValidos.length ? ` (${idsValidos.length} actividad(es) devueltas)` : ""}.`,
+      descripcion: `Solicitó correcciones en el ${nombre.toLowerCase()}.`,
       detalle: comentario,
       referencia: `informe:${informeId}`,
     });
@@ -826,8 +820,8 @@ export async function solicitarCorreccionInformeMensual(informeId: number, comen
     revalidatePath(`/asesor/seguimiento/${prop.id}`);
     revalidatePath(`/egresado/reportes`);
     return { success: true };
-  } catch (err: any) {
-    console.error("Error al solicitar correcciones del informe mensual:", err);
-    return { success: false, error: err.message || "Error al registrar las observaciones" };
+  } catch (err) {
+    console.error("Error al solicitar correcciones del informe:", err);
+    return { success: false, error: err instanceof Error ? err.message : "Error al registrar las observaciones" };
   }
 }

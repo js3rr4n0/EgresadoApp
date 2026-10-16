@@ -26,7 +26,7 @@ export default function BandejaRevisionGlobal({ entradas, diasPlazo }: { entrada
 
   const filtros: { id: Filtro; label: string; total: number }[] = [
     { id: "todo", label: "Todo", total: entradas.length },
-    { id: "semana", label: "Semanas", total: semanas.length },
+    { id: "semana", label: "Subperíodos", total: semanas.length },
     { id: "informe", label: "Informes", total: informes.length },
     { id: "atrasado", label: "Fuera de plazo", total: atrasadas.length },
   ];
@@ -58,7 +58,7 @@ export default function BandejaRevisionGlobal({ entradas, diasPlazo }: { entrada
 
       {entradas.length === 0 ? (
         <div className="p-5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 text-xs font-semibold">
-          Está al día: no hay semanas ni informes pendientes de revisión.
+          Está al día: no hay subperíodos ni informes pendientes de revisión.
         </div>
       ) : (
         <>
@@ -107,7 +107,7 @@ export default function BandejaRevisionGlobal({ entradas, diasPlazo }: { entrada
                             e.tipo === "semana" ? "bg-red-50 text-unicaes" : "bg-slate-100 text-slate-700"
                           }`}
                         >
-                          {e.tipo === "semana" ? "Semana" : "Informe"}
+                          {e.tipo === "semana" ? "Subperíodo" : "Informe"}
                         </span>
                         <span className="text-sm font-extrabold text-slate-900">{e.titulo}</span>
                         <span className="text-[11px] text-slate-500 font-semibold">· {e.detalle}</span>
@@ -132,7 +132,7 @@ export default function BandejaRevisionGlobal({ entradas, diasPlazo }: { entrada
                         href={e.href}
                         className="px-4 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-xs font-extrabold transition-colors whitespace-nowrap"
                       >
-                        {e.tipo === "semana" ? "Revisar semana" : "Revisar informe"}
+                        {e.tipo === "semana" ? "Revisar subperíodo" : "Revisar informe"}
                       </Link>
                     </div>
                   </li>

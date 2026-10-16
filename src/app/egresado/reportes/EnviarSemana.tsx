@@ -34,7 +34,7 @@ export default function EnviarSemana({
     if (res.success) {
       router.refresh();
     } else {
-      setError(res.error || "No se pudo enviar la semana.");
+      setError(res.error || "No se pudo enviar el subperíodo.");
     }
   };
 
@@ -44,12 +44,12 @@ export default function EnviarSemana({
         <div className="text-[11px] font-semibold text-slate-600">
           {listo ? (
             <span>
-              {cantidad === 1 ? "La actividad de la semana está completa" : `Las ${cantidad} actividades de la semana están completas`}. Puede
+              {cantidad === 1 ? "La actividad del subperíodo está completa" : `Las ${cantidad} actividades del subperíodo están completas`}. Puede
               enviarla{cantidad === 1 ? "" : "s"} a su asesor designado.
             </span>
           ) : (
             <div className="space-y-1">
-              <p className="font-extrabold text-slate-700">Para habilitar el envío de la semana falta completar:</p>
+              <p className="font-extrabold text-slate-700">Para habilitar el envío del subperíodo falta completar:</p>
               <ul className="list-disc pl-5 space-y-0.5">
                 {pendientes.map((p, i) => (
                   <li key={i}>{p}</li>
@@ -67,7 +67,7 @@ export default function EnviarSemana({
           disabled={!listo}
           className="px-5 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs shadow-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
         >
-          Enviar semana al asesor
+          Enviar subperíodo al asesor
         </button>
       </div>
       {error && <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-xs font-bold">{error}</div>}
@@ -77,8 +77,8 @@ export default function EnviarSemana({
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
             <h3 className="text-base font-extrabold text-slate-900">Confirmar envío de la {etiquetaSemana}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Se enviarán las actividades de la semana a su asesor designado para su revisión. No podrá editarlas mientras estén en
-              revisión. Mientras tanto podrá adelantar el borrador de la semana siguiente, que podrá enviar cuando el asesor apruebe esta. La fecha de realización de las actividades
+              Se enviarán las actividades del subperíodo a su asesor designado para su revisión. No podrá editarlas mientras estén en
+              revisión. Mientras tanto podrá adelantar el borrador del subperíodo siguiente, que podrá enviar cuando el asesor apruebe este. La fecha de realización de las actividades
               quedará registrada con la fecha de hoy.
             </p>
             <DeclaracionAutoria valor={declaracion} onChange={setDeclaracion} />

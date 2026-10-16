@@ -1,7 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { formatearFechaHoraElSalvador, esInformeFinal } from "@/lib/periodosPasantia";
-import { leerCartaFinalizacion } from "@/lib/informeFinal";
+import { leerCartaFinalizacion, leerIntroduccion, leerGlosario, glosarioOrdenado } from "@/lib/informeFinal";
 import { getEnvioInformeMensual } from "@/app/actions/informesMensuales";
 import EnvioInformeClient from "./EnvioInformeClient";
 
@@ -31,6 +31,8 @@ export default async function EnvioInformePage({ params }: { params: Promise<{ i
         esInformeFinal(res.informe.numero)
           ? {
               agradecimientos: res.informe.agradecimientos ?? "",
+              introduccion: leerIntroduccion(res.informe.introduccion),
+              glosario: glosarioOrdenado(leerGlosario(res.informe.glosario)),
               carta: carta ? { nombre: carta.nombre, url: carta.url } : null,
               cartaVerificada: !!res.informe.cartaFinalizacionVerificadaEn,
             }

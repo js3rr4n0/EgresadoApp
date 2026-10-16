@@ -34,7 +34,7 @@ export default function ReglasCambios({
             del decanato. Al eliminar, los códigos de las actividades siguientes del período se renumeran automáticamente.
           </li>
           <li>
-            <strong>Posponer:</strong> no elimina la actividad; la deja pendiente en una semana posterior de su mismo período de 30
+            <strong>Posponer:</strong> no elimina la actividad; la deja pendiente en un subperíodo posterior de su mismo período de 30
             días. Para enviar el informe del período debe completarla o solicitar su eliminación.
           </li>
           <li>
@@ -42,11 +42,11 @@ export default function ReglasCambios({
             páginas por informe.
           </li>
           <li>
-            <strong>Reubicar:</strong> adelanta una actividad del período a una semana anterior, sin duplicarla, y opcionalmente la
-            intercambia con una actividad de la semana destino.
+            <strong>Reubicar:</strong> adelanta una actividad del período a un subperíodo anterior, sin duplicarla, y opcionalmente la
+            intercambia con una actividad del subperíodo destino.
           </li>
           <li>Al aprobarse un cambio, los códigos de las actividades del período se reordenan automáticamente.</li>
-          <li>No es posible programar actividades en semanas anteriores a su semana actual ni en informes ya enviados.</li>
+          <li>No es posible programar actividades en subperíodos anteriores a su subperíodo actual ni en informes ya enviados.</li>
         </ul>
         <p className="font-bold text-slate-700">
           Eliminaciones solicitadas en el Período {mesActual}: {eliminacionesMesActual} de {maxEliminacionesPorMes}.

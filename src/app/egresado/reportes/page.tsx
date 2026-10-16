@@ -83,7 +83,7 @@ export default async function SeguimientoEgresadoPage({
         </Link>
         <Link
           href="/egresado"
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
         >
           Volver al panel principal
         </Link>
@@ -215,7 +215,7 @@ export default async function SeguimientoEgresadoPage({
   const hrefVista = (v: Vista, p?: number) => `/egresado/reportes?vista=${v}${p && p > 1 ? `&pagina=${p}` : ""}`;
 
   const pestanas: { id: Vista; label: string; total: number }[] = [
-    { id: "actual", label: "Semana actual", total: (grupoActual?.actividades.length ?? 0) + (grupoAdelantado?.actividades.length ?? 0) },
+    { id: "actual", label: "Subperíodo actual", total: (grupoActual?.actividades.length ?? 0) + (grupoAdelantado?.actividades.length ?? 0) },
     { id: "proximas", label: "Próximas", total: proximas.length },
     { id: "completadas", label: "Completadas", total: completadas.length },
   ];
@@ -433,8 +433,8 @@ export default async function SeguimientoEgresadoPage({
           <div>
             <h2 className="text-sm font-extrabold text-slate-900">Actividades del cronograma</h2>
             <p className="text-[11px] text-slate-500 font-semibold mt-0.5 max-w-2xl">
-              Complete todas las actividades de su semana actual y envíelas juntas a su asesor designado. Mientras la revisa, puede
-              adelantar en borrador la semana siguiente; podrá enviarla cuando el asesor apruebe la anterior.
+              Complete todas las actividades de su subperíodo actual y envíelas juntas a su asesor designado. Mientras lo revisa, puede
+              adelantar en borrador el subperíodo siguiente; podrá enviarlo cuando el asesor apruebe el anterior.
             </p>
           </div>
           <div className="w-full md:w-60 shrink-0 space-y-1">
@@ -482,13 +482,13 @@ export default async function SeguimientoEgresadoPage({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
                     <h3 className="text-sm font-extrabold text-slate-900">
-                      Período {grupoActual.periodo}, Semana {grupoActual.semana}
+                      Período {grupoActual.periodo}, Subperíodo {grupoActual.semana}
                       {rangoSemanaActual && (
                         <span className="font-semibold text-slate-500"> · {rangoFechasTexto(rangoSemanaActual.inicio, rangoSemanaActual.fin)}</span>
                       )}
                     </h3>
                     <p className="text-[11px] text-slate-500 font-semibold">
-                      {enviadasSemana} de {grupoActual.actividades.length} actividades enviadas en esta semana
+                      {enviadasSemana} de {grupoActual.actividades.length} actividades enviadas en este subperíodo
                     </p>
                   </div>
                   <div className="w-full sm:w-48 h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -501,15 +501,15 @@ export default async function SeguimientoEgresadoPage({
 
                 {semanaEnRevision ? (
                   <div className="p-4 rounded-xl border bg-blue-50 border-blue-200 text-blue-900 text-xs font-semibold">
-                    La semana fue enviada y se encuentra en revisión por su asesor designado.
+                    El subperíodo fue enviado y se encuentra en revisión por su asesor designado.
                     {grupoAdelantado
-                      ? " Mientras tanto puede avanzar en el borrador de la semana siguiente; podrá enviarla cuando el asesor apruebe esta."
-                      : " La semana siguiente se habilitará cuando el asesor la apruebe."}
+                      ? " Mientras tanto puede avanzar en el borrador del subperíodo siguiente; podrá enviarlo cuando el asesor apruebe este."
+                      : " El subperíodo siguiente se habilitará cuando el asesor apruebe este."}
                   </div>
                 ) : (
                   <EnviarSemana
                     propuestaId={propuestaActiva.id}
-                    etiquetaSemana={`Semana ${grupoActual.semana} del Período ${grupoActual.periodo}`}
+                    etiquetaSemana={`Subperíodo ${grupoActual.semana} del Período ${grupoActual.periodo}`}
                     pendientes={pendientesEnvioSemana}
                     cantidad={actividadesPorEnviar}
                   />
@@ -523,13 +523,13 @@ export default async function SeguimientoEgresadoPage({
                   <div className="space-y-3 pt-2">
                     <div>
                       <h3 className="text-sm font-extrabold text-slate-900">
-                        Período {grupoAdelantado.periodo}, Semana {grupoAdelantado.semana}
+                        Período {grupoAdelantado.periodo}, Subperíodo {grupoAdelantado.semana}
                         <span className="ml-2 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border bg-slate-100 text-slate-600 border-slate-300 align-middle">
                           Solo borrador
                         </span>
                       </h3>
                       <p className="text-[11px] text-slate-500 font-semibold">
-                        Puede adelantar la redacción de la semana siguiente. Podrá enviarla cuando su asesor designado apruebe la Semana{" "}
+                        Puede adelantar la redacción del subperíodo siguiente. Podrá enviarlo cuando su asesor designado apruebe el Subperíodo{" "}
                         {grupoActual.semana} del Período {grupoActual.periodo}.
                       </p>
                     </div>
@@ -548,7 +548,7 @@ export default async function SeguimientoEgresadoPage({
           {vista !== "actual" &&
             (listaPaginada.items.length === 0 ? (
               <p className="text-xs text-slate-500 font-semibold">
-                {vista === "proximas" ? "No hay actividades en semanas posteriores." : "Aún no ha completado ninguna semana."}
+                {vista === "proximas" ? "No hay actividades en subperíodos posteriores." : "Aún no ha completado ningún subperíodo."}
               </p>
             ) : (
               <div className="space-y-3">
@@ -558,7 +558,7 @@ export default async function SeguimientoEgresadoPage({
                       <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
                         <th className="py-2.5 px-3">Código</th>
                         <th className="py-2.5 px-3">Actividad</th>
-                        <th className="py-2.5 px-3">Mes / Semana</th>
+                        <th className="py-2.5 px-3">Período / Subperíodo</th>
                         <th className="py-2.5 px-3">Estado</th>
                         <th className="py-2.5 px-3">{vista === "proximas" ? "Disponibilidad" : "Enviada"}</th>
                         {vista === "completadas" && <th className="py-2.5 px-3 text-right">Acción</th>}
@@ -573,7 +573,7 @@ export default async function SeguimientoEgresadoPage({
                             <td className="py-2.5 px-3 font-mono font-bold">{a.codigo}</td>
                             <td className="py-2.5 px-3 font-semibold text-slate-700">{a.titulo || a.descripcion}</td>
                             <td className="py-2.5 px-3 whitespace-nowrap">
-                              Período {a.periodo}, Semana {a.semana}
+                              Período {a.periodo}, Subperíodo {a.semana}
                             </td>
                             <td className="py-2.5 px-3">
                               {vista === "proximas" ? (
@@ -587,7 +587,7 @@ export default async function SeguimientoEgresadoPage({
                               )}
                             </td>
                             <td className="py-2.5 px-3 whitespace-nowrap text-[11px]">
-                              {vista === "proximas" ? "Al completar las semanas anteriores" : formatFecha(a.registro?.enviadoEn)}
+                              {vista === "proximas" ? "Al completar los subperíodos anteriores" : formatFecha(a.registro?.enviadoEn)}
                             </td>
                             {vista === "completadas" && (
                               <td className="py-2.5 px-3 text-right">
@@ -627,7 +627,7 @@ export default async function SeguimientoEgresadoPage({
           <h2 className="text-sm font-extrabold text-slate-900">Informes del período</h2>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
             Cada informe se compone automáticamente con las actividades registradas. Puede enviarlo en cuanto su asesor designado
-            apruebe todas las semanas del período; la fecha de entrega es el día 30 del período.
+            apruebe todos los subperíodos del período; la fecha de entrega es el día 30 del período.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
@@ -671,7 +671,7 @@ export default async function SeguimientoEgresadoPage({
                 <div className="mt-auto flex flex-col gap-1.5 pt-1">
                   <Link
                     href={`/egresado/reportes/informe/${im.id}`}
-                    className="text-center px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold"
+                    className="text-center px-3 py-1.5 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-[11px] font-bold"
                   >
                     {im.estado === "redactando" || im.estado === "observado" ? "Revisar y enviar" : "Ver estado"}
                   </Link>

@@ -1,6 +1,7 @@
 import "server-only";
 import { readFile } from "fs/promises";
 import path from "path";
+import sharp from "sharp";
 import {
   AlignmentType,
   BorderStyle,
@@ -11,6 +12,7 @@ import {
   Packer,
   PageNumber,
   Paragraph,
+  Run,
   ShadingType,
   Table,
   TableCell,
@@ -19,15 +21,16 @@ import {
   TextRun,
   VerticalAlign,
   WidthType,
+  XmlAttributeComponent,
+  XmlComponent,
   type ISectionOptions,
 } from "docx";
 import type { getInformeCompilado } from "@/app/actions/informeCompilado";
 import { formatearFechaLarga, rangoFechasTexto, nombreInforme } from "@/lib/periodosPasantia";
 import type { DatosPortada } from "@/lib/portadaInforme";
-import { APARTADOS_FINAL, tituloActividadFinal } from "@/lib/informeFinal";
-import { CATEGORIAS_COMENTARIO } from "@/lib/comentariosAsesor";
+import { APARTADOS_FINAL, anexosFinal, tituloActividadFinal } from "@/lib/informeFinal";
 import { parrafosDe } from "@/lib/reglasRegistroActividad";
-import { leerDatosCita, segmentosCitaApa } from "@/lib/citaApa";
+import { leerDatosCita, segmentosCitaApa, type SegmentoCita } from "@/lib/citaApa";
 
 export type InformeCompilado = Extract<Awaited<ReturnType<typeof getInformeCompilado>>, { secciones: unknown }>;
 
@@ -122,15 +125,22 @@ function parrafosCuerpo(contenido: string) {
   );
 }
 
-/** Referencia APA 7: con los campos registrados conserva las cursivas; si es de texto libre se usa tal cual. */
-function parrafoReferencia(citaApa: string, citaApaDatos: unknown) {
+/**
+ * Marco teórico con su referencia APA 7 inmediatamente después del punto final del texto (en el último párrafo). Con los
+ * campos registrados conserva las cursivas; una referencia de texto libre se usa tal cual.
+ */
+function parrafosMarco(marco: string, citaApa: string | null, citaApaDatos: unknown) {
   const datos = leerDatosCita(citaApaDatos);
-  const runs = datos ? segmentosCitaApa(datos).map((s) => texto(s.texto, { italics: s.cursiva })) : [texto(citaApa)];
-  return new Paragraph({
-    children: [texto("Referencia: ", { bold: true }), ...runs],
-    alignment: AlignmentType.JUSTIFIED,
-    spacing: { line: INTERLINEADO, before: ESPACIO_CUERPO, after: ESPACIO_CUERPO },
-  });
+  const referencia = citaApa ? (datos ? segmentosCitaApa(datos).map((s) => texto(s.texto, { italics: s.cursiva })) : [texto(citaApa)]) : [];
+  const parrafos = parrafosDe(marco);
+  return parrafos.map(
+    (p, i) =>
+      new Paragraph({
+        children: [texto(p), ...(i === parrafos.length - 1 && referencia.length ? [texto(" "), ...referencia] : [])],
+        alignment: AlignmentType.JUSTIFIED,
+        spacing: { line: INTERLINEADO, before: ESPACIO_CUERPO, after: ESPACIO_CUERPO },
+      })
+  );
 }
 
 function tituloSeccion(contenido: string) {
@@ -142,7 +152,7 @@ function subtitulo1(contenido: string) {
 }
 
 function subtitulo2(contenido: string) {
-  return new Paragraph({ heading: HeadingLevel.HEADING_3, children: [texto(contenido)] });
+  return new Paragraph({ heading: HeadingLevel.HEADING_3, children: [texto(contenido, { bold: true })] });
 }
 
 const sinBorde = { style: BorderStyle.NONE, size: 0, color: "FFFFFF" };
@@ -150,14 +160,51 @@ const sinBordes = { top: sinBorde, bottom: sinBorde, left: sinBorde, right: sinB
 
 type ImagenInforme = InformeCompilado["imagenesPorActividad"][number][number] & { codigo?: string };
 
-/** Imagen de soporte con su pie ("Imagen N. ...") y la nota de su origen (APA 7), centrados. */
+// Campos complejos de Word (fldChar + instrText). Las entradas TC se escriben así porque Word rechaza el documento cuando
+// contiene muchos campos TC simples (fldSimple) de distintos índices.
+class AtributosCampo extends XmlAttributeComponent<{ tipo?: string; espacio?: string }> {
+  protected readonly xmlKeys = { tipo: "w:fldCharType", espacio: "xml:space" };
+}
+class MarcaCampo extends XmlComponent {
+  constructor(tipo: "begin" | "end") {
+    super("w:fldChar");
+    this.root.push(new AtributosCampo({ tipo }));
+  }
+}
+class InstruccionCampo extends XmlComponent {
+  constructor(instruccion: string) {
+    super("w:instrText");
+    this.root.push(new AtributosCampo({ espacio: "preserve" }));
+    this.root.push(instruccion);
+  }
+}
+class CampoComplejo extends Run {
+  constructor(instruccion: string) {
+    super({});
+    this.root.push(new MarcaCampo("begin"), new InstruccionCampo(` ${instruccion} `), new MarcaCampo("end"));
+  }
+}
+
+// Las imágenes van en su propio nivel del índice (estilo «toc 4», sin negrita ni sangría).
+const NIVEL_INDICE_IMAGENES = 4;
+
+/** Entrada de un índice construida con un campo TC (no se ve en el documento; Word la usa al actualizar el índice). */
+function entradaIndice(textoEntrada: string, identificador: "C" | "I", nivel: number) {
+  return new CampoComplejo(`TC "${textoEntrada.replace(/"/g, "”")}" \\f ${identificador} \\l ${nivel}`);
+}
+
+/** Imagen de soporte con su pie ("Imagen 1.1.1.A. ...") y la nota de su origen (APA 7), centrados. */
 function bloqueImagen(img: ImagenInforme, codigoActividad?: string) {
   const codigo = img.codigo ?? codigoActividad ?? "";
   const imagen = decodificarImagen(img.url);
   const pie = new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { line: 240, after: img.nota.length ? 0 : 120 },
-    children: [texto(`Imagen ${img.numero}. ${img.leyenda} (actividad ${codigo}).`, { italics: true, size: TAMANO_LEYENDA })],
+    children: [
+      texto(`Imagen ${img.etiqueta}. ${img.leyenda}${img.codigo ? ` (actividad ${img.codigo})` : ""}.`, { italics: true, size: TAMANO_LEYENDA }),
+      // Las imágenes de las actividades forman parte del índice de imágenes del informe final (los anexos no).
+      ...(img.codigo ? [] : [entradaIndice(`${img.etiqueta} ${img.leyenda}`, "I", NIVEL_INDICE_IMAGENES)]),
+    ],
   });
   const nota = img.nota.length
     ? [
@@ -248,7 +295,8 @@ function tablaDatosGenerales(d: InformeCompilado) {
       : `Período ${d.informe.numero} del cronograma`;
 
   const filas: [string, string][] = [
-    ["Fecha de presentación al asesor", d.informe.fechaPresentacion ? formatearFechaLarga(d.informe.fechaPresentacion) : "Pendiente de envío"],
+    ["Fecha de envío del informe", d.fechas.envio ? formatearFechaLarga(d.fechas.envio) : "Pendiente de envío"],
+    ["Fecha de aprobación del asesor", d.fechas.aprobacion ? formatearFechaLarga(d.fechas.aprobacion) : "Pendiente de aprobación"],
     ["Período reportado", periodo],
     ["Estudiante", d.egresado?.nombreCompleto || "—"],
     ["Carnet", d.egresado?.carnet || "—"],
@@ -256,12 +304,6 @@ function tablaDatosGenerales(d: InformeCompilado) {
     ["Supervisor empresarial", supervisorNombre],
     ["Cargo", d.supervisor?.cargo || "—"],
     ["Empresa o institución", d.empresa?.nombre || "—"],
-    [
-      "Comentarios u observaciones del asesor para el decanato",
-      d.comentarios.registrados
-        ? "Se presentan en el apartado «Comentarios del asesor para el decanato»."
-        : "Pendiente de registro por el asesor.",
-    ],
   ];
 
   return new Table({
@@ -288,7 +330,7 @@ function tablaCronograma(d: SeccionInforme) {
     children: [
       celda("Código", anchoCodigo, { bold: true, sombra: "D9D9D9", centrado: true }),
       celda("Actividades", anchoActividad, { bold: true, sombra: "D9D9D9" }),
-      ...d.semanas.map((s) => celda(`S${s.numero}`, anchoSemana, { bold: true, sombra: "D9D9D9", centrado: true })),
+      ...d.semanas.map((s) => celda(`SP${s.numero}`, anchoSemana, { bold: true, sombra: "D9D9D9", centrado: true })),
     ],
   });
 
@@ -338,13 +380,25 @@ function portadaWord(p: DatosPortada, logo: ImageRun | null): Paragraph[] {
   ];
 }
 
-export async function generarInformeWord(d: InformeCompilado): Promise<Buffer> {
+async function cargarMapa(origen: string | undefined, coordenadas: string | null): Promise<Buffer | null> {
+  if (!origen || !coordenadas) return null;
+  try {
+    const res = await fetch(`${origen}/api/map?coords=${encodeURIComponent(coordenadas)}`);
+    if (!res.ok) return null;
+    return await sharp(Buffer.from(await res.text())).png().toBuffer();
+  } catch {
+    return null;
+  }
+}
+
+export async function generarInformeWord(d: InformeCompilado, opciones: { origen?: string } = {}): Promise<Buffer> {
   const contenido: (Paragraph | Table)[] = [];
   const portada = portadaWord(d.portada, await cargarLogo(160));
 
   // El informe final sigue la estructura oficial: hojas preliminares sin número (portada y autoridades) y sus apartados.
   if (d.esFinal && d.documentoFinal) {
-    return empaquetar(d, [...portada, ...autoridadesWord(d.documentoFinal)], contenidoFinal(d, d.documentoFinal));
+    const mapa = await cargarMapa(opciones.origen, d.documentoFinal.empresa.coordenadas);
+    return empaquetar(d, [...portada, ...autoridadesWord(d.documentoFinal)], contenidoFinal(d, d.documentoFinal, mapa));
   }
 
   // ── Datos generales ──
@@ -370,14 +424,13 @@ export async function generarInformeWord(d: InformeCompilado): Promise<Buffer> {
     }
 
     // ── Actividades realizadas durante el período ──
-    const tituloActividades = `Actividades realizadas durante el período ${rangoSeccion ?? seccion.numero}`;
+    const tituloActividades = `Actividades realizadas por el(la) pasante en el período ${rangoSeccion ?? seccion.numero}`;
     contenido.push(d.esFinal ? subtitulo1(tituloActividades) : tituloSeccion(tituloActividades));
 
     const semanasConActividades = seccion.semanas.filter((s) => s.actividades.length > 0);
     for (const semana of semanasConActividades) {
       const rango = semana.inicio && semana.fin ? rangoFechasTexto(semana.inicio, semana.fin) : null;
-      contenido.push(subtitulo1(`Semana ${semana.numero}${rango ? ` (${rango})` : ""}`));
-      contenido.push(parrafo([texto(`Actividades realizadas durante la semana${rango ? ` ${rango}` : ` ${semana.numero}`}`, { bold: true })]));
+      contenido.push(subtitulo1(`Actividades realizadas en el subperíodo ${rango ?? semana.numero}`));
 
       // Cada actividad reúne su marco teórico, desarrollo, elemento de soporte y conclusión técnica (sin repetir el código).
       for (const a of semana.actividades) {
@@ -398,8 +451,7 @@ export async function generarInformeWord(d: InformeCompilado): Promise<Buffer> {
 
         if (r.marcoTeorico) {
           contenido.push(subtitulo2("Marco teórico"));
-          contenido.push(...parrafosCuerpo(r.marcoTeorico));
-          if (r.citaApa) contenido.push(parrafoReferencia(r.citaApa, r.citaApaDatos));
+          contenido.push(...parrafosMarco(r.marcoTeorico, r.citaApa, r.citaApaDatos));
         }
 
         if (r.descriptor) {
@@ -451,19 +503,25 @@ export async function generarInformeWord(d: InformeCompilado): Promise<Buffer> {
     });
   }
 
-  // ── Comentarios del asesor para el decanato ──
-  if (d.comentarios.registrados) {
-    contenido.push(tituloSeccion("Comentarios del asesor para el decanato"));
-    for (const cat of CATEGORIAS_COMENTARIO) {
-      const respuesta = d.comentarios.respuestas[cat.id];
-      if (!respuesta) continue;
-      contenido.push(subtitulo1(cat.pregunta));
-      contenido.push(parrafo(respuesta, { justificado: true }));
+  // ── Cambios al cronograma del período ──
+  if (d.cambiosPeriodo) {
+    contenido.push(tituloSeccion("Cambios al cronograma"));
+    contenido.push(
+      parrafo(
+        `Actividades ejecutadas durante el período ${d.informe.numero}, con los cambios autorizados al cronograma original (actividades agregadas, pospuestas, reubicadas y eliminadas).`,
+        { justificado: true }
+      )
+    );
+    for (const p of d.cambiosPeriodo.cronograma) {
+      contenido.push(tablaCronogramaReal(p));
+      contenido.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
     }
-    if (d.comentarios.general) {
-      contenido.push(subtitulo1("Comentario general"));
-      contenido.push(parrafo(d.comentarios.general, { justificado: true }));
-    }
+    contenido.push(subtitulo1("Modificaciones autorizadas al cronograma original"));
+    contenido.push(
+      d.cambiosPeriodo.modificaciones.length
+        ? tablaModificaciones(d.cambiosPeriodo.modificaciones)
+        : parrafo("Durante el período no se realizaron modificaciones al cronograma original.")
+    );
   }
 
   return empaquetar(d, portada, contenido);
@@ -532,6 +590,7 @@ function empaquetar(d: InformeCompilado, preliminares: Paragraph[], contenido: (
         estiloIndice("TOC1", "toc 1", 0, true),
         estiloIndice("TOC2", "toc 2", 360, false),
         estiloIndice("TOC3", "toc 3", 720, false),
+        estiloIndice("TOC4", "toc 4", 0, false),
       ],
     },
     sections: [seccionPreliminar, seccion],
@@ -543,15 +602,61 @@ function empaquetar(d: InformeCompilado, preliminares: Paragraph[], contenido: (
 // ─────────────────────────── Informe final ───────────────────────────
 
 type DocumentoFinal = NonNullable<InformeCompilado["documentoFinal"]>;
+type CambiosCronograma = NonNullable<InformeCompilado["cambiosPeriodo"]>;
 
-/** Título de un apartado del informe final: en hoja nueva, centrado y en mayúsculas (nivel 1 del índice). */
-function apartadoFinal(contenido: string, nuevaHoja = true) {
+/**
+ * Título de un apartado del informe final: en hoja nueva, centrado y en mayúsculas. Los contenidos son nivel 1 del índice;
+ * los agradecimientos, los índices y los anexos llevan el mismo formato pero no forman parte del índice de contenidos.
+ */
+function apartadoFinal(contenido: string, nuevaHoja = true, enIndice = true) {
+  if (!enIndice) {
+    return new Paragraph({
+      alignment: AlignmentType.CENTER,
+      pageBreakBefore: nuevaHoja,
+      keepNext: true,
+      spacing: { line: INTERLINEADO, before: 240, after: 240 },
+      children: [texto(contenido.toUpperCase(), { bold: true })],
+    });
+  }
   return new Paragraph({
     heading: HeadingLevel.HEADING_1,
     alignment: AlignmentType.CENTER,
     pageBreakBefore: nuevaHoja,
     children: [texto(contenido.toUpperCase(), { bold: true })],
   });
+}
+
+/** Título de un anexo: negrita, en hoja nueva y fuera del índice de contenidos. */
+function tituloAnexo(contenido: string, nuevaHoja = true) {
+  return new Paragraph({
+    pageBreakBefore: nuevaHoja,
+    keepNext: true,
+    spacing: { line: INTERLINEADO, before: 240, after: 120 },
+    children: [texto(contenido, { bold: true })],
+  });
+}
+
+/** Ilustración de la empresa (mapa u organigrama) con su pie y su nota, hasta el ancho del texto. */
+function ilustracionEmpresa(datos: Buffer, tipo: TipoImagen, etiqueta: string, leyendaTexto: string, nota: string, maxAltoCm: number) {
+  const dim = dimensionesImagen(datos, tipo);
+  const maxAncho = Math.round((ANCHO_CONTENIDO / 1440) * 96);
+  const maxAlto = Math.round((maxAltoCm / 2.54) * 96);
+  const factor = dim ? Math.min(maxAncho / dim.ancho, maxAlto / dim.alto) : 1;
+  const tam = dim ? { width: Math.round(dim.ancho * factor), height: Math.round(dim.alto * factor) } : { width: maxAncho, height: maxAlto };
+  return [
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      keepNext: true,
+      spacing: { line: 240, before: 120, after: 60 },
+      children: [new ImageRun({ type: tipo, data: datos, transformation: tam })],
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { line: 240, after: 0 },
+      children: [texto(`${etiqueta}. ${leyendaTexto}.`, { italics: true, size: TAMANO_LEYENDA }), entradaIndice(`${etiqueta} ${leyendaTexto}`, "I", NIVEL_INDICE_IMAGENES)],
+    }),
+    new Paragraph({ alignment: AlignmentType.CENTER, spacing: { line: 240, after: 120 }, children: [texto(nota, { size: TAMANO_LEYENDA })] }),
+  ];
 }
 
 /** Etiqueta dentro de una actividad (marco teórico, descripción, imágenes): no forma parte del índice. */
@@ -580,7 +685,48 @@ function autoridadesWord(f: DocumentoFinal): Paragraph[] {
   ];
 }
 
-function tablaCronogramaReal(p: DocumentoFinal["cronograma"][number]) {
+/** Cronograma final ejecutado: solo las actividades que se ejecutaron, en su ubicación definitiva (sin las eliminadas). */
+function tablaCronogramaEjecutado(p: CambiosCronograma["cronograma"][number]) {
+  const tam = TAMANO_LEYENDA;
+  const anchoCodigo = 900;
+  const anchoSemana = 500;
+  const anchoActividad = ANCHO_CONTENIDO - anchoCodigo - anchoSemana * p.semanas;
+  const columnas = [anchoCodigo, anchoActividad, ...Array.from({ length: p.semanas }, () => anchoSemana)];
+  const encabezado = new TableRow({
+    tableHeader: true,
+    children: [
+      celda("Código", anchoCodigo, { bold: true, sombra: "D9D9D9", centrado: true, size: tam }),
+      celda(`Actividades ejecutadas en el período ${p.numero}`, anchoActividad, { bold: true, sombra: "D9D9D9", size: tam }),
+      ...Array.from({ length: p.semanas }, (_, i) => celda(`SP${i + 1}`, anchoSemana, { bold: true, sombra: "D9D9D9", centrado: true, size: tam })),
+    ],
+  });
+  const filas = p.filas
+    .filter((fila) => !fila.eliminada)
+    .map(
+      (fila) =>
+        new TableRow({
+          cantSplit: true,
+          children: [
+            celda(fila.codigo, anchoCodigo, { centrado: true, size: tam }),
+            celda(fila.titulo, anchoActividad, { size: tam }),
+            ...Array.from({ length: p.semanas }, (_, i) => celda("", anchoSemana, { sombra: i + 1 === fila.semana ? "7F7F7F" : undefined, size: tam })),
+          ],
+        })
+    );
+  return new Table({ width: { size: ANCHO_CONTENIDO, type: WidthType.DXA }, columnWidths: columnas, rows: [encabezado, ...filas] });
+}
+
+/** Referencia de la bibliografía con sangría francesa de 1.27 cm (APA 7), conservando las cursivas. */
+function parrafoBibliografia(segmentos: SegmentoCita[]) {
+  return new Paragraph({
+    children: segmentos.map((sg) => texto(sg.texto, { italics: sg.cursiva })),
+    alignment: AlignmentType.LEFT,
+    indent: { left: 720, hanging: 720 },
+    spacing: { line: INTERLINEADO, after: ESPACIO_CUERPO },
+  });
+}
+
+function tablaCronogramaReal(p: CambiosCronograma["cronograma"][number]) {
   const tam = TAMANO_LEYENDA;
   const anchoCodigo = 900;
   const anchoEstado = 2000;
@@ -592,7 +738,7 @@ function tablaCronogramaReal(p: DocumentoFinal["cronograma"][number]) {
     children: [
       celda("Código", anchoCodigo, { bold: true, sombra: "D9D9D9", centrado: true, size: tam }),
       celda(`Actividades del período ${p.numero}`, anchoActividad, { bold: true, sombra: "D9D9D9", size: tam }),
-      ...Array.from({ length: p.semanas }, (_, i) => celda(`S${i + 1}`, anchoSemana, { bold: true, sombra: "D9D9D9", centrado: true, size: tam })),
+      ...Array.from({ length: p.semanas }, (_, i) => celda(`SP${i + 1}`, anchoSemana, { bold: true, sombra: "D9D9D9", centrado: true, size: tam })),
       celda("Estado", anchoEstado, { bold: true, sombra: "D9D9D9", centrado: true, size: tam }),
     ],
   });
@@ -650,7 +796,7 @@ function firmasCronograma(d: InformeCompilado) {
   });
 }
 
-function tablaModificaciones(f: DocumentoFinal) {
+function tablaModificaciones(modificaciones: CambiosCronograma["modificaciones"]) {
   const tam = TAMANO_LEYENDA;
   const columnas = [1300, 1300, 2000, 2399, 2100];
   const titulos = ["Fecha", "Modificación", "Actividad", "Justificación", "Validación"];
@@ -659,7 +805,7 @@ function tablaModificaciones(f: DocumentoFinal) {
     columnWidths: columnas,
     rows: [
       new TableRow({ tableHeader: true, children: titulos.map((t, i) => celda(t, columnas[i], { bold: true, sombra: "D9D9D9", centrado: true, size: tam })) }),
-      ...f.modificaciones.map(
+      ...modificaciones.map(
         (m) =>
           new TableRow({
             cantSplit: true,
@@ -692,7 +838,7 @@ function imagenCarta(url: string) {
   });
 }
 
-function contenidoFinal(d: InformeCompilado, f: DocumentoFinal): (Paragraph | Table | TableOfContents)[] {
+function contenidoFinal(d: InformeCompilado, f: DocumentoFinal, mapa: Buffer | null): (Paragraph | Table | TableOfContents)[] {
   const contenido: (Paragraph | Table | TableOfContents)[] = [];
   const actividades = d.secciones.flatMap((s) =>
     s.semanas.flatMap((semana) =>
@@ -705,51 +851,77 @@ function contenidoFinal(d: InformeCompilado, f: DocumentoFinal): (Paragraph | Ta
 
   // ── Agradecimientos (opcional) ──
   if (f.agradecimientos.length) {
-    contenido.push(apartadoFinal(APARTADOS_FINAL.agradecimientos, false));
+    contenido.push(apartadoFinal(APARTADOS_FINAL.agradecimientos, false, false));
     contenido.push(...parrafosCuerpo(f.agradecimientos.join("\n")));
   }
 
-  // ── Índice de contenidos ──
-  contenido.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      pageBreakBefore: f.agradecimientos.length > 0,
-      spacing: { line: INTERLINEADO, after: 240 },
-      children: [texto(APARTADOS_FINAL.indice, { bold: true })],
-    })
-  );
+  // ── Índice de contenidos: apartados y períodos por su título; las actividades por su entrada TC (código y título) ──
+  contenido.push(apartadoFinal(APARTADOS_FINAL.indice, f.agradecimientos.length > 0, false));
   contenido.push(
     new TableOfContents(APARTADOS_FINAL.indice, {
       hyperlink: true,
-      headingStyleRange: "1-3",
-      // Las actividades entran por su nivel de esquema (3): no depende del separador de listas de la configuración regional de Word.
-      useAppliedParagraphOutlineLevel: true,
+      headingStyleRange: "1-2",
+      tcFieldIdentifier: "C",
+      tcFieldLevelRange: "3-3",
     })
   );
 
-  // ── Descripción de la empresa ──
+  // ── Índice de imágenes, fotografías e ilustraciones (entradas TC «I» de cada pie de imagen) ──
+  contenido.push(apartadoFinal(APARTADOS_FINAL.indiceImagenes, true, false));
+  contenido.push(new TableOfContents(APARTADOS_FINAL.indiceImagenes, { hyperlink: true, tcFieldIdentifier: "I", tcFieldLevelRange: `${NIVEL_INDICE_IMAGENES}-${NIVEL_INDICE_IMAGENES}` }));
+
+  // ── Introducción ──
+  contenido.push(apartadoFinal(APARTADOS_FINAL.introduccion));
+  const introduccion = f.introduccion.filter((p) => p.trim());
+  if (introduccion.length) contenido.push(...parrafosCuerpo(introduccion.join("\n")));
+  else contenido.push(parrafo([texto("Pendiente: el egresado debe redactar la introducción.", { italics: true })]));
+
+  // ── Descripción de la empresa: lo registrado en la fase de propuesta ──
   contenido.push(apartadoFinal(APARTADOS_FINAL.empresa));
-  if (f.empresa.nombre) {
+  const e = f.empresa;
+  if (e.nombre) {
     contenido.push(
       new Paragraph({
         alignment: AlignmentType.JUSTIFIED,
         spacing: { line: INTERLINEADO, before: ESPACIO_CUERPO, after: ESPACIO_CUERPO },
         children: [
-          texto(f.empresa.nombre, { bold: true }),
-          texto(`${f.empresa.area ? `, ${f.empresa.area}.` : "."}${f.empresa.direccion ? ` Dirección: ${f.empresa.direccion}` : ""}`),
+          texto(e.nombre, { bold: true }),
+          texto(
+            `${e.area ? `, ${e.area}.` : "."}${e.direccion ? ` Dirección: ${e.direccion.replace(/\.+$/, "")}.` : ""}${
+              e.sucursal ? ` Sucursal: ${e.sucursal.nombre}${e.sucursal.telefono ? `, teléfono ${e.sucursal.telefono}` : ""}.` : ""
+            }`
+          ),
         ],
       })
     );
   }
-  if (f.empresa.parrafos.length) contenido.push(...parrafosCuerpo(f.empresa.parrafos.join("\n")));
+  contenido.push(etiquetaFinal("Descripción"));
+  if (e.descripcion.length) contenido.push(...parrafosCuerpo(e.descripcion.join("\n")));
   else contenido.push(parrafo([texto("La empresa no tiene descripción registrada en el sistema.", { italics: true })]));
+  if (e.antecedentes.length) {
+    contenido.push(etiquetaFinal("Antecedentes"));
+    contenido.push(...parrafosCuerpo(e.antecedentes.join("\n")));
+  }
+  for (const il of e.ilustraciones) {
+    contenido.push(etiquetaFinal(il.tipo === "mapa" ? "Ubicación" : "Organigrama"));
+    const imagen = il.tipo === "mapa" ? (mapa ? { datos: mapa, tipo: "png" as TipoImagen } : null) : decodificarImagen(e.organigrama!.url);
+    if (imagen) contenido.push(...ilustracionEmpresa(imagen.datos, imagen.tipo, il.etiqueta, il.leyenda, il.nota, il.tipo === "mapa" ? 8 : 17));
+    else contenido.push(parrafo([texto(`${il.etiqueta}: no fue posible incluir la imagen en el documento.`, { italics: true })]));
+  }
+  if (e.organigrama && !e.organigrama.esImagen) {
+    contenido.push(
+      parrafo([texto("El organigrama de la empresa se registró como documento PDF en la propuesta y puede consultarse en el sistema.", { italics: true })])
+    );
+  }
 
   // ── Actividades realizadas, en orden cronológico ──
   contenido.push(apartadoFinal(APARTADOS_FINAL.actividades));
   for (const s of d.secciones) {
     contenido.push(subtitulo1(tituloPeriodoFinal(s)));
     for (const a of actividades.filter((x) => x.periodo === s.numero)) {
-      contenido.push(new Paragraph({ style: ESTILO_ACTIVIDAD, children: [texto(a.encabezado)] }));
+      contenido.push(
+        new Paragraph({ style: ESTILO_ACTIVIDAD, children: [texto(a.encabezado), entradaIndice(`${a.codigo}. ${a.titulo}`, "C", 3)] })
+      );
       const r = a.registro;
       if (!a.registrada || !r) {
         contenido.push(parrafo([texto("Actividad no registrada a la fecha de generación.", { italics: true })]));
@@ -757,8 +929,7 @@ function contenidoFinal(d: InformeCompilado, f: DocumentoFinal): (Paragraph | Ta
       }
       if (r.marcoTeorico) {
         contenido.push(etiquetaFinal("Marco teórico"));
-        contenido.push(...parrafosCuerpo(r.marcoTeorico));
-        if (r.citaApa) contenido.push(parrafoReferencia(r.citaApa, r.citaApaDatos));
+        contenido.push(...parrafosMarco(r.marcoTeorico, r.citaApa, r.citaApaDatos));
       }
       if (r.descriptor) {
         contenido.push(etiquetaFinal("Descripción"));
@@ -766,7 +937,7 @@ function contenidoFinal(d: InformeCompilado, f: DocumentoFinal): (Paragraph | Ta
       }
       const imagenes = d.imagenesPorActividad[a.id] ?? [];
       if (imagenes.length) {
-        contenido.push(etiquetaFinal(imagenes.length > 1 ? "Imágenes" : "Imagen"));
+        contenido.push(etiquetaFinal(imagenes.length > 1 ? "Imágenes de soporte de la actividad" : "Imagen de soporte de la actividad"));
         contenido.push(...imagenesSoporte(imagenes, a.codigo));
       }
     }
@@ -780,37 +951,69 @@ function contenidoFinal(d: InformeCompilado, f: DocumentoFinal): (Paragraph | Ta
   }
 
   // ── Anexos ──
-  contenido.push(apartadoFinal(APARTADOS_FINAL.anexos));
-  contenido.push(subtitulo1(APARTADOS_FINAL.cronograma));
-  contenido.push(
-    parrafo(
-      "Cronograma de las actividades desarrolladas durante la pasantía, con los cambios aprobados al cronograma original (actividades agregadas, modificadas, pospuestas, reubicadas y eliminadas).",
-      { justificado: true }
-    )
-  );
-  for (const p of f.cronograma) {
-    contenido.push(tablaCronogramaReal(p));
-    contenido.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
-  }
-  contenido.push(firmasCronograma(d));
-
-  const anexo = (titulo: string) =>
-    new Paragraph({ heading: HeadingLevel.HEADING_2, pageBreakBefore: true, children: [texto(titulo, { bold: true })] });
-
-  contenido.push(anexo(APARTADOS_FINAL.modificaciones));
-  if (f.modificaciones.length) contenido.push(tablaModificaciones(f));
-  else contenido.push(parrafo("El cronograma original no tuvo modificaciones durante la pasantía."));
-
-  contenido.push(anexo(APARTADOS_FINAL.adicional));
-  if (f.anexos.length) contenido.push(...imagenesSoporte(f.anexos));
-  else contenido.push(parrafo("No se adjuntó contenido adicional."));
-
-  contenido.push(anexo(APARTADOS_FINAL.carta));
-  contenido.push(
-    f.carta
-      ? imagenCarta(f.carta.url)
-      : parrafo([texto("Pendiente: el egresado debe adjuntar la carta de finalización satisfactoria emitida por la empresa.", { italics: true })])
-  );
+  contenido.push(apartadoFinal(APARTADOS_FINAL.anexos, true, false));
+  anexosFinal(f.glosario.length > 0).forEach((anexo, i) => {
+    contenido.push(tituloAnexo(anexo.titulo, i > 0));
+    switch (anexo.id) {
+      case "cronogramaReal":
+        contenido.push(
+          parrafo(
+            "Cronograma de las actividades de la pasantía con el estado final de cada una y los cambios aprobados al cronograma original (actividades agregadas, pospuestas, reubicadas y eliminadas).",
+            { justificado: true }
+          )
+        );
+        for (const p of f.cronograma) {
+          contenido.push(tablaCronogramaReal(p));
+          contenido.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
+        }
+        contenido.push(firmasCronograma(d));
+        break;
+      case "modificaciones":
+        if (f.modificaciones.length) {
+          contenido.push(
+            parrafo(
+              "Registro cronológico de las modificaciones al cronograma original autorizadas durante la pasantía, con su justificación y su validación.",
+              { justificado: true }
+            )
+          );
+          contenido.push(tablaModificaciones(f.modificaciones));
+        } else contenido.push(parrafo("El cronograma original no tuvo modificaciones durante la pasantía."));
+        break;
+      case "cronogramaFinal":
+        contenido.push(parrafo("Cronograma con las actividades que finalmente se ejecutaron, en la ubicación definitiva de cada una.", { justificado: true }));
+        for (const p of f.cronograma) {
+          contenido.push(tablaCronogramaEjecutado(p));
+          contenido.push(new Paragraph({ spacing: { after: 120 }, children: [] }));
+        }
+        break;
+      case "adicional":
+        if (f.anexos.length) contenido.push(...imagenesSoporte(f.anexos));
+        else contenido.push(parrafo("No se adjuntó contenido adicional."));
+        break;
+      case "bibliografia":
+        if (f.bibliografia.length) contenido.push(...f.bibliografia.map(parrafoBibliografia));
+        else contenido.push(parrafo("No se registraron referencias."));
+        break;
+      case "glosario":
+        for (const t of f.glosario) {
+          contenido.push(
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              spacing: { line: INTERLINEADO, after: ESPACIO_CUERPO },
+              children: [texto(`${t.termino}: `, { bold: true }), texto(t.definicion)],
+            })
+          );
+        }
+        break;
+      case "carta":
+        contenido.push(
+          f.carta
+            ? imagenCarta(f.carta.url)
+            : parrafo([texto("Pendiente: el egresado debe adjuntar la carta de finalización satisfactoria emitida por la empresa.", { italics: true })])
+        );
+        break;
+    }
+  });
 
   return contenido;
 }

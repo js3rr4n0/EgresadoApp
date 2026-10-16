@@ -44,18 +44,18 @@ const BANNER_SEMANA: Record<DatosSemana["estadoSemana"], { className: string; te
   por_revisar: {
     className: "bg-blue-50 border-blue-200 text-blue-900",
     texto:
-      "El estudiante envió esta semana. Revise cada actividad y comente los apartados que deban mejorar. La semana se aprueba o se devuelve completa.",
+      "El estudiante envió este subperíodo. Revise cada actividad y comente los apartados que deban mejorar. El subperíodo se aprueba o se devuelve completo.",
   },
   en_correccion: {
     className: "bg-amber-50 border-amber-300 text-amber-900",
-    texto: "La semana fue devuelta con observaciones y el estudiante la está corrigiendo. Podrá revisarla de nuevo cuando la reenvíe.",
+    texto: "El subperíodo fue devuelto con observaciones y el estudiante lo está corrigiendo. Podrá revisarlo de nuevo cuando lo reenvíe.",
   },
   en_redaccion: {
     className: "bg-slate-100 border-slate-300 text-slate-700",
     texto:
-      "El estudiante aún no envía esta semana. Está viendo el borrador de su avance; la revisión se habilita cuando la envíe completa.",
+      "El estudiante aún no envía este subperíodo. Está viendo el borrador de su avance; la revisión se habilita cuando lo envíe completo.",
   },
-  aprobada: { className: "bg-emerald-50 border-emerald-200 text-emerald-900", texto: "Esta semana fue revisada y aprobada." },
+  aprobada: { className: "bg-emerald-50 border-emerald-200 text-emerald-900", texto: "Este subperíodo fue revisado y aprobado." },
 };
 
 function fechaISO(iso: string | null) {
@@ -250,14 +250,14 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
       return;
     }
     if (decision === "corregir" && conComentarios.length === 0) {
-      setError("Escriba al menos un comentario en alguna actividad para devolver la semana.");
+      setError("Escriba al menos un comentario en alguna actividad para devolver el subperíodo.");
       return;
     }
     const avisoSinVer = sinVer.length > 0 ? ` Aún no ha abierto ${sinVer.length} actividad${sinVer.length > 1 ? "es" : ""}.` : "";
     const mensaje =
       decision === "aprobar"
-        ? `${conComentarios.length > 0 ? "Se aprobará la semana completa y sus comentarios quedarán como retroalimentación para el estudiante." : "¿Confirma que aprueba la semana completa?"}${avisoSinVer}`
-        : `Se devolverá la semana al estudiante con ${totalComentarios} comentario${totalComentarios > 1 ? "s" : ""} en ${conComentarios.length} actividad${conComentarios.length > 1 ? "es" : ""}.${avisoSinVer} ¿Continuar?`;
+        ? `${conComentarios.length > 0 ? "Se aprobará el subperíodo completo y sus comentarios quedarán como retroalimentación para el estudiante." : "¿Confirma que aprueba el subperíodo completo?"}${avisoSinVer}`
+        : `Se devolverá el subperíodo al estudiante con ${totalComentarios} comentario${totalComentarios > 1 ? "s" : ""} en ${conComentarios.length} actividad${conComentarios.length > 1 ? "es" : ""}.${avisoSinVer} ¿Continuar?`;
     if (!confirm(mensaje)) return;
 
     setEnviando(decision);
@@ -506,7 +506,7 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
               }`}
             >
               {problemas.length === 0 ? (
-                "Verificación automática: cumple la extensión, la referencia APA 7, la imagen principal con su origen y el punto final de cada apartado."
+                "Verificación automática: cumple la extensión, la referencia APA 7 y la imagen principal con su origen."
               ) : (
                 <>
                   <p className="font-extrabold">Verificación automática: hay apartados que no cumplen el formato.</p>
@@ -746,9 +746,9 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <p className="text-[11px] font-extrabold uppercase tracking-wide text-unicaes">Revisión semanal</p>
+          <p className="text-[11px] font-extrabold uppercase tracking-wide text-unicaes">Revisión por subperíodo</p>
           <h1 className="text-xl font-extrabold text-card-dark">
-            Semana {semana} del Período {periodo}
+            Subperíodo {semana} del Período {periodo}
           </h1>
           <p className="text-xs text-muted mt-1 font-semibold">
             {data.egresado.nombreCompleto} ({data.egresado.carnet})
@@ -761,7 +761,7 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
               href={`${base}/semana/${data.anterior.periodo}/${data.anterior.semana}`}
               className="px-3 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs"
             >
-              Semana anterior
+              Subperíodo anterior
             </Link>
           )}
           {data.siguiente && (
@@ -769,10 +769,10 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
               href={`${base}/semana/${data.siguiente.periodo}/${data.siguiente.semana}`}
               className="px-3 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs"
             >
-              Semana siguiente
+              Subperíodo siguiente
             </Link>
           )}
-          <Link href={base} className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs shadow-2xs">
+          <Link href={base} className="px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs shadow-2xs">
             Volver al seguimiento
           </Link>
         </div>
@@ -784,7 +784,7 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
         {/* Actividades de la semana */}
         <aside className="lg:sticky lg:top-4 bg-white border border-border rounded-2xl shadow-sm">
           <div className="px-4 pt-4 pb-3 border-b border-slate-100 space-y-2">
-            <h2 className="text-xs font-extrabold uppercase tracking-wide text-slate-800">Actividades de la semana</h2>
+            <h2 className="text-xs font-extrabold uppercase tracking-wide text-slate-800">Actividades del subperíodo</h2>
             {puedeRevisar && (
               <div className="space-y-1">
                 <div className="flex justify-between text-[11px] font-semibold text-slate-500">
@@ -891,7 +891,7 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
                 onClick={() => revisar("aprobar")}
                 className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 disabled:opacity-50"
               >
-                {enviando === "aprobar" ? "Aprobando..." : "Aprobar semana"}
+                {enviando === "aprobar" ? "Aprobando..." : "Aprobar subperíodo"}
               </button>
             </div>
           </div>

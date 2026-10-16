@@ -87,7 +87,7 @@ export default function ComentariosAsesorForm({
 
       {precargado && (
         <div className="p-3 rounded-lg border border-blue-200 bg-blue-50 text-[11px] text-blue-900 font-semibold">
-          Se precargaron sus notas de seguimiento semanal de este período ({notasSemanales.length}), en orden. Revíselas, complételas y
+          Se precargaron sus notas de seguimiento por subperíodo de este período ({notasSemanales.length}), en orden. Revíselas, complételas y
           guarde los comentarios.
         </div>
       )}
@@ -119,12 +119,12 @@ export default function ComentariosAsesorForm({
               {notasDe(c.id).length > 0 && (
                 <details className="text-[11px]">
                   <summary className="cursor-pointer select-none font-bold text-slate-500">
-                    Sus notas semanales sobre esta pregunta ({notasDe(c.id).length})
+                    Sus notas por subperíodo sobre esta pregunta ({notasDe(c.id).length})
                   </summary>
                   <ul className="mt-1.5 space-y-1 text-slate-600 font-medium">
                     {notasDe(c.id).map((n) => (
                       <li key={n.semana}>
-                        <span className="font-bold text-slate-700">Semana {n.semana}:</span> {n.texto}
+                        <span className="font-bold text-slate-700">Subperíodo {n.semana}:</span> {n.texto}
                       </li>
                     ))}
                   </ul>
@@ -184,7 +184,7 @@ export default function ComentariosAsesorForm({
             type="button"
             onClick={guardar}
             disabled={guardando}
-            className="px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs disabled:opacity-50 shrink-0"
+            className="px-5 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs disabled:opacity-50 shrink-0"
           >
             {guardando ? "Guardando..." : "Guardar comentarios"}
           </button>

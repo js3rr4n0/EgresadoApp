@@ -239,7 +239,7 @@ export default function InformeVisitaClient({
         </div>
         <Link
           href={`/asesor/seguimiento/${propuestaId}`}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs transition-colors shadow-2xs w-fit"
         >
           Volver al seguimiento
         </Link>
@@ -306,7 +306,7 @@ export default function InformeVisitaClient({
               ) : puedeEditar ? (
                 <label
                   className={`inline-flex items-center px-4 py-2 rounded-lg text-[11px] font-bold transition-colors ${
-                    subiendoAutorizacion ? "bg-slate-100 text-slate-400" : "bg-slate-900 hover:bg-slate-800 text-white cursor-pointer"
+                    subiendoAutorizacion ? "bg-slate-100 text-slate-400" : "bg-unicaes hover:bg-unicaes-hover text-white cursor-pointer"
                   }`}
                 >
                   {subiendoAutorizacion ? "Adjuntando..." : "Adjuntar correo de autorización"}
@@ -372,7 +372,7 @@ export default function InformeVisitaClient({
 
           {puedeEditar && fotos.length < MAX_FOTOS_VISITA && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-              <label className="inline-flex items-center px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-bold cursor-pointer">
+              <label className="inline-flex items-center px-4 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-[11px] font-bold cursor-pointer">
                 {fotoPendiente ? "Cambiar fotografía" : "Seleccionar fotografía"}
                 <input
                   type="file"

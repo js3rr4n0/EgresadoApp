@@ -773,6 +773,8 @@ export const informesMensuales = pgTable(
 
     // Elementos propios del informe final (informe 5): agradecimientos del egresado y carta de finalización satisfactoria
     agradecimientos: text("agradecimientos"), // opcional; una página, máximo 4 párrafos
+    glosario: jsonb("glosario"), // términos opcionales del anexo «Glosario de términos» ({ termino, definicion }[])
+    introduccion: jsonb("introduccion"), // cuatro párrafos (string[]) redactados por el egresado según los criterios de la métrica
     cartaFinalizacion: jsonb("carta_finalizacion"), // { url, nombre, subidaEn }: imagen de la carta emitida por la empresa
     cartaFinalizacionVerificadaEn: timestamp("carta_finalizacion_verificada_en", { withTimezone: true }),
     cartaFinalizacionVerificadaPor: integer("carta_finalizacion_verificada_por").references(() => usuarios.id),

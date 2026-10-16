@@ -18,7 +18,7 @@ import { registrarEvento } from "@/lib/bitacora";
 
 function textoSolicitud(tipo: TipoCambio, codigo: string | null, destino: { periodo: number | null; semana: number | null }) {
   const sobre = codigo ? ` ${codigo}` : "";
-  const hacia = destino.periodo && destino.semana ? ` (destino: Período ${destino.periodo}, Semana ${destino.semana})` : "";
+  const hacia = destino.periodo && destino.semana ? ` (destino: Período ${destino.periodo}, Subperíodo ${destino.semana})` : "";
   return `${TIPO_TEXTO[tipo]}${sobre}${hacia}`;
 }
 
@@ -127,14 +127,14 @@ function estaSinEnviar(ctx: ContextoCronograma, actividadId: number) {
 
 function validarDestino(ctx: ContextoCronograma, mes: number | null | undefined, semana: number | null | undefined) {
   if (!mes || !semana || !Number.isInteger(mes) || !Number.isInteger(semana)) {
-    return "Debe seleccionar el mes y la semana de destino.";
+    return "Debe seleccionar el período y el subperíodo de destino.";
   }
   const periodo = ctx.periodos.find((p) => p.num === mes);
   if (!periodo) {
-    return `El mes seleccionado está fuera del período configurado (meses 1 a ${ctx.periodos.length}).`;
+    return `El período seleccionado está fuera de la pasantía (períodos 1 a ${ctx.periodos.length}).`;
   }
   if (semana < 1 || semana > periodo.semanas) {
-    return `El Período ${mes} tiene ${periodo.semanas} semana${periodo.semanas === 1 ? "" : "s"}; la semana ${semana} no es válida.`;
+    return `El Período ${mes} tiene ${periodo.semanas} subperíodo${periodo.semanas === 1 ? "" : "s"}; el subperíodo ${semana} no es válido.`;
   }
   if (ctx.mesesNoEditables.has(mes)) {
     return `El informe del Período ${mes} ya fue enviado o su período cerró; no admite cambios en el cronograma.`;
@@ -143,7 +143,7 @@ function validarDestino(ctx: ContextoCronograma, mes: number | null | undefined,
     return `Los cambios solo pueden programarse dentro de su período actual (Período ${ctx.posicionActual.mes}).`;
   }
   if (compararPosicion({ mes, semana }, ctx.posicionActual) < 0) {
-    return `No es posible programar actividades en una semana anterior a su semana actual (Período ${ctx.posicionActual.mes}, Semana ${ctx.posicionActual.semana}).`;
+    return `No es posible programar actividades en un subperíodo anterior a su subperíodo actual (Período ${ctx.posicionActual.mes}, Subperíodo ${ctx.posicionActual.semana}).`;
   }
   return null;
 }
@@ -209,7 +209,7 @@ async function validarSolicitud(ctx: ContextoCronograma, datos: DatosSolicitud, 
 
   if (datos.tipo === "posponer") {
     if (compararPosicion(destino, origen) <= 0) {
-      return `Para posponer, el destino debe ser posterior a la ubicación actual de la actividad (Período ${origen.mes}, Semana ${origen.semana}).`;
+      return `Para posponer, el destino debe ser posterior a la ubicación actual de la actividad (Período ${origen.mes}, Subperíodo ${origen.semana}).`;
     }
     if (destino.mes !== origen.mes) {
       return `Una actividad solo puede posponerse dentro de su período (Período ${origen.mes}); no es posible trasladarla al Período ${destino.mes}. Si ya no se realizará, solicite su eliminación.`;
@@ -219,7 +219,7 @@ async function validarSolicitud(ctx: ContextoCronograma, datos: DatosSolicitud, 
 
   // reubicar
   if (compararPosicion(destino, origen) >= 0) {
-    return `Para reubicar, el destino debe ser anterior a la ubicación actual de la actividad (Período ${origen.mes}, Semana ${origen.semana}). Para moverla a una semana posterior utilice "Posponer actividad".`;
+    return `Para reubicar, el destino debe ser anterior a la ubicación actual de la actividad (Período ${origen.mes}, Subperíodo ${origen.semana}). Para moverla a un subperíodo posterior utilice "Posponer actividad".`;
   }
 
   if (datos.actividadIntercambioId) {
@@ -228,7 +228,7 @@ async function validarSolicitud(ctx: ContextoCronograma, datos: DatosSolicitud, 
       return "La actividad seleccionada para el intercambio no es válida.";
     }
     if (intercambio.periodo !== destino.mes || intercambio.semana !== destino.semana) {
-      return "La actividad de intercambio debe pertenecer a la semana de destino.";
+      return "La actividad de intercambio debe pertenecer al subperíodo de destino.";
     }
     if (!estaSinEnviar(ctx, intercambio.id)) {
       return `No es posible intercambiar con la actividad ${codigoActividad(intercambio)} porque ya fue enviada.`;
