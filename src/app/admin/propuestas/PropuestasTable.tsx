@@ -249,7 +249,7 @@ export default function PropuestasTable({
                   <td className="px-6 py-4 font-medium">{p.carrera}</td>
                   <td className="px-6 py-4 uppercase font-bold text-xs">{p.tipo}</td>
                   <td className="px-6 py-4 text-xs font-medium text-slate-600">
-                    {p.enviadaEn ? new Date(p.enviadaEn).toLocaleDateString() : "Borrador"}
+                    {p.enviadaEn ? new Date(p.enviadaEn).toLocaleDateString("es-SV", { timeZone: "America/El_Salvador" }) : "Borrador"}
                   </td>
                   <td className="px-6 py-4">{getStatusBadge(p.estado)}</td>
                   <td className="px-6 py-4 text-right">

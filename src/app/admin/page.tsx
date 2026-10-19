@@ -27,7 +27,24 @@ export default async function AdminDashboard() {
     .from(propuestas)
     .groupBy(propuestas.estado);
 
-  // Normalizar los datos para los gráficos
+  // Agrupar los estados reales de la tabla `propuestas` en las categorías del gráfico
+  const categoriaPorEstado: Record<string, string> = {
+    redactando: "redactando",
+    enviada: "enviada",
+    pend_empresa_nueva: "enviada",
+    pend_revision_datos: "enviada",
+    empresa_aprobada: "enviada",
+    datos_aprobados: "enviada",
+    coordinador_asignado: "enviada",
+    rechazada: "rechazada",
+    empresa_rechazada: "rechazada",
+    datos_rechazados: "rechazada",
+    aprobada: "aprobada",
+    primer_contacto_completado: "en_progreso",
+    en_ejecucion: "en_progreso",
+    anulada: "abandono",
+  };
+
   const estadoMap: Record<string, number> = {
     redactando: 0,
     enviada: 0,
@@ -39,7 +56,8 @@ export default async function AdminDashboard() {
   };
 
   propuestasRaw.forEach(p => {
-    estadoMap[p.estado] = p.count;
+    const categoria = categoriaPorEstado[p.estado];
+    if (categoria) estadoMap[categoria] += Number(p.count);
   });
 
   // Los labels según el diseño: Borrador, Enviada, Rechazada, Aprobada, Progreso, Finalizada, Abandono
