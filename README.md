@@ -1,5 +1,7 @@
 # EgresadoApp (TRABGRAD)
 
+<p align="center"><b>English</b> · <a href="README.es.md">Español</a></p>
+
 **Graduation-project management system for universities.** It replaces the paper-and-email process students go through to propose, get approved, and complete their graduation project (*Trabajo de Graduación*), with one web app where every role sees exactly what it needs.
 
 Built for Universidad Católica de El Salvador (UNICAES). The interface is in Spanish.
