@@ -1,4 +1,4 @@
-# EgresadoApp (TRABGRAD)
+# EgresadoApp
 
 <p align="center"><a href="README.md">English</a> · <b>Español</b></p>
 
