@@ -918,3 +918,51 @@ export const preferenciasNotificacionCorreo = pgTable(
   },
   (table) => [unique("preferencias_notificacion_correo_unique").on(table.usuarioId, table.configId)]
 );
+
+// ─────────────────────────── Fichas dinámicas (fase 2) ───────────────────────────
+// Una ficha es la configuración de un tipo de trabajo de graduación. Su contenido vive en versiones: solo una
+// versión en borrador por ficha; las habilitadas no se editan (se crea una versión nueva a partir de ellas).
+// El formato de `definicion` está en src/lib/fichas/tipos.ts.
+
+export const fichas = pgTable(
+  "fichas",
+  {
+    id: serial("id").primaryKey(),
+    nombre: varchar("nombre", { length: 150 }).notNull(),
+    modalidad: varchar("modalidad", { length: 20 }).notNull(),
+    // Alcance: null = todas las facultades / todas las carreras de la facultad
+    facultadId: integer("facultad_id").references(() => facultades.id),
+    carreraId: integer("carrera_id").references(() => carreras.id),
+    // true = describe el comportamiento de la fase 1 (sembrada por scripts/fichas/sembrar_fichas_base.ts)
+    esBase: boolean("es_base").notNull().default(false),
+    creadaPor: integer("creada_por").references(() => usuarios.id),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadaEn: timestamp("actualizada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check("fichas_modalidad_check", sql`${table.modalidad} IN ('pasantia', 'proyecto', 'investigacion')`)]
+);
+
+export const fichasVersiones = pgTable(
+  "fichas_versiones",
+  {
+    id: serial("id").primaryKey(),
+    fichaId: integer("ficha_id")
+      .notNull()
+      .references(() => fichas.id, { onDelete: "cascade" }),
+    numero: smallint("numero").notNull(),
+    estado: varchar("estado", { length: 20 }).notNull().default("borrador"),
+    definicion: jsonb("definicion").notNull(),
+    basadaEnId: integer("basada_en_id"), // versión de la que se copió (puede ser de otra ficha)
+    notas: text("notas"),
+    creadaPor: integer("creada_por").references(() => usuarios.id),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadaEn: timestamp("actualizada_en", { withTimezone: true }).notNull().defaultNow(),
+    habilitadaEn: timestamp("habilitada_en", { withTimezone: true }),
+    retiradaEn: timestamp("retirada_en", { withTimezone: true }),
+  },
+  (table) => [
+    unique("fichas_versiones_numero_unique").on(table.fichaId, table.numero),
+    uniqueIndex("fichas_versiones_un_borrador").on(table.fichaId).where(sql`${table.estado} = 'borrador'`),
+    check("fichas_versiones_estado_check", sql`${table.estado} IN ('borrador', 'habilitada', 'retirada')`),
+  ]
+);
