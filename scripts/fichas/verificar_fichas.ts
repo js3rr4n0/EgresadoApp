@@ -8,7 +8,8 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { definicionBase, VALORES_FASE1_COPIADOS as V } from "../../src/lib/fichas/fichasBase";
-import { validarDefinicion } from "../../src/lib/fichas/validar";
+import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/validar";
+import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
 import { diasSubperiodos, esEtapaEjecucion, esEtapaPropuesta, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
 
 let fallas = 0;
@@ -98,6 +99,19 @@ detecta("cronograma sin ejecución", conCambio((d) => { d.etapas = d.etapas.filt
 detecta("responsable por actividad en trabajo individual", conCambio((d) => {
   propuesta(d).espacios.find((e) => e.elemento === "cronograma")!.parametros.responsablePorActividad = true;
 }), "solo aplica a trabajos en equipo");
+
+// 4. Comparación entre versiones (resumen que se muestra al habilitar)
+comprobar("Dos definiciones iguales no tienen cambios", compararDefiniciones(definicionBase("pasantia"), definicionBase("pasantia")).length === 0);
+{
+  const nueva = definicionBase("pasantia");
+  ejec(nueva).periodos = 4;
+  propuesta(nueva).espacios.splice(5, 1);
+  const cambios = compararDefiniciones(definicionBase("pasantia"), nueva);
+  comprobar("Detecta un espacio quitado", cambios.some((c) => c.includes('Se quitó el espacio "Justificación del proceso"')), cambios.join(" | "));
+  comprobar("Detecta un cambio en la ejecución", cambios.some((c) => c.includes("períodos, 5 → 4")), cambios.join(" | "));
+}
+comprobar("Una definición mal formada se rechaza", !tieneFormaDeDefinicion({ formato: 1, modalidad: "pasantia", etapas: "x" }));
+comprobar("Las fichas base tienen la forma esperada", (["pasantia", "proyecto", "investigacion"] as Modalidad[]).every((m) => tieneFormaDeDefinicion(definicionBase(m))));
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);
 process.exit(fallas === 0 ? 0 : 1);

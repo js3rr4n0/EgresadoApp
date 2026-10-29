@@ -125,3 +125,48 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
 
   return problemas;
 }
+
+/**
+ * Comprueba que un valor recibido (por ejemplo, del navegador) tenga la forma de una definición antes de
+ * validarla o guardarla. No revisa las reglas de negocio: para eso está validarDefinicion().
+ */
+export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
+  const obj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+  const num = (v: unknown) => typeof v === "number" && Number.isFinite(v);
+  const str = (v: unknown) => typeof v === "string";
+  const rango = (v: unknown) => obj(v) && num(v.min) && num(v.max);
+
+  if (!obj(x) || x.formato !== FORMATO_DEFINICION || !str(x.modalidad) || !rango(x.participantes) || !Array.isArray(x.etapas)) {
+    return false;
+  }
+  return x.etapas.every((e: unknown) => {
+    if (!obj(e) || !str(e.id) || !str(e.nombre)) return false;
+    if (e.tipo === "propuesta") {
+      return (
+        Array.isArray(e.espacios) &&
+        e.espacios.every(
+          (s: unknown) =>
+            obj(s) && str(s.id) && str(s.elemento) && str(s.titulo) && str(s.descripcion) && str(s.ayuda) &&
+            typeof s.obligatorio === "boolean" && obj(s.parametros)
+        )
+      );
+    }
+    if (e.tipo === "ejecucion") {
+      const r = e.registro;
+      const i = e.informe;
+      return (
+        (e.inicio === "carta" || e.inicio === "etapa_anterior") && (e.unidad === "dias" || e.unidad === "meses") &&
+        num(e.periodos) && num(e.duracionPeriodo) && num(e.subperiodos) &&
+        obj(r) && rango(r.descripcion) && rango(r.conclusion) && num(r.imagenes) &&
+        num(e.diasRevision) && num(e.subperiodosAdelantables) && num(e.eliminacionesPorPeriodo) &&
+        obj(i) && num(i.paginasMinimas) && typeof i.exigirActividadesAprobadas === "boolean" &&
+        obj(i.comentariosDecanato) && typeof i.comentariosDecanato.activo === "boolean" && num(i.comentariosDecanato.minPalabras) &&
+        (e.diasPrimerContacto === null || num(e.diasPrimerContacto)) &&
+        Array.isArray(e.hitos) &&
+        e.hitos.every((h: unknown) => obj(h) && str(h.id) && str(h.nombre) && num(h.desde) && num(h.hasta) &&
+          (h.requisitoDeInforme === null || num(h.requisitoDeInforme)))
+      );
+    }
+    return false;
+  });
+}
