@@ -3,12 +3,13 @@
 // Reglas de versiones: una ficha tiene como máximo un borrador; las versiones habilitadas no se editan
 // (se crea una versión nueva a partir de ellas); las fichas base describen la fase 1 y son solo de lectura.
 
-import { and, desc, eq, max } from "drizzle-orm";
+import { and, desc, eq, like, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { fichas, fichasVersiones } from "@/lib/schema";
+import { carreras, facultades, fichas, fichasVersiones } from "@/lib/schema";
 import { definicionBase } from "@/lib/fichas/fichasBase";
+import { armarCodigo, nombreAutomatico, raizCodigo, siguienteCorrelativo } from "@/lib/fichas/codigo";
 import { tieneFormaDeDefinicion, validarDefinicion, type ProblemaFicha } from "@/lib/fichas/validar";
 import type { DefinicionFicha, Modalidad } from "@/lib/fichas/tipos";
 
@@ -37,18 +38,30 @@ async function versionConFicha(versionId: number) {
   return fila ?? null;
 }
 
+/** El código y el nombre se generan con la modalidad, la facultad y la carrera (src/lib/fichas/codigo.ts). */
 export async function crearFicha(datos: {
-  nombre: string;
   modalidad: Modalidad;
   facultadId: number | null;
   carreraId: number | null;
   partirDeVersionId: number | null;
-}): Promise<Resultado<{ fichaId: number }>> {
+}): Promise<Resultado<{ fichaId: number; codigo: string }>> {
   try {
     const session = await exigirAdmin();
-    const nombre = datos.nombre.trim();
-    if (nombre.length < 3 || nombre.length > 150) return { success: false, error: "El nombre debe tener entre 3 y 150 caracteres." };
     if (!MODALIDADES.includes(datos.modalidad)) return { success: false, error: "La modalidad no es válida." };
+
+    let facultad: { nombre: string; codigo: string | null } | null = null;
+    let carrera: { nombre: string; codigo: string | null; facultadId: number } | null = null;
+    if (datos.facultadId) {
+      [facultad] = await db.select({ nombre: facultades.nombre, codigo: facultades.codigo }).from(facultades).where(eq(facultades.id, datos.facultadId));
+      if (!facultad) return { success: false, error: "La facultad no existe." };
+    }
+    if (datos.carreraId) {
+      [carrera] = await db
+        .select({ nombre: carreras.nombre, codigo: carreras.codigo, facultadId: carreras.facultadId })
+        .from(carreras)
+        .where(eq(carreras.id, datos.carreraId));
+      if (!carrera || carrera.facultadId !== datos.facultadId) return { success: false, error: "La carrera no pertenece a la facultad elegida." };
+    }
 
     let definicion: DefinicionFicha = definicionBase(datos.modalidad);
     let basadaEnId: number | null = null;
@@ -74,10 +87,25 @@ export async function crearFicha(datos: {
       basadaEnId = origen.version.id;
     }
 
-    const [ficha] = await db
-      .insert(fichas)
-      .values({ nombre, modalidad: datos.modalidad, facultadId: datos.facultadId, carreraId: datos.carreraId, creadaPor: session.userId })
-      .returning({ id: fichas.id });
+    const raiz = raizCodigo(datos.modalidad, facultad?.codigo ?? null);
+    const nombre = nombreAutomatico(datos.modalidad, facultad?.nombre ?? null, carrera?.nombre ?? null);
+    // El correlativo se calcula con los códigos existentes; si otro admin tomó el mismo al mismo tiempo,
+    // la restricción única lo rechaza y se intenta con el siguiente.
+    let ficha: { id: number; codigo: string | null } | undefined;
+    for (let intento = 0; intento < 3 && !ficha; intento++) {
+      const existentes = await db.select({ codigo: fichas.codigo }).from(fichas).where(like(fichas.codigo, `${raiz}-%`));
+      const codigo = armarCodigo(raiz, siguienteCorrelativo(raiz, existentes.map((e) => e.codigo)) + intento, carrera?.codigo ?? null);
+      try {
+        [ficha] = await db
+          .insert(fichas)
+          .values({ codigo, nombre, modalidad: datos.modalidad, facultadId: datos.facultadId, carreraId: datos.carreraId, creadaPor: session.userId })
+          .returning({ id: fichas.id, codigo: fichas.codigo });
+      } catch (e) {
+        if (!(e instanceof Error && e.message.includes("fichas_codigo_unique"))) throw e;
+      }
+    }
+    if (!ficha) return { success: false, error: "No se pudo asignar un código a la ficha. Intenta de nuevo." };
+
     await db.insert(fichasVersiones).values({
       fichaId: ficha.id,
       numero: 1,
@@ -87,31 +115,9 @@ export async function crearFicha(datos: {
       creadaPor: session.userId,
     });
     refrescar();
-    return { success: true, fichaId: ficha.id };
+    return { success: true, fichaId: ficha.id, codigo: ficha.codigo ?? "" };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "No se pudo crear la ficha." };
-  }
-}
-
-export async function actualizarDatosFicha(
-  fichaId: number,
-  datos: { nombre: string; facultadId: number | null; carreraId: number | null }
-): Promise<Resultado> {
-  try {
-    await exigirAdmin();
-    const nombre = datos.nombre.trim();
-    if (nombre.length < 3 || nombre.length > 150) return { success: false, error: "El nombre debe tener entre 3 y 150 caracteres." };
-    const [ficha] = await db.select().from(fichas).where(eq(fichas.id, fichaId));
-    if (!ficha) return { success: false, error: "La ficha no existe." };
-    if (ficha.esBase) return { success: false, error: "Las fichas base describen la fase 1 y no se modifican." };
-    await db
-      .update(fichas)
-      .set({ nombre, facultadId: datos.facultadId, carreraId: datos.carreraId, actualizadaEn: new Date() })
-      .where(eq(fichas.id, fichaId));
-    refrescar(fichaId);
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : "No se pudo actualizar la ficha." };
   }
 }
 

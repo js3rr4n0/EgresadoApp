@@ -1,6 +1,6 @@
 // Entrega 1 del módulo de fichas: siembra las fichas base (pasantía, proyecto e investigación de la fase 1)
 // con su versión 1 habilitada. Si una ficha base ya existe, no la toca. Se puede ejecutar más de una vez.
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_fichas_base.ts
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_fichas_base.ts [--actualizar-base]
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import { fichas, fichasVersiones } from "../../src/lib/schema";
@@ -26,7 +26,17 @@ async function run() {
       .from(fichas)
       .where(and(eq(fichas.modalidad, modalidad), eq(fichas.esBase, true)));
     if (existente) {
-      console.log(`- ${NOMBRES_FICHAS_BASE[modalidad]}: ya existe (ficha ${existente.id}), no se modifica.`);
+      // Con --actualizar-base se reescribe la definición de la versión 1 de la ficha base (describe la fase 1,
+      // así que debe seguir al código). Sin la opción, la ficha existente no se toca.
+      if (process.argv.includes("--actualizar-base")) {
+        await db
+          .update(fichasVersiones)
+          .set({ definicion, actualizadaEn: new Date() })
+          .where(and(eq(fichasVersiones.fichaId, existente.id), eq(fichasVersiones.numero, 1)));
+        console.log(`~ ${NOMBRES_FICHAS_BASE[modalidad]}: definición actualizada (ficha ${existente.id}).`);
+      } else {
+        console.log(`- ${NOMBRES_FICHAS_BASE[modalidad]}: ya existe (ficha ${existente.id}), no se modifica.`);
+      }
       continue;
     }
 

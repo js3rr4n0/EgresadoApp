@@ -16,7 +16,7 @@ const ESTILO_ESTADO: Record<EstadoVersion, string> = {
 const TEXTO_ESTADO: Record<EstadoVersion, string> = {
   habilitada: "Habilitada",
   borrador: "Borrador",
-  retirada: "Retirada",
+  retirada: "Deshabilitada",
 };
 
 export function EstadoVersionBadge({ estado, texto }: { estado: EstadoVersion; texto?: string }) {
@@ -24,5 +24,25 @@ export function EstadoVersionBadge({ estado, texto }: { estado: EstadoVersion; t
     <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded-md whitespace-nowrap ${ESTILO_ESTADO[estado]}`}>
       {texto ?? TEXTO_ESTADO[estado]}
     </span>
+  );
+}
+
+/** Etiqueta para controles que se ven pero cuya función llega en una entrega posterior. */
+export function Proximamente({ texto = "Próximamente" }: { texto?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5 whitespace-nowrap">
+      <span aria-hidden="true">◷</span>
+      {texto}
+    </span>
+  );
+}
+
+/** Aviso al inicio de las pestañas que todavía son solo de diseño. */
+export function AvisoDiseno({ entrega, children }: { entrega: string; children?: React.ReactNode }) {
+  return (
+    <div className="bg-indigo-50 border border-indigo-100 text-indigo-900 rounded-xl px-4 py-2.5 text-sm flex flex-wrap items-center gap-2">
+      <Proximamente texto={entrega} />
+      <span>{children ?? "Diseño de referencia: puedes explorarlo, pero los cambios todavía no se guardan."}</span>
+    </div>
   );
 }

@@ -47,9 +47,25 @@ export interface EtapaPropuesta {
   espacios: Espacio[];
 }
 
+export type TipoHito = "primer_contacto" | "visita" | "dictamen_propuesta" | "dictamen_plan" | "personalizado";
+
+export const TIPOS_HITO: { tipo: TipoHito; nombre: string; momento: MomentoHito; descripcion: string }[] = [
+  { tipo: "dictamen_propuesta", nombre: "Dictamen de aprobación de la propuesta", momento: "antes", descripcion: "Documento que aprueba la propuesta; sin él no inicia la ejecución." },
+  { tipo: "dictamen_plan", nombre: "Dictamen de aprobación del plan de trabajo", momento: "antes", descripcion: "Documento que aprueba el plan de trabajo; sin él no inicia la ejecución." },
+  { tipo: "primer_contacto", nombre: "Primer contacto con el asesor", momento: "durante", descripcion: "Informe del asesor al iniciar la ejecución." },
+  { tipo: "visita", nombre: "Visita del asesor", momento: "durante", descripcion: "Visita a la institución en una ventana de días." },
+  { tipo: "personalizado", nombre: "Hito personalizado", momento: "durante", descripcion: "Cualquier otro momento de control." },
+];
+
+/** "antes": requisito para iniciar la ejecución; "durante": ocurre en una ventana de la ejecución. */
+export type MomentoHito = "antes" | "durante";
+
 export interface Hito {
   id: string;
   nombre: string;
+  /** Opcionales en el formato 1: las definiciones guardadas antes de agregarlos se leen como "personalizado"/"durante". */
+  tipo?: TipoHito;
+  momento?: MomentoHito;
   /** Día (o mes, según la unidad de la etapa) en que se habilita, contado desde el inicio de la etapa. */
   desde: number;
   hasta: number;

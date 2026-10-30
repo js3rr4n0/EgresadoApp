@@ -85,9 +85,14 @@ function ejecucionPasantia(): EtapaEjecucion {
     },
     diasPrimerContacto: VALORES_FASE1_COPIADOS.diasPrimerContacto,
     hitos: [
+      // Requisitos previos: el coordinador sube ambos dictámenes antes de dar inicio al plan de trabajo.
+      { id: "dictamen-propuesta", nombre: "Dictamen de aprobación de la propuesta", tipo: "dictamen_propuesta", momento: "antes", desde: 0, hasta: 0, requisitoDeInforme: null },
+      { id: "dictamen-plan", nombre: "Dictamen de aprobación del plan de trabajo", tipo: "dictamen_plan", momento: "antes", desde: 0, hasta: 0, requisitoDeInforme: null },
       {
         id: "visita",
         nombre: "Visita del asesor",
+        tipo: "visita",
+        momento: "durante",
         desde: DIA_INICIO_VISITA,
         hasta: DIA_FIN_VISITA,
         requisitoDeInforme: VALORES_FASE1_COPIADOS.informeRequisitoVisita,

@@ -928,6 +928,8 @@ export const fichas = pgTable(
   "fichas",
   {
     id: serial("id").primaryKey(),
+    // Identificador automático: MOD-FAC-NNN[-CAR] (src/lib/fichas/codigo.ts)
+    codigo: varchar("codigo", { length: 40 }).unique("fichas_codigo_unique"),
     nombre: varchar("nombre", { length: 150 }).notNull(),
     modalidad: varchar("modalidad", { length: 20 }).notNull(),
     // Alcance: null = todas las facultades / todas las carreras de la facultad

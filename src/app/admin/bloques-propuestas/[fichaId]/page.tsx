@@ -25,8 +25,14 @@ export default async function FichaPage({
   const id = Number(fichaId);
   if (!Number.isInteger(id)) notFound();
 
-  const [ficha] = await db.select().from(fichas).where(eq(fichas.id, id));
-  if (!ficha) notFound();
+  const [fila] = await db
+    .select({ ficha: fichas, facultad: facultades.nombre, carrera: carreras.nombre })
+    .from(fichas)
+    .leftJoin(facultades, eq(fichas.facultadId, facultades.id))
+    .leftJoin(carreras, eq(fichas.carreraId, carreras.id))
+    .where(eq(fichas.id, id));
+  if (!fila) notFound();
+  const { ficha } = fila;
 
   const versiones = await db
     .select()
@@ -41,32 +47,27 @@ export default async function FichaPage({
   const actual =
     pedida ?? versiones.find((x) => x.estado === "borrador") ?? habilitadas[habilitadas.length - 1] ?? versiones[versiones.length - 1];
 
-  // Referencia para "Cambios": la versión de la que se copió; si no hay, la habilitada anterior.
+  // Referencia para "Cambios": la versión de la que se copió.
   let referencia: { etiqueta: string; definicion: DefinicionFicha } | null = null;
   if (actual.basadaEnId) {
     const [origen] = await db
-      .select({ numero: fichasVersiones.numero, definicion: fichasVersiones.definicion, nombre: fichas.nombre })
+      .select({ numero: fichasVersiones.numero, definicion: fichasVersiones.definicion, codigo: fichas.codigo, nombre: fichas.nombre })
       .from(fichasVersiones)
       .innerJoin(fichas, eq(fichasVersiones.fichaId, fichas.id))
       .where(eq(fichasVersiones.id, actual.basadaEnId));
-    if (origen) referencia = { etiqueta: `${origen.nombre}, versión ${origen.numero}`, definicion: origen.definicion as DefinicionFicha };
+    if (origen) referencia = { etiqueta: `${origen.codigo ?? origen.nombre}, versión ${origen.numero}`, definicion: origen.definicion as DefinicionFicha };
   }
-
-  const [listaFacultades, listaCarreras] = await Promise.all([
-    db.select({ id: facultades.id, nombre: facultades.nombre }).from(facultades).orderBy(asc(facultades.nombre)),
-    db.select({ id: carreras.id, nombre: carreras.nombre, facultadId: carreras.facultadId }).from(carreras).orderBy(asc(carreras.nombre)),
-  ]);
 
   return (
     <EditorFicha
       key={actual.id}
       ficha={{
         id: ficha.id,
+        codigo: ficha.codigo,
         nombre: ficha.nombre,
         modalidad: ficha.modalidad as Modalidad,
         esBase: ficha.esBase,
-        facultadId: ficha.facultadId,
-        carreraId: ficha.carreraId,
+        alcance: fila.carrera ? `${fila.carrera} · ${fila.facultad}` : fila.facultad ? `${fila.facultad} · todas las carreras` : "Todas las facultades",
       }}
       versiones={versiones.map((x) => ({
         id: x.id,
@@ -82,8 +83,6 @@ export default async function FichaPage({
         definicion: actual.definicion as DefinicionFicha,
       }}
       referencia={referencia}
-      facultades={listaFacultades}
-      carreras={listaCarreras}
     />
   );
 }

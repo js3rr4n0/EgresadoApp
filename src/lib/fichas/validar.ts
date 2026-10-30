@@ -30,6 +30,11 @@ function validarEjecucion(etapa: EtapaEjecucion, indice: number, problemas: Prob
 
   const total = etapa.periodos * etapa.duracionPeriodo;
   for (const h of etapa.hitos) {
+    if (h.momento === "antes") {
+      // Requisito previo: no ocupa días de la ejecución.
+      if (indice > 1) p(`el requisito "${h.nombre}" solo puede ir en la primera etapa de ejecución.`);
+      continue;
+    }
     if (h.desde > h.hasta) p(`el hito "${h.nombre}" termina antes de empezar.`);
     if (h.hasta > total) p(`el hito "${h.nombre}" termina después del fin de la etapa (${total} ${etapa.unidad}).`);
     if (h.requisitoDeInforme !== null && (h.requisitoDeInforme < 1 || h.requisitoDeInforme > etapa.periodos)) {
@@ -164,7 +169,8 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
         (e.diasPrimerContacto === null || num(e.diasPrimerContacto)) &&
         Array.isArray(e.hitos) &&
         e.hitos.every((h: unknown) => obj(h) && str(h.id) && str(h.nombre) && num(h.desde) && num(h.hasta) &&
-          (h.requisitoDeInforme === null || num(h.requisitoDeInforme)))
+          (h.requisitoDeInforme === null || num(h.requisitoDeInforme)) &&
+          (h.tipo === undefined || str(h.tipo)) && (h.momento === undefined || h.momento === "antes" || h.momento === "durante"))
       );
     }
     return false;
