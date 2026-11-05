@@ -16,6 +16,7 @@ import {
 import { eq, and, desc, asc } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { notificarEquipo } from "@/lib/notificarEquipo";
 
 /**
  * Obtain accepted proposals for the logged in advisor ("Mis propuestas")
@@ -473,13 +474,7 @@ export async function solicitarAjustesPropuestaAsesor(propuestaId: number, obser
     });
 
     // Notify student
-    await db.insert(notificaciones).values({
-      usuarioId: prop.egresadoId,
-      tipo: "observaciones_propuesta",
-      mensaje: `Tu asesor designado ha solicitado ajustes en tu propuesta #${prop.numero}: ${observaciones.trim()}`,
-      leida: false,
-      creadoEn: new Date(),
-    });
+    await notificarEquipo(prop.id, "observaciones_propuesta", `Tu asesor designado ha solicitado ajustes en tu propuesta #${prop.numero}: ${observaciones.trim()}`);
 
     revalidatePath(`/asesor/propuestas/${propuestaId}`);
     revalidatePath(`/egresado/redactar`);
@@ -552,13 +547,7 @@ export async function aprobarPropuestaAsesor(propuestaId: number) {
       usuarioId: session.userId,
     });
 
-    await db.insert(notificaciones).values({
-      usuarioId: prop.egresadoId,
-      tipo: "propuesta_aprobada",
-      mensaje: `¡Felicidades! Tu asesor designado ha aprobado tu plan de trabajo y propuesta #${prop.numero}.`,
-      leida: false,
-      creadoEn: new Date(),
-    });
+    await notificarEquipo(prop.id, "propuesta_aprobada", `¡Felicidades! Tu asesor designado ha aprobado tu plan de trabajo y propuesta #${prop.numero}.`);
 
     revalidatePath(`/asesor/propuestas/${propuestaId}`);
     revalidatePath(`/asesor`);

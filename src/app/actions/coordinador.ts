@@ -21,6 +21,8 @@ import {
 import { eq, and, desc, asc, inArray, isNotNull, or, isNull } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { notificarEquipo } from "@/lib/notificarEquipo";
+import { getDocumentosPropuesta } from "@/app/actions/documentosPropuesta";
 
 /**
  * Fetch proposals assigned by Admin to the logged-in Coordinator for advisor assignment
@@ -772,13 +774,7 @@ export async function responderSolicitudBajaCoordinador(
       // Notify Advisor & Student
       const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, solBaja.propuestaId)).limit(1);
       if (prop) {
-        await db.insert(notificaciones).values({
-          usuarioId: prop.egresadoId,
-          tipo: "proyecto_anulado",
-          mensaje: `Tu propuesta "${prop.titulo || "N/A"}" ha sido DADA DE BAJA / ANULADA por solicitud académica.`,
-          leida: false,
-          creadoEn: new Date(),
-        });
+        await notificarEquipo(prop.id, "proyecto_anulado", `Tu propuesta "${prop.titulo || "N/A"}" ha sido DADA DE BAJA / ANULADA por solicitud académica.`);
 
         await db.insert(notificaciones).values({
           usuarioId: solBaja.asesorId,
@@ -900,6 +896,16 @@ export async function darInicioPlanTrabajo(propuestaId: number) {
     const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
     if (!prop) return { success: false, error: "Propuesta no encontrada." };
 
+    // H4: la pantalla deshabilita el botón, pero el servidor también lo verifica.
+    if (prop.estado !== "aprobada" && prop.estado !== "primer_contacto_completado") {
+      return { success: false, error: "Solo se puede dar inicio a una propuesta aprobada." };
+    }
+    const docs = await getDocumentosPropuesta(propuestaId);
+    if (!docs.success || !docs.data?.allRequiredUploaded) {
+      const faltan = docs.data?.missingDocs?.join(", ");
+      return { success: false, error: `Faltan documentos de aprobación${faltan ? `: ${faltan}` : ""}.` };
+    }
+
     const estadoAnterior = prop.estado;
 
     await db
@@ -915,13 +921,7 @@ export async function darInicioPlanTrabajo(propuestaId: number) {
     });
 
     // Notify Student
-    await db.insert(notificaciones).values({
-      usuarioId: prop.egresadoId,
-      tipo: "plan_trabajo_inicio",
-      mensaje: `¡El Plan de Trabajo de tu propuesta #${prop.numero} ha iniciado oficialmente! Estado actual: EN EJECUCIÓN.`,
-      leida: false,
-      creadoEn: new Date(),
-    });
+    await notificarEquipo(prop.id, "plan_trabajo_inicio", `¡El Plan de Trabajo de tu propuesta #${prop.numero} ha iniciado oficialmente! Estado actual: EN EJECUCIÓN.`);
 
     // Notify Advisor if assigned
     if (prop.asesorId) {

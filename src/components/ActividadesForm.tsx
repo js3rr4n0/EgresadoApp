@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { saveActividades } from "@/app/actions/actividades";
 import { useRouter } from "next/navigation";
 import ReenviarPropuestaAjustadaButton from "@/components/ReenviarPropuestaAjustadaButton";
-import { generarPeriodosPasantia, DURACION_PASANTIA_DIAS } from "@/lib/periodosPasantia";
+import { generarPeriodosPasantia, DURACION_PASANTIA_DIAS, fechaLocalDesdeISO, sumarDiasISO } from "@/lib/periodosPasantia";
 
 interface Actividad {
   id: string; // internal id for UI
@@ -81,10 +81,9 @@ export default function ActividadesForm({
   // Handle date changes and generate periods
   useEffect(() => {
     if (fechaInicio) {
-      const start = new Date(fechaInicio);
-      const end = new Date(start);
-      end.setDate(start.getDate() + DURACION_PASANTIA_DIAS);
-      setFechaFin(end.toISOString().split("T")[0]);
+      // "AAAA-MM-DD" con new Date() se lee en UTC y en El Salvador cae un día antes; se lee como fecha local.
+      const start = fechaLocalDesdeISO(fechaInicio);
+      setFechaFin(sumarDiasISO(fechaInicio, DURACION_PASANTIA_DIAS));
 
       const generatedPeriods: PeriodoDisplay[] = generarPeriodosPasantia(start).map((p) => ({
         num: p.num,
@@ -501,7 +500,7 @@ export default function ActividadesForm({
                       {periodos.map((p) => {
                         let year = new Date().getFullYear();
                         if (fechaInicio) {
-                          const d = new Date(fechaInicio);
+                          const d = fechaLocalDesdeISO(fechaInicio);
                           if (!isNaN(d.getTime())) {
                             const target = new Date(d.getFullYear(), d.getMonth() + (p.num - 1), 1);
                             year = target.getFullYear();

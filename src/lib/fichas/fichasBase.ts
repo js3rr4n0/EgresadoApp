@@ -30,7 +30,7 @@ export const VALORES_FASE1_COPIADOS = {
   eliminacionesPorPeriodo: 1,
   /** actions/informesMensuales.ts: NUMERO_INFORME_VISITA. */
   informeRequisitoVisita: 3,
-  /** actions/proyecto.ts: líder + integrantes activos o pendientes < 3. */
+  /** actions/proyecto.ts: MAX_INTEGRANTES_EQUIPO (líder + integrantes activos o pendientes). */
   maxIntegrantesEquipo: 3,
 } as const;
 

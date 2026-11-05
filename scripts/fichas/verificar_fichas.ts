@@ -69,7 +69,7 @@ comprobar(
 );
 comprobar(
   `El equipo sigue siendo de máximo ${V.maxIntegrantesEquipo} integrantes`,
-  contiene("src/app/actions/proyecto.ts", new RegExp(`totalCupos >= ${V.maxIntegrantesEquipo}\\)`))
+  contiene("src/app/actions/proyecto.ts", new RegExp(`MAX_INTEGRANTES_EQUIPO = ${V.maxIntegrantesEquipo};`))
 );
 comprobar(
   "Los objetivos específicos siguen siendo de 4 a 6",

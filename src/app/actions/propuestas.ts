@@ -1,18 +1,18 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { propuestas, periodos, usuarios, carreras, facultades } from "@/lib/schema";
+import { propuestas, usuarios, carreras, facultades } from "@/lib/schema";
 import { eq, asc, desc, and, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
+import { periodoDelEgresado, primerPeriodoActivo } from "@/lib/cohortes";
 import { revalidatePath } from "next/cache";
 
 export async function getActivePropuesta(targetPropuestaId?: number) {
   const session = await getSession();
   if (!session) return null;
 
-  // 1. Get active period
-  const activePeriodRows = await db.select().from(periodos).where(eq(periodos.activo, true)).limit(1);
-  const periodo = activePeriodRows[0] || null;
+  // 1. Período de la cohorte del egresado (o el activo más reciente para otros roles). Ver lib/cohortes.ts (O4).
+  const periodo = session.rol === "egresado" ? await periodoDelEgresado(session.userId) : await primerPeriodoActivo();
 
   let propuesta = null;
   let targetEgresadoId = session.userId;
@@ -150,9 +150,8 @@ export async function initPropuesta(tipo: string) {
     const session = await getSession();
     if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
 
-    const activePeriodRows = await db.select().from(periodos).where(eq(periodos.activo, true)).limit(1);
-    if (activePeriodRows.length === 0) return { success: false, error: "No hay periodo activo actualmente." };
-    const periodo = activePeriodRows[0];
+    const periodo = await periodoDelEgresado(session.userId);
+    if (!periodo) return { success: false, error: "No hay periodo activo actualmente." };
 
     const isRecepcionAbierta = new Date() <= new Date(periodo.finRecepcion + 'T23:59:59');
     if (!isRecepcionAbierta) {

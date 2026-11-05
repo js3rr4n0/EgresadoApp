@@ -18,6 +18,7 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { notificarEquipo } from "@/lib/notificarEquipo";
 
 export async function reviewPropuesta(
   propuestaId: number,
@@ -69,13 +70,7 @@ export async function reviewPropuesta(
       notifMsg = `Tu propuesta ha sido RECHAZADA. Observaciones: ${observaciones || "Sin observaciones."}`;
     }
 
-    await db.insert(notificaciones).values({
-      usuarioId: propuesta.egresadoId,
-      tipo: `propuesta_${estado}`,
-      mensaje: notifMsg,
-      leida: false,
-      creadoEn: new Date(),
-    });
+    await notificarEquipo(propuesta.id, `propuesta_${estado}`, notifMsg);
 
     revalidatePath("/admin/propuestas");
     revalidatePath(`/admin/propuestas/${propuestaId}`);

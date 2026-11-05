@@ -16,6 +16,10 @@ import {
 import { eq, and, ne, or, inArray, asc } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { errorCohorteEquipo } from "@/lib/cohortes";
+
+// Líder + integrantes. En la entrega P2 saldrá de la ficha de la propuesta (participantes.max).
+const MAX_INTEGRANTES_EQUIPO = 3;
 
 /**
  * Invitaciones y Equipo del Proyecto (Especificación Colaboración Grupal Rev 2)
@@ -128,6 +132,10 @@ export async function invitarIntegrante(propuestaId: number, carnetOrEmail: stri
     return { success: false, error: "No puedes invitarte a ti mismo." };
   }
 
+  // Misma cohorte que la propuesta (regla del trabajo en equipo).
+  const errorCohorte = await errorCohorteEquipo(propuestaId, targetUser.id);
+  if (errorCohorte) return { success: false, error: errorCohorte };
+
   // 3. Invariante I1 (Exclusividad Global): Check if target user already occupies a slot (pendiente / aceptado)
   const targetUserSlots = await db
     .select()
@@ -160,8 +168,8 @@ export async function invitarIntegrante(propuestaId: number, carnetOrEmail: stri
     );
 
   const totalCupos = 1 + currentMembers.length;
-  if (totalCupos >= 3) {
-    return { success: false, error: `GRUPO_LLENO: El equipo ya alcanzó el límite máximo de 3 integrantes (incluyendo invitaciones pendientes).` };
+  if (totalCupos >= MAX_INTEGRANTES_EQUIPO) {
+    return { success: false, error: `GRUPO_LLENO: El equipo ya alcanzó el límite máximo de ${MAX_INTEGRANTES_EQUIPO} integrantes (incluyendo invitaciones pendientes).` };
   }
 
   // 5. Check existing invitation record for this proposal
@@ -286,6 +294,13 @@ export async function responderInvitacion(integranteId: number, aceptar: boolean
     return { success: false, error: "CUPO_OCUPADO: Ya formas parte de otro equipo de trabajo o posees una propuesta activa." };
   }
 
+  // Misma cohorte que la propuesta.
+  const errorCohorte = await errorCohorteEquipo(invite.propuestaId, session.userId);
+  if (errorCohorte) {
+    await db.update(integrantesProyecto).set({ estado: "rechazado" }).where(eq(integrantesProyecto.id, integranteId));
+    return { success: false, error: errorCohorte };
+  }
+
   // 2. Re-verify I2 (Tamaño del Grupo)
   const activeMembersInProp = await db
     .select()
@@ -297,9 +312,9 @@ export async function responderInvitacion(integranteId: number, aceptar: boolean
       )
     );
 
-  if (1 + activeMembersInProp.length >= 3) {
+  if (1 + activeMembersInProp.length >= MAX_INTEGRANTES_EQUIPO) {
     await db.update(integrantesProyecto).set({ estado: "rechazado" }).where(eq(integrantesProyecto.id, integranteId));
-    return { success: false, error: "GRUPO_LLENO: El equipo ya cuenta con el número máximo de 3 integrantes." };
+    return { success: false, error: `GRUPO_LLENO: El equipo ya cuenta con el número máximo de ${MAX_INTEGRANTES_EQUIPO} integrantes.` };
   }
 
   // Double validation passed -> set state to 'aceptado'
