@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { uploadDocumento, deleteDocumento } from "@/app/actions/documentos";
-import { enviarPropuesta } from "@/app/actions/justificacion";
+import { enviarPropuesta } from "@/app/actions/propuestas";
 import { useRouter } from "next/navigation";
 import { openDocument } from "@/lib/pdfViewer";
 

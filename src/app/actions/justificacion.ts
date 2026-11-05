@@ -25,21 +25,5 @@ export async function saveJustificacion(propuestaId: number, justificacion: stri
   }
 }
 
-export async function enviarPropuesta(propuestaId: number) {
-  try {
-    const session = await getSession();
-    if (!session || session.rol !== "egresado") {
-      return { success: false, error: "No autorizado" };
-    }
-
-    await db.update(propuestas)
-      .set({ estado: "enviada", enviadaEn: new Date() })
-      .where(eq(propuestas.id, propuestaId));
-
-    revalidatePath("/egresado");
-    return { success: true };
-  } catch (error: any) {
-    console.error("Error al enviar propuesta:", error);
-    return { success: false, error: "Error al enviar la propuesta." };
-  }
-}
+// El envío de la propuesta está en actions/propuestas.ts (enviarPropuesta): verifica dueño, estado,
+// documentos y, en trabajos en equipo, la ratificación de todos los integrantes.

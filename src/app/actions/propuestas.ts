@@ -314,6 +314,23 @@ export async function enviarPropuesta(id: number) {
   const [prop] = await db.select().from(propuestas).where(and(eq(propuestas.id, id), eq(propuestas.egresadoId, session.userId))).limit(1);
   if (!prop) return { success: false, error: "Propuesta no encontrada o no eres el coordinador." };
 
+  // Mismas condiciones con las que el asistente permite editar (egresado/redactar/page.tsx: isFormLocked)
+  if (prop.estado !== "redactando" || prop.bloqueada) {
+    return { success: false, error: "Esta propuesta no se puede enviar en su estado actual." };
+  }
+  const otrasEnCurso = await db
+    .select({ id: propuestas.id })
+    .from(propuestas)
+    .where(
+      and(
+        eq(propuestas.egresadoId, session.userId),
+        inArray(propuestas.estado, ["enviada", "coordinador_asignado", "aprobada", "primer_contacto_completado", "en_ejecucion"])
+      )
+    );
+  if (otrasEnCurso.some((p) => p.id !== id)) {
+    return { success: false, error: "Ya tienes otra propuesta enviada o en curso; las demás quedan bloqueadas." };
+  }
+
   // For team collaboration proposals (proyecto / investigacion), run pre-flight checks & ratification verification (§10 & §8)
   if (prop.tipo === "proyecto" || prop.tipo === "investigacion") {
     const { verificarCapacidadEnvio } = await import("@/app/actions/proyecto");
