@@ -61,9 +61,24 @@ Sobre `dev-fichas`, con el servidor de desarrollo:
 
 Además: `tsc` sin errores, `verificar_fichas.ts` 47 de 47, y ESLint sin errores nuevos.
 
+## Envío del equipo (probado el 5-nov, después del commit de P2)
+
+El usuario subió la carta de la propuesta 70 a mano. Así quedaron probadas H1 y E5:
+
+| Intento | Resultado |
+|---|---|
+| Enviar sin ninguna ratificación | Bloqueado: RATIFICACION_INCOMPLETA. |
+| Enviar con la firma del líder solamente | Bloqueado: RATIFICACION_INCOMPLETA. |
+| Enviar con la firma de los 3 integrantes, cada uno desde su sesión | La propuesta pasó a "enviada". |
+
+Las tres firmas tienen la misma huella, y esa huella ya incluye la respuesta de "Antecedentes".
+
+**Observaciones de la fase 1, no causadas por P2:**
+- **Historial (corregido):** `enviarPropuesta` no escribía en `historial_estados`, así que el envío no quedaba en el historial de la propuesta. Ahora registra el cambio de estado → "enviada". Solo se comprobó por código: la propuesta 70 se envió antes de la corrección, así que su envío no está en el historial.
+- **Panel del líder:** después de enviar, dice que la propuesta "ha sido asignada a la Coordinación de Facultad", aunque todavía está en "enviada".
+
 ## No probado todavía
 
-- **El envío completo del equipo**, que incluye ratificar, enviar y que `enviarPropuesta` verifique las firmas y los documentos de los 3 (H1 y E5). El paso de la carta pide subir un PDF, y el navegador integrado no puede adjuntar archivos. Se puede probar a mano, o sembrando una carta de prueba.
 - **El límite de integrantes desde la ficha:** no hay un cuarto egresado de la misma cohorte. La regla de cohorte se revisa antes que la de cupo.
 - Las notificaciones al equipo y el inicio del plan con documentos faltantes (P0).
 

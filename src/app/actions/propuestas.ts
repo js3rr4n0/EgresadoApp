@@ -367,6 +367,10 @@ export async function enviarPropuesta(id: number) {
     .set({ estado: "enviada", enviadaEn: now })
     .where(and(eq(propuestas.id, id), eq(propuestas.egresadoId, session.userId)));
 
+  // El envío queda en el historial de la propuesta, como los demás cambios de estado.
+  const { historialEstados } = await import("@/lib/schema");
+  await db.insert(historialEstados).values({ propuestaId: id, de: prop.estado, a: "enviada", usuarioId: session.userId });
+
   // Save official PDF snapshot record in database
   const { documentosPropuesta } = await import("@/lib/schema");
   try {
