@@ -84,10 +84,15 @@ export interface EtapaEjecucion {
   duracionPeriodo: number;
   /** Los subperíodos se reparten en partes iguales y el último se queda con el residuo (30 / 4 = 7, 7, 7 y 9). */
   subperiodos: number;
+  /** En palabras e imágenes, 0 significa "sin mínimo" (proyecto e investigación no aplican métrica). */
   registro: {
     descripcion: { min: number; max: number };
     conclusion: { min: number; max: number };
     imagenes: number;
+    /** Opcionales en el formato 1; si faltan se leen con los valores de la pasantía (ver opcionesRegistro). */
+    modo?: ModoRegistro;
+    marcoTeorico?: ExigenciaMarco;
+    avance?: boolean;
   };
   /** Días recomendados para que el asesor revise un subperíodo enviado. */
   diasRevision: number;
@@ -95,28 +100,94 @@ export interface EtapaEjecucion {
   subperiodosAdelantables: number;
   eliminacionesPorPeriodo: number;
   informe: {
+    /** 0 = sin mínimo de páginas. */
     paginasMinimas: number;
     exigirActividadesAprobadas: boolean;
     comentariosDecanato: { activo: boolean; minPalabras: number };
+    /** Opcional en el formato 1; si falta se lee "unico". */
+    modo?: ModoInforme;
   };
   /** Plazo, en días desde que el asesor lo crea, del informe de primer contacto; null si la etapa no lo pide. */
   diasPrimerContacto: number | null;
   hitos: Hito[];
 }
 
-export type Etapa = EtapaPropuesta | EtapaEjecucion;
+/** "subperiodo": un registro por subperíodo (pasantía). "actividad": un registro por actividad del plan, con su avance (proyecto). */
+export type ModoRegistro = "subperiodo" | "actividad";
+export type ExigenciaMarco = "obligatorio" | "opcional" | "no";
+/** "unico": un informe por trabajo. "individual_y_general": cada integrante redacta el suyo y con ellos se arma el general. */
+export type ModoInforme = "unico" | "individual_y_general";
+
+/** Valores efectivos del registro y del informe, con los valores de la pasantía para las versiones guardadas antes. */
+export function opcionesRegistro(et: EtapaEjecucion) {
+  return {
+    modo: et.registro.modo ?? "subperiodo",
+    marcoTeorico: et.registro.marcoTeorico ?? "obligatorio",
+    avance: et.registro.avance ?? false,
+    informe: et.informe.modo ?? "unico",
+  } as const;
+}
+
+/**
+ * Plan de trabajo jerárquico (proyecto e investigación). Va entre la propuesta aprobada y la ejecución:
+ * objetivo general → objetivos específicos → macroactividades → actividades → subactividades.
+ * El cronograma es también la tabla de presupuesto: cada actividad lleva su monto en los subperíodos en que
+ * se ejecuta y cada nivel suma los de sus hijos. En equipo hay un plan general y uno individual por integrante.
+ */
+export interface EtapaPlan {
+  tipo: "plan";
+  id: string;
+  nombre: string;
+  subactividades: "no" | "opcional" | "obligatorio";
+  minimos: {
+    /** Objetivos específicos de cada integrante (en trabajo individual, del egresado). */
+    objetivosPorIntegrante: number;
+    macroPorObjetivo: number;
+    actividadesPorMacro: number;
+  };
+  presupuesto: { activo: boolean; desglose: "monto" | "recursos_gastos"; moneda: string };
+  /** Columnas del cronograma: cada subperíodo o cada período de la ejecución. */
+  granularidad: "subperiodo" | "periodo";
+  /** Solo aplica a trabajos en equipo. */
+  equipo: {
+    /** Nivel en el que se asigna el integrante responsable; lo que cuelga de él es del mismo integrante. */
+    responsable: "objetivo" | "actividad";
+    planIndividual: boolean;
+    /** Muestra al asesor la carga de cada integrante. El reparto equitativo lo decide el asesor, no el sistema. */
+    panelCarga: boolean;
+  };
+  aprobacion: {
+    /** El supervisor de la institución valida el plan y queda documentado en el informe de primer contacto. */
+    validaSupervisor: boolean;
+    /** Días que tiene el asesor para revisar el plan enviado. */
+    diasRevision: number;
+  };
+}
+
+export type Etapa = EtapaPropuesta | EtapaPlan | EtapaEjecucion;
 
 export interface DefinicionFicha {
   formato: typeof FORMATO_DEFINICION;
   modalidad: Modalidad;
-  participantes: { min: number; max: number };
-  /** Una etapa de propuesta, seguida de cero o más etapas de ejecución. El cierre, los roles y la plantilla
-   *  de documento se agregarán al formato en entregas posteriores. */
+  /** Los integrantes siempre son de la misma cohorte. `mismaCarrera` es opcional en el formato 1 (falta = no se exige). */
+  participantes: { min: number; max: number; mismaCarrera?: boolean };
+  /** Una etapa de propuesta, opcionalmente un plan de trabajo, y cero o más etapas de ejecución. El cierre, los
+   *  roles y la plantilla de documento se agregarán al formato en entregas posteriores. */
   etapas: Etapa[];
 }
 
 export const esEtapaPropuesta = (e: Etapa): e is EtapaPropuesta => e.tipo === "propuesta";
+export const esEtapaPlan = (e: Etapa): e is EtapaPlan => e.tipo === "plan";
 export const esEtapaEjecucion = (e: Etapa): e is EtapaEjecucion => e.tipo === "ejecucion";
+
+/** Niveles del plan, con su numeración de ejemplo. */
+export const NIVELES_PLAN = [
+  { nivel: 1, nombre: "Objetivo general", codigo: "1" },
+  { nivel: 2, nombre: "Objetivo específico", codigo: "1.1" },
+  { nivel: 3, nombre: "Macroactividad", codigo: "1.1.1" },
+  { nivel: 4, nombre: "Actividad", codigo: "1.1.1.1" },
+  { nivel: 5, nombre: "Subactividad", codigo: "1.1.1.1.1" },
+] as const;
 
 /** Días de cada subperíodo de un período: partes iguales y el residuo en el último (30 / 4 → [7, 7, 7, 9]). */
 export function diasSubperiodos(duracionPeriodo: number, subperiodos: number): number[] {
@@ -124,4 +195,12 @@ export function diasSubperiodos(duracionPeriodo: number, subperiodos: number): n
   return Array.from({ length: subperiodos }, (_, i) =>
     i === subperiodos - 1 ? duracionPeriodo - base * (subperiodos - 1) : base
   );
+}
+
+/** Rango de palabras en texto: 0 significa "sin mínimo" o "sin máximo". */
+export function rangoPalabras(min: number, max: number, sufijo = "palabras"): string {
+  if (min > 0 && max > 0) return `${min}–${max} ${sufijo}`.trim();
+  if (min > 0) return `al menos ${min} ${sufijo}`.trim();
+  if (max > 0) return `hasta ${max} ${sufijo}`.trim();
+  return sufijo ? `${sufijo}: sin límite` : "sin límite";
 }

@@ -1,6 +1,6 @@
 // Resumen visual de una etapa de ejecución: períodos, subperíodos, informes, hitos y requisitos previos.
 // Se recalcula con cada cambio del editor. Sin estado.
-import { diasSubperiodos, type EtapaEjecucion } from "@/lib/fichas/tipos";
+import { diasSubperiodos, rangoPalabras, type EtapaEjecucion } from "@/lib/fichas/tipos";
 
 const COLORES_HITO = ["bg-amber-400", "bg-sky-500", "bg-violet-500", "bg-emerald-500", "bg-pink-500"];
 
@@ -20,9 +20,9 @@ export default function LineaTiempo({ etapa }: { etapa: EtapaEjecucion }) {
     `${total} ${unidad}`,
     `${periodos} informe${periodos === 1 ? "" : "s"}`,
     `${periodos * etapa.subperiodos} subperíodos${subs ? ` (${subs.join("/")} días)` : ""}`,
-    `${etapa.registro.descripcion.min}–${etapa.registro.descripcion.max} palabras por actividad`,
-    `${etapa.registro.imagenes} imágenes`,
-    `${etapa.informe.paginasMinimas} págs. por informe`,
+    rangoPalabras(etapa.registro.descripcion.min, etapa.registro.descripcion.max, "palabras por actividad"),
+    etapa.registro.imagenes > 0 ? `${etapa.registro.imagenes} imágenes` : "imágenes opcionales",
+    etapa.informe.paginasMinimas > 0 ? `${etapa.informe.paginasMinimas} págs. por informe` : "sin mínimo de páginas",
   ];
 
   return (

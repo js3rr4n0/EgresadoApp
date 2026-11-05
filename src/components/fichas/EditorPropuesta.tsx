@@ -122,6 +122,16 @@ export default function EditorPropuesta({
           <span>egresado(s)</span>
         </div>
         <span className="text-xs text-gray-500">{definicion.participantes.max > 1 ? "Trabajo en equipo: la portada permite invitar integrantes." : "Trabajo individual."}</span>
+        {definicion.participantes.max > 1 && (
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 md:ml-auto">
+            <span title="Regla institucional: no se puede desactivar">✓ Misma cohorte (siempre)</span>
+            <span className="flex items-center gap-2">
+              Misma carrera
+              <Interruptor etiqueta="Los integrantes deben ser de la misma carrera" activo={Boolean(definicion.participantes.mismaCarrera)} deshabilitado={!editable}
+                onChange={(v) => onChange({ ...definicion, participantes: { ...definicion.participantes, mismaCarrera: v } })} />
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4">

@@ -136,3 +136,14 @@ export function presentacionPorDefecto(tipo: "revision" | "publica", modalidad: 
     evaluacion: "Rúbrica del jurado; nota mínima de aprobación 7.0.",
   };
 }
+
+/** Partes del informe de período de un proyecto (documento "Ejemplo para plantilla proyecto"). Redacción por revisar. */
+export const APARTADOS_INFORME_PERIODO_PROYECTO: { nombre: string; detalle: string }[] = [
+  { nombre: "Portada", detalle: "la de pasantía, con los datos del proyecto" },
+  { nombre: "Generalidades de la empresa o institución", detalle: "" },
+  { nombre: "Cronograma y presupuesto del período", detalle: "la parte del plan individual que cae en el período; montos solo en lo ejecutado" },
+  { nombre: "Informe de avances", detalle: "por objetivo, macroactividad y actividad: avance (%), fecha esperada y resultados" },
+  { nombre: "Resultados obtenidos", detalle: "estado de cada nivel y porcentaje concluido y pendiente" },
+  { nombre: "Resultados por actividad", detalle: "cada uno con su anexo" },
+  { nombre: "Anexos", detalle: "evidencias, en las páginas que hagan falta" },
+];

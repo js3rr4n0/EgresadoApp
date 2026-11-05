@@ -1,31 +1,14 @@
 "use client";
 
-import { esEtapaEjecucion, esEtapaPropuesta, TIPOS_HITO, type DefinicionFicha, type EtapaEjecucion, type Hito, type TipoHito } from "@/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, TIPOS_HITO, type DefinicionFicha, type EtapaEjecucion, type Hito, type TipoHito } from "@/lib/fichas/tipos";
+import { ejecucionNueva } from "@/lib/fichas/plantillas";
+import { APARTADOS_INFORME_PERIODO_PROYECTO } from "@/lib/fichas/disenoFuturo";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
 import { campoCompacto, etiquetaCompacta, Interruptor, Tarjeta } from "./EditorPropuesta";
 import LineaTiempo from "./LineaTiempo";
 import { CalendarioEjecucion } from "./VistaPrevia";
 import { nuevoId } from "./ids";
-
-function etapaNueva(n: number, primera: boolean): EtapaEjecucion {
-  return {
-    tipo: "ejecucion",
-    id: nuevoId("ejecucion"),
-    nombre: primera ? "Ejecución" : `Etapa de ejecución ${n}`,
-    inicio: primera ? "carta" : "etapa_anterior",
-    unidad: "dias",
-    periodos: 5,
-    duracionPeriodo: 30,
-    subperiodos: 4,
-    registro: { descripcion: { min: 200, max: 300 }, conclusion: { min: 40, max: 60 }, imagenes: 2 },
-    diasRevision: 3,
-    subperiodosAdelantables: 1,
-    eliminacionesPorPeriodo: 1,
-    informe: { paginasMinimas: 20, exigirActividadesAprobadas: true, comentariosDecanato: { activo: true, minPalabras: 40 } },
-    diasPrimerContacto: primera ? 7 : null,
-    hitos: [],
-  };
-}
+import { Proximamente } from "./comunes";
 
 function Numero({ id, etiqueta, valor, onChange, editable, min = 0, max = 999, sufijo }: {
   id: string; etiqueta: string; valor: number; onChange: (n: number) => void; editable: boolean; min?: number; max?: number; sufijo?: string;
@@ -45,9 +28,11 @@ function Numero({ id, etiqueta, valor, onChange, editable, min = 0, max = 999, s
 function Recorrido({ definicion }: { definicion: DefinicionFicha }) {
   const propuesta = definicion.etapas.find(esEtapaPropuesta);
   const ejecuciones = definicion.etapas.filter(esEtapaEjecucion);
+  const plan = definicion.etapas.find(esEtapaPlan);
   const requisitos = ejecuciones[0]?.hitos.filter((h) => h.momento === "antes").length ?? 0;
   const pasos = [
     { titulo: "Propuesta", detalle: `${propuesta?.espacios.length ?? 0} espacios`, color: "bg-gray-700" },
+    ...(plan ? [{ titulo: plan.nombre, detalle: plan.presupuesto.activo ? "cronograma y presupuesto" : "cronograma", color: "bg-sky-600" }] : []),
     ...(requisitos > 0 ? [{ titulo: "Requisitos", detalle: `${requisitos} antes de iniciar`, color: "bg-indigo-500" }] : []),
     ...ejecuciones.map((e) => ({ titulo: e.nombre, detalle: `${e.periodos} × ${e.duracionPeriodo} ${e.unidad === "dias" ? "días" : "meses"}`, color: "bg-brand-red" })),
     { titulo: "Cierre", detalle: "Informe final", color: "bg-gray-400" },
@@ -84,7 +69,7 @@ export default function EditorEjecucion({
   }
 
   function agregarEtapa() {
-    onChange({ ...definicion, etapas: [...definicion.etapas, etapaNueva(ejecuciones.length + 1, ejecuciones.length === 0)] });
+    onChange({ ...definicion, etapas: [...definicion.etapas, ejecucionNueva(nuevoId("ejecucion"), definicion.modalidad, ejecuciones.length + 1, ejecuciones.length === 0)] });
   }
 
   function quitarEtapa(etapa: EtapaEjecucion) {
@@ -118,6 +103,9 @@ export default function EditorEjecucion({
         const total = et.periodos * et.duracionPeriodo;
         const propios = problemas.filter((p) => p.ubicacion === et.id);
         const pre = `et${n}`;
+        const op = opcionesRegistro(et);
+        const equipo = definicion.participantes.max > 1;
+        const sinMetrica = et.informe.paginasMinimas === 0 && et.registro.imagenes === 0 && et.registro.descripcion.min === 0;
         const setHito = (id: string, cambios: Partial<Hito>) => reemplazar(et.id, { hitos: et.hitos.map((h) => (h.id === id ? { ...h, ...cambios } : h)) });
         const quitarHito = (id: string) => reemplazar(et.id, { hitos: et.hitos.filter((h) => h.id !== id) });
         const antes = et.hitos.filter((h) => h.momento === "antes");
@@ -170,6 +158,35 @@ export default function EditorEjecucion({
                 </Tarjeta>
 
                 <Tarjeta titulo="Registro de cada actividad">
+                  <div className="flex flex-wrap gap-3 mb-3">
+                    <div>
+                      <label htmlFor={`${pre}-modo`} className={etiquetaCompacta}>Se registra</label>
+                      <select id={`${pre}-modo`} className={`${campoCompacto} w-48`} disabled={!editable} value={op.modo}
+                        onChange={(e) => reemplazar(et.id, { registro: { ...et.registro, modo: e.target.value as typeof op.modo } })}>
+                        <option value="subperiodo">Por subperíodo</option>
+                        <option value="actividad">Por actividad del plan</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor={`${pre}-marco`} className={etiquetaCompacta}>Marco teórico</label>
+                      <select id={`${pre}-marco`} className={`${campoCompacto} w-36`} disabled={!editable} value={op.marcoTeorico}
+                        onChange={(e) => reemplazar(et.id, { registro: { ...et.registro, marcoTeorico: e.target.value as typeof op.marcoTeorico } })}>
+                        <option value="obligatorio">Obligatorio</option>
+                        <option value="opcional">Opcional</option>
+                        <option value="no">No se pide</option>
+                      </select>
+                    </div>
+                    <div>
+                      <span className={etiquetaCompacta}>Avance (%)</span>
+                      <div className="h-9 flex items-center">
+                        <Interruptor etiqueta="Registrar el porcentaje de avance de cada actividad" activo={op.avance} deshabilitado={!editable}
+                          onChange={(v) => reemplazar(et.id, { registro: { ...et.registro, avance: v } })} />
+                      </div>
+                    </div>
+                  </div>
+                  {equipo && op.modo === "actividad" && (
+                    <p className="text-[11px] text-gray-500 mb-2">Cada integrante registra las actividades de su plan individual; el asesor ve quién hizo qué.</p>
+                  )}
                   <div className="flex flex-wrap gap-3">
                     <div>
                       <span className={etiquetaCompacta}>Descripción</span>
@@ -197,6 +214,9 @@ export default function EditorEjecucion({
                     </div>
                     <Numero id={`${pre}-img`} etiqueta="Imágenes" valor={et.registro.imagenes} max={10} editable={editable} onChange={(v) => reemplazar(et.id, { registro: { ...et.registro, imagenes: v } })} />
                   </div>
+                  <p className="text-[11px] text-gray-500 mt-2">
+                    0 = sin mínimo (sin métrica). {sinMetrica ? "Imágenes, tablas y marco teórico quedan como apoyo opcional." : ""}
+                  </p>
                 </Tarjeta>
 
                 <Tarjeta titulo="Revisión y cambios">
@@ -209,7 +229,25 @@ export default function EditorEjecucion({
 
                 <Tarjeta titulo="Informe de cada período">
                   <div className="space-y-2.5">
-                    <Numero id={`${pre}-pag`} etiqueta="Páginas mínimas" valor={et.informe.paginasMinimas} max={200} editable={editable} onChange={(v) => reemplazar(et.id, { informe: { ...et.informe, paginasMinimas: v } })} />
+                    <div className="flex flex-wrap gap-3">
+                      <div>
+                        <label htmlFor={`${pre}-inf`} className={etiquetaCompacta}>Quién redacta</label>
+                        <select id={`${pre}-inf`} className={`${campoCompacto} w-64 max-w-full`} disabled={!editable} value={op.informe}
+                          onChange={(e) => reemplazar(et.id, { informe: { ...et.informe, modo: e.target.value as typeof op.informe } })}>
+                          <option value="unico">Un informe por trabajo</option>
+                          <option value="individual_y_general">Cada integrante + informe general</option>
+                        </select>
+                      </div>
+                      <div>
+                        <Numero id={`${pre}-pag`} etiqueta="Páginas mínimas" valor={et.informe.paginasMinimas} max={200} editable={editable} onChange={(v) => reemplazar(et.id, { informe: { ...et.informe, paginasMinimas: v } })} />
+                      </div>
+                    </div>
+                    {op.informe === "individual_y_general" && (
+                      <p className="text-[11px] text-gray-500">
+                        {equipo ? "Cada integrante redacta su informe del período y con ellos se arma el informe general del período." : "En trabajo individual, el informe del egresado es también el general."}
+                        {et.informe.paginasMinimas === 0 && " Sin mínimo de páginas."}
+                      </p>
+                    )}
                     <div className="flex items-center justify-between gap-3 text-sm text-gray-700">
                       <span>Exigir todas las actividades aprobadas</span>
                       <Interruptor etiqueta="Exigir actividades aprobadas" activo={et.informe.exigirActividadesAprobadas} deshabilitado={!editable}
@@ -231,6 +269,16 @@ export default function EditorEjecucion({
                       <Interruptor etiqueta="Preguntas para el decanato" activo={et.informe.comentariosDecanato.activo} deshabilitado={!editable}
                         onChange={(v) => reemplazar(et.id, { informe: { ...et.informe, comentariosDecanato: { ...et.informe.comentariosDecanato, activo: v } } })} />
                     </div>
+                    {op.modo === "actividad" && (
+                      <details className="border-t border-gray-100 pt-2">
+                        <summary className="text-xs font-bold text-gray-600 cursor-pointer flex items-center gap-2">
+                          Partes del informe del período <Proximamente texto="Diseño" />
+                        </summary>
+                        <ol className="list-decimal pl-5 mt-1.5 text-xs text-gray-600 space-y-0.5">
+                          {APARTADOS_INFORME_PERIODO_PROYECTO.map((a) => <li key={a.nombre}><span className="text-gray-800">{a.nombre}</span>{a.detalle && ` — ${a.detalle}`}</li>)}
+                        </ol>
+                      </details>
+                    )}
                   </div>
                 </Tarjeta>
               </div>

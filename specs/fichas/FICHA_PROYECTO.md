@@ -97,6 +97,8 @@ Constructor (admin)                      Egresado / equipo
 5. **Informes del período en equipo.** ¿Uno solo por equipo, que junta las actividades de todos, o uno por integrante?
    - ¿Cuántas páginas mínimas? ¿Se cuentan por equipo o por persona?
 
+> Las respuestas a las preguntas 1 a 5 llegaron el 5-nov en el documento "Ejemplo para plantilla proyecto". Están en la sección 5.
+
 **Pueden esperar, porque tienen un valor por defecto razonable:**
 
 6. **Carta de aceptación del proyecto.** ¿Mantiene los +21 / +150 días? ¿Quién la emite: la institución beneficiaria? Por defecto, igual que hoy.
@@ -104,3 +106,115 @@ Constructor (admin)                      Egresado / equipo
 8. **Si un integrante se retira durante la ejecución,** ¿qué pasa con sus actividades? Por defecto, se reasignan a otro integrante con aprobación del asesor.
 9. **Notificaciones.** ¿Todos los integrantes reciben los avisos de la propuesta, o solo el líder? Por defecto, todos.
 10. **Cierre y presentaciones del proyecto.** Para una reunión posterior.
+
+## 5. Contexto recibido (5-nov): qué cambia respecto a la pasantía
+
+**Criterio general:** la ficha de proyecto se arma con el **mismo constructor y la misma lógica** que la de pasantía (espacios, reglas, hitos, períodos, línea de tiempo, vista del egresado, diseño "Próximamente" para lo que venga después), pero más completa. Los formatos de documento, las portadas y el informe final se mantienen; solo cambian los datos que dicen "pasantía".
+
+| Tema | Pasantía (hoy) | Proyecto (nuevo) |
+|---|---|---|
+| Propuesta | Su propio flujo | **Los 8 pasos actuales son correctos.** Redacta el líder; los demás leen y ratifican. |
+| Equipo | Individual | De 1 a 3 integrantes. **Misma cohorte, obligatorio.** Distintas carreras: probablemente sí, por confirmar. |
+| Plan de trabajo | Cronograma plano dentro de la propuesta: actividades por período y semana | **Etapa propia después de la propuesta aprobada.** Cronograma jerárquico (ver el detalle debajo de la tabla). |
+| Presupuesto | No existe | El cronograma es también la tabla de presupuesto. Cada actividad lleva su monto en los subperíodos en que se ejecuta. Cada nivel **suma automáticamente** los montos de sus hijos, por período. |
+| División del trabajo | No aplica | Hay un plan **general** y uno **individual por integrante**. El individual es el mismo plan filtrado por responsable. Se recomienda que cada integrante tenga al menos 3 objetivos específicos con sus macroactividades y actividades. |
+| Reparto equitativo | No aplica | **No lo valida el sistema.** Lo revisa el asesor al aprobar el plan. El sistema solo debe mostrarle la carga de cada integrante (cantidad de objetivos, actividades y montos) para que decida. |
+| Validación del plan | Dictamen del plan antes de iniciar | Lo valida el supervisor de la institución. Queda documentado en el **informe de primer contacto** del asesor. |
+| Ejecución | Registra el egresado | **Todos participan por igual:** cada integrante registra las actividades de **su** plan individual. |
+| Períodos | 4 informes de 30 días, con subperíodos | Informes mensuales, **5 por defecto**, y todo se configura en la ficha (períodos, días y subperíodos). Puede durar menos de 150 días. |
+| Métrica y balance | Páginas mínimas, palabras e imágenes obligatorias | **No aplican:** no hay mínimo de páginas, las imágenes y tablas son opcionales y el marco teórico es opcional, por actividad. |
+| Informe de período | Uno por egresado | **Uno individual por integrante, y con ellos se arma un informe general del período.** Así en los 5 informes. |
+| Informe final | Compilado | Compilado, igual que hoy. |
+| Hitos | Dictámenes, primer contacto y visita | Se crean en la ficha igual que hoy. El ejemplo muestra la visita del asesor entre los informes 3 y 4, pero los hitos reales aún no están definidos. |
+
+**Niveles del plan jerárquico:**
+
+```
+1        Objetivo general
+1.1        Objetivo específico
+1.1.1        Macroactividad
+1.1.1.1        Actividad
+1.1.1.1.1        Subactividad (opcional)
+```
+
+Rige la **consecuencia lógica**: cada actividad pertenece a una macroactividad, que pertenece a un objetivo específico, que pertenece al objetivo general.
+
+**Partes del informe de período del proyecto,** según el ejemplo. Su redacción exacta se revisará después.
+
+1. **Portada:** la de la pasantía, con los datos adaptados.
+2. **Generalidades** de la empresa o institución.
+3. **Cronograma y presupuesto del período:** la porción del cronograma individual que cae en el período, con los montos solo en las actividades ejecutadas.
+4. **Informe de avances:** por cada nivel del plan:
+   - el porcentaje de avance;
+   - la fecha esperada de finalización;
+   - una narración del resultado de cada macroactividad y actividad, con las acciones realizadas.
+5. **Resultados obtenidos:** una tabla con el estado de cada nivel (finalizada o avance parcial) y su porcentaje concluido y pendiente.
+6. **Resultados por actividad,** cada uno con su anexo.
+7. **Anexos.**
+
+**Variantes que se preguntarán después:** el tipo de proyecto (para una empresa o para la universidad, como el que solo entrega el informe final) y si habrá fichas especiales para una sola persona. **No bloquean:** la ficha ya permite variar las etapas, los períodos y los informes.
+
+## 6. Ruta de trabajo propuesta
+
+Cada entrega es un commit y se prueba sobre `dev-fichas`. La entrega P0 va primero porque varias correcciones afectan al equipo.
+
+> **Avance:** P0 y P1 están hechas. Detalle en [ENTREGA_P0_P1.md](ENTREGA_P0_P1.md).
+
+| # | Entrega | Qué incluye | Resultado visible |
+|---|---|---|---|
+| **P0** | **Correcciones previas** | Ver el detalle debajo de la tabla. | Un equipo de prueba válido de 3 personas. |
+| **P1** | **Constructor: ficha de proyecto completa** | Ver el detalle debajo de la tabla. | Se crea **PRO-ING-00x** en el constructor y se ve completa en la vista del egresado. |
+| **P2** | **La propuesta usa la ficha** | Nueva columna `propuestas.ficha_version_id` (solo se agrega). `initPropuesta` toma la versión habilitada que corresponde. El asistente de 8 pasos lee títulos, ayudas y reglas de la ficha (por ejemplo, los objetivos mínimos), reutilizando los formularios actuales. | Un equipo redacta, ratifica y envía una propuesta con la ficha nueva. |
+| **P3** | **Plan de trabajo del equipo** | Ver el detalle debajo de la tabla. | El asesor aprueba un plan general con 3 planes individuales. |
+| **P4** | **Ejecución en equipo** | Quitar los bloqueos "solo pasantía" cuando la ficha tenga ejecución. Cada integrante registra **sus** actividades (avance, resultado, acciones, anexos y, si quiere, marco teórico), con las reglas de la ficha. El asesor revisa y ve quién hizo qué. | Cada integrante trabaja en su parte; el asesor ve al equipo completo. |
+| **P5** | **Informes de período** | Un informe individual por integrante y el general del período, con sus partes: cronograma y presupuesto del período, avances, resultados y anexos. Prioridad baja en la redacción, según la nota del documento. | Los informes 1 a 5 del equipo. |
+| **P6** | **Prueba completa y documentación** | El recorrido de punta a punta con 3 integrantes, una lista de comprobación del flujo y el documento de referencia para las demás modalidades. | El flujo de referencia. |
+
+**P0, correcciones previas:**
+- el desfase de fechas del cronograma (O2);
+- las cohortes activas (O4);
+- validar la **misma cohorte** al invitar y al aceptar;
+- tomar el límite del equipo de la ficha, no el 3 escrito a mano (H2);
+- notificar a todos los integrantes (H3);
+- verificar en el servidor al dar inicio (H4).
+
+**P1, constructor.** Mismo diseño que la ficha de pasantía:
+- **Nueva etapa "Plan de trabajo",** entre la propuesta y la ejecución. Sus reglas son:
+  - los niveles, con la subactividad opcional;
+  - si lleva presupuesto;
+  - en qué nivel se asigna el responsable (objetivo específico o actividad);
+  - el mínimo de objetivos específicos por integrante;
+  - quién aprueba.
+- **Ejecución:**
+  - permitir "sin mínimo" en páginas, palabras e imágenes;
+  - el marco teórico opcional;
+  - el informe "individual y general".
+- **PRO-BASE** se actualiza con 5 informes. Los hitos se configuran en el editor actual.
+- Validaciones nuevas.
+
+**P3, plan de trabajo del equipo:**
+- **Tablas nuevas** (solo se agregan): un nodo del plan con su padre, nivel, código, título y responsable, y los montos de cada nodo por período y subperíodo.
+- **Editor jerárquico** con sumas automáticas y vista general o individual.
+- **Panel de carga por integrante** para el asesor.
+- **Envío y aprobación:** el asesor aprueba y el dictamen del plan queda como requisito antes de iniciar.
+
+**Por qué tablas nuevas para el plan:** la tabla `actividades` de la pasantía guarda una actividad por celda (período, semana y número). No tiene jerarquía, ni montos, ni actividades que abarquen varias semanas. Forzarla pondría en riesgo la pasantía, que ya funciona. El plan de proyecto vive aparte, y la pasantía no se toca.
+
+**Alcance sugerido para la próxima reunión:** P0, P1 y P2 completos, y P3 funcionando, aunque sea sin el panel de carga. Eso demuestra que la ficha se crea, que el equipo la usa y que el trabajo se divide entre los integrantes. P4 y P5 pueden mostrarse como diseño ("Próximamente") si no alcanza el tiempo.
+
+## 7. Preguntas que quedan
+
+Estas preguntas afectan al diseño de P1 y P3.
+
+1. **¿Cuántos objetivos específicos?** La propuesta pide de 4 a 6 en total, pero el plan recomienda al menos 3 por integrante (9 para un equipo de 3). ¿El mínimo debe depender del tamaño del equipo, por ejemplo 3 × integrantes? ¿O el plan puede agregar objetivos que no estaban en la propuesta?
+2. **¿El responsable se asigna por objetivo específico?** Si es así, todo lo que cuelga de él es del mismo integrante. ¿O puede haber actividades de distintos integrantes dentro de un mismo objetivo?
+3. **¿El presupuesto es un monto por subperíodo o hay que separar recursos y gastos?** En el ejemplo hay columnas S1 a S4 dentro del mes. El documento habla de "recursos y gastos".
+4. **¿Quién redacta y envía el informe general del período?** ¿Se arma solo con los individuales, o el líder redacta partes como las generalidades y la conclusión? ¿El asesor aprueba cada individual y luego el general?
+5. **¿El registro de la ejecución es por actividad o por subperíodo?** ¿Hay un registro por actividad con su porcentaje de avance, que se actualiza en cada período? ¿O es como en la pasantía, un registro por cada subperíodo?
+
+Sin estas respuestas se puede empezar con valores por defecto, que se cambian después en la ficha sin rehacer nada:
+1. un mínimo de 3 objetivos específicos por integrante;
+2. el responsable asignado por objetivo específico;
+3. un solo monto por subperíodo;
+4. el general se arma con los individuales y el líder lo envía;
+5. un registro por actividad, con su avance en cada período.

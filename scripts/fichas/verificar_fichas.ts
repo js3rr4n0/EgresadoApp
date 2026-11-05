@@ -10,7 +10,9 @@ import path from "path";
 import { definicionBase, VALORES_FASE1_COPIADOS as V } from "../../src/lib/fichas/fichasBase";
 import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/validar";
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
-import { diasSubperiodos, esEtapaEjecucion, esEtapaPropuesta, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
+import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
+import { ejecucionNueva, planNuevo } from "../../src/lib/fichas/plantillas";
+import { aplanar, cargaPorIntegrante, planEjemplo, planIndividual, totalesNodo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
 let fallas = 0;
 function comprobar(descripcion: string, ok: boolean, detalle = "") {
@@ -112,6 +114,64 @@ comprobar("Dos definiciones iguales no tienen cambios", compararDefiniciones(def
 }
 comprobar("Una definición mal formada se rechaza", !tieneFormaDeDefinicion({ formato: 1, modalidad: "pasantia", etapas: "x" }));
 comprobar("Las fichas base tienen la forma esperada", (["pasantia", "proyecto", "investigacion"] as Modalidad[]).every((m) => tieneFormaDeDefinicion(definicionBase(m))));
+
+// 5. Ficha de proyecto completa: plan de trabajo y ejecución en equipo (entrega P1)
+function proyectoCompleto(): DefinicionFicha {
+  const d = definicionBase("proyecto");
+  const [prop] = d.etapas;
+  d.etapas = [prop, planNuevo("plan"), ejecucionNueva("ejecucion", "proyecto", 1, true)];
+  // La carta de la base dura 150 días: 5 períodos de 30.
+  return d;
+}
+{
+  const d = proyectoCompleto();
+  const problemas = validarDefinicion(d);
+  comprobar("La ficha de proyecto con plan y ejecución es válida", problemas.length === 0, problemas.map((p) => p.mensaje).join(" | "));
+  comprobar("La ficha de proyecto completa tiene la forma esperada", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
+  const et = ejec(d);
+  const op = opcionesRegistro(et);
+  comprobar("La ejecución de proyecto no aplica métrica", et.informe.paginasMinimas === 0 && et.registro.imagenes === 0 && op.marcoTeorico === "opcional");
+  comprobar("La ejecución de proyecto registra por actividad e informa por integrante", op.modo === "actividad" && op.informe === "individual_y_general");
+  comprobar("Las versiones guardadas antes se leen como pasantía", opcionesRegistro(ejec(definicionBase("pasantia"))).modo === "subperiodo");
+}
+function proyectoConCambio(cambiar: (d: DefinicionFicha) => void): string[] {
+  const d = proyectoCompleto();
+  cambiar(d);
+  return validarDefinicion(d).map((p) => p.mensaje);
+}
+detecta("plan sin objetivos en la propuesta", proyectoConCambio((d) => { propuesta(d).espacios = propuesta(d).espacios.filter((e) => e.elemento !== "objetivos"); }), "agrega el espacio \"Objetivos\"");
+detecta("plan sin ejecución", proyectoConCambio((d) => { d.etapas = d.etapas.filter((e) => !esEtapaEjecucion(e)); }), "plan de trabajo necesita una etapa de ejecución");
+detecta("plan después de la ejecución", proyectoConCambio((d) => { d.etapas = [d.etapas[0], d.etapas[2], d.etapas[1]]; }), "inmediatamente después de la propuesta");
+detecta("plan en una pasantía", conCambio((d) => { d.etapas.splice(1, 0, planNuevo("plan")); }), "el plan de trabajo es para proyecto");
+detecta("registro por actividad sin plan", proyectoConCambio((d) => { d.etapas = d.etapas.filter((e) => !esEtapaPlan(e)); }), "necesita un plan de trabajo");
+detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etapas.find(esEtapaPlan)!.minimos.objetivosPorIntegrante = 0; }), "objetivos específicos por integrante");
+{
+  const anterior = proyectoCompleto();
+  const nueva = proyectoCompleto();
+  nueva.etapas.find(esEtapaPlan)!.equipo.responsable = "actividad";
+  const cambios = compararDefiniciones(anterior, nueva);
+  comprobar("Detecta un cambio en el plan de trabajo", cambios.some((c) => c.includes("Plan de trabajo: responsable")), cambios.join(" | "));
+}
+
+// 6. Sumas del plan, plan individual y carga por integrante
+{
+  const plan = planNuevo("plan");
+  const columnas = 8;
+  const raiz = planEjemplo(plan, 3, columnas);
+  const total = (n: NodoPlan) => totalesNodo(n, columnas).reduce((a, b) => a + b, 0);
+  const hojas = aplanar(raiz).filter((n) => n.hijos.length === 0);
+  const sumaHojas = hojas.reduce((a, n) => a + n.montos.reduce((x, y) => x + y, 0), 0);
+  comprobar("El objetivo general suma los montos de todas las actividades", total(raiz) === sumaHojas && sumaHojas > 0);
+  comprobar("Cada nivel suma los de sus hijos", aplanar(raiz).filter((n) => n.hijos.length > 0).every((n) => total(n) === n.hijos.reduce((a, h) => a + total(h), 0)));
+  const carga = cargaPorIntegrante(raiz, 3, columnas);
+  comprobar("Con responsable por objetivo, cada integrante tiene sus 3 objetivos", carga.every((c) => c.objetivos === 3), JSON.stringify(carga));
+  comprobar("Los planes individuales suman el plan general", carga.reduce((a, c) => a + c.monto, 0) === total(raiz));
+  const individual = planIndividual(raiz, 2)!;
+  comprobar("El plan individual conserva el objetivo general (consecuencia lógica)", individual.nivel === 1 && individual.hijos.every((o) => o.responsable === 2));
+  const porActividad = planEjemplo({ ...plan, equipo: { ...plan.equipo, responsable: "actividad" } }, 3, columnas);
+  const cargaAct = cargaPorIntegrante(porActividad, 3, columnas);
+  comprobar("Con responsable por actividad, todos tienen actividades", cargaAct.every((c) => c.actividades > 0), JSON.stringify(cargaAct));
+}
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);
 process.exit(fallas === 0 ? 0 : 1);

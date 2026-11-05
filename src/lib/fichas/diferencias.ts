@@ -1,7 +1,7 @@
 // Cambios entre dos definiciones de una ficha, en lenguaje del administrador. Se muestran antes de habilitar
 // una versión nueva para que se vea qué cambia respecto de la anterior. Módulo puro.
 import { CATALOGO } from "./catalogo";
-import { esEtapaEjecucion, esEtapaPropuesta, type DefinicionFicha, type EtapaEjecucion, type ValorParametro } from "./tipos";
+import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, rangoPalabras, type DefinicionFicha, type EtapaEjecucion, type EtapaPlan, type ValorParametro } from "./tipos";
 
 const texto = (v: ValorParametro | null | undefined) =>
   Array.isArray(v) ? (v.length ? v.join(", ") : "ninguno") : typeof v === "boolean" ? (v ? "sí" : "no") : String(v ?? "—");
@@ -10,9 +10,13 @@ const CAMPOS_EJECUCION: [string, (e: EtapaEjecucion) => ValorParametro | null][]
   ["Períodos", (e) => e.periodos],
   ["Duración de cada período", (e) => `${e.duracionPeriodo} ${e.unidad}`],
   ["Subperíodos por período", (e) => e.subperiodos],
-  ["Palabras de la descripción", (e) => `${e.registro.descripcion.min}–${e.registro.descripcion.max}`],
-  ["Palabras de la conclusión", (e) => `${e.registro.conclusion.min}–${e.registro.conclusion.max}`],
+  ["Palabras de la descripción", (e) => rangoPalabras(e.registro.descripcion.min, e.registro.descripcion.max, "")],
+  ["Palabras de la conclusión", (e) => rangoPalabras(e.registro.conclusion.min, e.registro.conclusion.max, "")],
   ["Imágenes por actividad", (e) => e.registro.imagenes],
+  ["Registro", (e) => (opcionesRegistro(e).modo === "actividad" ? "por actividad del plan" : "por subperíodo")],
+  ["Marco teórico", (e) => opcionesRegistro(e).marcoTeorico],
+  ["Avance por actividad", (e) => opcionesRegistro(e).avance],
+  ["Informe de cada período", (e) => (opcionesRegistro(e).informe === "individual_y_general" ? "individual por integrante y general" : "uno por trabajo")],
   ["Días para revisar un subperíodo", (e) => e.diasRevision],
   ["Subperíodos que se pueden adelantar", (e) => e.subperiodosAdelantables],
   ["Eliminaciones por período", (e) => e.eliminacionesPorPeriodo],
@@ -23,6 +27,20 @@ const CAMPOS_EJECUCION: [string, (e: EtapaEjecucion) => ValorParametro | null][]
   ["Hitos", (e) => e.hitos.map((h) => `${h.nombre} (${h.desde}–${h.hasta}${h.requisitoDeInforme ? `, informe ${h.requisitoDeInforme}` : ""})`)],
 ];
 
+const CAMPOS_PLAN: [string, (p: EtapaPlan) => ValorParametro][] = [
+  ["Subactividades", (p) => p.subactividades],
+  ["Objetivos específicos por integrante", (p) => p.minimos.objetivosPorIntegrante],
+  ["Macroactividades por objetivo", (p) => p.minimos.macroPorObjetivo],
+  ["Actividades por macroactividad", (p) => p.minimos.actividadesPorMacro],
+  ["Presupuesto", (p) => (p.presupuesto.activo ? `${p.presupuesto.desglose === "monto" ? "un monto" : "recursos y gastos"} en ${p.presupuesto.moneda}` : "no")],
+  ["Columnas del cronograma", (p) => (p.granularidad === "subperiodo" ? "por subperíodo" : "por período")],
+  ["Responsable", (p) => (p.equipo.responsable === "objetivo" ? "por objetivo específico" : "por actividad")],
+  ["Plan individual por integrante", (p) => p.equipo.planIndividual],
+  ["Panel de carga para el asesor", (p) => p.equipo.panelCarga],
+  ["Validación del supervisor", (p) => p.aprobacion.validaSupervisor],
+  ["Días de revisión del asesor", (p) => p.aprobacion.diasRevision],
+];
+
 export function compararDefiniciones(anterior: DefinicionFicha, nueva: DefinicionFicha): string[] {
   const cambios: string[] = [];
 
@@ -30,6 +48,10 @@ export function compararDefiniciones(anterior: DefinicionFicha, nueva: Definicio
     cambios.push(
       `Participantes: ${anterior.participantes.min}–${anterior.participantes.max} → ${nueva.participantes.min}–${nueva.participantes.max}.`
     );
+  }
+
+  if (Boolean(anterior.participantes.mismaCarrera) !== Boolean(nueva.participantes.mismaCarrera)) {
+    cambios.push(nueva.participantes.mismaCarrera ? "Ahora los integrantes deben ser de la misma carrera." : "Ya no se exige que los integrantes sean de la misma carrera.");
   }
 
   const pa = anterior.etapas.find(esEtapaPropuesta);
@@ -57,6 +79,18 @@ export function compararDefiniciones(anterior: DefinicionFicha, nueva: Definicio
     const ordenA = pa.espacios.filter((e) => porIdN.has(e.id)).map((e) => e.id).join();
     const ordenN = pn.espacios.filter((e) => porIdA.has(e.id)).map((e) => e.id).join();
     if (ordenA !== ordenN) cambios.push("Cambió el orden de los espacios de la propuesta.");
+  }
+
+  const plA = anterior.etapas.find(esEtapaPlan);
+  const plN = nueva.etapas.find(esEtapaPlan);
+  if (plA && !plN) cambios.push("Se quitó el plan de trabajo.");
+  if (!plA && plN) cambios.push("Se agregó el plan de trabajo.");
+  if (plA && plN) {
+    for (const [etiqueta, leer] of CAMPOS_PLAN) {
+      const va = texto(leer(plA));
+      const vn = texto(leer(plN));
+      if (va !== vn) cambios.push(`Plan de trabajo: ${etiqueta.toLowerCase()}, ${va} → ${vn}.`);
+    }
   }
 
   const ea = anterior.etapas.filter(esEtapaEjecucion);

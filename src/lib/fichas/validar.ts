@@ -1,7 +1,7 @@
 // Validación de la definición de una ficha antes de guardarla o habilitarla. Módulo puro.
 // Devuelve la lista de problemas en lenguaje del administrador; una lista vacía significa que la ficha es válida.
 import { CATALOGO } from "./catalogo";
-import { esEtapaEjecucion, esEtapaPropuesta, FORMATO_DEFINICION, type DefinicionFicha, type EtapaEjecucion } from "./tipos";
+import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, FORMATO_DEFINICION, type DefinicionFicha, type EtapaEjecucion, type EtapaPlan } from "./tipos";
 
 export interface ProblemaFicha {
   /** Dónde está el problema: "ficha", el id de una etapa o "etapaId/espacioId". */
@@ -22,8 +22,10 @@ function validarEjecucion(etapa: EtapaEjecucion, indice: number, problemas: Prob
   if (indice > 1 && etapa.inicio !== "etapa_anterior") p("solo la primera etapa de ejecución inicia con la fecha de la carta.");
 
   const { descripcion, conclusion, imagenes } = etapa.registro;
-  if (descripcion.min > descripcion.max) p("el mínimo de palabras de la descripción es mayor que el máximo.");
-  if (conclusion.min > conclusion.max) p("el mínimo de palabras de la conclusión es mayor que el máximo.");
+  // Un máximo de 0 significa "sin máximo".
+  if (descripcion.min < 0 || descripcion.max < 0 || conclusion.min < 0 || conclusion.max < 0) p("las palabras del registro no pueden ser negativas.");
+  if (descripcion.max > 0 && descripcion.min > descripcion.max) p("el mínimo de palabras de la descripción es mayor que el máximo.");
+  if (conclusion.max > 0 && conclusion.min > conclusion.max) p("el mínimo de palabras de la conclusión es mayor que el máximo.");
   if (!entero(imagenes) || imagenes < 0) p("el número de imágenes por actividad no es válido.");
   if (etapa.informe.paginasMinimas < 0) p("las páginas mínimas del informe no pueden ser negativas.");
   if (etapa.eliminacionesPorPeriodo < 0) p("las eliminaciones por período no pueden ser negativas.");
@@ -43,6 +45,17 @@ function validarEjecucion(etapa: EtapaEjecucion, indice: number, problemas: Prob
   }
 }
 
+function validarPlan(plan: EtapaPlan, def: DefinicionFicha, problemas: ProblemaFicha[]) {
+  const p = (mensaje: string) => problemas.push({ ubicacion: plan.id, mensaje: `${plan.nombre}: ${mensaje}` });
+  const { objetivosPorIntegrante, macroPorObjetivo, actividadesPorMacro } = plan.minimos;
+  if (!entero(objetivosPorIntegrante) || objetivosPorIntegrante < 1 || objetivosPorIntegrante > 10) p("los objetivos específicos por integrante deben estar entre 1 y 10.");
+  if (!entero(macroPorObjetivo) || macroPorObjetivo < 1 || macroPorObjetivo > 10) p("las macroactividades por objetivo deben estar entre 1 y 10.");
+  if (!entero(actividadesPorMacro) || actividadesPorMacro < 1 || actividadesPorMacro > 20) p("las actividades por macroactividad deben estar entre 1 y 20.");
+  if (!entero(plan.aprobacion.diasRevision) || plan.aprobacion.diasRevision < 1 || plan.aprobacion.diasRevision > 30) p("los días de revisión del asesor deben estar entre 1 y 30.");
+  if (plan.presupuesto.activo && !plan.presupuesto.moneda.trim()) p("falta la moneda del presupuesto.");
+  if (def.modalidad === "pasantia") p("la pasantía usa el cronograma dentro de la propuesta; el plan de trabajo es para proyecto e investigación.");
+}
+
 export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
   const problemas: ProblemaFicha[] = [];
   const ficha = (mensaje: string) => problemas.push({ ubicacion: "ficha", mensaje });
@@ -57,7 +70,11 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
     ficha("La ficha debe empezar con la etapa de propuesta.");
     return problemas;
   }
-  if (resto.some((e) => !esEtapaEjecucion(e))) ficha("Después de la propuesta solo puede haber etapas de ejecución.");
+  // Orden: propuesta, a lo sumo un plan de trabajo (inmediatamente después) y luego las ejecuciones.
+  const planes = resto.filter(esEtapaPlan);
+  if (planes.length > 1) ficha("La ficha solo puede tener un plan de trabajo.");
+  if (planes.length === 1 && !esEtapaPlan(resto[0])) ficha("El plan de trabajo debe ir inmediatamente después de la propuesta.");
+  if (resto.some((e) => !esEtapaEjecucion(e) && !esEtapaPlan(e))) ficha("Después de la propuesta solo puede haber un plan de trabajo y etapas de ejecución.");
 
   const ids = new Set<string>();
   for (const e of def.etapas) {
@@ -128,6 +145,20 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
   }
   if (primeraEjecucion && !carta) ficha("La ejecución inicia con la fecha de la carta, pero la propuesta no tiene carta de aceptación.");
 
+  // Plan de trabajo: necesita los objetivos de la propuesta (consecuencia lógica) y la ejecución que da sus columnas.
+  const plan = planes[0];
+  if (plan) {
+    validarPlan(plan, def, problemas);
+    if (!vistos.has("objetivos")) ficha("El plan de trabajo parte de los objetivos de la propuesta: agrega el espacio \"Objetivos\".");
+    if (ejecuciones.length === 0) ficha("El plan de trabajo necesita una etapa de ejecución que defina sus períodos y subperíodos.");
+    if (tieneCronograma) ficha("Usa el cronograma de la propuesta o el plan de trabajo, no los dos.");
+  }
+  for (const e of ejecuciones) {
+    if (e.registro.modo === "actividad" && !plan) {
+      problemas.push({ ubicacion: e.id, mensaje: `${e.nombre}: el registro por actividad necesita un plan de trabajo.` });
+    }
+  }
+
   return problemas;
 }
 
@@ -141,11 +172,26 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
   const str = (v: unknown) => typeof v === "string";
   const rango = (v: unknown) => obj(v) && num(v.min) && num(v.max);
 
+  const opcional = (v: unknown, valores: readonly unknown[]) => v === undefined || valores.includes(v);
+
   if (!obj(x) || x.formato !== FORMATO_DEFINICION || !str(x.modalidad) || !rango(x.participantes) || !Array.isArray(x.etapas)) {
     return false;
   }
+  const mismaCarrera = (x.participantes as Record<string, unknown>).mismaCarrera;
+  if (mismaCarrera !== undefined && typeof mismaCarrera !== "boolean") return false;
   return x.etapas.every((e: unknown) => {
     if (!obj(e) || !str(e.id) || !str(e.nombre)) return false;
+    if (e.tipo === "plan") {
+      const m = e.minimos, pr = e.presupuesto, eq = e.equipo, ap = e.aprobacion;
+      return (
+        ["no", "opcional", "obligatorio"].includes(e.subactividades as string) &&
+        obj(m) && num(m.objetivosPorIntegrante) && num(m.macroPorObjetivo) && num(m.actividadesPorMacro) &&
+        obj(pr) && typeof pr.activo === "boolean" && (pr.desglose === "monto" || pr.desglose === "recursos_gastos") && str(pr.moneda) &&
+        (e.granularidad === "subperiodo" || e.granularidad === "periodo") &&
+        obj(eq) && (eq.responsable === "objetivo" || eq.responsable === "actividad") && typeof eq.planIndividual === "boolean" && typeof eq.panelCarga === "boolean" &&
+        obj(ap) && typeof ap.validaSupervisor === "boolean" && num(ap.diasRevision)
+      );
+    }
     if (e.tipo === "propuesta") {
       return (
         Array.isArray(e.espacios) &&
@@ -163,8 +209,10 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
         (e.inicio === "carta" || e.inicio === "etapa_anterior") && (e.unidad === "dias" || e.unidad === "meses") &&
         num(e.periodos) && num(e.duracionPeriodo) && num(e.subperiodos) &&
         obj(r) && rango(r.descripcion) && rango(r.conclusion) && num(r.imagenes) &&
+        opcional(r.modo, ["subperiodo", "actividad"]) && opcional(r.marcoTeorico, ["obligatorio", "opcional", "no"]) &&
+        (r.avance === undefined || typeof r.avance === "boolean") &&
         num(e.diasRevision) && num(e.subperiodosAdelantables) && num(e.eliminacionesPorPeriodo) &&
-        obj(i) && num(i.paginasMinimas) && typeof i.exigirActividadesAprobadas === "boolean" &&
+        obj(i) && num(i.paginasMinimas) && typeof i.exigirActividadesAprobadas === "boolean" && opcional(i.modo, ["unico", "individual_y_general"]) &&
         obj(i.comentariosDecanato) && typeof i.comentariosDecanato.activo === "boolean" && num(i.comentariosDecanato.minPalabras) &&
         (e.diasPrimerContacto === null || num(e.diasPrimerContacto)) &&
         Array.isArray(e.hitos) &&

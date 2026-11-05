@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ACTORES, CATALOGO, DOCUMENTOS_ESTUDIANTE } from "@/lib/fichas/catalogo";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
-import { diasSubperiodos, esEtapaPropuesta, type DefinicionFicha, type Espacio, type EtapaEjecucion } from "@/lib/fichas/tipos";
+import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaEjecucion } from "@/lib/fichas/tipos";
 
 /** Reglas de un espacio en frases cortas, como las leería el egresado. */
 function reglas(e: Espacio, equipo: boolean): string[] {
@@ -202,6 +202,63 @@ export function CalendarioEjecucion({ ejecuciones }: { ejecuciones: EtapaEjecuci
           </div>
         );
       })}
+    </section>
+  );
+}
+
+/** Plan de trabajo y forma de trabajar en la ejecución, en frases, como los verá el egresado. */
+export function PlanEgresado({ definicion }: { definicion: DefinicionFicha }) {
+  const plan = definicion.etapas.find(esEtapaPlan);
+  const ejecucion = definicion.etapas.find(esEtapaEjecucion);
+  const equipo = definicion.participantes.max > 1;
+  if (!plan && !ejecucion) return null;
+
+  const frasesPlan = plan
+    ? [
+        "Se elabora después de aprobada la propuesta, a partir de sus objetivos: objetivo general → objetivos específicos → macroactividades → actividades.",
+        plan.subactividades === "no" ? "No se usan subactividades." : plan.subactividades === "opcional" ? "Las subactividades son opcionales." : "Cada actividad se divide en subactividades.",
+        `${equipo ? "Cada integrante desarrolla" : "Desarrollas"} al menos ${plan.minimos.objetivosPorIntegrante} objetivos específicos, con al menos ${plan.minimos.macroPorObjetivo} macroactividad(es) por objetivo y ${plan.minimos.actividadesPorMacro} actividad(es) por macroactividad.`,
+        ...(plan.presupuesto.activo
+          ? [`El cronograma es también el presupuesto: cada actividad lleva ${plan.presupuesto.desglose === "monto" ? "su monto" : "sus recursos y gastos"} (${plan.presupuesto.moneda}) en ${plan.granularidad === "subperiodo" ? "los subperíodos" : "los períodos"} en que se ejecuta, y el sistema suma cada nivel.`]
+          : []),
+        ...(equipo
+          ? [
+              plan.equipo.responsable === "objetivo" ? "Cada objetivo específico tiene un integrante responsable." : "Cada actividad tiene un integrante responsable.",
+              ...(plan.equipo.planIndividual ? ["Hay un plan general del proyecto y uno individual por integrante."] : []),
+              "El asesor revisa que la cantidad de trabajo sea equitativa al aprobar el plan.",
+            ]
+          : []),
+        `Lo aprueba el asesor (revisión de ${plan.aprobacion.diasRevision} días)${plan.aprobacion.validaSupervisor ? "; el supervisor de la institución lo valida y queda documentado en el informe de primer contacto" : ""}.`,
+      ]
+    : [];
+
+  const op = ejecucion ? opcionesRegistro(ejecucion) : null;
+  const frasesEjecucion = ejecucion && op
+    ? [
+        `${ejecucion.periodos} informes, uno cada ${ejecucion.duracionPeriodo} ${ejecucion.unidad === "dias" ? "días" : "meses"}.`,
+        op.modo === "actividad"
+          ? `${equipo ? "Cada integrante registra las actividades de su plan individual" : "Registras cada actividad de tu plan"}${op.avance ? ", con su porcentaje de avance y sus resultados" : ""}.`
+          : "Registras tus actividades en cada subperíodo.",
+        op.marcoTeorico === "obligatorio" ? "Cada registro lleva marco teórico con su cita." : op.marcoTeorico === "opcional" ? "El marco teórico es opcional: úsalo si hace falta contextualizar una actividad." : "No se pide marco teórico.",
+        ejecucion.informe.paginasMinimas > 0 ? `El informe del período pide al menos ${ejecucion.informe.paginasMinimas} páginas.` : "El informe del período no tiene mínimo de páginas.",
+        ...(op.informe === "individual_y_general" && equipo ? ["Cada integrante redacta su informe individual y con ellos se arma el informe general del período."] : []),
+      ]
+    : [];
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-xl p-5 grid md:grid-cols-2 gap-5">
+      {plan && (
+        <div>
+          <h2 className="font-bold text-gray-800 mb-2">{plan.nombre}</h2>
+          <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">{frasesPlan.map((f, i) => <li key={i}>{f}</li>)}</ul>
+        </div>
+      )}
+      {ejecucion && (
+        <div>
+          <h2 className="font-bold text-gray-800 mb-2">{ejecucion.nombre}</h2>
+          <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">{frasesEjecucion.map((f, i) => <li key={i}>{f}</li>)}</ul>
+        </div>
+      )}
     </section>
   );
 }

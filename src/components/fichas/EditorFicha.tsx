@@ -6,14 +6,16 @@ import { useRouter } from "next/navigation";
 import { crearFicha, descartarBorrador, guardarBorrador, habilitarVersion, nuevaVersion, retirarVersion } from "@/app/actions/fichas";
 import { compararDefiniciones } from "@/lib/fichas/diferencias";
 import { validarDefinicion, type ProblemaFicha } from "@/lib/fichas/validar";
-import { esEtapaEjecucion, type DefinicionFicha, type EstadoVersion, type Modalidad } from "@/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaPlan, type DefinicionFicha, type EstadoVersion, type Modalidad } from "@/lib/fichas/tipos";
 import { ETIQUETA_MODALIDAD, EstadoVersionBadge, Proximamente } from "./comunes";
 import EditorPropuesta from "./EditorPropuesta";
 import EditorEjecucion from "./EditorEjecucion";
-import { CalendarioEjecucion, PasosEgresado } from "./VistaPrevia";
+import EditorPlan from "./EditorPlan";
+import { CalendarioEjecucion, PasosEgresado, PlanEgresado } from "./VistaPrevia";
+import { EjemploPlan } from "./EditorPlan";
 import { EditorCierre, EditorPresentacion, EditorRoles } from "./PestanasDiseno";
 
-type Pestana = "propuesta" | "ejecucion" | "cierre" | "revision" | "publica" | "roles" | "cambios" | "versiones";
+type Pestana = "propuesta" | "plan" | "ejecucion"| "ejecucion" | "cierre" | "revision" | "publica" | "roles" | "cambios" | "versiones";
 
 interface Props {
   ficha: { id: number; codigo: string | null; nombre: string; modalidad: Modalidad; esBase: boolean; alcance: string };
@@ -85,9 +87,13 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
     }, `Versión ${version.numero} habilitada.`, () => setHabilitando(false));
 
   const enPropuesta = problemas.filter((p) => p.ubicacion.includes("/")).length;
-  const enEjecucion = problemas.filter((p) => p.ubicacion !== "ficha" && !p.ubicacion.includes("/")).length;
+  const planActual = definicion.etapas.find(esEtapaPlan);
+  const idPlan = planActual?.id;
+  const enPlan = problemas.filter((p) => p.ubicacion === idPlan).length;
+  const enEjecucion = problemas.filter((p) => p.ubicacion !== "ficha" && p.ubicacion !== idPlan && !p.ubicacion.includes("/")).length;
   const pestanas: { id: Pestana; texto: string; marca?: number; diseno?: boolean }[] = [
     { id: "propuesta", texto: "Propuesta", marca: enPropuesta },
+    ...(ficha.modalidad === "pasantia" ? [] : [{ id: "plan" as const, texto: "Plan de trabajo", marca: enPlan }]),
     { id: "ejecucion", texto: "Ejecución", marca: enEjecucion },
     { id: "cierre", texto: "Cierre", diseno: true },
     { id: "revision", texto: "Presentación de revisión", diseno: true },
@@ -196,6 +202,8 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
             Así verá el egresado esta ficha: los pasos de su propuesta y las fechas de su ejecución.
           </div>
           <PasosEgresado definicion={definicion} />
+          <PlanEgresado definicion={definicion} />
+          {planActual && <EjemploPlan definicion={definicion} plan={planActual} />}
           <CalendarioEjecucion ejecuciones={definicion.etapas.filter(esEtapaEjecucion)} />
         </div>
       ) : (
@@ -212,6 +220,7 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
           </div>
 
           {pestana === "propuesta" && <EditorPropuesta definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
+          {pestana === "plan" && <EditorPlan definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "ejecucion" && <EditorEjecucion definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "cierre" && <EditorCierre modalidad={ficha.modalidad} />}
           {pestana === "revision" && <EditorPresentacion key="revision" tipo="revision" modalidad={ficha.modalidad} />}
