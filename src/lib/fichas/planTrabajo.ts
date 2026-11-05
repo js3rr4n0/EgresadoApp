@@ -250,3 +250,54 @@ export function cargaPorIds(raiz: NodoPlan, ids: number[], columnas: number): Ca
     return c;
   });
 }
+
+// ─────────────── Ejecución del proyecto (entrega P4) ───────────────
+
+/** Actividades (hojas de nivel 4 o 5) planificadas en un período: tienen monto o marca en alguna de sus columnas. */
+export function actividadesDelPeriodo(raiz: NodoPlan, periodo: number, columnas: { periodo: number }[]): NodoPlan[] {
+  const cols = columnas.map((c, i) => (c.periodo === periodo ? i : -1)).filter((i) => i >= 0);
+  return aplanar(raiz).filter((n) => n.hijos.length === 0 && n.nivel >= 4 && cols.some((i) => (n.montos[i] ?? 0) > 0));
+}
+
+/**
+ * Avance de cada nodo: las hojas toman el último avance registrado (0 si no hay); los demás niveles, el promedio de
+ * sus hijos. Así el objetivo general refleja el avance del proyecto completo, como pide el informe de avances.
+ */
+export function avancePorNodo(raiz: NodoPlan, avanceHoja: Map<string, number>): Map<string, number> {
+  const m = new Map<string, number>();
+  const rec = (n: NodoPlan): number => {
+    const v = n.hijos.length === 0 ? (avanceHoja.get(n.id) ?? 0) : n.hijos.map(rec).reduce((a, b) => a + b, 0) / n.hijos.length;
+    m.set(n.id, Math.round(v));
+    return v;
+  };
+  rec(raiz);
+  return m;
+}
+
+export interface ReglasRegistroProyecto {
+  acciones: { min: number; max: number };
+  resultado: { min: number; max: number };
+  marcoTeorico: "obligatorio" | "opcional" | "no";
+  avance: boolean;
+}
+
+const contarPalabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
+
+/** Problemas de un registro antes de enviarlo al asesor. 0 en mínimo o máximo = sin límite (sin métrica). */
+export function validarRegistroProyecto(
+  r: { avance: number | null; acciones: string; resultado: string; marcoTeorico: string },
+  reglas: ReglasRegistroProyecto
+): string[] {
+  const p: string[] = [];
+  const rango = (nombre: string, texto: string, { min, max }: { min: number; max: number }) => {
+    const n = contarPalabras(texto);
+    if (!texto.trim()) p.push(`Falta ${nombre}.`);
+    else if (min > 0 && n < min) p.push(`${nombre[0].toUpperCase()}${nombre.slice(1)}: al menos ${min} palabras (lleva ${n}).`);
+    else if (max > 0 && n > max) p.push(`${nombre[0].toUpperCase()}${nombre.slice(1)}: hasta ${max} palabras (lleva ${n}).`);
+  };
+  if (reglas.avance && (r.avance === null || !Number.isInteger(r.avance) || r.avance < 0 || r.avance > 100)) p.push("Indica el avance de la actividad (0 a 100 %).");
+  rango("la descripción de las acciones realizadas", r.acciones, reglas.acciones);
+  rango("el resultado obtenido", r.resultado, reglas.resultado);
+  if (reglas.marcoTeorico === "obligatorio" && !r.marcoTeorico.trim()) p.push("La ficha pide marco teórico.");
+  return p;
+}

@@ -12,7 +12,7 @@ import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
 import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
 import { ejecucionNueva, planNuevo } from "../../src/lib/fichas/plantillas";
-import { aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { actividadesDelPeriodo, avancePorNodo, validarRegistroProyecto, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
 let fallas = 0;
 function comprobar(descripcion: string, ok: boolean, detalle = "") {
@@ -206,6 +206,23 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   const reasigna = structuredClone(raiz);
   reasigna.hijos.find((o) => o.responsable === 12)!.responsable = 13;
   comprobar("Un integrante no puede reasignar responsables", cambioNoPermitido(raiz, reasigna, 12) !== null);
+}
+
+// 8. Ejecución del proyecto (P4): actividades del período, avance por nivel y reglas del registro
+{
+  const plan = planNuevo("plan");
+  const columnas = Array.from({ length: 8 }, (_, i) => ({ periodo: Math.floor(i / 4) + 1 }));
+  const raiz = numerar(planEjemplo(plan, 3, 8));
+  const p1 = actividadesDelPeriodo(raiz, 1, columnas);
+  const p2 = actividadesDelPeriodo(raiz, 2, columnas);
+  comprobar("Cada actividad cae en los períodos donde tiene montos", p1.length > 0 && p2.length > 0 && p1.every((a) => a.montos.slice(0, 4).some((m) => m > 0)));
+  const hojas = aplanar(raiz).filter((n) => n.hijos.length === 0);
+  const av = avancePorNodo(raiz, new Map(hojas.map((h, i) => [h.id, i === 0 ? 100 : 0])));
+  comprobar("El avance de una actividad sube a su objetivo y al general", av.get(hojas[0].id) === 100 && (av.get(raiz.id) ?? 0) > 0 && (av.get(raiz.id) ?? 0) < 100);
+  const reglas = { acciones: { min: 0, max: 0 }, resultado: { min: 0, max: 0 }, marcoTeorico: "opcional" as const, avance: true };
+  comprobar("Un registro sin métrica solo pide avance, acciones y resultado", validarRegistroProyecto({ avance: 50, acciones: "Se hizo.", resultado: "Listo.", marcoTeorico: "" }, reglas).length === 0);
+  comprobar("Detecta un registro sin avance", validarRegistroProyecto({ avance: null, acciones: "x", resultado: "y", marcoTeorico: "" }, reglas).some((p) => p.includes("avance")));
+  comprobar("Detecta marco teórico obligatorio vacío", validarRegistroProyecto({ avance: 10, acciones: "x", resultado: "y", marcoTeorico: "" }, { ...reglas, marcoTeorico: "obligatorio" }).length === 1);
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

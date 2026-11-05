@@ -72,11 +72,18 @@ export default async function AsesorPropuestaProgresoPage({
             <p className="text-sm font-bold text-slate-900">Plan de trabajo del equipo</p>
             <p className="text-xs text-slate-600">{textoPlan[estadoPlan] ?? estadoPlan}</p>
           </div>
-          {estadoPlan !== "sin_plan" && (
-            <Link href={`/asesor/plan/${pId}`} className="bg-brand-red text-white text-xs font-bold px-4 py-2.5 rounded-xl">
-              {estadoPlan === "enviado" ? "Revisar plan" : "Ver plan"}
-            </Link>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {estadoPlan !== "sin_plan" && (
+              <Link href={`/asesor/plan/${pId}`} className="bg-brand-red text-white text-xs font-bold px-4 py-2.5 rounded-xl">
+                {estadoPlan === "enviado" ? "Revisar plan" : "Ver plan"}
+              </Link>
+            )}
+            {estadoPlan === "aprobado" && (
+              <Link href={`/asesor/ejecucion/${pId}`} className="bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl">
+                Ejecución del equipo
+              </Link>
+            )}
+          </div>
         </div>
       )}
       <PropuestaProgresoClient

@@ -1013,3 +1013,34 @@ export const planesTrabajo = pgTable(
   },
   (table) => [check("planes_trabajo_estado_check", sql`${table.estado} IN ('redactando', 'enviado', 'observado', 'aprobado')`)]
 );
+
+// Registros de la ejecución del proyecto (entrega P4): uno por actividad del plan (nodo_id de planes_trabajo.arbol)
+// y período. Lo redacta el integrante responsable; lo revisa el asesor. Script: scripts/fichas/crear_registros_plan.ts
+export const registrosPlan = pgTable(
+  "registros_plan",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    nodoId: varchar("nodo_id", { length: 64 }).notNull(),
+    periodo: smallint("periodo").notNull(),
+    egresadoId: integer("egresado_id")
+      .notNull()
+      .references(() => usuarios.id),
+    avance: smallint("avance"),
+    acciones: text("acciones"),
+    resultado: text("resultado"),
+    marcoTeorico: text("marco_teorico"),
+    estado: varchar("estado", { length: 20 }).notNull().default("borrador"), // borrador | enviado | observado | aprobado
+    comentarioAsesor: text("comentario_asesor"),
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }),
+    revisadoPor: integer("revisado_por").references(() => usuarios.id),
+    revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("registros_plan_unique").on(table.propuestaId, table.nodoId, table.periodo),
+    check("registros_plan_estado_check", sql`${table.estado} IN ('borrador', 'enviado', 'observado', 'aprobado')`),
+  ]
+);

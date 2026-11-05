@@ -11,7 +11,8 @@
 // Se puede ejecutar más de una vez: no duplica nada. Con --borrar elimina todo lo que crea (y sus propuestas).
 // Con --aprobar deja la propuesta enviada del líder como aprobada (atajo para probar el plan de trabajo, P3).
 // Con --completar-plan completa el plan de trabajo hasta los mínimos de la ficha (atajo de prueba, P3).
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_proyecto.ts [--borrar | --aprobar | --completar-plan]
+// Con --iniciar da inicio a la ejecución si el plan está aprobado (atajo de prueba, P4; en lugar de los documentos de coordinación).
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_proyecto.ts [--borrar | --aprobar | --completar-plan | --iniciar]
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import crypto from "crypto";
@@ -125,8 +126,21 @@ async function completarPlan() {
   console.log(`Plan de la propuesta ${prop.id} completado: ${raiz.hijos.length} objetivos específicos.`);
 }
 
+/** Atajo de prueba (P4): da inicio a la ejecución de la propuesta del líder si su plan de trabajo está aprobado. */
+async function iniciar() {
+  const [lider] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.correo, EGRESADOS[0].correo));
+  const [prop] = await db.select().from(propuestas).where(and(eq(propuestas.egresadoId, lider.id), eq(propuestas.tipo, "proyecto")));
+  const [plan] = prop ? await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, prop.id)) : [];
+  if (!prop || plan?.estado !== "aprobado") throw new Error("La propuesta del líder necesita el plan de trabajo aprobado.");
+  if (prop.estado === "en_ejecucion") return console.log(`La propuesta ${prop.id} ya está en ejecución.`);
+  await db.update(propuestas).set({ estado: "en_ejecucion" }).where(eq(propuestas.id, prop.id));
+  await db.insert(historialEstados).values({ propuestaId: prop.id, de: prop.estado, a: "en_ejecucion", usuarioId: prop.coordinadorId });
+  console.log(`Propuesta ${prop.id} en ejecución.`);
+}
+
 async function run() {
   exigirBaseDesarrollo("sembrar_equipo_proyecto");
+  if (process.argv.includes("--iniciar")) return iniciar();
   if (process.argv.includes("--borrar")) await borrar();
   else if (process.argv.includes("--aprobar")) await aprobar();
   else if (process.argv.includes("--completar-plan")) await completarPlan();

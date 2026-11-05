@@ -10,6 +10,7 @@ const navItems: NavItem[] = [
   { label: "Envío de Propuestas", href: "/egresado" },
   { label: "Historial Propuesta", href: "/egresado/historial" },
   { label: "Plan de trabajo", href: "/egresado/plan" },
+  { label: "Ejecución del proyecto", href: "/egresado/ejecucion" },
   { label: "Reportes de actividades", href: "/egresado/reportes" },
   { label: "Preferencias de notificaciones", href: "/egresado/notificaciones" },
 ];
