@@ -9,10 +9,14 @@
 //   Cada uno recibe los 3 documentos del egresado plantilla (servicio social, notas y pago).
 //
 // Se puede ejecutar más de una vez: no duplica nada. Con --borrar elimina todo lo que crea (y sus propuestas).
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_proyecto.ts [--borrar]
-import { eq, inArray, sql } from "drizzle-orm";
+// Con --aprobar deja la propuesta enviada del líder como aprobada (atajo para probar el plan de trabajo, P3).
+// Con --completar-plan completa el plan de trabajo hasta los mínimos de la ficha (atajo de prueba, P3).
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_proyecto.ts [--borrar | --aprobar | --completar-plan]
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
-import { periodos, propuestas, usuarios } from "../../src/lib/schema";
+import crypto from "crypto";
+import { historialEstados, periodos, planesTrabajo, propuestas, usuarios } from "../../src/lib/schema";
+import { numerar, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 import { exigirBaseDesarrollo } from "./guardia";
 
 const COHORTE = "PRUEBA-PRO-2026";
@@ -70,9 +74,62 @@ async function sembrar() {
   }
 }
 
+/**
+ * Atajo de prueba (P3): deja la propuesta enviada del líder como aprobada, con el coordinador y el asesor de
+ * demostración, para probar el plan de trabajo sin recorrer la revisión de la fase 1. Queda en el historial.
+ */
+async function aprobar() {
+  const [lider] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.correo, EGRESADOS[0].correo));
+  const [asesor] = await db.select({ id: usuarios.id }).from(usuarios).where(sql`lower(${usuarios.correo}) = 'marco.solis@catolica.edu.sv'`);
+  const [coord] = await db.select({ id: usuarios.id }).from(usuarios).where(sql`lower(${usuarios.correo}) = 'jose.luis@uni.test'`);
+  if (!lider || !asesor || !coord) throw new Error("Faltan el líder de prueba, el asesor o el coordinador de demostración.");
+  const [prop] = await db.select().from(propuestas).where(and(eq(propuestas.egresadoId, lider.id), eq(propuestas.tipo, "proyecto")));
+  if (!prop) throw new Error("El líder de prueba no tiene propuesta de proyecto.");
+  if (prop.estado === "aprobada") return console.log(`La propuesta ${prop.id} ya está aprobada.`);
+  if (prop.estado !== "enviada") throw new Error(`La propuesta ${prop.id} está en "${prop.estado}"; se espera "enviada".`);
+  await db.update(propuestas).set({ estado: "aprobada", asesorId: asesor.id, coordinadorId: coord.id, fechaAprobacion: new Date() }).where(eq(propuestas.id, prop.id));
+  await db.insert(historialEstados).values({ propuestaId: prop.id, de: prop.estado, a: "aprobada", usuarioId: asesor.id });
+  console.log(`Propuesta ${prop.id} aprobada (asesor ${asesor.id}, coordinador ${coord.id}).`);
+}
+
+/**
+ * Atajo de prueba (P3): completa el plan de trabajo del equipo hasta los mínimos de la ficha (3 objetivos por
+ * integrante, cada uno con una macroactividad y una actividad con montos). No toca lo que el equipo ya escribió.
+ */
+async function completarPlan() {
+  const [lider] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.correo, EGRESADOS[0].correo));
+  const [prop] = await db.select().from(propuestas).where(and(eq(propuestas.egresadoId, lider.id), eq(propuestas.tipo, "proyecto")));
+  const [plan] = prop ? await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, prop.id)) : [];
+  if (!plan) throw new Error("El equipo todavía no abrió su plan de trabajo.");
+  if (plan.estado !== "redactando" && plan.estado !== "observado") throw new Error(`El plan está "${plan.estado}".`);
+  const equipo = [lider.id, ...(await db.select({ id: usuarios.id }).from(usuarios).where(inArray(usuarios.correo, EGRESADOS.slice(1).map((e) => e.correo)))).map((u) => u.id)];
+  const raiz = plan.arbol as NodoPlan;
+  const montos = (k: number) => Array.from({ length: plan.columnas }, (_, c) => (c % 4 === k % 4 && c < 8 ? 50 + 25 * (k % 3) : 0));
+  let k = 0;
+  for (const id of equipo) {
+    const suyos = raiz.hijos.filter((o) => o.responsable === id);
+    while (suyos.length < 3) {
+      const o: NodoPlan = { id: crypto.randomUUID(), codigo: "", nivel: 2, titulo: `Objetivo de prueba ${++k}`, responsable: id, montos: [], hijos: [] };
+      raiz.hijos.push(o);
+      suyos.push(o);
+    }
+    for (const o of suyos) {
+      if (!o.titulo.trim()) o.titulo = `Objetivo de prueba ${++k}`;
+      if (o.hijos.length === 0) o.hijos.push({ id: crypto.randomUUID(), codigo: "", nivel: 3, titulo: "Macroactividad de prueba", responsable: null, montos: [], hijos: [] });
+      for (const m of o.hijos) {
+        if (m.hijos.length === 0) m.hijos.push({ id: crypto.randomUUID(), codigo: "", nivel: 4, titulo: "Actividad de prueba", responsable: null, montos: montos(++k), hijos: [] });
+      }
+    }
+  }
+  await db.update(planesTrabajo).set({ arbol: numerar(raiz), version: plan.version + 1, actualizadoEn: new Date() }).where(eq(planesTrabajo.id, plan.id));
+  console.log(`Plan de la propuesta ${prop.id} completado: ${raiz.hijos.length} objetivos específicos.`);
+}
+
 async function run() {
   exigirBaseDesarrollo("sembrar_equipo_proyecto");
   if (process.argv.includes("--borrar")) await borrar();
+  else if (process.argv.includes("--aprobar")) await aprobar();
+  else if (process.argv.includes("--completar-plan")) await completarPlan();
   else await sembrar();
 }
 

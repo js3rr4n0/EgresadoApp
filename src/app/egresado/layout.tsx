@@ -9,6 +9,7 @@ import DocumentGate from "@/components/DocumentGate";
 const navItems: NavItem[] = [
   { label: "Envío de Propuestas", href: "/egresado" },
   { label: "Historial Propuesta", href: "/egresado/historial" },
+  { label: "Plan de trabajo", href: "/egresado/plan" },
   { label: "Reportes de actividades", href: "/egresado/reportes" },
   { label: "Preferencias de notificaciones", href: "/egresado/notificaciones" },
 ];

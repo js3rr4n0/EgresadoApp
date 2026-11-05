@@ -23,6 +23,7 @@ import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { notificarEquipo } from "@/lib/notificarEquipo";
 import { getDocumentosPropuesta } from "@/app/actions/documentosPropuesta";
+import { estadoPlanDePropuesta } from "@/app/actions/planTrabajo";
 
 /**
  * Fetch proposals assigned by Admin to the logged-in Coordinator for advisor assignment
@@ -899,6 +900,11 @@ export async function darInicioPlanTrabajo(propuestaId: number) {
     // H4: la pantalla deshabilita el botón, pero el servidor también lo verifica.
     if (prop.estado !== "aprobada" && prop.estado !== "primer_contacto_completado") {
       return { success: false, error: "Solo se puede dar inicio a una propuesta aprobada." };
+    }
+    // P3: si la ficha tiene plan de trabajo, el asesor debe haberlo aprobado antes de iniciar la ejecución.
+    const estadoPlan = await estadoPlanDePropuesta(propuestaId);
+    if (estadoPlan !== null && estadoPlan !== "aprobado") {
+      return { success: false, error: "El asesor todavía no ha aprobado el plan de trabajo del equipo." };
     }
     const docs = await getDocumentosPropuesta(propuestaId);
     if (!docs.success || !docs.data?.allRequiredUploaded) {

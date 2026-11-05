@@ -12,7 +12,7 @@ import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
 import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
 import { ejecucionNueva, planNuevo } from "../../src/lib/fichas/plantillas";
-import { aplanar, cargaPorIntegrante, planEjemplo, planIndividual, totalesNodo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
 let fallas = 0;
 function comprobar(descripcion: string, ok: boolean, detalle = "") {
@@ -171,6 +171,41 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   const porActividad = planEjemplo({ ...plan, equipo: { ...plan.equipo, responsable: "actividad" } }, 3, columnas);
   const cargaAct = cargaPorIntegrante(porActividad, 3, columnas);
   comprobar("Con responsable por actividad, todos tienen actividades", cargaAct.every((c) => c.actividades > 0), JSON.stringify(cargaAct));
+}
+
+// 7. Plan real del equipo (P3): validación contra la ficha y permisos por integrante
+{
+  const plan = planNuevo("plan");
+  const cols = 8;
+  // Ejemplo con ids de usuario 11, 12 y 13 como responsables.
+  const conIds = (n: NodoPlan): NodoPlan => ({ ...n, responsable: n.responsable ? n.responsable + 10 : null, hijos: n.hijos.map(conIds) });
+  const raiz = numerar(conIds(planEjemplo(plan, 3, cols)));
+  const ids = [11, 12, 13];
+  const problemas = validarPlanEquipo(raiz, plan, ids, cols);
+  comprobar("Un plan completo del equipo no tiene pendientes", problemas.length === 0, problemas.map((p) => p.mensaje).join(" | "));
+
+  const sinResp = structuredClone(raiz);
+  sinResp.hijos[0].responsable = null;
+  comprobar("Detecta un objetivo sin responsable", validarPlanEquipo(sinResp, plan, ids, cols).some((p) => p.mensaje.includes("falta el integrante responsable")));
+  const sinMontos = structuredClone(raiz);
+  sinMontos.hijos[0].hijos[0].hijos[0].montos = [];
+  comprobar("Detecta una actividad sin columnas", validarPlanEquipo(sinMontos, plan, ids, cols).some((p) => p.mensaje.includes("al menos un")));
+  const pocos = structuredClone(raiz);
+  pocos.hijos = pocos.hijos.filter((o) => o.responsable !== 13 || o.codigo !== "1.7");
+  comprobar("Detecta un integrante con menos objetivos del mínimo", validarPlanEquipo(numerar(pocos), plan, ids, cols).some((p) => p.mensaje.includes("al menos 3 objetivos")));
+
+  // Permisos: el integrante 12 cambia lo suyo (permitido) y lo de otro (no permitido).
+  const propio = structuredClone(raiz);
+  const suyo = propio.hijos.find((o) => o.responsable === 12)!;
+  suyo.hijos[0].hijos[0].titulo = "Actividad cambiada";
+  suyo.hijos[0].hijos.push({ id: "nueva", codigo: "", nivel: 4, titulo: "Nueva", responsable: null, montos: [50], hijos: [] });
+  comprobar("Un integrante puede cambiar y ampliar lo suyo", cambioNoPermitido(raiz, numerar(propio), 12) === null, String(cambioNoPermitido(raiz, numerar(propio), 12)));
+  const ajeno = structuredClone(raiz);
+  ajeno.hijos.find((o) => o.responsable === 11)!.titulo = "Cambio ajeno";
+  comprobar("Un integrante no puede cambiar lo de otro", cambioNoPermitido(raiz, ajeno, 12) !== null);
+  const reasigna = structuredClone(raiz);
+  reasigna.hijos.find((o) => o.responsable === 12)!.responsable = 13;
+  comprobar("Un integrante no puede reasignar responsables", cambioNoPermitido(raiz, reasigna, 12) !== null);
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

@@ -988,3 +988,28 @@ export const respuestasEspacios = pgTable(
   },
   (table) => [unique("respuestas_espacios_unique").on(table.propuestaId, table.espacioId)]
 );
+
+// Plan de trabajo del equipo (entrega P3, proyecto). El árbol va en JSON con ids estables por nodo
+// (ver src/lib/fichas/planTrabajo.ts). Script: scripts/fichas/crear_planes_trabajo.ts
+export const planesTrabajo = pgTable(
+  "planes_trabajo",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .unique()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    fichaVersionId: integer("ficha_version_id").references(() => fichasVersiones.id),
+    arbol: jsonb("arbol").notNull(),
+    columnas: smallint("columnas").notNull(),
+    version: integer("version").notNull().default(1),
+    estado: varchar("estado", { length: 20 }).notNull().default("redactando"), // redactando | enviado | observado | aprobado
+    comentarioAsesor: text("comentario_asesor"),
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }),
+    revisadoPor: integer("revisado_por").references(() => usuarios.id),
+    revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+    actualizadoPor: integer("actualizado_por").references(() => usuarios.id),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check("planes_trabajo_estado_check", sql`${table.estado} IN ('redactando', 'enviado', 'observado', 'aprobado')`)]
+);
