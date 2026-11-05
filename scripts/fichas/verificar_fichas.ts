@@ -12,6 +12,7 @@ import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
 import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
 import { ejecucionNueva, planNuevo } from "../../src/lib/fichas/plantillas";
+import { armarInformePeriodo } from "../../src/lib/fichas/informePeriodo";
 import { actividadesDelPeriodo, avancePorNodo, validarRegistroProyecto, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
 let fallas = 0;
@@ -223,6 +224,28 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   comprobar("Un registro sin métrica solo pide avance, acciones y resultado", validarRegistroProyecto({ avance: 50, acciones: "Se hizo.", resultado: "Listo.", marcoTeorico: "" }, reglas).length === 0);
   comprobar("Detecta un registro sin avance", validarRegistroProyecto({ avance: null, acciones: "x", resultado: "y", marcoTeorico: "" }, reglas).some((p) => p.includes("avance")));
   comprobar("Detecta marco teórico obligatorio vacío", validarRegistroProyecto({ avance: 10, acciones: "x", resultado: "y", marcoTeorico: "" }, { ...reglas, marcoTeorico: "obligatorio" }).length === 1);
+}
+
+// 9. Informe del período (P5): individual y general
+{
+  const plan = planNuevo("plan");
+  const columnas = Array.from({ length: 8 }, (_, i) => ({ periodo: Math.floor(i / 4) + 1, sub: (i % 4) + 1, texto: `S${(i % 4) + 1}` }));
+  const conIds = (n: NodoPlan): NodoPlan => ({ ...n, responsable: n.responsable ? n.responsable + 10 : null, hijos: n.hijos.map(conIds) });
+  const raiz = numerar(conIds(planEjemplo(plan, 3, 8)));
+  const delP1 = actividadesDelPeriodo(raiz, 1, columnas);
+  // Se registra (enviado) solo la primera actividad del período.
+  const registros = [{ nodoId: delP1[0].id, periodo: 1, egresadoId: 11, avance: 100, acciones: "a", resultado: "r", marcoTeorico: "", estado: "enviado" }];
+  const general = armarInformePeriodo({ arbol: raiz, columnas, periodo: 1, registros, integrante: null });
+  const montoEsperado = delP1[0].montos.slice(0, 4).reduce((a, b) => a + b, 0);
+  comprobar("El informe general solo suma lo ejecutado en el período", general.totalPeriodo === montoEsperado && montoEsperado > 0, `${general.totalPeriodo} vs ${montoEsperado}`);
+  comprobar("El informe cuenta las actividades sin registro", general.sinRegistro === delP1.length - 1);
+  const filaAct = general.filas.find((f) => f.id === delP1[0].id)!;
+  comprobar("Una actividad al 100% queda Finalizada", filaAct.estado === "Finalizada" && filaAct.registro !== null);
+  const individuales = [11, 12, 13].map((id) => armarInformePeriodo({ arbol: raiz, columnas, periodo: 1, registros, integrante: id }));
+  const actsGeneral = general.filas.filter((f) => f.nivel >= 4).length;
+  comprobar("Los informes individuales juntos tienen las actividades del general", individuales.reduce((a, i) => a + i.filas.filter((f) => f.nivel >= 4).length, 0) === actsGeneral);
+  const borrador = armarInformePeriodo({ arbol: raiz, columnas, periodo: 1, registros: [{ ...registros[0], estado: "borrador" }], integrante: null });
+  comprobar("Un borrador no cuenta en el informe", borrador.totalPeriodo === 0 && borrador.sinRegistro === delP1.length);
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

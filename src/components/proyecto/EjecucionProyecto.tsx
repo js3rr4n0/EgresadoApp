@@ -5,7 +5,7 @@
 // de la ficha (avance, palabras, marco teórico). El servidor valida todo otra vez (actions/ejecucionProyecto.ts).
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { guardarRegistroPlan, revisarRegistroPlan, type DatosEjecucion, type RegistroPlan } from "@/app/actions/ejecucionProyecto";
+import { enviarInformeGeneral, enviarInformeIndividual, guardarRegistroPlan, revisarInformeGeneral, revisarRegistroPlan, type DatosEjecucion, type RegistroPlan } from "@/app/actions/ejecucionProyecto";
 import { actividadesDelPeriodo, aplanar, avancePorNodo, responsables, validarRegistroProyecto, type NodoPlan } from "@/lib/fichas/planTrabajo";
 
 const ESTADO: Record<string, { texto: string; clase: string }> = {
@@ -256,6 +256,8 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
           Objetivos: {aplanar(arbol).filter((n) => n.nivel === 2).map((o) => `${o.codigo} ${avance.get(o.id) ?? 0}%`).join(" · ")}
         </p>
       </section>
+
+      <InformesDelPeriodo key={periodo} datos={datos} periodo={periodo} />
     </div>
   );
 }
@@ -291,5 +293,80 @@ function FilaEquipo({ a, r, nombre, avance, abierto, onToggle, datos, esAsesor }
         </tr>
       )}
     </>
+  );
+}
+
+/** Informes del período: el individual de cada integrante y el general del equipo (entrega P5). */
+export function InformesDelPeriodo({ datos, periodo }: { datos: DatosEjecucion; periodo: number }) {
+  const router = useRouter();
+  const { plan, informes, informe: modo } = datos;
+  const [comentario, setComentario] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [pendiente, iniciar] = useTransition();
+  const esAsesor = plan.rol === "asesor";
+  const enlace = (de: string) =>
+    esAsesor ? `/asesor/ejecucion/${plan.propuesta.id}/informe?periodo=${periodo}&de=${de}` : `/egresado/ejecucion/informe?id=${plan.propuesta.id}&periodo=${periodo}&de=${de}`;
+  const de = (id: number | null) => informes.find((i) => i.periodo === periodo && i.egresadoId === id);
+  const general = de(null);
+  const mio = de(plan.miId);
+  const ejecutar = (accion: () => Promise<{ success: boolean; error?: string }>, ok: string) =>
+    iniciar(async () => {
+      setMsg(null);
+      const r = await accion();
+      if (!r.success) return setMsg({ ok: false, texto: r.error ?? "No se pudo completar." });
+      setMsg({ ok: true, texto: ok });
+      router.refresh();
+    });
+  const estadoTexto = (e?: { estado: string }) => (e ? (ESTADO[e.estado]?.texto ?? e.estado) : "Sin entregar");
+
+  return (
+    <section className="bg-white border border-border rounded-xl shadow-xs p-4 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-bold text-card-dark">Informes del período {periodo}</h2>
+        <span className="text-[11px] text-muted">{modo === "individual_y_general" ? "Cada integrante entrega su informe individual; con ellos el líder envía el informe general." : "Un informe por trabajo, que envía el líder."}</span>
+      </div>
+      <table className="w-full text-sm">
+        <tbody className="divide-y divide-gray-100">
+          {modo === "individual_y_general" && plan.equipo.map((i) => (
+            <tr key={i.id}>
+              <td className="py-2 text-gray-800">Informe individual · {i.nombre}</td>
+              <td className="py-2"><span className="text-xs font-bold text-gray-600">{estadoTexto(de(i.id))}</span></td>
+              <td className="py-2 text-right"><a href={enlace(String(i.id))} className="text-xs font-bold text-brand-red hover:underline">Ver informe</a></td>
+            </tr>
+          ))}
+          <tr>
+            <td className="py-2 font-bold text-gray-800">Informe general del período</td>
+            <td className="py-2"><span className="text-xs font-bold text-gray-600">{estadoTexto(general)}</span></td>
+            <td className="py-2 text-right"><a href={enlace("general")} className="text-xs font-bold text-brand-red hover:underline">Ver informe</a></td>
+          </tr>
+        </tbody>
+      </table>
+      {general?.estado === "observado" && general.comentarioAsesor && (
+        <p className="text-sm bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-amber-950"><strong>Observación del asesor:</strong> {general.comentarioAsesor}</p>
+      )}
+      {msg && <p className={`text-sm rounded-lg px-3 py-2 border ${msg.ok ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"}`}>{msg.texto}</p>}
+      <div className="flex flex-wrap justify-end gap-2">
+        {!esAsesor && modo === "individual_y_general" && (!mio || mio.estado === "observado") && (!general || general.estado === "observado") && (
+          <button type="button" disabled={pendiente} onClick={() => ejecutar(() => enviarInformeIndividual(plan.propuesta.id, periodo), "Entregaste tu informe individual.")}
+            className="px-4 py-2 rounded-lg text-sm font-bold border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Entregar mi informe individual</button>
+        )}
+        {plan.rol === "lider" && (!general || general.estado === "observado") && (
+          <button type="button" disabled={pendiente} onClick={() => { if (window.confirm("¿Enviar al asesor el informe general del período?")) ejecutar(() => enviarInformeGeneral(plan.propuesta.id, periodo), "Informe general enviado al asesor."); }}
+            className="px-4 py-2 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white disabled:opacity-50">Enviar informe general</button>
+        )}
+      </div>
+      {esAsesor && general?.estado === "enviado" && (
+        <div className="space-y-2 border-t border-gray-100 pt-3">
+          <textarea rows={2} value={comentario} onChange={(e) => setComentario(e.target.value)} aria-label="Observación del informe general"
+            placeholder="Observaciones para el equipo (obligatorias si pides ajustes)" className="w-full p-2.5 rounded-lg border border-gray-300 text-sm" />
+          <div className="flex justify-end gap-2">
+            <button type="button" disabled={pendiente} onClick={() => ejecutar(() => revisarInformeGeneral(plan.propuesta.id, periodo, "observar", comentario), "Observaciones enviadas al equipo.")}
+              className="px-3.5 py-2 rounded-lg text-sm font-bold border border-amber-300 text-amber-800 bg-amber-50 disabled:opacity-50">Pedir ajustes</button>
+            <button type="button" disabled={pendiente} onClick={() => ejecutar(() => revisarInformeGeneral(plan.propuesta.id, periodo, "aprobar", comentario), "Informe general aprobado.")}
+              className="px-3.5 py-2 rounded-lg text-sm font-bold bg-emerald-600 text-white disabled:opacity-50">Aprobar informe general</button>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }

@@ -4,15 +4,17 @@
 // plan individual (avance, acciones, resultado y marco teórico opcional) con las reglas de la ficha. El asesor revisa
 // cada registro y ve quién hizo qué. No toca la ejecución de pasantía (registrosActividad.ts), que sigue igual.
 import { db } from "@/lib/db";
-import { cartasAceptacion, notificaciones, registrosPlan } from "@/lib/schema";
+import { cartasAceptacion, informesPlan, notificaciones, registrosPlan } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
 import { esEtapaEjecucion, opcionesRegistro } from "@/lib/fichas/tipos";
 import { actividadesDelPeriodo, aplanar, responsables, validarRegistroProyecto, type ReglasRegistroProyecto } from "@/lib/fichas/planTrabajo";
 import { aISOLocal, fechaLocalDesdeISO, sumarDiasISO } from "@/lib/periodosPasantia";
 import { getPlanTrabajo, type DatosPlan } from "./planTrabajo";
+import { armarInformePeriodo } from "@/lib/fichas/informePeriodo";
+import { notificarEquipo } from "@/lib/notificarEquipo";
 
 export interface RegistroPlan {
   id: number;
@@ -35,6 +37,10 @@ export interface DatosEjecucion {
   periodos: { numero: number; desde: string | null; hasta: string | null }[];
   periodoActual: number;
   registros: RegistroPlan[];
+  /** Informes del período ya entregados. egresadoId null = informe general del equipo. */
+  informes: { periodo: number; egresadoId: number | null; estado: string; comentarioAsesor: string | null }[];
+  /** La ficha exige que las actividades estén aprobadas antes de entregar el informe. */
+  exigirAprobadas: boolean;
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string; problemas?: string[] };
@@ -68,6 +74,7 @@ export async function getEjecucionProyecto(propuestaId: number): Promise<Resulta
   const periodoActual = Math.min(periodos.length, Math.max(1, Math.floor(transcurridos / ejec.duracionPeriodo) + 1));
 
   const filas = await db.select().from(registrosPlan).where(eq(registrosPlan.propuestaId, propuestaId));
+  const informes = await db.select().from(informesPlan).where(eq(informesPlan.propuestaId, propuestaId));
   return {
     success: true,
     datos: {
@@ -76,6 +83,8 @@ export async function getEjecucionProyecto(propuestaId: number): Promise<Resulta
       informe: op.informe,
       periodos,
       periodoActual,
+      informes: informes.map((i) => ({ periodo: i.periodo, egresadoId: i.egresadoId, estado: i.estado, comentarioAsesor: i.comentarioAsesor })),
+      exigirAprobadas: ejec.informe.exigirActividadesAprobadas,
       registros: filas.map((f) => ({
         id: f.id, nodoId: f.nodoId, periodo: f.periodo, egresadoId: f.egresadoId, avance: f.avance,
         acciones: f.acciones ?? "", resultado: f.resultado ?? "", marcoTeorico: f.marcoTeorico ?? "",
@@ -164,6 +173,97 @@ export async function revisarRegistroPlan(propuestaId: number, registroId: numbe
     tipo: decision === "aprobar" ? "registro_plan_aprobado" : "registro_plan_observado",
     mensaje: decision === "aprobar" ? `El asesor aprobó tu registro de "${nodo?.titulo ?? "actividad"}" (período ${reg.periodo}).` : `El asesor hizo observaciones a tu registro de "${nodo?.titulo ?? "actividad"}" (período ${reg.periodo}): ${texto}`,
   });
+  revalidatePath(`/asesor/ejecucion/${propuestaId}`);
+  return { success: true };
+}
+
+// ─────────────── Informes del período (entrega P5) ───────────────
+
+async function guardarInforme(propuestaId: number, periodo: number, egresadoId: number | null) {
+  const cond = and(eq(informesPlan.propuestaId, propuestaId), eq(informesPlan.periodo, periodo), egresadoId === null ? isNull(informesPlan.egresadoId) : eq(informesPlan.egresadoId, egresadoId));
+  const [previo] = await db.select().from(informesPlan).where(cond);
+  if (previo) {
+    await db.update(informesPlan).set({ estado: "enviado", enviadoEn: new Date(), comentarioAsesor: null, revisadoPor: null, revisadoEn: null }).where(eq(informesPlan.id, previo.id));
+  } else {
+    await db.insert(informesPlan).values({ propuestaId, periodo, egresadoId, estado: "enviado" });
+  }
+}
+
+/** El integrante entrega su informe individual del período (se arma con sus registros). */
+export async function enviarInformeIndividual(propuestaId: number, periodo: number): Promise<Resultado> {
+  const res = await getEjecucionProyecto(propuestaId);
+  if (!res.success) return res;
+  const { plan, registros, periodoActual, informes, exigirAprobadas } = res.datos;
+  if (plan.rol !== "lider" && plan.rol !== "integrante") return { success: false, error: "Solo los integrantes entregan informes." };
+  if (periodo < 1 || periodo > periodoActual) return { success: false, error: "Ese período todavía no está abierto." };
+  const previo = informes.find((i) => i.periodo === periodo && i.egresadoId === plan.miId);
+  if (previo && previo.estado !== "observado") return { success: false, error: "Ya entregaste tu informe de este período." };
+  const general = informes.find((i) => i.periodo === periodo && i.egresadoId === null);
+  if (general && general.estado !== "observado") return { success: false, error: "El informe general del período ya fue enviado." };
+
+  const inf = armarInformePeriodo({ arbol: plan.plan.arbol, columnas: plan.columnas, periodo, registros, integrante: plan.miId });
+  if (inf.filas.length === 0) return { success: false, error: "No tienes actividades planificadas en este período." };
+  if (inf.sinRegistro > 0) return { success: false, error: `Te faltan ${inf.sinRegistro} actividad(es) del período por registrar y enviar.` };
+  if (exigirAprobadas && inf.filas.some((f) => f.registro && f.registro.estado !== "aprobado")) {
+    return { success: false, error: "La ficha exige que el asesor apruebe todas tus actividades del período antes del informe." };
+  }
+  await guardarInforme(propuestaId, periodo, plan.miId);
+  revalidatePath("/egresado/ejecucion");
+  return { success: true };
+}
+
+/** El líder envía el informe general del período cuando todos los integrantes con actividades entregaron el suyo. */
+export async function enviarInformeGeneral(propuestaId: number, periodo: number): Promise<Resultado> {
+  const res = await getEjecucionProyecto(propuestaId);
+  if (!res.success) return res;
+  const { plan, registros, informes, informe: modoInforme } = res.datos;
+  if (plan.rol !== "lider") return { success: false, error: "Solo el líder envía el informe general." };
+  const general = informes.find((i) => i.periodo === periodo && i.egresadoId === null);
+  if (general && general.estado !== "observado") return { success: false, error: "El informe general ya fue enviado." };
+  // Con informe "unico" no hay informes individuales: el líder envía directamente el del trabajo.
+  const faltan = modoInforme === "unico" ? [] : plan.equipo.filter((i) => {
+    const suyo = armarInformePeriodo({ arbol: plan.plan.arbol, columnas: plan.columnas, periodo, registros, integrante: i.id });
+    if (suyo.filas.length === 0) return false;
+    const inf = informes.find((x) => x.periodo === periodo && x.egresadoId === i.id);
+    return !inf || inf.estado === "observado";
+  });
+  if (faltan.length > 0) return { success: false, error: `Falta el informe individual de: ${faltan.map((i) => i.nombre).join(", ")}.` };
+
+  await guardarInforme(propuestaId, periodo, null);
+  const { propuestas } = await import("@/lib/schema");
+  const [p] = await db.select({ asesorId: propuestas.asesorId, numero: propuestas.numero }).from(propuestas).where(eq(propuestas.id, propuestaId));
+  if (p?.asesorId) await db.insert(notificaciones).values({ usuarioId: p.asesorId, tipo: "informe_plan_enviado", mensaje: `Propuesta #${p.numero}: el equipo envió el informe general del período ${periodo}.` });
+  await notificarEquipo(propuestaId, "informe_plan_enviado", `Se envió al asesor el informe general del período ${periodo}.`);
+  revalidatePath("/egresado/ejecucion");
+  return { success: true };
+}
+
+/** El asesor aprueba u observa el informe general del período. */
+export async function revisarInformeGeneral(propuestaId: number, periodo: number, decision: "aprobar" | "observar", comentario: string): Promise<Resultado> {
+  const res = await getEjecucionProyecto(propuestaId);
+  if (!res.success) return res;
+  const { plan, informes } = res.datos;
+  if (plan.rol !== "asesor") return { success: false, error: "Solo el asesor asignado revisa el informe." };
+  const general = informes.find((i) => i.periodo === periodo && i.egresadoId === null);
+  if (!general || general.estado !== "enviado") return { success: false, error: "El informe general no está pendiente de revisión." };
+  const texto = comentario.trim();
+  if (decision === "observar" && texto.length < 10) return { success: false, error: "Escribe la observación (al menos 10 caracteres)." };
+  await db
+    .update(informesPlan)
+    .set({ estado: decision === "aprobar" ? "aprobado" : "observado", comentarioAsesor: texto || null, revisadoPor: plan.miId, revisadoEn: new Date() })
+    .where(and(eq(informesPlan.propuestaId, propuestaId), eq(informesPlan.periodo, periodo), isNull(informesPlan.egresadoId)));
+  if (decision === "aprobar") {
+    // El general aprueba también los individuales con los que se armó.
+    await db
+      .update(informesPlan)
+      .set({ estado: "aprobado", revisadoPor: plan.miId, revisadoEn: new Date() })
+      .where(and(eq(informesPlan.propuestaId, propuestaId), eq(informesPlan.periodo, periodo), isNotNull(informesPlan.egresadoId)));
+  }
+  await notificarEquipo(
+    propuestaId,
+    decision === "aprobar" ? "informe_plan_aprobado" : "informe_plan_observado",
+    decision === "aprobar" ? `El asesor aprobó el informe general del período ${periodo}.` : `El asesor hizo observaciones al informe general del período ${periodo}: ${texto}`
+  );
   revalidatePath(`/asesor/ejecucion/${propuestaId}`);
   return { success: true };
 }

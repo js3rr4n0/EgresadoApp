@@ -1044,3 +1044,23 @@ export const registrosPlan = pgTable(
     check("registros_plan_estado_check", sql`${table.estado} IN ('borrador', 'enviado', 'observado', 'aprobado')`),
   ]
 );
+
+// Informes del período del proyecto (entrega P5). egresado_id = integrante (individual) o NULL (general del equipo).
+// El contenido se arma con el plan y los registros; aquí va el estado. Script: scripts/fichas/crear_informes_plan.ts
+export const informesPlan = pgTable(
+  "informes_plan",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    periodo: smallint("periodo").notNull(),
+    egresadoId: integer("egresado_id").references(() => usuarios.id),
+    estado: varchar("estado", { length: 20 }).notNull().default("enviado"), // enviado | observado | aprobado
+    comentarioAsesor: text("comentario_asesor"),
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }).notNull().defaultNow(),
+    revisadoPor: integer("revisado_por").references(() => usuarios.id),
+    revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+  },
+  (table) => [check("informes_plan_estado_check", sql`${table.estado} IN ('enviado', 'observado', 'aprobado')`)]
+);

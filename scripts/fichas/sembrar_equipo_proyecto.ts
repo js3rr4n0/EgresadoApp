@@ -12,12 +12,13 @@
 // Con --aprobar deja la propuesta enviada del líder como aprobada (atajo para probar el plan de trabajo, P3).
 // Con --completar-plan completa el plan de trabajo hasta los mínimos de la ficha (atajo de prueba, P3).
 // Con --iniciar da inicio a la ejecución si el plan está aprobado (atajo de prueba, P4; en lugar de los documentos de coordinación).
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_proyecto.ts [--borrar | --aprobar | --completar-plan | --iniciar]
+// Con --registrar-periodo registra y aprueba las actividades del período 1 que falten (atajo de prueba, P5).
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_proyecto.ts [--borrar | --aprobar | --completar-plan | --iniciar | --registrar-periodo]
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import crypto from "crypto";
-import { historialEstados, periodos, planesTrabajo, propuestas, usuarios } from "../../src/lib/schema";
-import { numerar, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { historialEstados, periodos, planesTrabajo, propuestas, registrosPlan, usuarios } from "../../src/lib/schema";
+import { actividadesDelPeriodo, numerar, responsables, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 import { exigirBaseDesarrollo } from "./guardia";
 
 const COHORTE = "PRUEBA-PRO-2026";
@@ -138,9 +139,37 @@ async function iniciar() {
   console.log(`Propuesta ${prop.id} en ejecución.`);
 }
 
+/**
+ * Atajo de prueba (P5): registra y aprueba, como lo haría el asesor, las actividades del período 1 que el equipo
+ * todavía no registró (texto de ejemplo, avance 100 % o 50 %). No toca los registros que ya existen.
+ */
+async function registrarPeriodo() {
+  const [lider] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.correo, EGRESADOS[0].correo));
+  const [prop] = await db.select().from(propuestas).where(and(eq(propuestas.egresadoId, lider.id), eq(propuestas.tipo, "proyecto")));
+  const [plan] = prop ? await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, prop.id)) : [];
+  if (!prop || prop.estado !== "en_ejecucion" || !plan) throw new Error("La propuesta del líder debe estar en ejecución.");
+  const raiz = plan.arbol as NodoPlan;
+  const porSub = plan.columnas % 5 === 0 ? plan.columnas / 5 : 1; // 5 períodos en la ficha de prueba
+  const columnas = Array.from({ length: plan.columnas }, (_, i) => ({ periodo: Math.floor(i / porSub) + 1 }));
+  const resp = responsables(raiz);
+  const existentes = new Set((await db.select({ n: registrosPlan.nodoId }).from(registrosPlan).where(and(eq(registrosPlan.propuestaId, prop.id), eq(registrosPlan.periodo, 1)))).map((r) => r.n));
+  let n = 0;
+  for (const a of actividadesDelPeriodo(raiz, 1, columnas)) {
+    if (existentes.has(a.id)) continue;
+    await db.insert(registrosPlan).values({
+      propuestaId: prop.id, nodoId: a.id, periodo: 1, egresadoId: resp.get(a.id)!, avance: n % 2 === 0 ? 100 : 50,
+      acciones: `Se ejecutó "${a.titulo}" en las fechas previstas, con la inversión planificada.`, resultado: `Resultado de "${a.titulo}" validado por el supervisor.`,
+      estado: "aprobado", enviadoEn: new Date(), revisadoPor: prop.asesorId, revisadoEn: new Date(),
+    });
+    n++;
+  }
+  console.log(`Período 1: ${n} registros de prueba agregados y aprobados.`);
+}
+
 async function run() {
   exigirBaseDesarrollo("sembrar_equipo_proyecto");
   if (process.argv.includes("--iniciar")) return iniciar();
+  if (process.argv.includes("--registrar-periodo")) return registrarPeriodo();
   if (process.argv.includes("--borrar")) await borrar();
   else if (process.argv.includes("--aprobar")) await aprobar();
   else if (process.argv.includes("--completar-plan")) await completarPlan();
