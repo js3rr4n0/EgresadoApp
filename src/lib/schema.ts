@@ -214,6 +214,9 @@ export const propuestas = pgTable(
     enviadaEn: timestamp("enviada_en", { withTimezone: true }),
     fechaAprobacion: timestamp("fecha_aprobacion", { withTimezone: true }),
     bloqueada: boolean("bloqueada").notNull().default(false),
+    // Versión de ficha con la que se redacta (entrega P2). null = propuesta anterior: flujo de la fase 1.
+    // Script: scripts/fichas/ligar_propuestas_fichas.ts
+    fichaVersionId: integer("ficha_version_id").references(() => fichasVersiones.id),
   },
   (table) => [
     unique("propuestas_egresado_periodo_numero").on(
@@ -967,4 +970,21 @@ export const fichasVersiones = pgTable(
     uniqueIndex("fichas_versiones_un_borrador").on(table.fichaId).where(sql`${table.estado} = 'borrador'`),
     check("fichas_versiones_estado_check", sql`${table.estado} IN ('borrador', 'habilitada', 'retirada')`),
   ]
+);
+
+// Respuestas de los espacios de la ficha que no existían en la fase 1 (por ejemplo, un bloque de texto nuevo).
+// espacio_id es el id estable del espacio dentro de la ficha. Script: scripts/fichas/ligar_propuestas_fichas.ts
+export const respuestasEspacios = pgTable(
+  "respuestas_espacios",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    espacioId: varchar("espacio_id", { length: 80 }).notNull(),
+    contenido: text("contenido"),
+    actualizadoPor: integer("actualizado_por").references(() => usuarios.id),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("respuestas_espacios_unique").on(table.propuestaId, table.espacioId)]
 );

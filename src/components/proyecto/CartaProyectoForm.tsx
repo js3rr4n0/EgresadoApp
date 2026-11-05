@@ -5,6 +5,9 @@ import { saveCartaAceptacion } from "@/app/actions/carta";
 import { useRouter } from "next/navigation";
 
 interface CartaProyectoFormProps {
+  // Pasos del asistente según el orden de la ficha (P2); por defecto, el orden de la fase 1.
+  pasoSiguiente?: number;
+  pasoAnterior?: number;
   propuestaId: number;
   initialData?: any;
   isLocked: boolean;
@@ -25,6 +28,8 @@ const addDays = (dateStr: string, days: number): string => {
 };
 
 export default function CartaProyectoForm({
+  pasoSiguiente,
+  pasoAnterior,
   propuestaId,
   initialData,
   isLocked,
@@ -140,7 +145,7 @@ export default function CartaProyectoForm({
       setSuccess("Carta de aceptación guardada correctamente.");
       if ((res as any).archivoUrl) setExistingPdfUrl((res as any).archivoUrl);
       if (shouldAdvance) {
-        router.push(`?id=${propuestaId}&step=4`);
+        router.push(`?id=${propuestaId}&step=${pasoSiguiente ?? 4}`);
         router.refresh();
       }
     }
@@ -335,7 +340,7 @@ export default function CartaProyectoForm({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border mt-8">
           <button
             type="button"
-            onClick={() => router.push(`?id=${propuestaId}&step=2`)}
+            onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior ?? 2}`)}
             className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
           >
             ← Volver a Actores

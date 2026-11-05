@@ -75,7 +75,7 @@ comprobar(
 );
 comprobar(
   "Los objetivos específicos siguen siendo de 4 a 6",
-  contiene("src/app/actions/proyecto.ts", /objetivosEspecificos\.length < 4 \|\| data\.objetivosEspecificos\.length > 6/)
+  contiene("src/app/actions/proyecto.ts", /OBJETIVOS_FASE1 = \{ min: 4, max: 6 \}/)
 );
 
 // 3. La validación detecta errores típicos

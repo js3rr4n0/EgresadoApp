@@ -5,6 +5,9 @@ import { saveJustificacionProyecto } from "@/app/actions/proyecto";
 import { useRouter } from "next/navigation";
 
 interface JustificacionProyectoFormProps {
+  // Pasos del asistente según el orden de la ficha (P2); por defecto, el orden de la fase 1.
+  pasoSiguiente?: number;
+  pasoAnterior?: number;
   propuestaId: number;
   initialData?: string | null;
   isLocked: boolean;
@@ -13,6 +16,8 @@ interface JustificacionProyectoFormProps {
 }
 
 export default function JustificacionProyectoForm({
+  pasoSiguiente,
+  pasoAnterior,
   propuestaId,
   initialData,
   isLocked,
@@ -47,7 +52,7 @@ export default function JustificacionProyectoForm({
     } else {
       setSuccess("Justificación guardada correctamente.");
       if (shouldAdvance) {
-        router.push(`?id=${propuestaId}&step=6`);
+        router.push(`?id=${propuestaId}&step=${pasoSiguiente ?? 6}`);
         router.refresh();
       }
     }
@@ -96,7 +101,7 @@ export default function JustificacionProyectoForm({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border mt-8">
           <button
             type="button"
-            onClick={() => router.push(`?id=${propuestaId}&step=4`)}
+            onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior ?? 4}`)}
             className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
           >
             ← Volver a Descripción

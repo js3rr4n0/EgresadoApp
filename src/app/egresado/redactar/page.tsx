@@ -20,6 +20,30 @@ import DescripcionProblemaForm from "@/components/proyecto/DescripcionProblemaFo
 import JustificacionProyectoForm from "@/components/proyecto/JustificacionProyectoForm";
 import AlcanceProyectoForm from "@/components/proyecto/AlcanceProyectoForm";
 import ObjetivosProyectoForm from "@/components/proyecto/ObjetivosProyectoForm";
+import TextoEspacioForm from "@/components/proyecto/TextoEspacioForm";
+import { espaciosPropuesta, fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
+import type { Espacio } from "@/lib/fichas/tipos";
+import { getRespuestasEspacios } from "@/app/actions/respuestasEspacios";
+
+/** Formulario de la fase 1 que atiende cada espacio de la ficha de proyecto (entrega P2). */
+type TipoPasoProyecto = "portada" | "actores" | "carta" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "no_disponible";
+function tipoPasoProyecto(e: Espacio): TipoPasoProyecto {
+  switch (e.elemento) {
+    case "portada":
+    case "actores":
+    case "carta":
+    case "objetivos":
+    case "documentos":
+      return e.elemento;
+    case "texto":
+      if (e.origenFase1 === "detalles_proyecto.descripcion_problema") return "problema";
+      if (e.origenFase1 === "detalles_proyecto.justificacion") return "justificacion";
+      if (e.origenFase1 === "detalles_proyecto.alcance") return "alcance";
+      return "texto";
+    default:
+      return "no_disponible";
+  }
+}
 
 import { db } from "@/lib/db";
 import { empresas } from "@/lib/schema";
@@ -66,7 +90,14 @@ export default async function EgresadoPage({
   const isInvestigacion = propuesta?.tipo === "investigacion";
   const isMultiUserFlow = isProyecto || isInvestigacion;
 
-  const defaultStepForAdjustments = isProyecto ? 7 : isInvestigacion ? 6 : 5;
+  // Proyecto: los pasos salen de la ficha ligada a la propuesta (o de la ficha base, que es la fase 1 tal cual).
+  const fichaProyecto = isProyecto ? await fichaDePropuesta(propuesta.id) : null;
+  const pasosProyecto = fichaProyecto
+    ? espaciosPropuesta(fichaProyecto.definicion).map((espacio, i) => ({ num: i + 1, espacio, tipo: tipoPasoProyecto(espacio) }))
+    : [];
+  const numPasoProyecto = (tipo: TipoPasoProyecto, porDefecto: number) => pasosProyecto.find((p) => p.tipo === tipo)?.num ?? porDefecto;
+
+  const defaultStepForAdjustments = isProyecto ? numPasoProyecto("objetivos", 7) : isInvestigacion ? 6 : 5;
   const currentStep = hasAdvisorObservations
     ? defaultStepForAdjustments
     : parseInt(params.step || "1", 10);
@@ -80,13 +111,15 @@ export default async function EgresadoPage({
   let documentosSubidos: any[] = [];
   let teamMembers: any[] = [];
   let detallesProj: any = null;
+  let respuestasProyecto: Record<string, string> = {};
 
   if (isMultiUserFlow) {
     teamMembers = await getEquipoProyecto(propuesta.id);
     detallesProj = await getDetallesProyecto(propuesta.id);
+    if (isProyecto) respuestasProyecto = await getRespuestasEspacios(propuesta.id);
     cartaData = await getCartaAceptacion(propuesta.id);
 
-    const docStepNumber = isInvestigacion ? 7 : 8;
+    const docStepNumber = isInvestigacion ? 7 : numPasoProyecto("documentos", 8);
     if (currentStep === docStepNumber) {
       const { documentosEgresado } = await import("@/lib/schema");
       documentosSubidos = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId));
@@ -165,30 +198,35 @@ export default async function EgresadoPage({
 
     maxAllowedStep = isStep6Complete ? 7 : isStep5Complete ? 6 : isStep4Complete ? 5 : isStep3Complete ? 4 : isStep2Complete ? 3 : 2;
   } else if (isProyecto) {
-    const isStep2Complete =
-      detallesProj?.actorPatrocinador &&
-      detallesProj?.actorBeneficiario &&
-      detallesProj?.actorEjecutor &&
-      detallesProj?.actorFinancista;
-
-    const isStep3Complete =
-      isStep2Complete &&
-      cartaData?.archivoUrl &&
-      cartaData?.fechaEmision &&
-      cartaData?.fechaInicio &&
-      cartaData?.fechaFin &&
-      cartaData?.supNombres;
-
-    const isStep4Complete = isStep3Complete && detallesProj?.descripcionProblema;
-    const isStep5Complete = isStep4Complete && detallesProj?.justificacion;
-    const isStep6Complete = isStep5Complete && detallesProj?.alcance;
-    const isStep7Complete =
-      isStep6Complete &&
-      detallesProj?.objetivoGeneral &&
-      Array.isArray(detallesProj?.objetivosEspecificos) &&
-      detallesProj.objetivosEspecificos.length >= 4;
-
-    maxAllowedStep = isStep7Complete ? 8 : isStep6Complete ? 7 : isStep5Complete ? 6 : isStep4Complete ? 5 : isStep3Complete ? 4 : isStep2Complete ? 3 : 2;
+    // Cada paso se desbloquea al completar el anterior, en el orden de la ficha. Mismas condiciones que la fase 1.
+    const completo = (p: (typeof pasosProyecto)[number]): boolean => {
+      switch (p.tipo) {
+        case "portada":
+          return true;
+        case "actores":
+          return !!(detallesProj?.actorPatrocinador && detallesProj?.actorBeneficiario && detallesProj?.actorEjecutor && detallesProj?.actorFinancista);
+        case "carta":
+          return !!(cartaData?.archivoUrl && cartaData?.fechaEmision && cartaData?.fechaInicio && cartaData?.fechaFin && cartaData?.supNombres);
+        case "problema":
+          return !!detallesProj?.descripcionProblema;
+        case "justificacion":
+          return !!detallesProj?.justificacion;
+        case "alcance":
+          return !!detallesProj?.alcance;
+        case "objetivos":
+          return !!(detallesProj?.objetivoGeneral && Array.isArray(detallesProj?.objetivosEspecificos) &&
+            detallesProj.objetivosEspecificos.length >= Number(p.espacio.parametros.minEspecificos ?? 4));
+        case "texto":
+          return !p.espacio.obligatorio || !!respuestasProyecto[p.espacio.id]?.trim();
+        default:
+          return true;
+      }
+    };
+    maxAllowedStep = 1;
+    for (const p of pasosProyecto) {
+      if (p.num === pasosProyecto.length || !completo(p)) break;
+      maxAllowedStep = p.num + 1;
+    }
   } else {
     // Pasantía logic
     const isStep2Complete =
@@ -227,16 +265,7 @@ export default async function EgresadoPage({
         { num: 7, title: "Documentación de soporte", desc: "Documentos obligatorios" },
       ]
     : isProyecto
-    ? [
-        { num: 1, title: "Portada", desc: "Información general e integrantes" },
-        { num: 2, title: "Actores intervinientes", desc: "Patrocinador, beneficiario, etc." },
-        { num: 3, title: "Carta de Aceptación", desc: "Documento de la institución" },
-        { num: 4, title: "Descripción del problema", desc: "Problema u oportunidad" },
-        { num: 5, title: "Justificación del proyecto", desc: "Justificación y beneficios" },
-        { num: 6, title: "Alcance del proyecto", desc: "Límites y entregables" },
-        { num: 7, title: "Objetivos del proyecto", desc: "Objetivo general y específicos" },
-        { num: 8, title: "Documentación de soporte", desc: "Documentos obligatorios" },
-      ]
+    ? pasosProyecto.map((p) => ({ num: p.num, title: p.espacio.titulo, desc: p.espacio.descripcion }))
     : [
         { num: 1, title: "Portada", desc: "Información general del trabajo" },
         { num: 2, title: "Datos empresariales", desc: "Información de la institución" },
@@ -560,86 +589,65 @@ export default async function EgresadoPage({
               )}
             </>
           ) : isProyecto ? (
-            /* RENDER PROYECTO STEPS */
-            <>
-              {currentStep === 1 && (
-                <ProyectoPortadaForm
-                  propuestaId={propuesta.id}
-                  userDetails={userDetails}
-                  mesEnvio={mesEnvio}
-                  isLocked={isFormLocked}
-                  isLeader={isLeader}
-                  teamMembers={teamMembers}
-                  memberInfo={memberInfo}
-                  initialTitulo={propuesta.titulo}
-                />
-              )}
-
-              {currentStep === 2 && (
-                <ActoresIntervinientesForm
-                  propuestaId={propuesta.id}
-                  initialData={detallesProj}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                />
-              )}
-
-              {currentStep === 3 && (
-                <CartaProyectoForm
-                  propuestaId={propuesta.id}
-                  initialData={cartaData}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                />
-              )}
-
-              {currentStep === 4 && (
-                <DescripcionProblemaForm
-                  propuestaId={propuesta.id}
-                  initialData={detallesProj?.descripcionProblema}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                />
-              )}
-
-              {currentStep === 5 && (
-                <JustificacionProyectoForm
-                  propuestaId={propuesta.id}
-                  initialData={detallesProj?.justificacion}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                />
-              )}
-
-              {currentStep === 6 && (
-                <AlcanceProyectoForm
-                  propuestaId={propuesta.id}
-                  initialData={detallesProj?.alcance}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                />
-              )}
-
-              {currentStep === 7 && (
-                <ObjetivosProyectoForm
-                  propuestaId={propuesta.id}
-                  initialObjetivoGeneral={detallesProj?.objetivoGeneral}
-                  initialObjetivosEspecificos={detallesProj?.objetivosEspecificos}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                  observaciones={propuesta.observaciones}
-                />
-              )}
-
-              {currentStep === 8 && (
-                <DocumentosEstudianteForm
-                  propuestaId={propuesta.id}
-                  isLocked={isFormLocked || !isLeader}
-                  documentosSubidos={documentosSubidos}
-                  prevStep={7}
-                />
-              )}
-            </>
+            /* RENDER PROYECTO STEPS: en el orden de la ficha (P2). Sin ficha, la base reproduce los 8 pasos de la fase 1. */
+            (() => {
+              const paso = pasosProyecto[currentStep - 1];
+              if (!paso) return null;
+              const nav = { pasoSiguiente: currentStep + 1, pasoAnterior: Math.max(1, currentStep - 1) };
+              const e = paso.espacio;
+              return (
+                <div className="space-y-4">
+                  {fichaProyecto?.version && (
+                    <p className="text-[11px] text-muted">
+                      Ficha <span className="font-mono font-bold">{fichaProyecto.version.codigo}</span> · versión {fichaProyecto.version.numero}
+                    </p>
+                  )}
+                  {e.ayuda?.trim() && (
+                    <div className="p-4 bg-blue-50 border border-blue-100 text-blue-900 rounded-xl text-sm whitespace-pre-wrap">{e.ayuda}</div>
+                  )}
+                  {paso.tipo === "portada" && (
+                    <ProyectoPortadaForm {...nav} propuestaId={propuesta.id} userDetails={userDetails} mesEnvio={mesEnvio} isLocked={isFormLocked}
+                      isLeader={isLeader} teamMembers={teamMembers} memberInfo={memberInfo} initialTitulo={propuesta.titulo} />
+                  )}
+                  {paso.tipo === "actores" && (
+                    <ActoresIntervinientesForm {...nav} propuestaId={propuesta.id} initialData={detallesProj} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                  )}
+                  {paso.tipo === "carta" && (
+                    <CartaProyectoForm {...nav} propuestaId={propuesta.id} initialData={cartaData} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                  )}
+                  {paso.tipo === "problema" && (
+                    <DescripcionProblemaForm {...nav} propuestaId={propuesta.id} initialData={detallesProj?.descripcionProblema} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                  )}
+                  {paso.tipo === "justificacion" && (
+                    <JustificacionProyectoForm {...nav} propuestaId={propuesta.id} initialData={detallesProj?.justificacion} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                  )}
+                  {paso.tipo === "alcance" && (
+                    <AlcanceProyectoForm {...nav} propuestaId={propuesta.id} initialData={detallesProj?.alcance} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                  )}
+                  {paso.tipo === "objetivos" && (
+                    <ObjetivosProyectoForm {...nav} propuestaId={propuesta.id} initialObjetivoGeneral={detallesProj?.objetivoGeneral}
+                      initialObjetivosEspecificos={detallesProj?.objetivosEspecificos} isLocked={isFormLocked} isReadOnly={!isLeader}
+                      observaciones={propuesta.observaciones}
+                      minEspecificos={Number(e.parametros.minEspecificos ?? 4)} maxEspecificos={Number(e.parametros.maxEspecificos ?? 6)} />
+                  )}
+                  {paso.tipo === "texto" && (
+                    <TextoEspacioForm key={e.id} propuestaId={propuesta.id} espacioId={e.id} titulo={e.titulo} descripcion={e.descripcion}
+                      obligatorio={e.obligatorio} minPalabras={Number(e.parametros.minPalabras) || 0} maxPalabras={Number(e.parametros.maxPalabras) || 0}
+                      initialData={respuestasProyecto[e.id]} isLocked={isFormLocked} isReadOnly={!isLeader}
+                      pasoSiguiente={currentStep + 1} pasoAnterior={currentStep > 1 ? currentStep - 1 : null} />
+                  )}
+                  {paso.tipo === "documentos" && (
+                    <DocumentosEstudianteForm propuestaId={propuesta.id} isLocked={isFormLocked || !isLeader} documentosSubidos={documentosSubidos} prevStep={currentStep - 1} />
+                  )}
+                  {paso.tipo === "no_disponible" && (
+                    <div className="bg-white border border-border rounded-xl p-6 text-sm text-muted">
+                      <h2 className="text-xl font-bold text-card-dark mb-2">{e.titulo}</h2>
+                      Este paso de la ficha todavía no tiene formulario para proyecto. Puedes continuar con el siguiente.
+                    </div>
+                  )}
+                </div>
+              );
+            })()
           ) : (
             /* RENDER PASANTÍA STEPS */
             <div className="bg-white border border-border rounded-xl p-8 shadow-sm">

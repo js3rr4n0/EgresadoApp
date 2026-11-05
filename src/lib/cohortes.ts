@@ -58,3 +58,19 @@ export async function errorCohorteEquipo(propuestaId: number, egresadoId: number
   if (cohorte === prop.cohorte) return null;
   return `MISMA_COHORTE: Todos los integrantes deben ser de la cohorte ${prop.cohorte}${cohorte ? ` (este egresado es de ${cohorte})` : " y este egresado no tiene cohorte registrada"}.`;
 }
+
+/**
+ * Si la ficha de la propuesta lo pide (participantes.mismaCarrera), el egresado debe ser de la misma carrera que
+ * el líder. Devuelve el mensaje de error, o null si puede unirse (o si la ficha no lo pide).
+ */
+export async function errorCarreraEquipo(propuestaId: number, egresadoId: number): Promise<string | null> {
+  const { fichaDePropuesta } = await import("@/lib/fichas/fichaDePropuesta");
+  const f = await fichaDePropuesta(propuestaId);
+  if (!f?.version || !f.definicion.participantes.mismaCarrera) return null;
+  const [prop] = await db.select({ lider: propuestas.egresadoId }).from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
+  if (!prop) return null;
+  const [lider] = await db.select({ carreraId: usuarios.carreraId }).from(usuarios).where(eq(usuarios.id, prop.lider)).limit(1);
+  const [otro] = await db.select({ carreraId: usuarios.carreraId }).from(usuarios).where(eq(usuarios.id, egresadoId)).limit(1);
+  if (lider?.carreraId && lider.carreraId === otro?.carreraId) return null;
+  return "MISMA_CARRERA: La ficha de esta propuesta pide que todos los integrantes sean de la misma carrera que el líder.";
+}

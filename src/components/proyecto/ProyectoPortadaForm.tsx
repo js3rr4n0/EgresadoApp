@@ -13,6 +13,9 @@ import {
 import { useRouter } from "next/navigation";
 
 interface ProyectoPortadaFormProps {
+  // Pasos del asistente según el orden de la ficha (P2); por defecto, el orden de la fase 1.
+  pasoSiguiente?: number;
+  pasoAnterior?: number;
   propuestaId: number;
   userDetails: {
     nombreCompleto: string;
@@ -41,6 +44,8 @@ interface ProyectoPortadaFormProps {
 }
 
 export default function ProyectoPortadaForm({
+  pasoSiguiente,
+  pasoAnterior,
   propuestaId,
   userDetails,
   mesEnvio,
@@ -81,7 +86,7 @@ export default function ProyectoPortadaForm({
     setSavingTitulo(false);
 
     if (res.success) {
-      router.push(`?id=${propuestaId}&step=2`);
+      router.push(`?id=${propuestaId}&step=${pasoSiguiente ?? 2}`);
     } else {
       alert(res.error || "Error al actualizar el título.");
     }

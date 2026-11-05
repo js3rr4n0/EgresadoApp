@@ -5,6 +5,9 @@ import { saveActoresIntervinientes } from "@/app/actions/proyecto";
 import { useRouter } from "next/navigation";
 
 interface ActoresIntervinientesFormProps {
+  // Pasos del asistente según el orden de la ficha (P2); por defecto, el orden de la fase 1.
+  pasoSiguiente?: number;
+  pasoAnterior?: number;
   propuestaId: number;
   initialData?: {
     actorPatrocinador?: string | null;
@@ -18,6 +21,8 @@ interface ActoresIntervinientesFormProps {
 }
 
 export default function ActoresIntervinientesForm({
+  pasoSiguiente,
+  pasoAnterior,
   propuestaId,
   initialData,
   isLocked,
@@ -67,7 +72,7 @@ export default function ActoresIntervinientesForm({
     } else {
       setSuccess("Actores intervinientes guardados correctamente.");
       if (shouldAdvance) {
-        router.push(`?id=${propuestaId}&step=3`);
+        router.push(`?id=${propuestaId}&step=${pasoSiguiente ?? 3}`);
         router.refresh();
       }
     }
@@ -177,7 +182,7 @@ export default function ActoresIntervinientesForm({
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border mt-8">
           <button
             type="button"
-            onClick={() => router.push(`?id=${propuestaId}&step=1`)}
+            onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior ?? 1}`)}
             className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
           >
             ← Volver a Portada

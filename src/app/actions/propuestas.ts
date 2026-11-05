@@ -5,6 +5,8 @@ import { propuestas, usuarios, carreras, facultades } from "@/lib/schema";
 import { eq, asc, desc, and, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { periodoDelEgresado, primerPeriodoActivo } from "@/lib/cohortes";
+import { versionParaNuevaPropuesta } from "@/lib/fichas/fichaDePropuesta";
+import type { Modalidad } from "@/lib/fichas/tipos";
 import { revalidatePath } from "next/cache";
 
 export async function getActivePropuesta(targetPropuestaId?: number) {
@@ -198,6 +200,9 @@ export async function initPropuesta(tipo: string) {
     const nextNumero = props.length + 1;
     const defaultTitulo = `Propuesta de ${tipo === 'pasantia' ? 'Pasantía' : tipo === 'proyecto' ? 'Proyecto Específico' : 'Investigación'} #${nextNumero}`;
 
+    // Entrega P2: la propuesta queda ligada a la versión de ficha que le corresponde (null si no hay).
+    const fichaVersionId = await versionParaNuevaPropuesta(tipo as Modalidad, session.userId);
+
     const [newProp] = await db
       .insert(propuestas)
       .values({
@@ -207,6 +212,7 @@ export async function initPropuesta(tipo: string) {
         numero: nextNumero,
         titulo: defaultTitulo,
         estado: "redactando",
+        fichaVersionId,
       })
       .returning();
 

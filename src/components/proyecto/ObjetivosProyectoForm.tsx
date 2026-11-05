@@ -10,6 +10,12 @@ interface ObjectiveItem {
 }
 
 interface ObjetivosProyectoFormProps {
+  // Pasos del asistente según el orden de la ficha (P2); por defecto, el orden de la fase 1.
+  pasoSiguiente?: number;
+  pasoAnterior?: number;
+  // Límites de objetivos específicos de la ficha (P2); por defecto, los de la fase 1.
+  minEspecificos?: number;
+  maxEspecificos?: number;
   propuestaId: number;
   initialObjetivoGeneral?: string | null;
   initialObjetivosEspecificos?: ObjectiveItem[] | null;
@@ -20,6 +26,10 @@ interface ObjetivosProyectoFormProps {
 }
 
 export default function ObjetivosProyectoForm({
+  pasoSiguiente,
+  pasoAnterior,
+  minEspecificos = 4,
+  maxEspecificos = 6,
   propuestaId,
   initialObjetivoGeneral,
   initialObjetivosEspecificos,
@@ -31,16 +41,16 @@ export default function ObjetivosProyectoForm({
   const router = useRouter();
   const [objetivoGeneral, setObjetivoGeneral] = useState(initialObjetivoGeneral || "");
 
-  // Initialize with at least 4 rows
+  // Inicia con el mínimo de filas que pide la ficha
   const [objetivosEspecificos, setObjetivosEspecificos] = useState<ObjectiveItem[]>(() => {
-    if (initialObjetivosEspecificos && initialObjetivosEspecificos.length >= 4) {
+    if (initialObjetivosEspecificos && initialObjetivosEspecificos.length >= minEspecificos) {
       return initialObjetivosEspecificos;
     }
     const base = initialObjetivosEspecificos ? [...initialObjetivosEspecificos] : [];
-    while (base.length < 4) {
+    while (base.length < minEspecificos) {
       base.push({ titulo: "", descripcion: "" });
     }
-    return base.slice(0, 6);
+    return base.slice(0, Math.max(maxEspecificos, base.length));
   });
 
   const [pending, setPending] = useState(false);
@@ -56,13 +66,13 @@ export default function ObjetivosProyectoForm({
   };
 
   const handleAddRow = () => {
-    if (objetivosEspecificos.length >= 6) return;
+    if (objetivosEspecificos.length >= maxEspecificos) return;
     setObjetivosEspecificos([...objetivosEspecificos, { titulo: "", descripcion: "" }]);
   };
 
   const handleRemoveRow = (index: number) => {
-    if (objetivosEspecificos.length <= 4) {
-      setError("Debes mantener como mínimo 4 objetivos específicos.");
+    if (objetivosEspecificos.length <= minEspecificos) {
+      setError(`Debes mantener como mínimo ${minEspecificos} objetivos específicos.`);
       return;
     }
     setError(null);
@@ -100,7 +110,7 @@ export default function ObjetivosProyectoForm({
     } else {
       setSuccess("Objetivos guardados correctamente.");
       if (shouldAdvance) {
-        router.push(isInvestigacion ? `?id=${propuestaId}&step=7` : `?id=${propuestaId}&step=8`);
+        router.push(`?id=${propuestaId}&step=${pasoSiguiente ?? (isInvestigacion ? 7 : 8)}`);
         router.refresh();
       }
     }
@@ -163,7 +173,7 @@ export default function ObjetivosProyectoForm({
           {isInvestigacion ? "Objetivos de la Investigación" : "Objetivos del Proyecto"}
         </h2>
         <p className="text-sm text-muted mt-1">
-          Establece 1 objetivo general y de 4 a 6 objetivos específicos en la tabla a continuación.
+          Establece 1 objetivo general y de {minEspecificos} a {maxEspecificos} objetivos específicos en la tabla a continuación.
         </p>
       </div>
 
@@ -212,7 +222,7 @@ export default function ObjetivosProyectoForm({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div>
               <h3 className="font-bold text-card-dark text-base">
-                Objetivos Específicos (Mínimo 4 - Máximo 6)
+                Objetivos Específicos (Mínimo {minEspecificos} - Máximo {maxEspecificos})
               </h3>
               <p className="text-xs text-muted mt-0.5">
                 Ingresa el título corto y la descripción detallada de cada objetivo.
@@ -222,10 +232,10 @@ export default function ObjetivosProyectoForm({
               <button
                 type="button"
                 onClick={handleAddRow}
-                disabled={objetivosEspecificos.length >= 6}
+                disabled={objetivosEspecificos.length >= maxEspecificos}
                 className="bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
               >
-                + Añadir Fila ({objetivosEspecificos.length}/6)
+                + Añadir Fila ({objetivosEspecificos.length}/{maxEspecificos})
               </button>
             )}
           </div>
@@ -271,7 +281,7 @@ export default function ObjetivosProyectoForm({
                         <button
                           type="button"
                           onClick={() => handleRemoveRow(index)}
-                          disabled={objetivosEspecificos.length <= 4}
+                          disabled={objetivosEspecificos.length <= minEspecificos}
                           className="text-red-500 hover:text-red-700 p-1.5 rounded hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Eliminar fila"
                         >
@@ -292,7 +302,7 @@ export default function ObjetivosProyectoForm({
           {!observaciones && (
             <button
               type="button"
-              onClick={() => router.push(isInvestigacion ? `?id=${propuestaId}&step=5` : `?id=${propuestaId}&step=6`)}
+              onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior ?? (isInvestigacion ? 5 : 6)}`)}
               className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
             >
               {isInvestigacion ? "← Volver a Justificación" : "← Volver a Alcance"}

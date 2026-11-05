@@ -12,14 +12,18 @@ import {
   ratificacionesPropuesta,
   actividades,
   documentosEgresado,
+  respuestasEspacios,
 } from "@/lib/schema";
 import { eq, and, ne, or, inArray, asc } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
-import { errorCohorteEquipo } from "@/lib/cohortes";
+import { errorCohorteEquipo, errorCarreraEquipo } from "@/lib/cohortes";
+import { limitesObjetivos, maxIntegrantesDePropuesta } from "@/lib/fichas/fichaDePropuesta";
 
 // Líder + integrantes. En la entrega P2 saldrá de la ficha de la propuesta (participantes.max).
 const MAX_INTEGRANTES_EQUIPO = 3;
+// Objetivos específicos de la fase 1; las propuestas ligadas a una ficha usan los de su ficha.
+const OBJETIVOS_FASE1 = { min: 4, max: 6 };
 
 /**
  * Invitaciones y Equipo del Proyecto (Especificación Colaboración Grupal Rev 2)
@@ -133,7 +137,7 @@ export async function invitarIntegrante(propuestaId: number, carnetOrEmail: stri
   }
 
   // Misma cohorte que la propuesta (regla del trabajo en equipo).
-  const errorCohorte = await errorCohorteEquipo(propuestaId, targetUser.id);
+  const errorCohorte = (await errorCohorteEquipo(propuestaId, targetUser.id)) ?? (await errorCarreraEquipo(propuestaId, targetUser.id));
   if (errorCohorte) return { success: false, error: errorCohorte };
 
   // 3. Invariante I1 (Exclusividad Global): Check if target user already occupies a slot (pendiente / aceptado)
@@ -168,8 +172,9 @@ export async function invitarIntegrante(propuestaId: number, carnetOrEmail: stri
     );
 
   const totalCupos = 1 + currentMembers.length;
-  if (totalCupos >= MAX_INTEGRANTES_EQUIPO) {
-    return { success: false, error: `GRUPO_LLENO: El equipo ya alcanzó el límite máximo de ${MAX_INTEGRANTES_EQUIPO} integrantes (incluyendo invitaciones pendientes).` };
+  const maxEquipo = await maxIntegrantesDePropuesta(propuestaId, MAX_INTEGRANTES_EQUIPO);
+  if (totalCupos >= maxEquipo) {
+    return { success: false, error: `GRUPO_LLENO: El equipo ya alcanzó el límite máximo de ${maxEquipo} integrantes (incluyendo invitaciones pendientes).` };
   }
 
   // 5. Check existing invitation record for this proposal
@@ -295,7 +300,7 @@ export async function responderInvitacion(integranteId: number, aceptar: boolean
   }
 
   // Misma cohorte que la propuesta.
-  const errorCohorte = await errorCohorteEquipo(invite.propuestaId, session.userId);
+  const errorCohorte = (await errorCohorteEquipo(invite.propuestaId, session.userId)) ?? (await errorCarreraEquipo(invite.propuestaId, session.userId));
   if (errorCohorte) {
     await db.update(integrantesProyecto).set({ estado: "rechazado" }).where(eq(integrantesProyecto.id, integranteId));
     return { success: false, error: errorCohorte };
@@ -312,9 +317,10 @@ export async function responderInvitacion(integranteId: number, aceptar: boolean
       )
     );
 
-  if (1 + activeMembersInProp.length >= MAX_INTEGRANTES_EQUIPO) {
+  const maxEquipo = await maxIntegrantesDePropuesta(invite.propuestaId, MAX_INTEGRANTES_EQUIPO);
+  if (1 + activeMembersInProp.length >= maxEquipo) {
     await db.update(integrantesProyecto).set({ estado: "rechazado" }).where(eq(integrantesProyecto.id, integranteId));
-    return { success: false, error: `GRUPO_LLENO: El equipo ya cuenta con el número máximo de ${MAX_INTEGRANTES_EQUIPO} integrantes.` };
+    return { success: false, error: `GRUPO_LLENO: El equipo ya cuenta con el número máximo de ${maxEquipo} integrantes.` };
   }
 
   // Double validation passed -> set state to 'aceptado'
@@ -567,8 +573,9 @@ export async function saveObjetivosProyecto(
     return { success: false, error: "El objetivo general es obligatorio." };
   }
 
-  if (!Array.isArray(data.objetivosEspecificos) || data.objetivosEspecificos.length < 4 || data.objetivosEspecificos.length > 6) {
-    return { success: false, error: "Debes registrar entre 4 y 6 objetivos específicos." };
+  const lim = await limitesObjetivos(propuestaId, OBJETIVOS_FASE1);
+  if (!Array.isArray(data.objetivosEspecificos) || data.objetivosEspecificos.length < lim.min || data.objetivosEspecificos.length > lim.max) {
+    return { success: false, error: `Debes registrar entre ${lim.min} y ${lim.max} objetivos específicos.` };
   }
 
   const existing = await db
@@ -637,6 +644,7 @@ export async function getPropuestaVersionHash(propuestaId: number): Promise<stri
   const allActiveUsers = [...leaderUser, ...members].sort((a, b) => (a.carnet || "").localeCompare(b.carnet || ""));
 
   const acts = await db.select().from(actividades).where(eq(actividades.propuestaId, propuestaId)).orderBy(asc(actividades.periodo), asc(actividades.numero));
+  const resps = await db.select().from(respuestasEspacios).where(eq(respuestasEspacios.propuestaId, propuestaId)).orderBy(asc(respuestasEspacios.espacioId));
 
   const versionObject = {
     titulo: prop.titulo || "",
@@ -654,6 +662,9 @@ export async function getPropuestaVersionHash(propuestaId: number): Promise<stri
     objetivosEspecificos: det.objetivosEspecificos || [],
     integrantes: allActiveUsers.map(u => ({ id: u.id, carnet: u.carnet })),
     actividades: acts.map(a => ({ p: a.periodo, s: a.semana, n: a.numero, t: a.titulo, d: a.descripcion })),
+    // Espacios nuevos de la ficha (P2). Solo se agregan si hay respuestas, para no invalidar las ratificaciones
+    // de las propuestas anteriores.
+    ...(resps.length > 0 ? { espacios: resps.map((r) => ({ e: r.espacioId, c: r.contenido ?? "" })) } : {}),
   };
 
   const jsonCanonical = JSON.stringify(versionObject);

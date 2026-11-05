@@ -158,7 +158,7 @@ Rige la **consecuencia lógica**: cada actividad pertenece a una macroactividad,
 
 Cada entrega es un commit y se prueba sobre `dev-fichas`. La entrega P0 va primero porque varias correcciones afectan al equipo.
 
-> **Avance:** P0 y P1 están hechas. Detalle en [ENTREGA_P0_P1.md](ENTREGA_P0_P1.md).
+> **Avance:** P0 y P1 están hechas ([ENTREGA_P0_P1.md](ENTREGA_P0_P1.md)). P2 también ([ENTREGA_P2.md](ENTREGA_P2.md)).
 
 | # | Entrega | Qué incluye | Resultado visible |
 |---|---|---|---|
