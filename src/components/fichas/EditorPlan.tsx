@@ -5,7 +5,7 @@ import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, NIVELES_PLAN, type Def
 import type { ProblemaFicha } from "@/lib/fichas/validar";
 import { planNuevo } from "@/lib/fichas/plantillas";
 import { aplanar, cargaPorIntegrante, planEjemplo, planIndividual, totalesNodo } from "@/lib/fichas/planTrabajo";
-import { campoCompacto, etiquetaCompacta, Interruptor, Tarjeta } from "./EditorPropuesta";
+import { campoCompacto, EncabezadoSeccion, etiquetaCompacta, Interruptor, Tarjeta } from "./EditorPropuesta";
 import { nuevoId } from "./ids";
 
 function Numero({ id, etiqueta, valor, onChange, editable, min = 1, max = 20, sufijo }: {
@@ -124,8 +124,9 @@ export default function EditorPlan({
             </ul>
           )}
 
+          <EncabezadoSeccion titulo="Estructura" descripcion="Cómo se arma el plan: niveles, mínimos y presupuesto." />
           <div className="grid lg:grid-cols-2 gap-3">
-            <Tarjeta titulo="Estructura">
+            <Tarjeta titulo="Niveles y mínimos">
               <ol className="space-y-1 mb-3">
                 {NIVELES_PLAN.map((n) => (
                   <li key={n.nivel} className="flex items-center gap-2 text-sm">
@@ -194,6 +195,10 @@ export default function EditorPlan({
               )}
             </Tarjeta>
 
+          </div>
+
+          <EncabezadoSeccion titulo="Comportamiento" descripcion="Cómo se reparte el trabajo en el equipo y cómo se revisa y aprueba el plan." />
+          <div className="grid lg:grid-cols-2 gap-3">
             <Tarjeta titulo="Trabajo en equipo">
               {equipo ? (
                 <div className="space-y-3">

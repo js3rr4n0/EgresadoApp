@@ -24,9 +24,11 @@ import TextoEspacioForm from "@/components/proyecto/TextoEspacioForm";
 import { espaciosPropuesta, fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
 import type { Espacio } from "@/lib/fichas/tipos";
 import { getRespuestasEspacios } from "@/app/actions/respuestasEspacios";
+import { esRecurso, recursoCompleto } from "@/lib/fichas/elementosRecurso";
+import RecursoEspacioForm from "@/components/proyecto/RecursoEspacioForm";
 
 /** Formulario de la fase 1 que atiende cada espacio de la ficha de proyecto (entrega P2). */
-type TipoPasoProyecto = "portada" | "actores" | "carta" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "no_disponible";
+type TipoPasoProyecto = "portada" | "actores" | "carta" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "recurso" | "no_disponible";
 function tipoPasoProyecto(e: Espacio): TipoPasoProyecto {
   switch (e.elemento) {
     case "portada":
@@ -40,6 +42,11 @@ function tipoPasoProyecto(e: Espacio): TipoPasoProyecto {
       if (e.origenFase1 === "detalles_proyecto.justificacion") return "justificacion";
       if (e.origenFase1 === "detalles_proyecto.alcance") return "alcance";
       return "texto";
+    case "imagen":
+    case "archivo":
+    case "enlace":
+    case "lista":
+      return "recurso";
     default:
       return "no_disponible";
   }
@@ -218,6 +225,8 @@ export default async function EgresadoPage({
             detallesProj.objetivosEspecificos.length >= Number(p.espacio.parametros.minEspecificos ?? 4));
         case "texto":
           return !p.espacio.obligatorio || !!respuestasProyecto[p.espacio.id]?.trim();
+        case "recurso":
+          return esRecurso(p.espacio.elemento) && recursoCompleto({ ...p.espacio, elemento: p.espacio.elemento }, respuestasProyecto[p.espacio.id]);
         default:
           return true;
       }
@@ -635,6 +644,10 @@ export default async function EgresadoPage({
                       obligatorio={e.obligatorio} minPalabras={Number(e.parametros.minPalabras) || 0} maxPalabras={Number(e.parametros.maxPalabras) || 0}
                       initialData={respuestasProyecto[e.id]} isLocked={isFormLocked} isReadOnly={!isLeader}
                       pasoSiguiente={currentStep + 1} pasoAnterior={currentStep > 1 ? currentStep - 1 : null} />
+                  )}
+                  {paso.tipo === "recurso" && esRecurso(e.elemento) && (
+                    <RecursoEspacioForm key={e.id} propuestaId={propuesta.id} espacio={{ ...e, elemento: e.elemento }} initialData={respuestasProyecto[e.id]}
+                      isLocked={isFormLocked} isReadOnly={!isLeader} pasoSiguiente={currentStep + 1} pasoAnterior={currentStep > 1 ? currentStep - 1 : null} />
                   )}
                   {paso.tipo === "documentos" && (
                     <DocumentosEstudianteForm propuestaId={propuesta.id} isLocked={isFormLocked || !isLeader} documentosSubidos={documentosSubidos} prevStep={currentStep - 1} />

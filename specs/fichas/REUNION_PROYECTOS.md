@@ -104,6 +104,33 @@ Así, "dentro de la universidad" puede tener su propia ficha (sin carta de acept
 4. El informe individual del período 2 numera las evidencias.
 5. `verificar_flujo_proyecto.ts 70` da "Flujo coherente".
 
+**Respuestas del asesor (6-nov-2026), ya aplicadas:**
+- **Mínimo de OE por participante:** "sí, 3 o 4". Queda configurable en la ficha, con 3 por defecto.
+- **Avance:** sale de las subactividades terminadas, y los objetivos promedian igual.
+  - Cada subactividad se registra como "Terminada" o "Sin terminar" (100 o 0).
+  - La actividad avanza según el porcentaje de sus subactividades terminadas; si no tiene subactividades, el egresado indica el porcentaje.
+  - Los niveles superiores toman el promedio simple, sin ponderar por presupuesto.
+- **Metodología:** queda pendiente.
+- **Videos:** se piden como enlace (ya es así en las evidencias y en el elemento "Enlace").
+
+**Estado de B y C (6-nov-2026), sin commit:**
+- **B1, Gantt (`ganttPlan`, `GanttProyecto`):** el cronograma planificado frente al real, por período, aparece en la pantalla de ejecución (con opción para ver las subactividades) y en el informe del período, hasta ese período.
+  - Gris: planificado. Número: avance acumulado al cierre. Borde ámbar: viene incompleta de un período anterior.
+- **B2, tabla de resultados y evidencias:** cubierta con A4 y A5. "Resultados por actividad" enlaza cada evidencia numerada y los anexos la muestran.
+- **B3:** las pestañas Plan de trabajo y Ejecución del editor se dividen en "Estructura" y "Comportamiento"; la forma del JSON no cambia.
+- **C1, parte 1:** elementos Imagen, Archivo adjunto, Enlace y Lista de elementos (grupo "Recursos" del catálogo), con cantidades mínima y máxima.
+  - La imagen pide pie y origen, como en pasantía.
+  - El archivo define los formatos permitidos y el tamaño máximo.
+  - La lista puede limitar las palabras por elemento.
+  - Se responden en el asistente de proyecto (`RecursoEspacioForm`) y se guardan como JSON en `respuestas_espacios`.
+  - Al enviar la propuesta, el servidor revisa los pasos nuevos de la ficha, también los de texto.
+  - Por ahora solo están disponibles en proyecto: en pasantía e investigación el asistente todavía no lee la ficha.
+- **Pendiente de C1:**
+  - parte 2: tabla y presupuesto; gráfico, para investigación;
+  - más reglas para el texto: párrafos, punto final, citas;
+  - mostrar las respuestas nuevas en el PDF de la propuesta y en las vistas de revisión;
+  - **probar el asistente con los elementos nuevos en el navegador**, que requiere una versión nueva de la ficha y una propuesta en redacción.
+
 **B. Medianos:**
 1. B1: el Gantt de avance.
 2. B2: la tabla de resultados y evidencias en el informe.

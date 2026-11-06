@@ -8,7 +8,8 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enviarInformeGeneral, enviarInformeIndividual, revisarInformeGeneral, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
-import { actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
+import { actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, ganttPlan, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
+import GanttProyecto from "./GanttProyecto";
 
 export const ESTADO_ACTIVIDAD: Record<string, { label: string; badge: string; accion: string }> = {
   pendiente: { label: "Sin registrar", badge: "bg-slate-100 text-slate-600 border-slate-300", accion: "Registrar" },
@@ -64,6 +65,7 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
   const esAsesor = plan.rol === "asesor";
   const [pestana, setPestana] = useState<Pestana>(esAsesor ? "revisar" : "actual");
   const [periodoEquipo, setPeriodoEquipo] = useState(periodoActual);
+  const [conSub, setConSub] = useState(false);
 
   const resp = useMemo(() => responsables(arbol), [arbol]);
   const regDe = (nodoId: string, periodo: number) => registros.find((r) => r.nodoId === nodoId && r.periodo === periodo);
@@ -103,6 +105,10 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
   const enviadasProyecto = todas.filter((x) => x.periodo <= periodoActual && ["enviado", "aprobado"].includes(estadoDe(x))).length;
   const planificadasHastaHoy = todas.filter((x) => x.periodo <= periodoActual).length;
   const avanceProyecto = avance.get(arbol.id) ?? 0;
+  const gantt = useMemo(
+    () => ganttPlan(arbol, plan.columnas, reglas.avance ? registros : [], periodos.length, periodoActual),
+    [arbol, plan.columnas, reglas.avance, registros, periodos.length, periodoActual]
+  );
   const p = periodos[periodoActual - 1];
 
   const pestanas: { id: Pestana; label: string; total: number }[] = esAsesor
@@ -123,7 +129,11 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
     const estado = r?.estado ?? "pendiente";
     const info = ESTADO_ACTIVIDAD[estado] ?? ESTADO_ACTIVIDAD.pendiente;
     const indicadores = [
-      ...(reglas.avance ? [{ label: `Avance ${r?.avance ?? 0}%`, ok: r?.avance != null }] : []),
+      ...(reglas.avance
+        ? [x.a.nivel === 5
+            ? { label: r?.avance === 100 ? "Terminada" : "Sin terminar", ok: r?.avance != null }
+            : { label: `Avance ${r?.avance ?? 0}%`, ok: r?.avance != null }]
+        : []),
       { label: `Acciones (${palabras(r?.acciones ?? "")} palabras)`, ok: !!r?.acciones.trim() },
       { label: `Resultado (${palabras(r?.resultado ?? "")} palabras)`, ok: !!r?.resultado.trim() },
       ...(reglas.marcoTeorico === "obligatorio" ? [{ label: "Marco teórico", ok: !!r?.marcoTeorico.trim() }] : []),
@@ -254,11 +264,27 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
         <details className="text-[11px] text-slate-500 font-medium">
           <summary className="cursor-pointer w-fit font-bold text-slate-600 hover:text-slate-900 select-none">Más información</summary>
           <p className="mt-2 leading-relaxed">
-            Cada actividad toma el último avance que registró su responsable; cada objetivo y el objetivo general muestran el promedio
+            Cada actividad toma el último avance que registró su responsable; si tiene subactividades, avanza según cuántas están terminadas. Cada objetivo y el objetivo general muestran el promedio simple
             de lo que contienen. {reglas.avance ? "Si una actividad no llega al 100 % en su período, el resto pasa al período siguiente y vuelve a aparecer para registrarse. " : ""}{reglas.marcoTeorico === "opcional" ? "El marco teórico es opcional: úselo solo si hace falta contextualizar una actividad. " : ""}
             En proyecto no se exige un mínimo de páginas.
           </p>
         </details>
+      </div>
+
+      {/* Cronograma planificado y real (Gantt) */}
+      <div className={`${tarjeta} p-5 space-y-3`}>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-extrabold text-slate-900">Cronograma planificado y real</h2>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Avance de cada nivel del plan al cierre de cada período, frente a lo planificado.</p>
+          </div>
+          {gantt.some((g) => g.nivel === 5) && (
+            <label className="flex items-center gap-2 text-[11px] font-bold text-slate-600 shrink-0">
+              <input type="checkbox" checked={conSub} onChange={(e) => setConSub(e.target.checked)} className="accent-unicaes" /> Mostrar subactividades
+            </label>
+          )}
+        </div>
+        <GanttProyecto filas={gantt} periodos={periodos.length} periodoActual={periodoActual} hastaNivel={conSub ? 5 : 4} />
       </div>
 
       {/* Actividades */}

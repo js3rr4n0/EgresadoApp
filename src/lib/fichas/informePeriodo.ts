@@ -31,6 +31,8 @@ export interface FilaInforme {
   estado: "Finalizada" | "Avance parcial" | "Pendiente";
   /** Registro del período (solo actividades). */
   registro: RegistroInforme | null;
+  /** Actividad o subactividad sin hijos (lleva registro); una actividad con subactividades avanza según ellas. */
+  hoja: boolean;
   /** Actividad que no estaba planificada en el período y viene incompleta del período indicado. */
   vieneDe: number | null;
 }
@@ -96,6 +98,7 @@ export function armarInformePeriodo(args: {
       id: n.id, codigo: n.codigo, nivel: n.nivel, titulo: n.titulo, responsable: resp.get(n.id) ?? null,
       montos: [], total: 0, avance: avances.get(n.id) ?? 0, estado: "Pendiente", registro: null,
       vieneDe: arrastradas.get(n.id)?.desde ?? null,
+      hoja: n.hijos.length === 0,
     };
     filas.push(fila);
     let montos: number[];

@@ -20,7 +20,11 @@ export type ClaveElemento =
   | "texto"
   | "actores"
   | "objetivos"
-  | "documentos";
+  | "documentos"
+  | "imagen"
+  | "archivo"
+  | "enlace"
+  | "lista";
 
 export type ValorParametro = number | boolean | string | string[];
 

@@ -158,8 +158,9 @@ export async function guardarRegistroPlan(
       marcoTeorico: reglas.marcoTeorico === "no" ? "" : datos.marcoTeorico.trim().slice(0, 20000),
     };
     if (limpio.avance !== null && (limpio.avance < 0 || limpio.avance > 100)) return { success: false, error: "El avance va de 0 a 100 %." };
+    if (nodo.nivel === 5 && limpio.avance !== null && limpio.avance !== 0 && limpio.avance !== 100) return { success: false, error: "Una subactividad se registra como terminada o no terminada." };
     if (enviar) {
-      const problemas = validarRegistroProyecto(limpio, reglas);
+      const problemas = validarRegistroProyecto(limpio, reglas, nodo.nivel === 5);
       const adjuntas = previo?.evidencias.length ?? 0;
       if (evidencias.max > 0 && adjuntas < evidencias.min) problemas.push(`Adjunta al menos ${evidencias.min} evidencia(s) de la actividad (imagen, documento o enlace).`);
       if (problemas.length > 0) return { success: false, error: "El registro todavía no cumple las reglas de la ficha.", problemas };

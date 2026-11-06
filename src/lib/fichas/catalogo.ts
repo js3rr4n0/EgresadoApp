@@ -2,6 +2,7 @@
 // Sale del inventario del código de la fase 1 (specs/fichas): cada elemento corresponde a un paso que ya existe.
 // Los valores por defecto de los parámetros reproducen el comportamiento actual. Módulo puro.
 import type { ClaveElemento, Modalidad, ValorParametro } from "./tipos";
+import { TIPOS_ARCHIVO } from "./elementosRecurso";
 
 export type DefinicionParametro =
   | { clave: string; etiqueta: string; tipo: "numero"; porDefecto: number; min: number; max: number; ayuda?: string; sufijo?: string }
@@ -11,7 +12,7 @@ export type DefinicionParametro =
 export interface ElementoCatalogo {
   clave: ClaveElemento;
   nombre: string;
-  grupo: "Generales" | "Institución" | "Planificación" | "Proyecto" | "Documentos";
+  grupo: "Generales" | "Institución" | "Planificación" | "Proyecto" | "Documentos" | "Recursos";
   descripcion: string;
   /** Modalidades en las que la fase 1 ya sabe guardar y mostrar este elemento. */
   modalidades: Modalidad[];
@@ -156,6 +157,67 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     requiere: [],
     parametros: [
       { clave: "documentos", etiqueta: "Documentos que se piden", tipo: "opciones", porDefecto: DOCUMENTOS_ESTUDIANTE.map((d) => d.valor), opciones: DOCUMENTOS_ESTUDIANTE, minimo: 0 },
+    ],
+  },
+  // Recursos (reunión 6-nov-2026, catálogo ampliado, parte 1). Por ahora el asistente que lee la ficha es el de proyecto.
+  imagen: {
+    clave: "imagen",
+    nombre: "Imagen",
+    grupo: "Recursos",
+    descripcion: "Una o varias imágenes con su pie y su origen; por ejemplo, un código QR, un diagrama o una captura.",
+    modalidades: ["proyecto"],
+    repetible: true,
+    alcance: "equipo",
+    requiere: [],
+    parametros: [
+      { clave: "minimo", etiqueta: "Imágenes mínimas", tipo: "numero", porDefecto: 1, min: 0, max: 10 },
+      { clave: "maximo", etiqueta: "Imágenes máximas", tipo: "numero", porDefecto: 1, min: 1, max: 10 },
+      { clave: "pedirOrigen", etiqueta: "Pedir el origen de la imagen (autoría propia o fuente citada)", tipo: "booleano", porDefecto: true },
+    ],
+  },
+  archivo: {
+    clave: "archivo",
+    nombre: "Archivo adjunto",
+    grupo: "Recursos",
+    descripcion: "Uno o varios archivos: un manual, un acta, una hoja de cálculo u otro documento de apoyo.",
+    modalidades: ["proyecto"],
+    repetible: true,
+    alcance: "equipo",
+    requiere: [],
+    parametros: [
+      { clave: "tipos", etiqueta: "Formatos permitidos", tipo: "opciones", porDefecto: ["pdf"], opciones: TIPOS_ARCHIVO.map(({ valor, etiqueta }) => ({ valor, etiqueta })), minimo: 1 },
+      { clave: "minimo", etiqueta: "Archivos mínimos", tipo: "numero", porDefecto: 1, min: 0, max: 10 },
+      { clave: "maximo", etiqueta: "Archivos máximos", tipo: "numero", porDefecto: 1, min: 1, max: 10 },
+      { clave: "maxMB", etiqueta: "Tamaño máximo por archivo", tipo: "numero", porDefecto: 5, min: 1, max: 10, sufijo: "MB" },
+    ],
+  },
+  enlace: {
+    clave: "enlace",
+    nombre: "Enlace",
+    grupo: "Recursos",
+    descripcion: "Direcciones a recursos en línea con su descripción: un video, un repositorio, un sitio publicado o un proceso.",
+    modalidades: ["proyecto"],
+    repetible: true,
+    alcance: "equipo",
+    requiere: [],
+    parametros: [
+      { clave: "minimo", etiqueta: "Enlaces mínimos", tipo: "numero", porDefecto: 1, min: 0, max: 20 },
+      { clave: "maximo", etiqueta: "Enlaces máximos", tipo: "numero", porDefecto: 3, min: 1, max: 20 },
+    ],
+  },
+  lista: {
+    clave: "lista",
+    nombre: "Lista de elementos",
+    grupo: "Recursos",
+    descripcion: "Una lista de elementos cortos: requisitos, entregables, herramientas, beneficiarios, etc.",
+    modalidades: ["proyecto"],
+    repetible: true,
+    alcance: "equipo",
+    requiere: [],
+    parametros: [
+      { clave: "minimo", etiqueta: "Elementos mínimos", tipo: "numero", porDefecto: 3, min: 0, max: 50 },
+      { clave: "maximo", etiqueta: "Elementos máximos", tipo: "numero", porDefecto: 10, min: 1, max: 50 },
+      { clave: "maxPalabrasElemento", etiqueta: "Palabras máximas por elemento", tipo: "numero", porDefecto: 0, min: 0, max: 200, ayuda: "0 = sin máximo" },
     ],
   },
 };

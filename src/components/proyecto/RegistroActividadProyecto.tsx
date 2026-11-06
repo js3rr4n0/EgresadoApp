@@ -73,7 +73,7 @@ export default function RegistroActividadProyecto({
   const valores = { avance: avance === "" ? null : Number(avance), acciones, resultado, marcoTeorico: marco };
   const limiteEvidencias = datos.evidencias;
   const pendientes = [
-    ...validarRegistroProyecto(valores, reglas),
+    ...validarRegistroProyecto(valores, reglas, nodo.nivel === 5),
     ...(limiteEvidencias.max > 0 && evidencias.length < limiteEvidencias.min ? [`Adjunte al menos ${limiteEvidencias.min} evidencia(s).`] : []),
   ];
   const volver = esAsesor ? `/asesor/ejecucion/${plan.propuesta.id}` : "/egresado/ejecucion";
@@ -184,7 +184,26 @@ export default function RegistroActividadProyecto({
         </div>
       </div>
 
-      {reglas.avance && (
+      {reglas.avance && nodo.nivel === 5 && (
+        <div className={tarjeta}>
+          <div className="border-b border-slate-100 pb-2">
+            <h2 className={tituloTarjeta}>¿Se terminó la subactividad?</h2>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+              El avance de la actividad lo calcula el sistema: es el porcentaje de sus subactividades terminadas. Si no se termina en el período, pasa al siguiente.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Estado de ${nodo.codigo}`}>
+            {[{ v: "100", label: "Terminada" }, { v: "0", label: "Sin terminar" }].map((o) => (
+              <button key={o.v} type="button" role="radio" aria-checked={avance === o.v} disabled={!editable} onClick={() => setAvance(o.v)}
+                className={`px-4 py-2 rounded-lg text-xs font-bold border transition-colors disabled:opacity-60 ${avance === o.v ? "bg-unicaes text-white border-unicaes" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {reglas.avance && nodo.nivel !== 5 && (
         <div className={tarjeta}>
           <div className="border-b border-slate-100 pb-2">
             <h2 className={tituloTarjeta}>Avance de la actividad</h2>

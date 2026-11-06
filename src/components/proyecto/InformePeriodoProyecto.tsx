@@ -11,6 +11,8 @@ import { getEvidenciasRegistro, type EvidenciaCompleta } from "@/app/actions/evi
 import { notaImagen } from "@/lib/fuenteImagen";
 import { leyendaDocumento } from "@/lib/reglasRegistroActividad";
 import BotonImprimir from "./BotonImprimir";
+import GanttProyecto from "./GanttProyecto";
+import { ganttPlan, planIndividual } from "@/lib/fichas/planTrabajo";
 
 const dinero = (v: number) => (v ? `$${v.toLocaleString("es-SV")}` : "");
 const fecha = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("es-SV", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—");
@@ -41,6 +43,9 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
   const porActividad = new Map<string, EvidenciaCompleta[]>(actividades.map((f) => [f.id, todas.filter((e) => e.registroId === regIds.get(f.id))]));
   const evidencias = numerarEvidencias(actividades, porActividad);
   const listaEvidencias = actividades.flatMap((f) => (evidencias.get(f.id) ?? []).map((e) => ({ ...e, codigo: f.codigo })));
+  // Gantt hasta el período del informe (el individual, solo con la parte del integrante). Cuenta lo enviado o aprobado.
+  const baseGantt = integrante === null ? plan.plan.arbol : planIndividual(plan.plan.arbol, integrante);
+  const gantt = !baseGantt ? [] : ganttPlan(baseGantt, plan.columnas, registros.filter((r) => r.estado === "enviado" || r.estado === "aprobado"), periodos.length, periodo);
 
   return (
     <div className="space-y-4">
@@ -114,7 +119,7 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
               <p>
                 <strong>{f.codigo} {sinPunto(f.titulo)}</strong>
                 {f.vieneDe !== null && <span className="text-gray-600"> (continúa del período {f.vieneDe})</span>}
-                {f.nivel < 4 ? `: nivel de avance de ${f.avance}%.` : f.registro ? `: ejecutada al ${f.registro.avance ?? 0}%${integrante === null ? ` (a cargo de ${nombre(f.responsable)})` : ""}.` : ": sin registro en el período."}
+                {!f.hoja ? `: nivel de avance de ${f.avance}%${f.nivel === 4 ? " (según sus subactividades terminadas)" : ""}.` : f.registro ? (f.nivel === 5 ? `: ${f.registro.avance === 100 ? "terminada" : "sin terminar"}` : `: ejecutada al ${f.registro.avance ?? 0}%`) + `${integrante === null ? ` (a cargo de ${nombre(f.responsable)})` : ""}.` : ": sin registro en el período."}
               </p>
               {f.registro && (
                 <>
@@ -140,6 +145,12 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
               ))}
             </tbody>
           </table>
+          {reglas.avance && (
+            <div className="space-y-1 pt-2" style={{ pageBreakInside: "avoid" }}>
+              <p className="font-bold text-xs">Cronograma planificado y real hasta el período {periodo}</p>
+              <GanttProyecto filas={gantt} periodos={periodos.length} periodoActual={periodo} impreso />
+            </div>
+          )}
         </section>
 
         {/* 6. Resultados por actividad y 7. Anexos */}

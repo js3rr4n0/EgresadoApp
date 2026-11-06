@@ -336,6 +336,11 @@ export async function enviarPropuesta(id: number) {
     return { success: false, error: "Ya tienes otra propuesta enviada o en curso; las demás quedan bloqueadas." };
   }
 
+  // Pasos nuevos de la ficha (texto, imagen, archivo, enlace, lista): el asistente no deja avanzar sin ellos, pero el
+  // envío lo valida otra vez por si la ficha o la respuesta cambiaron.
+  const faltaEspacio = await espacioFichaIncompleto(id);
+  if (faltaEspacio) return { success: false, error: faltaEspacio };
+
   // For team collaboration proposals (proyecto / investigacion), run pre-flight checks & ratification verification (§10 & §8)
   if (prop.tipo === "proyecto" || prop.tipo === "investigacion") {
     const { verificarCapacidadEnvio } = await import("@/app/actions/proyecto");
@@ -523,4 +528,34 @@ export async function solicitarCorreccionDatosDecanato(formData: FormData) {
     console.error("Error al solicitar corrección de datos:", error);
     return { success: false, error: error.message || "Error al procesar la solicitud." };
   }
+}
+
+/** Primer paso nuevo de la ficha que no cumple sus reglas (null si todos cumplen o la propuesta no tiene ficha). */
+async function espacioFichaIncompleto(propuestaId: number): Promise<string | null> {
+  const { fichaDePropuesta, espaciosPropuesta } = await import("@/lib/fichas/fichaDePropuesta");
+  const { esRecurso, leerItems, problemasRecurso } = await import("@/lib/fichas/elementosRecurso");
+  const { respuestasEspacios } = await import("@/lib/schema");
+  const ficha = await fichaDePropuesta(propuestaId);
+  if (!ficha) return null;
+  const filas = await db.select().from(respuestasEspacios).where(eq(respuestasEspacios.propuestaId, propuestaId));
+  const respuesta = (id: string) => filas.find((f) => f.espacioId === id)?.contenido ?? "";
+  for (const e of espaciosPropuesta(ficha.definicion)) {
+    if (e.origenFase1) continue;
+    if (e.elemento === "texto") {
+      const t = respuesta(e.id).trim();
+      const n = t ? t.split(/\s+/).length : 0;
+      const min = Number(e.parametros.minPalabras) || 0;
+      const max = Number(e.parametros.maxPalabras) || 0;
+      if (e.obligatorio && !t) return `Falta el paso "${e.titulo}".`;
+      if (t && min > 0 && n < min) return `"${e.titulo}" necesita al menos ${min} palabras.`;
+      if (max > 0 && n > max) return `"${e.titulo}" admite hasta ${max} palabras.`;
+    } else if (esRecurso(e.elemento)) {
+      const r = { ...e, elemento: e.elemento };
+      const items = leerItems(r.elemento, respuesta(e.id));
+      if (!e.obligatorio && items.length === 0) continue;
+      const problemas = problemasRecurso(r, items);
+      if (problemas.length > 0) return problemas[0];
+    }
+  }
+  return null;
 }

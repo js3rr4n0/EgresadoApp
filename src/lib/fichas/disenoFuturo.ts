@@ -61,6 +61,17 @@ export const CAMPOS_ELEMENTO: Record<ClaveElemento, CampoElemento[]> = {
     { nombre: "Objetivos específicos (título y descripción)", tipo: "lista", obligatorio: true },
   ],
   documentos: [{ nombre: "Un archivo PDF por documento", tipo: "archivo", obligatorio: true }],
+  imagen: [
+    { nombre: "Imagen (PNG o JPG)", tipo: "imagen", obligatorio: true },
+    { nombre: "Pie de imagen", tipo: "texto", obligatorio: true },
+    { nombre: "Origen de la imagen", tipo: "selección", obligatorio: true },
+  ],
+  archivo: [{ nombre: "Archivo en los formatos permitidos", tipo: "archivo", obligatorio: true }],
+  enlace: [
+    { nombre: "Dirección (https://…)", tipo: "texto", obligatorio: true },
+    { nombre: "Descripción del enlace", tipo: "texto", obligatorio: true },
+  ],
+  lista: [{ nombre: "Elementos de la lista", tipo: "lista", obligatorio: true }],
 };
 
 /** Apartados del informe final como los arma hoy el sistema (src/lib/informeFinal.ts). */

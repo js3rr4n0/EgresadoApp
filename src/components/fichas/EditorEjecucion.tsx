@@ -4,7 +4,7 @@ import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, TIPO
 import { ejecucionNueva } from "@/lib/fichas/plantillas";
 import { APARTADOS_INFORME_PERIODO_PROYECTO } from "@/lib/fichas/disenoFuturo";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
-import { campoCompacto, etiquetaCompacta, Interruptor, Tarjeta } from "./EditorPropuesta";
+import { campoCompacto, EncabezadoSeccion, etiquetaCompacta, Interruptor, Tarjeta } from "./EditorPropuesta";
 import LineaTiempo from "./LineaTiempo";
 import { CalendarioEjecucion } from "./VistaPrevia";
 import { nuevoId } from "./ids";
@@ -135,6 +135,7 @@ export default function EditorEjecucion({
                 </ul>
               )}
 
+              <EncabezadoSeccion titulo="Estructura" descripcion="Cuánto dura la etapa y cómo se divide en períodos y subperíodos." />
               <div className="border border-gray-100 rounded-lg p-3 bg-gray-50/40">
                 <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">Línea de tiempo</div>
                 <LineaTiempo etapa={et} />
@@ -156,7 +157,11 @@ export default function EditorEjecucion({
                   </div>
                   {et.unidad === "meses" && <p className="text-[11px] text-gray-500 mt-2">La unidad en meses aún no la usa el seguimiento actual (caso de Medicina, por definir).</p>}
                 </Tarjeta>
+              </div>
 
+              <EncabezadoSeccion titulo="Comportamiento durante la ejecución"
+                descripcion="Qué registra el egresado, cómo se revisa, qué se entrega en cada período y los momentos de control." />
+              <div className="grid lg:grid-cols-2 gap-3">
                 <Tarjeta titulo="Registro de cada actividad">
                   <div className="flex flex-wrap gap-3 mb-3">
                     <div>

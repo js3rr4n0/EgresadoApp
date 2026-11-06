@@ -1,6 +1,7 @@
 // Validación de la definición de una ficha antes de guardarla o habilitarla. Módulo puro.
 // Devuelve la lista de problemas en lenguaje del administrador; una lista vacía significa que la ficha es válida.
 import { CATALOGO } from "./catalogo";
+import { esRecurso } from "./elementosRecurso";
 import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, FORMATO_DEFINICION, type DefinicionFicha, type EtapaEjecucion, type EtapaPlan } from "./tipos";
 
 export interface ProblemaFicha {
@@ -125,6 +126,10 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
     if (esp.elemento === "texto") {
       const { minPalabras, maxPalabras } = esp.parametros as { minPalabras: number; maxPalabras: number };
       if (maxPalabras > 0 && minPalabras > maxPalabras) p("el mínimo de palabras es mayor que el máximo.");
+    }
+    if (esRecurso(esp.elemento)) {
+      const { minimo, maximo } = esp.parametros as { minimo: number; maximo: number };
+      if (minimo > maximo) p("la cantidad mínima es mayor que la máxima.");
     }
     if (esp.elemento === "objetivos") {
       const { minEspecificos, maxEspecificos } = esp.parametros as { minEspecificos: number; maxEspecificos: number };

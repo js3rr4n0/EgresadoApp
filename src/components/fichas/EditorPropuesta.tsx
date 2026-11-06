@@ -8,7 +8,7 @@ import type { ClaveElemento, DefinicionFicha, Espacio, EtapaPropuesta, ValorPara
 import { Proximamente } from "./comunes";
 import { nuevoId } from "./ids";
 
-const GRUPOS = ["Generales", "Institución", "Planificación", "Proyecto", "Documentos"] as const;
+const GRUPOS = ["Generales", "Institución", "Planificación", "Proyecto", "Documentos", "Recursos"] as const;
 export const campoCompacto =
   "w-full h-9 border border-gray-300 rounded-md px-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25 focus:border-brand-red disabled:bg-gray-50 disabled:text-gray-500";
 export const etiquetaCompacta = "block text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1";
@@ -21,6 +21,19 @@ export function Tarjeta({ titulo, extra, children }: { titulo: string; extra?: R
         {extra}
       </div>
       <div className="p-3">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Encabezado que separa, dentro de una etapa, su estructura (cómo se construye) de su comportamiento durante el proceso
+ * (cómo se registra, se revisa y se entrega). Comentario del asesor, reunión de nov-2026.
+ */
+export function EncabezadoSeccion({ titulo, descripcion }: { titulo: string; descripcion: string }) {
+  return (
+    <div className="flex items-baseline gap-2 border-b border-gray-200 pb-1">
+      <h3 className="text-[11px] font-extrabold text-brand-red uppercase tracking-wider shrink-0">{titulo}</h3>
+      <p className="text-[11px] text-gray-500">{descripcion}</p>
     </div>
   );
 }

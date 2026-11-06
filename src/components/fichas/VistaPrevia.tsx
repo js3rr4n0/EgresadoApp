@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ACTORES, CATALOGO, DOCUMENTOS_ESTUDIANTE } from "@/lib/fichas/catalogo";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
+import { reglasRecurso } from "@/lib/fichas/elementosRecurso";
 import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaEjecucion } from "@/lib/fichas/tipos";
 
 /** Reglas de un espacio en frases cortas, como las leería el egresado. */
@@ -35,6 +36,11 @@ function reglas(e: Espacio, equipo: boolean): string[] {
       return [`Un objetivo general y de ${p.minEspecificos} a ${p.maxEspecificos} objetivos específicos.`];
     case "documentos":
       return [`${CATALOGO.documentos.alcance === "integrante" && equipo ? "Cada integrante sube" : "Se sube"}: ${etiqueta(DOCUMENTOS_ESTUDIANTE, p.documentos) || "ningún documento"}.`];
+    case "imagen":
+    case "archivo":
+    case "enlace":
+    case "lista":
+      return reglasRecurso({ ...e, elemento: e.elemento });
   }
 }
 

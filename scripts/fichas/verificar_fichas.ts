@@ -12,8 +12,10 @@ import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
 import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
 import { ejecucionNueva, planNuevo } from "../../src/lib/fichas/plantillas";
+import { parametrosPorDefecto } from "../../src/lib/fichas/catalogo";
+import { leerItems, problemasRecurso, recursoCompleto } from "../../src/lib/fichas/elementosRecurso";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
-import { responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
 let fallas = 0;
 function comprobar(descripcion: string, ok: boolean, detalle = "") {
@@ -274,6 +276,38 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   comprobar("El informe del período 2 incluye la actividad arrastrada y la pide registrar", filaA?.vieneDe === 1 && inf2.sinRegistro === 2, `${filaA?.vieneDe} / ${inf2.sinRegistro}`);
 }
 
+// 10b. Avance desde subactividades terminadas; los objetivos promedian igual (respuesta del asesor, nov-2026)
+{
+  const sub = (id: string): NodoPlan => ({ id, codigo: "", nivel: 5, titulo: id, responsable: null, montos: [10], hijos: [] });
+  const act = (id: string, subs: NodoPlan[]): NodoPlan => ({ id, codigo: "", nivel: 4, titulo: id, responsable: null, montos: [], hijos: subs });
+  const raiz = numerar({ id: "og", codigo: "", nivel: 1, titulo: "OG", responsable: null, montos: [], hijos: [
+    { id: "oe1", codigo: "", nivel: 2, titulo: "OE1", responsable: null, montos: [], hijos: [{ id: "m1", codigo: "", nivel: 3, titulo: "M1", responsable: null, montos: [], hijos: [act("a1", [sub("s1"), sub("s2"), sub("s3"), sub("s4")])] }] },
+    { id: "oe2", codigo: "", nivel: 2, titulo: "OE2", responsable: null, montos: [], hijos: [{ id: "m2", codigo: "", nivel: 3, titulo: "M2", responsable: null, montos: [], hijos: [act("a2", [sub("s5")])] }] },
+  ] });
+  const av = avancePorNodo(raiz, new Map([["s1", 100], ["s2", 100], ["s3", 100], ["s4", 0], ["s5", 0]]));
+  comprobar("Una actividad con 3 de 4 subactividades terminadas va al 75 %", av.get("a1") === 75);
+  comprobar("El objetivo general promedia sus objetivos sin ponderar", av.get("og") === Math.round((75 + 0) / 2), String(av.get("og")));
+  const reglas = { acciones: { min: 0, max: 0 }, resultado: { min: 0, max: 0 }, marcoTeorico: "no" as const, avance: true };
+  comprobar("Una subactividad no admite porcentajes intermedios", validarRegistroProyecto({ avance: 50, acciones: "x", resultado: "y", marcoTeorico: "" }, reglas, true).length === 1);
+  comprobar("Una subactividad se registra terminada o no", validarRegistroProyecto({ avance: 100, acciones: "x", resultado: "y", marcoTeorico: "" }, reglas, true).length === 0);
+}
+
+// 10c. Gantt planificado y real
+{
+  const columnas = [{ periodo: 1 }, { periodo: 2 }, { periodo: 3 }];
+  const hoja = (id: string, montos: number[]): NodoPlan => ({ id, codigo: "", nivel: 4, titulo: id, responsable: null, montos, hijos: [] });
+  const raiz = numerar({ id: "og", codigo: "", nivel: 1, titulo: "OG", responsable: null, montos: [], hijos: [
+    { id: "oe", codigo: "", nivel: 2, titulo: "OE", responsable: null, montos: [], hijos: [
+      { id: "m", codigo: "", nivel: 3, titulo: "M", responsable: null, montos: [], hijos: [hoja("a", [10, 0, 0]), hoja("c", [0, 10, 0])] },
+    ] },
+  ] });
+  const g = ganttPlan(raiz, columnas, [{ nodoId: "a", periodo: 1, avance: 70, estado: "aprobado" }], 3, 2);
+  const fila = (id: string) => g.find((f) => f.id === id)!;
+  comprobar("El Gantt marca lo planificado por período", fila("a").celdas.map((c) => c.planificado).join() === "true,false,false" && fila("m").celdas.map((c) => c.planificado).join() === "true,true,false");
+  comprobar("El Gantt muestra el avance acumulado y el arrastre", fila("a").celdas[0].avance === 70 && fila("a").celdas[1].arrastre && fila("a").celdas[1].avance === 70);
+  comprobar("El Gantt no muestra avance en períodos no abiertos", fila("a").celdas[2].avance === null && fila("og").celdas[0].avance === 35);
+}
+
 // 11. Evidencias en el informe: misma indexación que pasantía (imagen por código y letra; anexos correlativos)
 {
   const acts = [{ id: "a", codigo: "1.1.1.1" }, { id: "b", codigo: "1.1.1.2" }];
@@ -293,6 +327,30 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   comprobar("El plan individual de ese integrante es el plan completo", aplanar(planIndividual(solo, 21) ?? solo).length === aplanar(solo).length);
   const ficha = ejecucionNueva("ejecucion", "proyecto", 1, true);
   comprobar("La ejecución de proyecto pide evidencias por actividad", opcionesRegistro(ficha).evidencias.min === 1 && opcionesRegistro(ficha).evidencias.max === 5);
+}
+
+// 12. Catálogo ampliado (parte 1): imagen, archivo, enlace y lista
+{
+  const def = definicionBase("proyecto");
+  const prop = def.etapas.find(esEtapaPropuesta)!;
+  const nuevo = (elemento: "imagen" | "archivo" | "enlace" | "lista", id: string) =>
+    ({ id, elemento, titulo: id, descripcion: "", ayuda: "", obligatorio: true, parametros: parametrosPorDefecto(elemento) });
+  prop.espacios.push(nuevo("imagen", "qr"), nuevo("archivo", "manual"), nuevo("enlace", "repo"), nuevo("lista", "entregables"));
+  comprobar("Una ficha de proyecto acepta imagen, archivo, enlace y lista", validarDefinicion(def).length === 0, validarDefinicion(def).map((p) => p.mensaje).join(" | "));
+  comprobar("La definición con recursos conserva su forma", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(def))));
+  const mal = structuredClone(def);
+  mal.etapas.find(esEtapaPropuesta)!.espacios.find((e) => e.id === "entregables")!.parametros.minimo = 20;
+  comprobar("Detecta un mínimo mayor que el máximo en un recurso", validarDefinicion(mal).some((p) => p.mensaje.includes("mínima es mayor")));
+  const pas = definicionBase("pasantia");
+  pas.etapas.find(esEtapaPropuesta)!.espacios.push(nuevo("enlace", "x"));
+  comprobar("Los recursos todavía no están disponibles en pasantía", validarDefinicion(pas).some((p) => p.mensaje.includes("todavía no está disponible")));
+
+  const lista = { ...nuevo("lista", "l"), elemento: "lista" as const };
+  comprobar("Una lista obligatoria con menos de su mínimo no está completa", !recursoCompleto(lista, JSON.stringify(["a", "b"])) && recursoCompleto(lista, JSON.stringify(["a", "b", "c"])));
+  const enl = { ...nuevo("enlace", "e"), elemento: "enlace" as const };
+  comprobar("Un enlace necesita dirección válida y descripción", problemasRecurso(enl, [{ url: "no-es-url", descripcion: "" }]).length === 2);
+  comprobar("Un recurso opcional vacío está completo", recursoCompleto({ ...lista, obligatorio: false }, ""));
+  comprobar("Lee con cuidado un contenido que no es JSON", leerItems("imagen", "texto suelto").length === 0);
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

@@ -311,8 +311,9 @@ export function actividadesDelPeriodo(
 }
 
 /**
- * Avance de cada nodo: las hojas toman el último avance registrado (0 si no hay); los demás niveles, el promedio de
- * sus hijos. Así el objetivo general refleja el avance del proyecto completo, como pide el informe de avances.
+ * Avance de cada nodo: las hojas toman el último avance registrado (0 si no hay); los demás niveles, el promedio simple
+ * de sus hijos (respuesta del asesor, nov-2026: sin ponderar por presupuesto). Una actividad con subactividades avanza
+ * según cuántas están terminadas (cada subactividad se registra como terminada, 100, o no, 0). Así el objetivo general refleja el avance del proyecto completo, como pide el informe de avances.
  */
 export function avancePorNodo(raiz: NodoPlan, avanceHoja: Map<string, number>): Map<string, number> {
   const m = new Map<string, number>();
@@ -337,7 +338,9 @@ const contarPalabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length :
 /** Problemas de un registro antes de enviarlo al asesor. 0 en mínimo o máximo = sin límite (sin métrica). */
 export function validarRegistroProyecto(
   r: { avance: number | null; acciones: string; resultado: string; marcoTeorico: string },
-  reglas: ReglasRegistroProyecto
+  reglas: ReglasRegistroProyecto,
+  /** Subactividad (nivel 5): no lleva porcentaje, solo terminada (100) o no (0). */
+  subactividad = false
 ): string[] {
   const p: string[] = [];
   const rango = (nombre: string, texto: string, { min, max }: { min: number; max: number }) => {
@@ -346,9 +349,82 @@ export function validarRegistroProyecto(
     else if (min > 0 && n < min) p.push(`${nombre[0].toUpperCase()}${nombre.slice(1)}: al menos ${min} palabras (lleva ${n}).`);
     else if (max > 0 && n > max) p.push(`${nombre[0].toUpperCase()}${nombre.slice(1)}: hasta ${max} palabras (lleva ${n}).`);
   };
-  if (reglas.avance && (r.avance === null || !Number.isInteger(r.avance) || r.avance < 0 || r.avance > 100)) p.push("Indica el avance de la actividad (0 a 100 %).");
+  if (reglas.avance && subactividad) {
+    if (r.avance !== 0 && r.avance !== 100) p.push("Indica si la subactividad quedó terminada.");
+  } else   if (reglas.avance && (r.avance === null || !Number.isInteger(r.avance) || r.avance < 0 || r.avance > 100)) p.push("Indica el avance de la actividad (0 a 100 %).");
   rango("la descripción de las acciones realizadas", r.acciones, reglas.acciones);
   rango("el resultado obtenido", r.resultado, reglas.resultado);
   if (reglas.marcoTeorico === "obligatorio" && !r.marcoTeorico.trim()) p.push("La ficha pide marco teórico.");
   return p;
+}
+
+// ─────────────── Gantt de avance (reunión 6-nov-2026) ───────────────
+
+export interface CeldaGantt {
+  /** La actividad (o alguna de sus hijas) estaba planificada en el período. */
+  planificado: boolean;
+  /** Avance acumulado al cierre del período; null en períodos todavía no abiertos. */
+  avance: number | null;
+  /** Viene incompleta de un período anterior. */
+  arrastre: boolean;
+}
+
+export interface FilaGantt {
+  id: string;
+  codigo: string;
+  nivel: number;
+  titulo: string;
+  celdas: CeldaGantt[];
+}
+
+/**
+ * Cronograma planificado frente al real: por cada nodo y período, si estaba planificado, si se arrastró y el avance
+ * acumulado al cierre (los niveles superiores promedian, como avancePorNodo). Solo hasta el período abierto.
+ */
+export function ganttPlan(
+  raiz: NodoPlan,
+  columnas: { periodo: number }[],
+  registros: AvanceRegistrado[],
+  periodos: number,
+  periodoActual: number
+): FilaGantt[] {
+  const nodos = aplanar(raiz);
+  const planeado = new Map<string, Set<number>>();
+  const rec = (n: NodoPlan): Set<number> => {
+    const s = n.hijos.length === 0 ? new Set(planificadaEn(n, columnas)) : new Set(n.hijos.flatMap((h) => [...rec(h)]));
+    planeado.set(n.id, s);
+    return s;
+  };
+  rec(raiz);
+  const validos = registros.filter((r) => r.estado !== "borrador" && r.avance !== null);
+  const porPeriodo = Array.from({ length: periodos }, (_, i) => {
+    const p = i + 1;
+    if (p > periodoActual) return null;
+    const ultimo = new Map<string, { p: number; a: number }>();
+    for (const r of validos) {
+      if (r.periodo > p) continue;
+      const u = ultimo.get(r.nodoId);
+      if (!u || r.periodo > u.p) ultimo.set(r.nodoId, { p: r.periodo, a: r.avance! });
+    }
+    const arr = arrastradasAlPeriodo(raiz, p, columnas, registros);
+    const conArrastre = new Set<string>();
+    const marcar = (n: NodoPlan): boolean => {
+      const si = n.hijos.length === 0 ? arr.has(n.id) : n.hijos.map(marcar).some(Boolean);
+      if (si) conArrastre.add(n.id);
+      return si;
+    };
+    marcar(raiz);
+    return { avance: avancePorNodo(raiz, new Map([...ultimo].map(([k, v]) => [k, v.a]))), conArrastre };
+  });
+  return nodos.map((n) => ({
+    id: n.id,
+    codigo: n.codigo,
+    nivel: n.nivel,
+    titulo: n.titulo,
+    celdas: porPeriodo.map((x, i) => ({
+      planificado: planeado.get(n.id)?.has(i + 1) ?? false,
+      avance: x ? (x.avance.get(n.id) ?? 0) : null,
+      arrastre: x ? x.conArrastre.has(n.id) : false,
+    })),
+  }));
 }

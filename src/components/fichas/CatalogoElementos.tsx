@@ -6,7 +6,7 @@ import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import type { ClaveElemento } from "@/lib/fichas/tipos";
 import { ETIQUETA_MODALIDAD, Proximamente } from "./comunes";
 
-const GRUPOS = ["Generales", "Institución", "Planificación", "Proyecto", "Documentos"] as const;
+const GRUPOS = ["Generales", "Institución", "Planificación", "Proyecto", "Documentos", "Recursos"] as const;
 
 /** Catálogo de elementos con sus campos y reglas. La edición del catálogo es de una entrega posterior. */
 export default function CatalogoElementos() {
