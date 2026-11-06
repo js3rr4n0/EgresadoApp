@@ -1,30 +1,37 @@
 "use client";
 
-// Ejecución del proyecto en equipo (entrega P4). El integrante registra, por período, las actividades de su plan
-// individual; el asesor ve al equipo completo (quién hizo qué) y revisa cada registro. Reglas: etapa de ejecución
-// de la ficha (avance, palabras, marco teórico). El servidor valida todo otra vez (actions/ejecucionProyecto.ts).
+// Ejecución del proyecto en equipo (entregas P4 y P5). Mismo diseño que "Reportes de actividades" de pasantía:
+// encabezado, tarjeta de avance, actividades por pestañas (Período actual / Próximas / Completadas / Equipo) con su
+// estado y apartados, y tarjetas de los informes del período. Cada actividad se registra en su propia página
+// (RegistroActividadProyecto). Reglas: etapa de ejecución de la ficha; el servidor valida todo otra vez.
+import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { enviarInformeGeneral, enviarInformeIndividual, guardarRegistroPlan, revisarInformeGeneral, revisarRegistroPlan, type DatosEjecucion, type RegistroPlan } from "@/app/actions/ejecucionProyecto";
-import { actividadesDelPeriodo, aplanar, avancePorNodo, responsables, validarRegistroProyecto, type NodoPlan } from "@/lib/fichas/planTrabajo";
+import { enviarInformeGeneral, enviarInformeIndividual, revisarInformeGeneral, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
+import { actividadesDelPeriodo, avancePorNodo, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
 
-const ESTADO: Record<string, { texto: string; clase: string }> = {
-  pendiente: { texto: "Sin registrar", clase: "bg-gray-100 text-gray-600" },
-  borrador: { texto: "Borrador", clase: "bg-amber-100 text-amber-800" },
-  enviado: { texto: "Enviado", clase: "bg-blue-100 text-blue-800" },
-  observado: { texto: "Con observaciones", clase: "bg-red-100 text-red-700" },
-  aprobado: { texto: "Aprobado", clase: "bg-emerald-100 text-emerald-700" },
+export const ESTADO_ACTIVIDAD: Record<string, { label: string; badge: string; accion: string }> = {
+  pendiente: { label: "Sin registrar", badge: "bg-slate-100 text-slate-600 border-slate-300", accion: "Registrar" },
+  borrador: { label: "Borrador", badge: "bg-slate-100 text-slate-700 border-slate-300", accion: "Continuar" },
+  enviado: { label: "Enviada", badge: "bg-blue-50 text-blue-800 border-blue-200", accion: "Ver" },
+  observado: { label: "Con observaciones", badge: "bg-amber-50 text-amber-900 border-amber-300", accion: "Corregir" },
+  aprobado: { label: "Aprobada", badge: "bg-emerald-50 text-emerald-800 border-emerald-200", accion: "Ver" },
 };
-const palabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
-const fecha = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("es-SV", { day: "numeric", month: "short" }) : "");
 
-function Insignia({ estado }: { estado: string }) {
-  const e = ESTADO[estado] ?? ESTADO.pendiente;
-  return <span className={`text-[11px] font-bold rounded-md px-2 py-0.5 whitespace-nowrap ${e.clase}`}>{e.texto}</span>;
-}
+const ESTADO_INFORME: Record<string, { label: string; badge: string }> = {
+  pendiente: { label: "Sin entregar", badge: "bg-slate-100 text-slate-700 border-slate-300" },
+  enviado: { label: "Enviado, en revisión", badge: "bg-blue-50 text-blue-800 border-blue-200" },
+  observado: { label: "Con correcciones", badge: "bg-amber-50 text-amber-900 border-amber-300" },
+  aprobado: { label: "Aprobado", badge: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+};
+
+const fechaCorta = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("es-SV", { day: "numeric", month: "short" }) : "");
+const fechaLarga = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" }) : "—");
+const palabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
+const tarjeta = "bg-white border border-slate-200 rounded-2xl shadow-sm";
 
 /** Ruta de la actividad en el plan: objetivo específico › macroactividad › actividad. */
-function ruta(raiz: NodoPlan, id: string): NodoPlan[] {
+export function rutaEnPlan(raiz: NodoPlan, id: string): NodoPlan[] {
   const rec = (n: NodoPlan, camino: NodoPlan[]): NodoPlan[] | null => {
     if (n.id === id) return [...camino, n];
     for (const h of n.hijos) {
@@ -36,119 +43,31 @@ function ruta(raiz: NodoPlan, id: string): NodoPlan[] {
   return (rec(raiz, []) ?? []).slice(1);
 }
 
-function FormRegistro({ datos, nodo, periodo, registro, editable }: {
-  datos: DatosEjecucion; nodo: NodoPlan; periodo: number; registro: RegistroPlan | undefined; editable: boolean;
-}) {
-  const router = useRouter();
-  const { reglas } = datos;
-  const [avance, setAvance] = useState<string>(registro?.avance != null ? String(registro.avance) : "");
-  const [acciones, setAcciones] = useState(registro?.acciones ?? "");
-  const [resultado, setResultado] = useState(registro?.resultado ?? "");
-  const [marco, setMarco] = useState(registro?.marcoTeorico ?? "");
-  const [msg, setMsg] = useState<{ ok: boolean; texto: string; problemas?: string[] } | null>(null);
-  const [pendiente, iniciar] = useTransition();
-  const valores = { avance: avance === "" ? null : Number(avance), acciones, resultado, marcoTeorico: marco };
-  const problemas = validarRegistroProyecto(valores, reglas);
-  const rango = ({ min, max }: { min: number; max: number }) => (min && max ? `${min}–${max} palabras` : min ? `mín. ${min} palabras` : max ? `máx. ${max} palabras` : "sin límite de palabras");
-
-  const guardar = (enviar: boolean) =>
-    iniciar(async () => {
-      setMsg(null);
-      const r = await guardarRegistroPlan(datos.plan.propuesta.id, nodo.id, periodo, valores, enviar);
-      if (!r.success) return setMsg({ ok: false, texto: r.error, problemas: r.problemas });
-      setMsg({ ok: true, texto: enviar ? "Registro enviado al asesor." : "Borrador guardado." });
-      router.refresh();
-    });
-
-  const campo = "w-full p-3 rounded-lg border border-gray-300 text-sm bg-white disabled:bg-gray-50 disabled:text-gray-600";
-  return (
-    <div className="space-y-3">
-      {registro?.estado === "observado" && registro.comentarioAsesor && (
-        <div className="p-3 bg-amber-50 border border-amber-300 rounded-lg text-sm text-amber-950">
-          <strong className="block text-[11px] uppercase tracking-wide">Observación del asesor</strong>
-          {registro.comentarioAsesor}
-        </div>
-      )}
-      {reglas.avance && (
-        <label className="flex items-center gap-2 text-sm font-bold text-gray-700">
-          Avance de la actividad
-          <input type="number" min={0} max={100} value={avance} disabled={!editable} onChange={(e) => setAvance(e.target.value)}
-            className="w-20 h-9 border border-gray-300 rounded-md px-2 text-right disabled:bg-gray-50" aria-label={`Avance de ${nodo.codigo}`} />
-          %
-        </label>
-      )}
-      <label className="block text-sm font-bold text-gray-700">
-        Acciones realizadas <span className="font-normal text-xs text-gray-500">({rango(reglas.acciones)} · llevas {palabras(acciones)})</span>
-        <textarea rows={4} value={acciones} disabled={!editable} onChange={(e) => setAcciones(e.target.value)} className={`${campo} mt-1`}
-          placeholder="Describe cómo se ejecutó la actividad: fechas, inversiones realizadas y acciones." />
-      </label>
-      <label className="block text-sm font-bold text-gray-700">
-        Resultado obtenido <span className="font-normal text-xs text-gray-500">({rango(reglas.resultado)} · llevas {palabras(resultado)})</span>
-        <textarea rows={3} value={resultado} disabled={!editable} onChange={(e) => setResultado(e.target.value)} className={`${campo} mt-1`}
-          placeholder="Qué se obtuvo y cómo contribuye a la macroactividad y al objetivo." />
-      </label>
-      {reglas.marcoTeorico !== "no" && (
-        <label className="block text-sm font-bold text-gray-700">
-          Marco teórico {reglas.marcoTeorico === "opcional" && <span className="font-normal text-xs text-gray-500">(opcional: solo si hace falta contextualizar la actividad)</span>}
-          <textarea rows={2} value={marco} disabled={!editable} onChange={(e) => setMarco(e.target.value)} className={`${campo} mt-1`} />
-        </label>
-      )}
-      <div className="flex items-center justify-between gap-2 border border-dashed border-gray-300 rounded-lg px-3 py-2 text-xs text-gray-500">
-        <span>Anexos de evidencia (imágenes, documentos)</span>
-        <span className="text-indigo-700 font-bold">◷ Próximamente</span>
-      </div>
-      {msg && (
-        <div className={`text-sm rounded-lg px-3 py-2 border ${msg.ok ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"}`}>
-          {msg.texto}
-          {msg.problemas && <ul className="list-disc pl-5">{msg.problemas.map((p) => <li key={p}>{p}</li>)}</ul>}
-        </div>
-      )}
-      {editable && (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          {problemas.length > 0 && <span className="text-xs text-amber-800 mr-auto">{problemas[0]}</span>}
-          <button type="button" disabled={pendiente} onClick={() => guardar(false)} className="px-4 py-2 rounded-lg text-sm font-bold border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Guardar borrador</button>
-          <button type="button" disabled={pendiente || problemas.length > 0} onClick={() => guardar(true)} className="px-4 py-2 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white disabled:opacity-50">Enviar al asesor</button>
-        </div>
-      )}
-    </div>
-  );
+/** Enlace a la página de registro de una actividad, según el rol. */
+export function enlaceActividad(datos: DatosEjecucion, nodoId: string, periodo: number) {
+  const id = datos.plan.propuesta.id;
+  return datos.plan.rol === "asesor"
+    ? `/asesor/ejecucion/${id}/actividad?nodo=${encodeURIComponent(nodoId)}&periodo=${periodo}`
+    : `/egresado/ejecucion/actividad?id=${id}&nodo=${encodeURIComponent(nodoId)}&periodo=${periodo}`;
 }
 
-function RevisionAsesor({ datos, registro }: { datos: DatosEjecucion; registro: RegistroPlan }) {
-  const router = useRouter();
-  const [comentario, setComentario] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [pendiente, iniciar] = useTransition();
-  const revisar = (d: "aprobar" | "observar") =>
-    iniciar(async () => {
-      const r = await revisarRegistroPlan(datos.plan.propuesta.id, registro.id, d, comentario);
-      if (!r.success) return setMsg(r.error);
-      router.refresh();
-    });
-  return (
-    <div className="space-y-2 border-t border-gray-100 pt-3">
-      <textarea rows={2} value={comentario} onChange={(e) => setComentario(e.target.value)} aria-label="Observación para el integrante"
-        placeholder="Observación para el integrante (obligatoria si pides ajustes)" className="w-full p-2.5 rounded-lg border border-gray-300 text-sm" />
-      {msg && <p className="text-sm text-red-700">{msg}</p>}
-      <div className="flex justify-end gap-2">
-        <button type="button" disabled={pendiente} onClick={() => revisar("observar")} className="px-3.5 py-2 rounded-lg text-sm font-bold border border-amber-300 text-amber-800 bg-amber-50 disabled:opacity-50">Pedir ajustes</button>
-        <button type="button" disabled={pendiente} onClick={() => revisar("aprobar")} className="px-3.5 py-2 rounded-lg text-sm font-bold bg-emerald-600 text-white disabled:opacity-50">Aprobar registro</button>
-      </div>
-    </div>
-  );
+function Pastilla({ clase, children }: { clase: string; children: React.ReactNode }) {
+  return <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border whitespace-nowrap ${clase}`}>{children}</span>;
 }
+
+type Pestana = "actual" | "proximas" | "completadas" | "equipo" | "revisar";
 
 export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) {
-  const { plan, periodos, periodoActual, registros } = datos;
+  const { plan, periodos, periodoActual, registros, reglas } = datos;
   const arbol = plan.plan.arbol;
   const esAsesor = plan.rol === "asesor";
-  const [periodo, setPeriodo] = useState(periodoActual);
-  const [abierto, setAbierto] = useState<string | null>(null);
+  const [pestana, setPestana] = useState<Pestana>(esAsesor ? "revisar" : "actual");
+  const [periodoEquipo, setPeriodoEquipo] = useState(periodoActual);
 
   const resp = useMemo(() => responsables(arbol), [arbol]);
-  const actividades = useMemo(() => actividadesDelPeriodo(arbol, periodo, plan.columnas), [arbol, periodo, plan.columnas]);
-  const regDe = (nodoId: string) => registros.find((r) => r.nodoId === nodoId && r.periodo === periodo);
-  // Último avance registrado de cada actividad (de cualquier período, el más reciente con avance).
+  const regDe = (nodoId: string, periodo: number) => registros.find((r) => r.nodoId === nodoId && r.periodo === periodo);
+  const nombre = (id: number | null | undefined) => plan.equipo.find((i) => i.id === id)?.nombre ?? "";
+  // Avance acumulado: el último avance enviado de cada actividad; los niveles superiores promedian.
   const avance = useMemo(() => {
     const ultimo = new Map<string, { periodo: number; avance: number }>();
     for (const r of registros) {
@@ -158,157 +77,249 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
     }
     return avancePorNodo(arbol, new Map([...ultimo].map(([k, v]) => [k, v.avance])));
   }, [registros, arbol]);
-  const nombre = (id: number | null | undefined) => plan.equipo.find((i) => i.id === id)?.nombre ?? "";
-  const mias = actividades.filter((a) => resp.get(a.id) === plan.miId);
-  const p = periodos[periodo - 1];
 
-  const resumen = plan.equipo.map((i) => {
-    const suyas = actividades.filter((a) => resp.get(a.id) === i.id);
-    const est = suyas.map((a) => regDe(a.id)?.estado ?? "pendiente");
-    return { ...i, total: suyas.length, enviadas: est.filter((e) => e === "enviado" || e === "aprobado").length, aprobadas: est.filter((e) => e === "aprobado").length };
-  });
+  // Actividades (actividad + período) de todo el plan, para las pestañas.
+  const todas = useMemo(
+    () => periodos.flatMap((p) => actividadesDelPeriodo(arbol, p.numero, plan.columnas).map((a) => ({ a, periodo: p.numero }))),
+    [periodos, arbol, plan.columnas]
+  );
+  const mias = todas.filter((x) => resp.get(x.a.id) === plan.miId);
+  const estadoDe = (x: { a: NodoPlan; periodo: number }) => regDe(x.a.id, x.periodo)?.estado ?? "pendiente";
+  const actual = mias.filter((x) => x.periodo === periodoActual);
+  const proximas = mias.filter((x) => x.periodo > periodoActual);
+  const completadas = (esAsesor ? todas : mias).filter((x) => ["enviado", "aprobado"].includes(estadoDe(x)) && (esAsesor ? estadoDe(x) === "aprobado" : true));
+  const porRevisar = todas.filter((x) => estadoDe(x) === "enviado");
+  const equipo = todas.filter((x) => x.periodo === periodoEquipo);
+
+  const enviadasProyecto = todas.filter((x) => x.periodo <= periodoActual && ["enviado", "aprobado"].includes(estadoDe(x))).length;
+  const planificadasHastaHoy = todas.filter((x) => x.periodo <= periodoActual).length;
+  const avanceProyecto = avance.get(arbol.id) ?? 0;
+  const p = periodos[periodoActual - 1];
+
+  const pestanas: { id: Pestana; label: string; total: number }[] = esAsesor
+    ? [
+        { id: "revisar", label: "Por revisar", total: porRevisar.length },
+        { id: "equipo", label: "Equipo por período", total: equipo.length },
+        { id: "completadas", label: "Aprobadas", total: completadas.length },
+      ]
+    : [
+        { id: "actual", label: "Período actual", total: actual.length },
+        { id: "proximas", label: "Próximas", total: proximas.length },
+        { id: "completadas", label: "Completadas", total: completadas.length },
+        { id: "equipo", label: "Equipo", total: equipo.length },
+      ];
+
+  const filaActividad = (x: { a: NodoPlan; periodo: number }) => {
+    const r = regDe(x.a.id, x.periodo);
+    const estado = r?.estado ?? "pendiente";
+    const info = ESTADO_ACTIVIDAD[estado] ?? ESTADO_ACTIVIDAD.pendiente;
+    const indicadores = [
+      ...(reglas.avance ? [{ label: `Avance ${r?.avance ?? 0}%`, ok: r?.avance != null }] : []),
+      { label: `Acciones (${palabras(r?.acciones ?? "")} palabras)`, ok: !!r?.acciones.trim() },
+      { label: `Resultado (${palabras(r?.resultado ?? "")} palabras)`, ok: !!r?.resultado.trim() },
+      ...(reglas.marcoTeorico === "obligatorio" ? [{ label: "Marco teórico", ok: !!r?.marcoTeorico.trim() }] : []),
+    ];
+    const completos = indicadores.filter((i) => i.ok).length;
+    const propia = resp.get(x.a.id) === plan.miId;
+    const accion = esAsesor ? (estado === "enviado" ? "Revisar" : "Ver") : propia ? info.accion : "Ver";
+    const bloqueada = !esAsesor && x.periodo > periodoActual;
+    return (
+      <li key={`${x.a.id}-${x.periodo}`} className="p-4 flex flex-col md:flex-row md:items-center gap-3">
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-mono font-bold text-slate-500">{x.a.codigo}</span>
+            <Pastilla clase={bloqueada ? "bg-slate-50 text-slate-400 border-slate-200" : info.badge}>{bloqueada ? "Bloqueada" : info.label}</Pastilla>
+            <span className="text-[10px] font-bold text-slate-400">Período {x.periodo}</span>
+            {(esAsesor || !propia) && <span className="text-[10px] font-bold text-slate-500">· {nombre(resp.get(x.a.id))}</span>}
+          </div>
+          <p className={`text-xs font-bold ${bloqueada ? "text-slate-400" : "text-slate-800"}`}>{x.a.titulo || "Actividad sin título"}</p>
+          <p className="text-[11px] text-slate-500 font-semibold">{rutaEnPlan(arbol, x.a.id).slice(0, -1).map((n) => n.titulo).join(" › ")}</p>
+          {!bloqueada && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {indicadores.map((i) => (
+                <span key={i.label} className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${i.ok ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-white text-slate-400 border-slate-200"}`}>
+                  {i.label}
+                </span>
+              ))}
+              <span className="text-[10px] text-slate-400 font-semibold">{completos} de {indicadores.length} apartados completos</span>
+            </div>
+          )}
+          {r?.comentarioAsesor && estado === "observado" && <p className="text-[11px] text-amber-800 font-semibold">Observación del asesor: {r.comentarioAsesor}</p>}
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {r?.enviadoEn && <span className="text-[10px] text-slate-400 font-semibold">Enviada: {new Date(r.enviadoEn).toLocaleDateString("es-SV", { day: "numeric", month: "short", year: "numeric" })}</span>}
+          {bloqueada ? (
+            <span className="text-[11px] text-slate-400 font-semibold">Se habilita el {fechaCorta(periodos[x.periodo - 1]?.desde ?? null)}</span>
+          ) : propia || ["enviado", "observado", "aprobado"].includes(estado) ? (
+            <Link href={enlaceActividad(datos, x.a.id, x.periodo)}
+              className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${accion === "Ver" ? "border border-slate-200 text-slate-700 hover:bg-slate-100" : "bg-unicaes hover:bg-unicaes-hover text-white"}`}>
+              {accion}
+            </Link>
+          ) : (
+            <span className="text-[11px] text-slate-400 font-semibold">Sin registro</span>
+          )}
+        </div>
+      </li>
+    );
+  };
+
+  const lista = pestana === "actual" ? actual : pestana === "proximas" ? proximas : pestana === "completadas" ? completadas : pestana === "revisar" ? porRevisar : equipo;
+  const vacio: Record<Pestana, string> = {
+    actual: "No tiene actividades planificadas en el período actual.",
+    proximas: "No tiene actividades en períodos posteriores.",
+    completadas: esAsesor ? "Todavía no hay actividades aprobadas." : "Todavía no ha enviado actividades.",
+    equipo: "No hay actividades planificadas en este período.",
+    revisar: "No hay registros pendientes de revisión.",
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="bg-white border border-border rounded-xl p-5 shadow-xs flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-xl font-bold text-card-dark">Ejecución del proyecto</h1>
-          <p className="text-sm text-muted mt-1">Propuesta #{plan.propuesta.numero} · {plan.propuesta.titulo}</p>
-          <p className="text-xs text-muted mt-1">
-            {esAsesor ? "Revisa los registros de cada integrante: el sistema muestra quién hizo qué." : "Registra las actividades de tu plan individual planificadas en el período."}
-            {" "}Avance del proyecto: <strong>{avance.get(arbol.id) ?? 0}%</strong>.
+          <h1 className="text-2xl font-extrabold text-slate-900">Ejecución del proyecto</h1>
+          <p className="text-xs text-slate-500 font-medium mt-1">
+            Proyecto como Trabajo de Graduación · Propuesta #{plan.propuesta.numero} · {plan.propuesta.titulo}
           </p>
         </div>
-        <label className="text-[11px] font-bold text-gray-500 uppercase">
-          Período{" "}
-          <select value={periodo} onChange={(e) => { setPeriodo(Number(e.target.value)); setAbierto(null); }} className="ml-1 h-9 border border-gray-300 rounded-md px-2 text-sm normal-case font-normal">
-            {periodos.map((x) => (
-              <option key={x.numero} value={x.numero} disabled={!esAsesor && x.numero > periodoActual}>
-                {x.numero}{x.desde ? ` · ${fecha(x.desde)}–${fecha(x.hasta)}` : ""}{x.numero > periodoActual ? " (aún no)" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex flex-wrap gap-2">
+          <Link href={esAsesor ? `/asesor/plan/${plan.propuesta.id}` : "/egresado/plan"}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs transition-colors w-fit">
+            Plan de trabajo
+          </Link>
+          <Link href={esAsesor ? `/asesor/propuestas/${plan.propuesta.id}` : "/egresado"}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs transition-colors shadow-2xs w-fit">
+            {esAsesor ? "Volver a la propuesta" : "Volver al panel principal"}
+          </Link>
+        </div>
       </div>
 
-      <section className="grid sm:grid-cols-3 gap-2">
-        {resumen.map((i) => (
-          <div key={i.id} className={`bg-white border rounded-xl px-4 py-3 text-xs text-gray-600 ${i.id === plan.miId ? "border-brand-red" : "border-border"}`}>
-            <div className="font-bold text-gray-800 text-sm">{i.nombre}{i.lider ? " · líder" : ""}</div>
-            Período {periodo}: {i.total} actividades · {i.enviadas} enviadas · {i.aprobadas} aprobadas
+      {/* Avance del proyecto (en proyecto no hay métrica de páginas: se mide por el avance del plan) */}
+      <div className={`${tarjeta} p-5 space-y-4`}>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-extrabold text-slate-900">Avance del proyecto</h2>
+            <p className="mt-1">
+              <span className="text-2xl font-extrabold text-slate-900">{avanceProyecto}%</span>
+              <span className="text-xs font-bold text-slate-500"> del objetivo general</span>
+              <span className="text-[11px] font-semibold text-slate-400"> · período {periodoActual} de {periodos.length}{p?.desde ? ` (${fechaCorta(p.desde)} al ${fechaCorta(p.hasta)})` : ""}</span>
+            </p>
           </div>
-        ))}
-      </section>
-
-      {!esAsesor && (
-        <section className="space-y-2">
-          <h2 className="text-sm font-bold text-card-dark">Mis actividades del período {periodo}{p?.desde ? ` (${fecha(p.desde)} al ${fecha(p.hasta)})` : ""}</h2>
-          {mias.length === 0 && <p className="text-sm text-muted bg-white border border-border rounded-xl p-4">No tienes actividades planificadas en este período.</p>}
-          {mias.map((a) => {
-            const r = regDe(a.id);
-            const editable = !r || r.estado === "borrador" || r.estado === "observado";
+          <Pastilla clase="bg-slate-50 text-slate-700 border-slate-300">{enviadasProyecto} de {planificadasHastaHoy} actividades enviadas a la fecha</Pastilla>
+        </div>
+        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden" aria-label="Avance del objetivo general">
+          <div className="h-full bg-unicaes rounded-full" style={{ width: `${avanceProyecto}%` }} />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {plan.equipo.map((i) => {
+            const suyas = todas.filter((x) => resp.get(x.a.id) === i.id && x.periodo <= periodoActual);
+            const env = suyas.filter((x) => ["enviado", "aprobado"].includes(estadoDe(x))).length;
+            const apr = suyas.filter((x) => estadoDe(x) === "aprobado").length;
             return (
-              <div key={a.id} className="bg-white border border-border rounded-xl shadow-xs">
-                <button type="button" onClick={() => setAbierto(abierto === a.id ? null : a.id)} aria-expanded={abierto === a.id}
-                  className="w-full text-left px-4 py-3 flex flex-wrap items-center gap-2 justify-between">
-                  <span className="min-w-0">
-                    <span className="font-mono text-xs text-gray-500 mr-2">{a.codigo}</span>
-                    <span className="font-bold text-sm text-gray-800">{a.titulo}</span>
-                    <span className="block text-[11px] text-gray-500">{ruta(arbol, a.id).slice(0, -1).map((n) => n.titulo).join(" › ")}</span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500">Avance {avance.get(a.id) ?? 0}%</span>
-                    <Insignia estado={r?.estado ?? "pendiente"} />
-                  </span>
-                </button>
-                {abierto === a.id && (
-                  <div className="px-4 pb-4">
-                    <FormRegistro key={`${a.id}-${periodo}-${r?.estado ?? "nuevo"}`} datos={datos} nodo={a} periodo={periodo} registro={r} editable={editable} />
-                  </div>
-                )}
+              <div key={i.id} className={`rounded-xl border px-4 py-3 space-y-2 ${i.id === plan.miId ? "border-unicaes bg-red-50/30" : "border-slate-200 bg-slate-50"}`}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs font-extrabold text-slate-800">{i.nombre}{i.lider ? " · líder" : ""}</span>
+                  <span className="text-[11px] font-bold text-slate-600">{env} de {suyas.length}</span>
+                </div>
+                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${suyas.length ? Math.round((env / suyas.length) * 100) : 0}%` }} />
+                </div>
+                <p className="text-[10px] text-slate-500 font-semibold">{apr} aprobada{apr === 1 ? "" : "s"} por el asesor</p>
               </div>
             );
           })}
-        </section>
-      )}
-
-      <section className="bg-white border border-border rounded-xl shadow-xs overflow-hidden">
-        <h2 className="text-sm font-bold text-card-dark px-4 pt-4 pb-2">Equipo · período {periodo}</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[40rem]">
-            <thead className="bg-gray-50 text-[11px] uppercase text-gray-500">
-              <tr><th className="text-left px-4 py-2 w-20">ID</th><th className="text-left px-2 py-2">Actividad</th><th className="text-left px-2 py-2">Responsable</th><th className="text-right px-2 py-2">Avance</th><th className="text-left px-2 py-2">Estado</th><th className="w-20" /></tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {actividades.map((a) => {
-                const r = regDe(a.id);
-                const ver = `ver-${a.id}`;
-                return (
-                  <FilaEquipo key={a.id} a={a} r={r} nombre={nombre(resp.get(a.id))} avance={avance.get(a.id) ?? 0}
-                    abierto={abierto === ver} onToggle={() => setAbierto(abierto === ver ? null : ver)} datos={datos} esAsesor={esAsesor} />
-                );
-              })}
-              {actividades.length === 0 && <tr><td colSpan={6} className="px-4 py-4 text-muted">No hay actividades planificadas en este período.</td></tr>}
-            </tbody>
-          </table>
         </div>
-        <p className="text-[11px] text-muted px-4 py-2 border-t border-gray-100">
-          Objetivos: {aplanar(arbol).filter((n) => n.nivel === 2).map((o) => `${o.codigo} ${avance.get(o.id) ?? 0}%`).join(" · ")}
-        </p>
-      </section>
+        <div className="flex flex-wrap gap-1.5">
+          {arbol.hijos.map((o) => (
+            <span key={o.id} title={o.titulo} className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${(avance.get(o.id) ?? 0) >= 100 ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-white text-slate-600 border-slate-200"}`}>
+              {o.codigo} · {avance.get(o.id) ?? 0}%
+            </span>
+          ))}
+        </div>
+        <details className="text-[11px] text-slate-500 font-medium">
+          <summary className="cursor-pointer w-fit font-bold text-slate-600 hover:text-slate-900 select-none">Más información</summary>
+          <p className="mt-2 leading-relaxed">
+            Cada actividad toma el último avance que registró su responsable; cada objetivo y el objetivo general muestran el promedio
+            de lo que contienen. {reglas.marcoTeorico === "opcional" ? "El marco teórico es opcional: úselo solo si hace falta contextualizar una actividad. " : ""}
+            En proyecto no se exige un mínimo de páginas.
+          </p>
+        </details>
+      </div>
 
-      <InformesDelPeriodo key={periodo} datos={datos} periodo={periodo} />
+      {/* Actividades */}
+      <div className={tarjeta}>
+        <div className="px-5 pt-5 flex flex-col md:flex-row md:items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-extrabold text-slate-900">Actividades del plan de trabajo</h2>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5 max-w-2xl">
+              {esAsesor
+                ? "Revise los registros de cada integrante. Cada actividad indica quién es su responsable."
+                : "Registre las actividades de su plan individual planificadas en el período y envíelas a su asesor designado. Cada integrante registra solo lo que está a su cargo."}
+            </p>
+          </div>
+          {pestana === "equipo" && (
+            <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 shrink-0">
+              Período{" "}
+              <select value={periodoEquipo} onChange={(e) => setPeriodoEquipo(Number(e.target.value))}
+                className="ml-1 h-8 border border-slate-300 rounded-lg px-2 text-xs normal-case font-semibold text-slate-700">
+                {periodos.map((x) => <option key={x.numero} value={x.numero}>{x.numero}{x.desde ? ` · ${fechaCorta(x.desde)}–${fechaCorta(x.hasta)}` : ""}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+
+        <div className="flex gap-1 px-5 mt-4 border-b border-slate-200 overflow-x-auto" role="tablist">
+          {pestanas.map((t) => (
+            <button key={t.id} type="button" role="tab" aria-selected={pestana === t.id} onClick={() => setPestana(t.id)}
+              className={`px-4 py-2.5 text-xs font-bold border-b-2 -mb-px transition-colors whitespace-nowrap ${pestana === t.id ? "border-unicaes text-unicaes" : "border-transparent text-slate-500 hover:text-slate-800"}`}>
+              {t.label}
+              <span className={`ml-2 px-1.5 py-0.5 rounded-md text-[10px] ${pestana === t.id ? "bg-red-50 text-unicaes" : "bg-slate-100 text-slate-500"}`}>{t.total}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="p-5">
+          {pestana === "actual" && actual.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900">
+                  Período {periodoActual}{p?.desde && <span className="font-semibold text-slate-500"> · {fechaLarga(p.desde)} al {fechaLarga(p.hasta)}</span>}
+                </h3>
+                <p className="text-[11px] text-slate-500 font-semibold">
+                  {actual.filter((x) => ["enviado", "aprobado"].includes(estadoDe(x))).length} de {actual.length} actividades enviadas en este período
+                </p>
+              </div>
+              <div className="w-full sm:w-48 h-2 bg-slate-100 rounded-full overflow-hidden">
+                <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.round((actual.filter((x) => ["enviado", "aprobado"].includes(estadoDe(x))).length / actual.length) * 100)}%` }} />
+              </div>
+            </div>
+          )}
+          {lista.length === 0 ? (
+            <p className="text-xs text-slate-500 font-semibold">{vacio[pestana]}</p>
+          ) : (
+            <ul className={`divide-y divide-slate-100 border rounded-xl ${pestana === "proximas" ? "border-dashed border-slate-300" : "border-slate-200"}`}>{lista.map(filaActividad)}</ul>
+          )}
+        </div>
+      </div>
+
+      <InformesDelPeriodo datos={datos} />
     </div>
   );
 }
 
-function FilaEquipo({ a, r, nombre, avance, abierto, onToggle, datos, esAsesor }: {
-  a: NodoPlan; r: RegistroPlan | undefined; nombre: string; avance: number; abierto: boolean; onToggle: () => void; datos: DatosEjecucion; esAsesor: boolean;
-}) {
-  const visible = r && r.estado !== "borrador";
-  return (
-    <>
-      <tr>
-        <td className="px-4 py-2 font-mono text-xs text-gray-500">{a.codigo}</td>
-        <td className="px-2 py-2 text-gray-800">{a.titulo}</td>
-        <td className="px-2 py-2 text-gray-600">{nombre}</td>
-        <td className="px-2 py-2 text-right tabular-nums">{avance}%</td>
-        <td className="px-2 py-2"><Insignia estado={r?.estado ?? "pendiente"} /></td>
-        <td className="px-2 py-2 text-right">
-          {visible && <button type="button" onClick={onToggle} aria-expanded={abierto} className="text-xs font-bold text-brand-red hover:underline">{abierto ? "Cerrar" : esAsesor && r.estado === "enviado" ? "Revisar" : "Ver"}</button>}
-        </td>
-      </tr>
-      {abierto && visible && (
-        <tr>
-          <td colSpan={6} className="px-4 pb-4 bg-gray-50/60">
-            <dl className="text-sm text-gray-700 space-y-2 pt-2">
-              <div><dt className="text-[11px] font-bold text-gray-500 uppercase">Avance</dt><dd>{r.avance ?? "—"}%</dd></div>
-              <div><dt className="text-[11px] font-bold text-gray-500 uppercase">Acciones realizadas</dt><dd className="whitespace-pre-wrap">{r.acciones}</dd></div>
-              <div><dt className="text-[11px] font-bold text-gray-500 uppercase">Resultado</dt><dd className="whitespace-pre-wrap">{r.resultado}</dd></div>
-              {r.marcoTeorico && <div><dt className="text-[11px] font-bold text-gray-500 uppercase">Marco teórico</dt><dd className="whitespace-pre-wrap">{r.marcoTeorico}</dd></div>}
-              {r.comentarioAsesor && <div><dt className="text-[11px] font-bold text-gray-500 uppercase">Observación del asesor</dt><dd>{r.comentarioAsesor}</dd></div>}
-            </dl>
-            {esAsesor && r.estado === "enviado" && <RevisionAsesor datos={datos} registro={r} />}
-          </td>
-        </tr>
-      )}
-    </>
-  );
-}
-
-/** Informes del período: el individual de cada integrante y el general del equipo (entrega P5). */
-export function InformesDelPeriodo({ datos, periodo }: { datos: DatosEjecucion; periodo: number }) {
+/** Informes del período: una tarjeta por período, como en pasantía, y las acciones del período elegido (P5). */
+export function InformesDelPeriodo({ datos }: { datos: DatosEjecucion }) {
   const router = useRouter();
-  const { plan, informes, informe: modo } = datos;
+  const { plan, informes, informe: modo, periodos, periodoActual } = datos;
+  const [periodo, setPeriodo] = useState(periodoActual);
   const [comentario, setComentario] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
   const [pendiente, iniciar] = useTransition();
   const esAsesor = plan.rol === "asesor";
-  const enlace = (de: string) =>
-    esAsesor ? `/asesor/ejecucion/${plan.propuesta.id}/informe?periodo=${periodo}&de=${de}` : `/egresado/ejecucion/informe?id=${plan.propuesta.id}&periodo=${periodo}&de=${de}`;
-  const de = (id: number | null) => informes.find((i) => i.periodo === periodo && i.egresadoId === id);
-  const general = de(null);
-  const mio = de(plan.miId);
+  const enlace = (de: string, n: number) =>
+    esAsesor ? `/asesor/ejecucion/${plan.propuesta.id}/informe?periodo=${n}&de=${de}` : `/egresado/ejecucion/informe?id=${plan.propuesta.id}&periodo=${n}&de=${de}`;
+  const de = (id: number | null, n: number) => informes.find((i) => i.periodo === n && i.egresadoId === id);
+  const general = de(null, periodo);
+  const mio = de(plan.miId, periodo);
   const ejecutar = (accion: () => Promise<{ success: boolean; error?: string }>, ok: string) =>
     iniciar(async () => {
       setMsg(null);
@@ -317,56 +328,115 @@ export function InformesDelPeriodo({ datos, periodo }: { datos: DatosEjecucion; 
       setMsg({ ok: true, texto: ok });
       router.refresh();
     });
-  const estadoTexto = (e?: { estado: string }) => (e ? (ESTADO[e.estado]?.texto ?? e.estado) : "Sin entregar");
 
   return (
-    <section className="bg-white border border-border rounded-xl shadow-xs p-4 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-bold text-card-dark">Informes del período {periodo}</h2>
-        <span className="text-[11px] text-muted">{modo === "individual_y_general" ? "Cada integrante entrega su informe individual; con ellos el líder envía el informe general." : "Un informe por trabajo, que envía el líder."}</span>
+    <div className={`${tarjeta} p-5 space-y-4`}>
+      <div>
+        <h2 className="text-sm font-extrabold text-slate-900">Informes del período</h2>
+        <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+          Cada informe se compone automáticamente con las actividades registradas.{" "}
+          {modo === "individual_y_general"
+            ? "Cada integrante entrega su informe individual y, con todos, el líder envía el informe general a su asesor designado. La fecha de entrega es el último día del período."
+            : "El líder envía el informe del período a su asesor designado. La fecha de entrega es el último día del período."}
+        </p>
       </div>
-      <table className="w-full text-sm">
-        <tbody className="divide-y divide-gray-100">
-          {modo === "individual_y_general" && plan.equipo.map((i) => (
-            <tr key={i.id}>
-              <td className="py-2 text-gray-800">Informe individual · {i.nombre}</td>
-              <td className="py-2"><span className="text-xs font-bold text-gray-600">{estadoTexto(de(i.id))}</span></td>
-              <td className="py-2 text-right"><a href={enlace(String(i.id))} className="text-xs font-bold text-brand-red hover:underline">Ver informe</a></td>
-            </tr>
-          ))}
-          <tr>
-            <td className="py-2 font-bold text-gray-800">Informe general del período</td>
-            <td className="py-2"><span className="text-xs font-bold text-gray-600">{estadoTexto(general)}</span></td>
-            <td className="py-2 text-right"><a href={enlace("general")} className="text-xs font-bold text-brand-red hover:underline">Ver informe</a></td>
-          </tr>
-        </tbody>
-      </table>
-      {general?.estado === "observado" && general.comentarioAsesor && (
-        <p className="text-sm bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 text-amber-950"><strong>Observación del asesor:</strong> {general.comentarioAsesor}</p>
-      )}
-      {msg && <p className={`text-sm rounded-lg px-3 py-2 border ${msg.ok ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"}`}>{msg.texto}</p>}
-      <div className="flex flex-wrap justify-end gap-2">
-        {!esAsesor && modo === "individual_y_general" && (!mio || mio.estado === "observado") && (!general || general.estado === "observado") && (
-          <button type="button" disabled={pendiente} onClick={() => ejecutar(() => enviarInformeIndividual(plan.propuesta.id, periodo), "Entregaste tu informe individual.")}
-            className="px-4 py-2 rounded-lg text-sm font-bold border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-50">Entregar mi informe individual</button>
-        )}
-        {plan.rol === "lider" && (!general || general.estado === "observado") && (
-          <button type="button" disabled={pendiente} onClick={() => { if (window.confirm("¿Enviar al asesor el informe general del período?")) ejecutar(() => enviarInformeGeneral(plan.propuesta.id, periodo), "Informe general enviado al asesor."); }}
-            className="px-4 py-2 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white disabled:opacity-50">Enviar informe general</button>
-        )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {periodos.map((x) => {
+          const g = de(null, x.numero);
+          const est = ESTADO_INFORME[g?.estado ?? "pendiente"];
+          const abierto = x.numero <= periodoActual;
+          const individuales = plan.equipo.filter((i) => de(i.id, x.numero)).length;
+          return (
+            <div key={x.numero}
+              className={`p-4 bg-slate-50 border rounded-xl flex flex-col gap-2 ${x.numero === periodo ? "border-unicaes ring-1 ring-unicaes/30" : "border-slate-200"} ${abierto ? "" : "opacity-60"}`}>
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-xs font-extrabold text-slate-800">Informe {x.numero}</span>
+                <Pastilla clase={est.badge}>{est.label}</Pastilla>
+              </div>
+              <div className="text-[11px] text-slate-500 font-semibold space-y-0.5">
+                <p>Entrega: {fechaLarga(x.hasta)}</p>
+                {modo === "individual_y_general" && abierto && <p>Individuales: {individuales} de {plan.equipo.length}</p>}
+                {!abierto && <p>Se habilita el {fechaCorta(x.desde)}</p>}
+              </div>
+              <div className="mt-auto flex flex-col gap-1.5 pt-1">
+                <button type="button" disabled={!abierto} onClick={() => { setPeriodo(x.numero); setMsg(null); }}
+                  className="text-center px-3 py-1.5 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-[11px] font-bold disabled:opacity-40">
+                  {x.numero === periodo ? "Seleccionado" : "Gestionar"}
+                </button>
+                <a href={enlace("general", x.numero)} aria-disabled={!abierto}
+                  className={`text-center px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 hover:bg-white text-[11px] font-bold ${abierto ? "" : "pointer-events-none"}`}>
+                  Ver documento
+                </a>
+              </div>
+            </div>
+          );
+        })}
       </div>
-      {esAsesor && general?.estado === "enviado" && (
-        <div className="space-y-2 border-t border-gray-100 pt-3">
-          <textarea rows={2} value={comentario} onChange={(e) => setComentario(e.target.value)} aria-label="Observación del informe general"
-            placeholder="Observaciones para el equipo (obligatorias si pides ajustes)" className="w-full p-2.5 rounded-lg border border-gray-300 text-sm" />
-          <div className="flex justify-end gap-2">
-            <button type="button" disabled={pendiente} onClick={() => ejecutar(() => revisarInformeGeneral(plan.propuesta.id, periodo, "observar", comentario), "Observaciones enviadas al equipo.")}
-              className="px-3.5 py-2 rounded-lg text-sm font-bold border border-amber-300 text-amber-800 bg-amber-50 disabled:opacity-50">Pedir ajustes</button>
-            <button type="button" disabled={pendiente} onClick={() => ejecutar(() => revisarInformeGeneral(plan.propuesta.id, periodo, "aprobar", comentario), "Informe general aprobado.")}
-              className="px-3.5 py-2 rounded-lg text-sm font-bold bg-emerald-600 text-white disabled:opacity-50">Aprobar informe general</button>
+
+      <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+        <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">Informe {periodo}: entregas del equipo</h3>
+        <ul className="divide-y divide-slate-100 text-xs">
+          {modo === "individual_y_general" && plan.equipo.map((i) => {
+            const e = de(i.id, periodo);
+            return (
+              <li key={i.id} className="py-2 flex flex-wrap items-center justify-between gap-2">
+                <span className="font-semibold text-slate-700">Informe individual · {i.nombre}</span>
+                <span className="flex items-center gap-3">
+                  <Pastilla clase={ESTADO_INFORME[e?.estado ?? "pendiente"].badge}>{ESTADO_INFORME[e?.estado ?? "pendiente"].label}</Pastilla>
+                  <a href={enlace(String(i.id), periodo)} className="text-[11px] font-bold text-unicaes hover:underline">Ver documento</a>
+                </span>
+              </li>
+            );
+          })}
+          <li className="py-2 flex flex-wrap items-center justify-between gap-2">
+            <span className="font-extrabold text-slate-800">Informe general del período</span>
+            <span className="flex items-center gap-3">
+              <Pastilla clase={ESTADO_INFORME[general?.estado ?? "pendiente"].badge}>{ESTADO_INFORME[general?.estado ?? "pendiente"].label}</Pastilla>
+              <a href={enlace("general", periodo)} className="text-[11px] font-bold text-unicaes hover:underline">Ver documento</a>
+            </span>
+          </li>
+        </ul>
+        {general?.estado === "observado" && general.comentarioAsesor && (
+          <div className="p-3 bg-white border-2 border-amber-300 rounded-xl">
+            <p className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wide">Observaciones del asesor</p>
+            <p className="text-xs text-slate-700 font-medium">{general.comentarioAsesor}</p>
           </div>
+        )}
+        {msg && <div className={`p-3 rounded-xl border text-xs font-bold ${msg.ok ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"}`}>{msg.texto}</div>}
+        <div className="flex flex-wrap justify-end gap-2">
+          {!esAsesor && modo === "individual_y_general" && (!mio || mio.estado === "observado") && (!general || general.estado === "observado") && (
+            <button type="button" disabled={pendiente} onClick={() => ejecutar(() => enviarInformeIndividual(plan.propuesta.id, periodo), "Entregó su informe individual.")}
+              className="px-5 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs disabled:opacity-50">
+              Entregar mi informe individual
+            </button>
+          )}
+          {plan.rol === "lider" && (!general || general.estado === "observado") && (
+            <button type="button" disabled={pendiente}
+              onClick={() => { if (window.confirm("¿Enviar al asesor el informe general del período?")) ejecutar(() => enviarInformeGeneral(plan.propuesta.id, periodo), "Informe general enviado al asesor."); }}
+              className="px-5 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs shadow-md disabled:opacity-50">
+              Enviar informe general
+            </button>
+          )}
         </div>
-      )}
-    </section>
+        {esAsesor && general?.estado === "enviado" && (
+          <div className="space-y-2 border-t border-slate-100 pt-3">
+            <textarea rows={2} value={comentario} onChange={(e) => setComentario(e.target.value)} aria-label="Observación del informe general"
+              placeholder="Observaciones para el equipo (obligatorias si solicita correcciones)"
+              className="w-full bg-white border border-border rounded-lg px-3 py-2 text-xs font-medium focus:ring-1 focus:ring-unicaes outline-none resize-none" />
+            <div className="flex justify-end gap-2">
+              <button type="button" disabled={pendiente} onClick={() => ejecutar(() => revisarInformeGeneral(plan.propuesta.id, periodo, "observar", comentario), "Observaciones enviadas al equipo.")}
+                className="px-5 py-2.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 font-extrabold text-xs disabled:opacity-50">
+                Solicitar correcciones
+              </button>
+              <button type="button" disabled={pendiente} onClick={() => ejecutar(() => revisarInformeGeneral(plan.propuesta.id, periodo, "aprobar", comentario), "Informe general aprobado.")}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs disabled:opacity-50">
+                Aprobar informe general
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
