@@ -16,6 +16,11 @@ const CAMPOS_EJECUCION: [string, (e: EtapaEjecucion) => ValorParametro | null][]
   ["Registro", (e) => (opcionesRegistro(e).modo === "actividad" ? "por actividad del plan" : "por subperíodo")],
   ["Marco teórico", (e) => opcionesRegistro(e).marcoTeorico],
   ["Avance por actividad", (e) => opcionesRegistro(e).avance],
+  ["Evidencias por actividad", (e) => {
+    if (opcionesRegistro(e).modo !== "actividad") return null;
+    const { min, max } = opcionesRegistro(e).evidencias;
+    return max === 0 ? "no se piden" : min > 0 ? `${min}–${max}` : `hasta ${max}`;
+  }],
   ["Informe de cada período", (e) => (opcionesRegistro(e).informe === "individual_y_general" ? "individual por integrante y general" : "uno por trabajo")],
   ["Días para revisar un subperíodo", (e) => e.diasRevision],
   ["Subperíodos que se pueden adelantar", (e) => e.subperiodosAdelantables],

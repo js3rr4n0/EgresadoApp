@@ -54,8 +54,9 @@ export function ejecucionNueva(id: string, modalidad: Modalidad, n: number, prim
       conclusion: { min: 0, max: 0 },
       imagenes: 0,
       modo: "actividad",
-      marcoTeorico: "opcional",
+      marcoTeorico: "no",
       avance: true,
+      evidencias: { min: 1, max: 5 },
     },
     informe: {
       paginasMinimas: 0,

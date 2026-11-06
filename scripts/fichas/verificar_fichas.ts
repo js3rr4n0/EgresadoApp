@@ -12,8 +12,8 @@ import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
 import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
 import { ejecucionNueva, planNuevo } from "../../src/lib/fichas/plantillas";
-import { armarInformePeriodo } from "../../src/lib/fichas/informePeriodo";
-import { actividadesDelPeriodo, avancePorNodo, validarRegistroProyecto, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
+import { responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
 let fallas = 0;
 function comprobar(descripcion: string, ok: boolean, detalle = "") {
@@ -131,7 +131,7 @@ function proyectoCompleto(): DefinicionFicha {
   comprobar("La ficha de proyecto completa tiene la forma esperada", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
   const et = ejec(d);
   const op = opcionesRegistro(et);
-  comprobar("La ejecución de proyecto no aplica métrica", et.informe.paginasMinimas === 0 && et.registro.imagenes === 0 && op.marcoTeorico === "opcional");
+  comprobar("La ejecución de proyecto no aplica métrica", et.informe.paginasMinimas === 0 && et.registro.imagenes === 0 && op.marcoTeorico === "no");
   comprobar("La ejecución de proyecto registra por actividad e informa por integrante", op.modo === "actividad" && op.informe === "individual_y_general");
   comprobar("Las versiones guardadas antes se leen como pasantía", opcionesRegistro(ejec(definicionBase("pasantia"))).modo === "subperiodo");
 }
@@ -246,6 +246,53 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   comprobar("Los informes individuales juntos tienen las actividades del general", individuales.reduce((a, i) => a + i.filas.filter((f) => f.nivel >= 4).length, 0) === actsGeneral);
   const borrador = armarInformePeriodo({ arbol: raiz, columnas, periodo: 1, registros: [{ ...registros[0], estado: "borrador" }], integrante: null });
   comprobar("Un borrador no cuenta en el informe", borrador.totalPeriodo === 0 && borrador.sinRegistro === delP1.length);
+}
+
+// 10. Arrastre (reunión 6-nov): lo que queda incompleto en un período pasa al siguiente
+{
+  const columnas = [{ periodo: 1 }, { periodo: 2 }, { periodo: 3 }];
+  const hoja = (id: string, montos: number[]): NodoPlan => ({ id, codigo: "", nivel: 4, titulo: id, responsable: null, montos, hijos: [] });
+  const raiz = numerar({ id: "og", codigo: "", nivel: 1, titulo: "OG", responsable: null, montos: [], hijos: [
+    { id: "oe", codigo: "", nivel: 2, titulo: "OE", responsable: 11, montos: [], hijos: [
+      { id: "m", codigo: "", nivel: 3, titulo: "M", responsable: null, montos: [], hijos: [hoja("a", [10, 0, 0]), hoja("b", [10, 0, 0]), hoja("c", [0, 10, 0])] },
+    ] },
+  ] });
+  const regs = [
+    { nodoId: "a", periodo: 1, avance: 70, estado: "aprobado" },
+    { nodoId: "b", periodo: 1, avance: 100, estado: "aprobado" },
+  ];
+  const ids = (p: number, r: typeof regs | null) => actividadesDelPeriodo(raiz, p, columnas, r).map((n) => n.id).sort().join(",");
+  comprobar("Sin registros, el período solo tiene lo planificado", ids(2, null) === "c");
+  comprobar("Una actividad al 70 % pasa al período siguiente; una al 100 % no", ids(2, regs) === "a,c", ids(2, regs));
+  comprobar("El arrastre dice de dónde viene y con cuánto", JSON.stringify(arrastradasAlPeriodo(raiz, 2, columnas, regs).get("a")) === JSON.stringify({ desde: 1, avance: 70 }));
+  comprobar("Si se completa en el período 2, ya no pasa al 3", ids(3, [...regs, { nodoId: "a", periodo: 2, avance: 100, estado: "enviado" }]) === "c");
+  comprobar("Un borrador no corta el arrastre", ids(3, [...regs, { nodoId: "a", periodo: 2, avance: 100, estado: "borrador" }]).includes("a"));
+  comprobar("Lo planificado después no se arrastra antes de tiempo", !ids(1, regs).includes("c"));
+  const reg2 = (n: string, p: number, av: number, e: string) => ({ nodoId: n, periodo: p, egresadoId: 11, avance: av, acciones: "x", resultado: "y", marcoTeorico: "", estado: e });
+  const inf2 = armarInformePeriodo({ arbol: raiz, columnas: columnas.map((c) => ({ ...c, sub: null, texto: `P${c.periodo}` })), periodo: 2, registros: [reg2("a", 1, 70, "aprobado"), reg2("b", 1, 100, "aprobado")], integrante: null, arrastre: true });
+  const filaA = inf2.filas.find((f) => f.id === "a");
+  comprobar("El informe del período 2 incluye la actividad arrastrada y la pide registrar", filaA?.vieneDe === 1 && inf2.sinRegistro === 2, `${filaA?.vieneDe} / ${inf2.sinRegistro}`);
+}
+
+// 11. Evidencias en el informe: misma indexación que pasantía (imagen por código y letra; anexos correlativos)
+{
+  const acts = [{ id: "a", codigo: "1.1.1.1" }, { id: "b", codigo: "1.1.1.2" }];
+  const ev = new Map([
+    ["a", [{ tipo: "imagen" }, { tipo: "documento" }, { tipo: "imagen" }]],
+    ["b", [{ tipo: "enlace" }, { tipo: "imagen" }]],
+  ]);
+  const n = numerarEvidencias(acts, ev);
+  const et = (id: string) => (n.get(id) ?? []).map((e) => e.etiqueta).join(", ");
+  comprobar("Las imágenes llevan el código de la actividad y una letra", et("a") === "Imagen 1.1.1.1.A, Anexo 1, Imagen 1.1.1.1.B" && et("b") === "Anexo 2, Imagen 1.1.1.2.A", `${et("a")} | ${et("b")}`);
+  comprobar("Las imágenes tienen un número correlativo para el índice", (n.get("b") ?? [])[1]?.numero === 3);
+  // Proyecto individual: getPlanTrabajo pone al único integrante como responsable de la raíz.
+  const sinResp = (n: NodoPlan): NodoPlan => ({ ...n, responsable: null, hijos: n.hijos.map(sinResp) });
+  const solo = numerar({ ...sinResp(planEjemplo(planNuevo("plan"), 1, 8)), responsable: 21 });
+  const r = responsables(solo);
+  comprobar("En un proyecto individual todas las actividades son del único integrante", aplanar(solo).every((n) => r.get(n.id) === 21));
+  comprobar("El plan individual de ese integrante es el plan completo", aplanar(planIndividual(solo, 21) ?? solo).length === aplanar(solo).length);
+  const ficha = ejecucionNueva("ejecucion", "proyecto", 1, true);
+  comprobar("La ejecución de proyecto pide evidencias por actividad", opcionesRegistro(ficha).evidencias.min === 1 && opcionesRegistro(ficha).evidencias.max === 5);
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

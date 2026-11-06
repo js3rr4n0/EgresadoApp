@@ -93,6 +93,8 @@ export interface EtapaEjecucion {
     modo?: ModoRegistro;
     marcoTeorico?: ExigenciaMarco;
     avance?: boolean;
+    /** Evidencias por actividad (imágenes, documentos o enlaces) en el modo "actividad". 0 = sin mínimo. */
+    evidencias?: { min: number; max: number };
   };
   /** Días recomendados para que el asesor revise un subperíodo enviado. */
   diasRevision: number;
@@ -124,6 +126,7 @@ export function opcionesRegistro(et: EtapaEjecucion) {
     modo: et.registro.modo ?? "subperiodo",
     marcoTeorico: et.registro.marcoTeorico ?? "obligatorio",
     avance: et.registro.avance ?? false,
+    evidencias: et.registro.evidencias ?? { min: 0, max: (et.registro.modo ?? "subperiodo") === "actividad" ? 5 : 0 },
     informe: et.informe.modo ?? "unico",
   } as const;
 }

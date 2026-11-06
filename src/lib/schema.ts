@@ -1064,3 +1064,26 @@ export const informesPlan = pgTable(
   },
   (table) => [check("informes_plan_estado_check", sql`${table.estado} IN ('enviado', 'observado', 'aprobado')`)]
 );
+
+// Evidencias de un registro de la ejecución del proyecto (reunión 6-nov-2026): imágenes, documentos PDF o enlaces
+// (por ejemplo, a un video) que respaldan el resultado de la actividad. Script: scripts/fichas/crear_evidencias_plan.ts
+export const evidenciasPlan = pgTable(
+  "evidencias_plan",
+  {
+    id: serial("id").primaryKey(),
+    registroId: integer("registro_id")
+      .notNull()
+      .references(() => registrosPlan.id, { onDelete: "cascade" }),
+    tipo: varchar("tipo", { length: 10 }).notNull(), // 'imagen' | 'documento' | 'enlace'
+    url: text("url").notNull(), // data: URL (imagen o documento) o https:// (enlace)
+    nombre: varchar("nombre", { length: 255 }), // nombre original del documento
+    leyenda: varchar("leyenda", { length: 255 }).notNull(),
+    origen: varchar("origen", { length: 10 }), // solo imágenes: 'propia' | 'externa'
+    fuente: jsonb("fuente"),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("evidencias_plan_registro_idx").on(table.registroId),
+    check("evidencias_plan_tipo_check", sql`${table.tipo} IN ('imagen', 'documento', 'enlace')`),
+  ]
+);

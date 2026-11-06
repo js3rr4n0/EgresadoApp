@@ -6,7 +6,10 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { detallesProyecto, propuestas, usuarios } from "@/lib/schema";
 import { getEjecucionProyecto } from "@/app/actions/ejecucionProyecto";
-import { armarInformePeriodo } from "@/lib/fichas/informePeriodo";
+import { armarInformePeriodo, numerarEvidencias } from "@/lib/fichas/informePeriodo";
+import { getEvidenciasRegistro, type EvidenciaCompleta } from "@/app/actions/evidenciasPlan";
+import { notaImagen } from "@/lib/fuenteImagen";
+import { leyendaDocumento } from "@/lib/reglasRegistroActividad";
 import BotonImprimir from "./BotonImprimir";
 
 const dinero = (v: number) => (v ? `$${v.toLocaleString("es-SV")}` : "");
@@ -18,12 +21,12 @@ const sangria = (nivel: number) => ({ paddingLeft: `${(nivel - 1) * 1}rem` });
 export default async function InformePeriodoProyecto({ propuestaId, periodo, de, volver }: { propuestaId: number; periodo: number; de: string; volver: string }) {
   const res = await getEjecucionProyecto(propuestaId);
   if (!res.success) return <p className="p-8 text-center text-sm text-muted">{res.error}</p>;
-  const { plan, registros, periodos, informes } = res.datos;
+  const { plan, registros, periodos, informes, reglas } = res.datos;
   const integrante = de === "general" ? null : Number(de);
   if (integrante !== null && !plan.equipo.some((i) => i.id === integrante)) return <p className="p-8 text-center text-sm text-muted">Integrante no válido.</p>;
   if (!Number.isInteger(periodo) || periodo < 1 || periodo > periodos.length) return <p className="p-8 text-center text-sm text-muted">Período no válido.</p>;
 
-  const inf = armarInformePeriodo({ arbol: plan.plan.arbol, columnas: plan.columnas, periodo, registros, integrante });
+  const inf = armarInformePeriodo({ arbol: plan.plan.arbol, columnas: plan.columnas, periodo, registros, integrante, arrastre: reglas.avance });
   const [det] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
   const [prop] = await db.select({ asesorId: propuestas.asesorId }).from(propuestas).where(eq(propuestas.id, propuestaId));
   const [asesor] = prop?.asesorId ? await db.select({ nombre: usuarios.nombreCompleto }).from(usuarios).where(eq(usuarios.id, prop.asesorId)) : [];
@@ -32,6 +35,12 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
   const nombre = (id: number | null) => plan.equipo.find((i) => i.id === id)?.nombre ?? "";
   const estado = informes.find((i) => i.periodo === periodo && i.egresadoId === integrante);
   const actividades = inf.filas.filter((f) => f.registro);
+  // Evidencias de las actividades registradas en el período, numeradas en el orden del plan.
+  const regIds = new Map(registros.filter((r) => r.periodo === periodo).map((r) => [r.nodoId, r.id]));
+  const todas = await getEvidenciasRegistro(propuestaId, actividades.map((f) => regIds.get(f.id)).filter((x): x is number => x !== undefined));
+  const porActividad = new Map<string, EvidenciaCompleta[]>(actividades.map((f) => [f.id, todas.filter((e) => e.registroId === regIds.get(f.id))]));
+  const evidencias = numerarEvidencias(actividades, porActividad);
+  const listaEvidencias = actividades.flatMap((f) => (evidencias.get(f.id) ?? []).map((e) => ({ ...e, codigo: f.codigo })));
 
   return (
     <div className="space-y-4">
@@ -104,6 +113,7 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
             <div key={f.id} style={sangria(f.nivel - 1)} className="space-y-1">
               <p>
                 <strong>{f.codigo} {sinPunto(f.titulo)}</strong>
+                {f.vieneDe !== null && <span className="text-gray-600"> (continúa del período {f.vieneDe})</span>}
                 {f.nivel < 4 ? `: nivel de avance de ${f.avance}%.` : f.registro ? `: ejecutada al ${f.registro.avance ?? 0}%${integrante === null ? ` (a cargo de ${nombre(f.responsable)})` : ""}.` : ": sin registro en el período."}
               </p>
               {f.registro && (
@@ -138,17 +148,47 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
           {actividades.length === 0 ? <p className="text-gray-500">Todavía no hay actividades registradas en el período.</p> : (
             <table className="w-full text-xs border border-gray-300">
               <tbody>
-                {actividades.map((f, i) => (
-                  <tr key={f.id} className="border-t border-gray-200 align-top">
-                    <td className="px-2 py-1 font-mono w-20">{f.codigo}</td><td className="px-2 py-1 w-56">{f.titulo}</td>
-                    <td className="px-2 py-1 whitespace-pre-wrap">{f.registro?.resultado}</td><td className="px-2 py-1 w-24 text-right">Ver anexo {i + 1}</td>
-                  </tr>
-                ))}
+                {actividades.map((f) => {
+                  const suyas = evidencias.get(f.id) ?? [];
+                  return (
+                    <tr key={f.id} className="border-t border-gray-200 align-top">
+                      <td className="px-2 py-1 font-mono w-20">{f.codigo}</td><td className="px-2 py-1 w-56">{f.titulo}</td>
+                      <td className="px-2 py-1 whitespace-pre-wrap">{f.registro?.resultado}</td>
+                      <td className="px-2 py-1 w-40 text-right">
+                        {suyas.length === 0 ? <span className="text-gray-400">Sin evidencias</span> : suyas.map((e) => <a key={e.id} href={`#evidencia-${e.id}`} className="block hover:underline">Ver {e.etiqueta}</a>)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
           <h2 className="font-bold uppercase text-xs tracking-wide pt-4">6. Anexos de resultados</h2>
-          <p className="text-gray-500 print:hidden">◷ Los anexos de evidencia se adjuntarán cuando se habilite la subida de archivos en los registros.</p>
+          {listaEvidencias.length === 0 ? (
+            <p className="text-gray-500">No se adjuntaron evidencias en el período.</p>
+          ) : (
+            <div className="space-y-4">
+              {listaEvidencias.map((e) => {
+                const nota = e.tipo === "imagen" ? notaImagen(e.origen, e.fuente) : [];
+                return (
+                  <figure key={e.id} id={`evidencia-${e.id}`} className="space-y-1" style={{ pageBreakInside: "avoid" }}>
+                    {e.tipo === "imagen" && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={e.url} alt={e.leyenda} className="max-h-72 max-w-full mx-auto object-contain border border-gray-200" />
+                    )}
+                    <figcaption className={e.tipo === "imagen" ? "text-center text-xs" : "text-xs"}>
+                      <strong>{e.etiqueta}.</strong> {leyendaDocumento(e.leyenda)} (actividad {e.codigo}).
+                      {e.tipo === "documento" && <span className="text-gray-600"> Documento adjunto: {e.nombre ?? "PDF"}.</span>}
+                      {e.tipo === "enlace" && <> Disponible en: <a href={e.url} target="_blank" rel="noopener noreferrer" className="underline break-all">{e.url}</a></>}
+                      {nota.length > 0 && (
+                        <span className="block text-gray-600">{nota.map((s, k) => (s.cursiva ? <em key={k}>{s.texto}</em> : <span key={k}>{s.texto}</span>))}</span>
+                      )}
+                    </figcaption>
+                  </figure>
+                );
+              })}
+            </div>
+          )}
         </section>
       </article>
     </div>

@@ -127,6 +127,10 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
     if (!fila) [fila] = await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, propuestaId));
   }
 
+  // Proyecto individual: no hay responsables que asignar; todo el plan es del único integrante (así lo lee la ejecución).
+  const guardado = fila.arbol as NodoPlan;
+  const arbol = equipo.length === 1 && guardado.responsable == null ? { ...guardado, responsable: equipo[0].id } : guardado;
+
   return {
     success: true,
     datos: {
@@ -137,7 +141,7 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
       rol,
       miId: session.userId,
       plan: {
-        arbol: fila.arbol as NodoPlan,
+        arbol,
         version: fila.version,
         estado: fila.estado,
         comentarioAsesor: fila.comentarioAsesor,

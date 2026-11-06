@@ -27,6 +27,10 @@ function validarEjecucion(etapa: EtapaEjecucion, indice: number, problemas: Prob
   if (descripcion.max > 0 && descripcion.min > descripcion.max) p("el mínimo de palabras de la descripción es mayor que el máximo.");
   if (conclusion.max > 0 && conclusion.min > conclusion.max) p("el mínimo de palabras de la conclusión es mayor que el máximo.");
   if (!entero(imagenes) || imagenes < 0) p("el número de imágenes por actividad no es válido.");
+  const ev = etapa.registro.evidencias;
+  if (ev && (!entero(ev.min) || !entero(ev.max) || ev.min < 0 || ev.max < 0 || ev.max > 20)) p("las evidencias por actividad van de 0 a 20.");
+  else if (ev && ev.max > 0 && ev.min > ev.max) p("el mínimo de evidencias por actividad es mayor que el máximo.");
+  else if (ev && ev.max === 0 && ev.min > 0) p("si se pide un mínimo de evidencias, el máximo no puede ser 0.");
   if (etapa.informe.paginasMinimas < 0) p("las páginas mínimas del informe no pueden ser negativas.");
   if (etapa.eliminacionesPorPeriodo < 0) p("las eliminaciones por período no pueden ser negativas.");
 
@@ -211,6 +215,7 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
         obj(r) && rango(r.descripcion) && rango(r.conclusion) && num(r.imagenes) &&
         opcional(r.modo, ["subperiodo", "actividad"]) && opcional(r.marcoTeorico, ["obligatorio", "opcional", "no"]) &&
         (r.avance === undefined || typeof r.avance === "boolean") &&
+        (r.evidencias === undefined || rango(r.evidencias)) &&
         num(e.diasRevision) && num(e.subperiodosAdelantables) && num(e.eliminacionesPorPeriodo) &&
         obj(i) && num(i.paginasMinimas) && typeof i.exigirActividadesAprobadas === "boolean" && opcional(i.modo, ["unico", "individual_y_general"]) &&
         obj(i.comentariosDecanato) && typeof i.comentariosDecanato.activo === "boolean" && num(i.comentariosDecanato.minPalabras) &&

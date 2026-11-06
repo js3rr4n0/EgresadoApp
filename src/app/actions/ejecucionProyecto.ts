@@ -4,9 +4,9 @@
 // plan individual (avance, acciones, resultado y marco teórico opcional) con las reglas de la ficha. El asesor revisa
 // cada registro y ve quién hizo qué. No toca la ejecución de pasantía (registrosActividad.ts), que sigue igual.
 import { db } from "@/lib/db";
-import { cartasAceptacion, informesPlan, notificaciones, registrosPlan } from "@/lib/schema";
+import { cartasAceptacion, evidenciasPlan, informesPlan, notificaciones, registrosPlan } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
 import { esEtapaEjecucion, opcionesRegistro } from "@/lib/fichas/tipos";
@@ -28,11 +28,24 @@ export interface RegistroPlan {
   estado: string;
   comentarioAsesor: string | null;
   enviadoEn: string | null;
+  /** Evidencias adjuntas (sin el contenido del archivo; ver getEvidenciasRegistro). */
+  evidencias: EvidenciaResumen[];
+}
+
+export interface EvidenciaResumen {
+  id: number;
+  tipo: "imagen" | "documento" | "enlace";
+  nombre: string | null;
+  leyenda: string;
+  /** Solo los enlaces traen su dirección aquí. */
+  enlace: string | null;
 }
 
 export interface DatosEjecucion {
   plan: DatosPlan;
   reglas: ReglasRegistroProyecto;
+  /** Evidencias por actividad que pide la ficha (máximo 0: no se piden). */
+  evidencias: { min: number; max: number };
   informe: "unico" | "individual_y_general";
   periodos: { numero: number; desde: string | null; hasta: string | null }[];
   periodoActual: number;
@@ -74,13 +87,31 @@ export async function getEjecucionProyecto(propuestaId: number): Promise<Resulta
   const periodoActual = Math.min(periodos.length, Math.max(1, Math.floor(transcurridos / ejec.duracionPeriodo) + 1));
 
   const filas = await db.select().from(registrosPlan).where(eq(registrosPlan.propuestaId, propuestaId));
+  const evs = filas.length
+    ? await db
+        .select({ id: evidenciasPlan.id, registroId: evidenciasPlan.registroId, tipo: evidenciasPlan.tipo, nombre: evidenciasPlan.nombre, leyenda: evidenciasPlan.leyenda, url: evidenciasPlan.url })
+        .from(evidenciasPlan)
+        .where(and(inArray(evidenciasPlan.registroId, filas.map((f) => f.id)), eq(evidenciasPlan.tipo, "enlace")))
+        .orderBy(asc(evidenciasPlan.id))
+    : [];
+  // Los archivos (imagen o documento) se listan sin su contenido, que puede pesar varios MB.
+  const archivos = filas.length
+    ? await db
+        .select({ id: evidenciasPlan.id, registroId: evidenciasPlan.registroId, tipo: evidenciasPlan.tipo, nombre: evidenciasPlan.nombre, leyenda: evidenciasPlan.leyenda })
+        .from(evidenciasPlan)
+        .where(and(inArray(evidenciasPlan.registroId, filas.map((f) => f.id)), inArray(evidenciasPlan.tipo, ["imagen", "documento"])))
+        .orderBy(asc(evidenciasPlan.id))
+    : [];
+  const resumen = [...evs.map((e) => ({ ...e, enlace: e.url })), ...archivos.map((e) => ({ ...e, enlace: null }))].sort((a, b) => a.id - b.id);
   const informes = await db.select().from(informesPlan).where(eq(informesPlan.propuestaId, propuestaId));
   return {
     success: true,
     datos: {
       plan,
       reglas: { acciones: ejec.registro.descripcion, resultado: ejec.registro.conclusion, marcoTeorico: op.marcoTeorico, avance: op.avance },
-      informe: op.informe,
+      evidencias: op.evidencias,
+      // Con un solo integrante no hay informe individual y general: se entrega uno solo.
+      informe: plan.equipo.length === 1 ? "unico" : op.informe,
       periodos,
       periodoActual,
       informes: informes.map((i) => ({ periodo: i.periodo, egresadoId: i.egresadoId, estado: i.estado, comentarioAsesor: i.comentarioAsesor })),
@@ -89,6 +120,9 @@ export async function getEjecucionProyecto(propuestaId: number): Promise<Resulta
         id: f.id, nodoId: f.nodoId, periodo: f.periodo, egresadoId: f.egresadoId, avance: f.avance,
         acciones: f.acciones ?? "", resultado: f.resultado ?? "", marcoTeorico: f.marcoTeorico ?? "",
         estado: f.estado, comentarioAsesor: f.comentarioAsesor, enviadoEn: f.enviadoEn?.toISOString() ?? null,
+        evidencias: resumen
+          .filter((e) => e.registroId === f.id)
+          .map((e) => ({ id: e.id, tipo: e.tipo as EvidenciaResumen["tipo"], nombre: e.nombre, leyenda: e.leyenda, enlace: e.enlace })),
       })),
     },
   };
@@ -104,12 +138,12 @@ export async function guardarRegistroPlan(
   try {
     const res = await getEjecucionProyecto(propuestaId);
     if (!res.success) return res;
-    const { plan, reglas, periodoActual, registros } = res.datos;
+    const { plan, reglas, periodoActual, registros, evidencias } = res.datos;
     if (plan.rol !== "lider" && plan.rol !== "integrante") return { success: false, error: "Solo los integrantes registran actividades." };
     if (!Number.isInteger(periodo) || periodo < 1 || periodo > periodoActual) return { success: false, error: "Ese período todavía no está abierto." };
 
     const nodo = aplanar(plan.plan.arbol).find((n) => n.id === nodoId);
-    if (!nodo || !actividadesDelPeriodo(plan.plan.arbol, periodo, plan.columnas).some((n) => n.id === nodoId)) {
+    if (!nodo || !actividadesDelPeriodo(plan.plan.arbol, periodo, plan.columnas, reglas.avance ? registros : null).some((n) => n.id === nodoId)) {
       return { success: false, error: "Esa actividad no está planificada en este período." };
     }
     if (responsables(plan.plan.arbol).get(nodoId) !== plan.miId) return { success: false, error: "Esta actividad está a cargo de otro integrante." };
@@ -126,6 +160,8 @@ export async function guardarRegistroPlan(
     if (limpio.avance !== null && (limpio.avance < 0 || limpio.avance > 100)) return { success: false, error: "El avance va de 0 a 100 %." };
     if (enviar) {
       const problemas = validarRegistroProyecto(limpio, reglas);
+      const adjuntas = previo?.evidencias.length ?? 0;
+      if (evidencias.max > 0 && adjuntas < evidencias.min) problemas.push(`Adjunta al menos ${evidencias.min} evidencia(s) de la actividad (imagen, documento o enlace).`);
       if (problemas.length > 0) return { success: false, error: "El registro todavía no cumple las reglas de la ficha.", problemas };
     }
 
@@ -193,7 +229,7 @@ async function guardarInforme(propuestaId: number, periodo: number, egresadoId: 
 export async function enviarInformeIndividual(propuestaId: number, periodo: number): Promise<Resultado> {
   const res = await getEjecucionProyecto(propuestaId);
   if (!res.success) return res;
-  const { plan, registros, periodoActual, informes, exigirAprobadas } = res.datos;
+  const { plan, registros, periodoActual, informes, exigirAprobadas, reglas } = res.datos;
   if (plan.rol !== "lider" && plan.rol !== "integrante") return { success: false, error: "Solo los integrantes entregan informes." };
   if (periodo < 1 || periodo > periodoActual) return { success: false, error: "Ese período todavía no está abierto." };
   const previo = informes.find((i) => i.periodo === periodo && i.egresadoId === plan.miId);
@@ -201,7 +237,7 @@ export async function enviarInformeIndividual(propuestaId: number, periodo: numb
   const general = informes.find((i) => i.periodo === periodo && i.egresadoId === null);
   if (general && general.estado !== "observado") return { success: false, error: "El informe general del período ya fue enviado." };
 
-  const inf = armarInformePeriodo({ arbol: plan.plan.arbol, columnas: plan.columnas, periodo, registros, integrante: plan.miId });
+  const inf = armarInformePeriodo({ arbol: plan.plan.arbol, columnas: plan.columnas, periodo, registros, integrante: plan.miId, arrastre: reglas.avance });
   if (inf.filas.length === 0) return { success: false, error: "No tienes actividades planificadas en este período." };
   if (inf.sinRegistro > 0) return { success: false, error: `Te faltan ${inf.sinRegistro} actividad(es) del período por registrar y enviar.` };
   if (exigirAprobadas && inf.filas.some((f) => f.registro && f.registro.estado !== "aprobado")) {
@@ -216,13 +252,13 @@ export async function enviarInformeIndividual(propuestaId: number, periodo: numb
 export async function enviarInformeGeneral(propuestaId: number, periodo: number): Promise<Resultado> {
   const res = await getEjecucionProyecto(propuestaId);
   if (!res.success) return res;
-  const { plan, registros, informes, informe: modoInforme } = res.datos;
+  const { plan, registros, informes, informe: modoInforme, reglas } = res.datos;
   if (plan.rol !== "lider") return { success: false, error: "Solo el líder envía el informe general." };
   const general = informes.find((i) => i.periodo === periodo && i.egresadoId === null);
   if (general && general.estado !== "observado") return { success: false, error: "El informe general ya fue enviado." };
   // Con informe "unico" no hay informes individuales: el líder envía directamente el del trabajo.
   const faltan = modoInforme === "unico" ? [] : plan.equipo.filter((i) => {
-    const suyo = armarInformePeriodo({ arbol: plan.plan.arbol, columnas: plan.columnas, periodo, registros, integrante: i.id });
+    const suyo = armarInformePeriodo({ arbol: plan.plan.arbol, columnas: plan.columnas, periodo, registros, integrante: i.id, arrastre: reglas.avance });
     if (suyo.filas.length === 0) return false;
     const inf = informes.find((x) => x.periodo === periodo && x.egresadoId === i.id);
     return !inf || inf.estado === "observado";

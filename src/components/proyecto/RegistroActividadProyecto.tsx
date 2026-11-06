@@ -7,9 +7,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { guardarRegistroPlan, revisarRegistroPlan, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
-import { actividadesDelPeriodo, aplanar, responsables, validarRegistroProyecto } from "@/lib/fichas/planTrabajo";
+import { actividadesDelPeriodo, aplanar, arrastradasAlPeriodo, responsables, validarRegistroProyecto } from "@/lib/fichas/planTrabajo";
 import TextoRedaccion from "@/app/egresado/reportes/actividad/[actividadId]/TextoRedaccion";
 import { rutaEnPlan, enlaceActividad, ESTADO_ACTIVIDAD } from "./EjecucionProyecto";
+import EvidenciasActividad from "./EvidenciasActividad";
+import type { EvidenciaCompleta } from "@/app/actions/evidenciasPlan";
 
 const ESTADO_BANNER: Record<string, { className: string; title: string }> = {
   enviado: { className: "bg-blue-50 border-blue-200 text-blue-900", title: "Esta actividad fue enviada y está en revisión por su asesor designado." },
@@ -25,9 +27,19 @@ const rango = (r: { min: number; max: number }) => (r.min > 0 && r.max > 0 ? { m
 const textoRango = (r: { min: number; max: number }) =>
   r.min > 0 && r.max > 0 ? `entre ${r.min} y ${r.max} palabras` : r.min > 0 ? `al menos ${r.min} palabras` : r.max > 0 ? `hasta ${r.max} palabras` : "sin límite de palabras";
 
-export default function RegistroActividadProyecto({ datos, nodoId, periodo }: { datos: DatosEjecucion; nodoId: string; periodo: number }) {
+export default function RegistroActividadProyecto({
+  datos,
+  nodoId,
+  periodo,
+  evidencias,
+}: {
+  datos: DatosEjecucion;
+  nodoId: string;
+  periodo: number;
+  evidencias: EvidenciaCompleta[];
+}) {
   const router = useRouter();
-  const { plan, reglas, periodos, registros } = datos;
+  const { plan, reglas, periodos, registros, periodoActual } = datos;
   const arbol = plan.plan.arbol;
   const esAsesor = plan.rol === "asesor";
   const nodo = aplanar(arbol).find((n) => n.id === nodoId)!;
@@ -40,7 +52,9 @@ export default function RegistroActividadProyecto({ datos, nodoId, periodo }: { 
   const p = periodos[periodo - 1];
 
   // Posición dentro de las actividades del período a cargo del mismo responsable (como "Actividad n de m").
-  const delPeriodo = actividadesDelPeriodo(arbol, periodo, plan.columnas).filter((a) => resp.get(a.id) === resp.get(nodoId));
+  const conArrastre = reglas.avance && periodo <= periodoActual ? registros : null;
+  const vieneDe = conArrastre ? arrastradasAlPeriodo(arbol, periodo, plan.columnas, conArrastre).get(nodoId) : undefined;
+  const delPeriodo = actividadesDelPeriodo(arbol, periodo, plan.columnas, conArrastre).filter((a) => resp.get(a.id) === resp.get(nodoId));
   const posicion = delPeriodo.findIndex((a) => a.id === nodoId);
   const siguiente = delPeriodo[posicion + 1] ?? null;
   const cols = plan.columnas.map((c, i) => (c.periodo === periodo ? i : -1)).filter((i) => i >= 0);
@@ -57,7 +71,11 @@ export default function RegistroActividadProyecto({ datos, nodoId, periodo }: { 
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
   const valores = { avance: avance === "" ? null : Number(avance), acciones, resultado, marcoTeorico: marco };
-  const pendientes = validarRegistroProyecto(valores, reglas);
+  const limiteEvidencias = datos.evidencias;
+  const pendientes = [
+    ...validarRegistroProyecto(valores, reglas),
+    ...(limiteEvidencias.max > 0 && evidencias.length < limiteEvidencias.min ? [`Adjunte al menos ${limiteEvidencias.min} evidencia(s).`] : []),
+  ];
   const volver = esAsesor ? `/asesor/ejecucion/${plan.propuesta.id}` : "/egresado/ejecucion";
 
   async function guardar(modo: "borrador" | "siguiente" | "enviar") {
@@ -112,6 +130,11 @@ export default function RegistroActividadProyecto({ datos, nodoId, periodo }: { 
       {!esAsesor && !propia && (
         <div className="p-4 rounded-xl border bg-slate-100 border-slate-300 text-slate-600 text-xs font-bold">
           Esta actividad está a cargo de {responsable?.nombre ?? "otro integrante"}. Puede consultarla, pero solo su responsable la registra.
+        </div>
+      )}
+      {vieneDe && (
+        <div className="p-4 rounded-xl border bg-amber-50 border-amber-200 text-amber-900 text-xs font-bold">
+          Esta actividad estaba planificada hasta el período {vieneDe.desde} y llegó al {vieneDe.avance}% de avance. Registre en este período lo que se ejecutó del resto.
         </div>
       )}
       {banner && <div className={`p-4 rounded-xl border text-xs font-bold ${banner.className}`}>{banner.title}</div>}
@@ -214,13 +237,22 @@ export default function RegistroActividadProyecto({ datos, nodoId, periodo }: { 
         </div>
       )}
 
-      <div className={tarjeta}>
-        <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
-          <h2 className={tituloTarjeta}>Anexos de evidencia</h2>
-          <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">◷ Próximamente</span>
+      {limiteEvidencias.max > 0 && (
+        <div className={tarjeta}>
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+            <div>
+              <h2 className={tituloTarjeta}>Evidencias de la actividad</h2>
+              <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                Imágenes, documentos o enlaces que demuestran el resultado. Aparecen numeradas en el informe del período.
+              </p>
+            </div>
+            <span className="text-[11px] font-bold text-slate-600 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5 whitespace-nowrap">
+              {evidencias.length} de {limiteEvidencias.max}{limiteEvidencias.min > 0 ? ` · mínimo ${limiteEvidencias.min}` : ""}
+            </span>
+          </div>
+          <EvidenciasActividad propuestaId={plan.propuesta.id} nodoId={nodoId} periodo={periodo} evidencias={evidencias} limite={limiteEvidencias} editable={editable} />
         </div>
-        <p className="text-[11px] text-slate-500 font-semibold">Imágenes, tablas o documentos que respaldan el resultado. Aparecerán en los anexos del informe del período.</p>
-      </div>
+      )}
 
       {editable && (
         <>

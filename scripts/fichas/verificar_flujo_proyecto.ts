@@ -89,8 +89,10 @@ async function main() {
     if (["aprobada", "primer_contacto_completado", "en_ejecucion"].includes(prop.estado)) aviso("La propuesta está aprobada, pero el equipo no ha abierto su plan.");
     else console.log("  Sin plan todavía (la propuesta no está aprobada).");
   } else if (etPlan && ejec) {
-    const arbol = plan.arbol as NodoPlan;
     const ids = equipo.map((i) => i.id);
+    // Igual que getPlanTrabajo: en un proyecto individual todo el plan es del único integrante.
+    const guardado = plan.arbol as NodoPlan;
+    const arbol = ids.length === 1 && guardado.responsable == null ? { ...guardado, responsable: ids[0] } : guardado;
     const columnas = (etPlan.granularidad === "subperiodo" ? ejec.periodos * ejec.subperiodos : ejec.periodos);
     console.log(`  Estado ${plan.estado} · versión ${plan.version} · ${arbol.hijos.length} objetivos específicos`);
     ok("Las columnas del plan coinciden con la ejecución de la ficha", plan.columnas === columnas, `${plan.columnas} vs ${columnas}`);
@@ -104,12 +106,13 @@ async function main() {
     // 5. Ejecución
     etapa("5. Ejecución");
     const regs = await db.select().from(registrosPlan).where(eq(registrosPlan.propuestaId, id));
+    const arrastre = opcionesRegistro(ejec).avance;
     const respMap = responsables(arbol);
     const porSub = etPlan.granularidad === "subperiodo" ? ejec.subperiodos : 1;
     const cols = Array.from({ length: plan.columnas }, (_, i) => ({ periodo: Math.floor(i / porSub) + 1, sub: etPlan.granularidad === "subperiodo" ? (i % porSub) + 1 : null, texto: "" }));
     console.log(`  ${regs.length} registro(s) · registro ${opcionesRegistro(ejec).modo}, informe ${opcionesRegistro(ejec).informe}`);
     ok("Cada registro lo hizo el responsable de la actividad", regs.every((r) => respMap.get(r.nodoId) === r.egresadoId));
-    ok("Cada registro es de una actividad planificada en su período", regs.every((r) => actividadesDelPeriodo(arbol, r.periodo, cols).some((a) => a.id === r.nodoId)));
+    ok("Cada registro es de una actividad planificada en su período", regs.every((r) => actividadesDelPeriodo(arbol, r.periodo, cols, arrastre ? regs : null).some((a) => a.id === r.nodoId)));
     ok("Ningún registro está en un período fuera de la ejecución", regs.every((r) => r.periodo >= 1 && r.periodo <= ejec.periodos));
     if (regs.length > 0 && prop.estado !== "en_ejecucion") aviso("Hay registros, pero la propuesta no está en ejecución.");
 
@@ -121,17 +124,17 @@ async function main() {
     if (periodosConInforme.length === 0) console.log("  Sin informes todavía.");
     for (const p of periodosConInforme) {
       for (const i of infs.filter((x) => x.periodo === p && x.egresadoId !== null)) {
-        const inf = armarInformePeriodo({ arbol, columnas: cols, periodo: p, registros: registrosInf, integrante: i.egresadoId });
+        const inf = armarInformePeriodo({ arbol, columnas: cols, periodo: p, registros: registrosInf, integrante: i.egresadoId, arrastre });
         ok(`Período ${p}: el informe individual de ${i.egresadoId} tiene todas sus actividades registradas`, inf.sinRegistro === 0, `${inf.sinRegistro} sin registro`);
       }
       const general = infs.find((x) => x.periodo === p && x.egresadoId === null);
       if (general) {
-        const conActividades = ids.filter((u) => armarInformePeriodo({ arbol, columnas: cols, periodo: p, registros: registrosInf, integrante: u }).filas.length > 0);
+        const conActividades = ids.filter((u) => armarInformePeriodo({ arbol, columnas: cols, periodo: p, registros: registrosInf, integrante: u, arrastre }).filas.length > 0);
         if (opcionesRegistro(ejec).informe === "individual_y_general") {
           ok(`Período ${p}: el informe general tiene los individuales de todos los que tenían actividades`, conActividades.every((u) => infs.some((x) => x.periodo === p && x.egresadoId === u)));
         }
-        const g = armarInformePeriodo({ arbol, columnas: cols, periodo: p, registros: registrosInf, integrante: null });
-        const suma = conActividades.reduce((a, u) => a + armarInformePeriodo({ arbol, columnas: cols, periodo: p, registros: registrosInf, integrante: u }).totalPeriodo, 0);
+        const g = armarInformePeriodo({ arbol, columnas: cols, periodo: p, registros: registrosInf, integrante: null, arrastre });
+        const suma = conActividades.reduce((a, u) => a + armarInformePeriodo({ arbol, columnas: cols, periodo: p, registros: registrosInf, integrante: u, arrastre }).totalPeriodo, 0);
         ok(`Período ${p}: el presupuesto del general ($${g.totalPeriodo}) es la suma de los individuales`, g.totalPeriodo === suma, `$${suma}`);
         if (general.estado === "aprobado") ok(`Período ${p}: con el general aprobado, los individuales también`, infs.filter((x) => x.periodo === p && x.egresadoId !== null).every((x) => x.estado === "aprobado"));
         console.log(`  Período ${p}: general ${general.estado} · avance del proyecto ${g.avanceProyecto}%`);

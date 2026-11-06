@@ -26,7 +26,7 @@ Este documento resume cómo funciona la ficha de proyecto desde que se crea en e
 | Ficha | Todo | `/admin/bloques-propuestas/[id]` (pestañas Propuesta, Plan de trabajo y Ejecución) | `fichas`, `fichas_versiones` |
 | Propuesta | Orden, título y ayuda de los pasos; límites de palabras de los textos nuevos; objetivos mínimos y máximos; máximo de integrantes; misma carrera | `/egresado/redactar` | `propuestas.ficha_version_id`, `respuestas_espacios` y las de la fase 1 |
 | Plan de trabajo | Niveles; mínimos por integrante, objetivo y macroactividad; presupuesto y columnas; nivel del responsable; plan individual; panel de carga; revisión | `/egresado/plan`, `/asesor/plan/[id]` | `planes_trabajo` |
-| Ejecución | Períodos, duración y subperíodos; registro por actividad; avance; palabras; marco teórico | `/egresado/ejecucion`, `/asesor/ejecucion/[id]` | `registros_plan` |
+| Ejecución | Períodos, duración y subperíodos; registro por actividad; avance (lo incompleto pasa al período siguiente); palabras; marco teórico; evidencias por actividad | `/egresado/ejecucion`, `/asesor/ejecucion/[id]` | `registros_plan`, `evidencias_plan` |
 | Informes | Modo (individual y general, o uno por trabajo); exigir actividades aprobadas | `/egresado/ejecucion/informe`, `/asesor/ejecucion/[id]/informe` | `informes_plan` |
 
 **Reglas que siempre se cumplen:**
@@ -130,7 +130,6 @@ La pieza que se reutiliza es la misma: **la ficha decide y el sistema la lee**. 
 - ¿Qué versión usa cada cohorte? (entrega 3)
 
 **Funciones que faltan:**
-- anexos de evidencia en los registros;
 - solicitudes de cambio al cronograma durante la ejecución;
 - primer contacto y demás hitos de la ejecución de proyecto;
 - informe final compilado (Cierre);

@@ -3,7 +3,8 @@
 //   cronograma y presupuesto del período (montos solo en lo ejecutado), avances por nivel, narrativa por actividad,
 //   resultados (estado y % concluido/pendiente) y resultados por actividad con su anexo.
 // Individual: la parte del plan del integrante. General: el plan completo del equipo (une los individuales).
-import { actividadesDelPeriodo, avancePorNodo, planIndividual, responsables, type NodoPlan } from "./planTrabajo";
+import { actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, planIndividual, responsables, type NodoPlan } from "./planTrabajo";
+import { letraImagen } from "@/lib/fuenteImagen";
 
 export interface RegistroInforme {
   nodoId: string;
@@ -30,6 +31,8 @@ export interface FilaInforme {
   estado: "Finalizada" | "Avance parcial" | "Pendiente";
   /** Registro del período (solo actividades). */
   registro: RegistroInforme | null;
+  /** Actividad que no estaba planificada en el período y viene incompleta del período indicado. */
+  vieneDe: number | null;
 }
 
 export interface InformePeriodo {
@@ -53,8 +56,10 @@ export function armarInformePeriodo(args: {
   periodo: number;
   registros: RegistroInforme[];
   integrante: number | null;
+  /** La ficha pide avance: lo que quedó incompleto en un período pasa al siguiente. */
+  arrastre?: boolean;
 }): InformePeriodo {
-  const { arbol, columnas, periodo, registros, integrante } = args;
+  const { arbol, columnas, periodo, registros, integrante, arrastre } = args;
   const resp = responsables(arbol);
   const base = integrante === null ? arbol : planIndividual(arbol, integrante);
   const indices = columnas.map((c, i) => (c.periodo === periodo ? i : -1)).filter((i) => i >= 0);
@@ -72,7 +77,8 @@ export function armarInformePeriodo(args: {
     return { periodo, integrante, columnas: indices.map((i) => columnas[i].texto), filas: [], totalPeriodo: 0, avanceProyecto: avances.get(arbol.id) ?? 0, sinRegistro: 0 };
   }
 
-  const delPeriodo = new Set(actividadesDelPeriodo(base, periodo, columnas).map((n) => n.id));
+  const delPeriodo = new Set(actividadesDelPeriodo(base, periodo, columnas, arrastre ? registros : null).map((n) => n.id));
+  const arrastradas = arrastre ? arrastradasAlPeriodo(base, periodo, columnas, registros) : new Map<string, { desde: number }>();
   const registroDe = (id: string) => registros.find((r) => r.nodoId === id && r.periodo === periodo && cuenta(r)) ?? null;
 
   // Poda: solo las ramas con actividades planificadas en el período (con sus niveles superiores).
@@ -89,6 +95,7 @@ export function armarInformePeriodo(args: {
     const fila: FilaInforme = {
       id: n.id, codigo: n.codigo, nivel: n.nivel, titulo: n.titulo, responsable: resp.get(n.id) ?? null,
       montos: [], total: 0, avance: avances.get(n.id) ?? 0, estado: "Pendiente", registro: null,
+      vieneDe: arrastradas.get(n.id)?.desde ?? null,
     };
     filas.push(fila);
     let montos: number[];
@@ -117,4 +124,30 @@ export function armarInformePeriodo(args: {
     avanceProyecto: avances.get(arbol.id) ?? 0,
     sinRegistro,
   };
+}
+
+/**
+ * Numeración de las evidencias en el informe, con la misma indexación de pasantía: las imágenes se identifican con el
+ * código de la actividad y una letra (Imagen 1.1.1.1.A, 1.1.1.1.B…) y llevan un número correlativo para el índice de
+ * imágenes; los documentos y enlaces son anexos numerados en el orden del plan (Anexo 1, Anexo 2…).
+ */
+export function numerarEvidencias<E extends { tipo: string }>(
+  actividades: { id: string; codigo: string }[],
+  porActividad: Map<string, E[]>
+): Map<string, (E & { etiqueta: string; numero: number })[]> {
+  const m = new Map<string, (E & { etiqueta: string; numero: number })[]>();
+  let imagenes = 0;
+  let anexos = 0;
+  for (const a of actividades) {
+    let letra = 0;
+    m.set(
+      a.id,
+      (porActividad.get(a.id) ?? []).map((e) =>
+        e.tipo === "imagen"
+          ? { ...e, numero: ++imagenes, etiqueta: `Imagen ${a.codigo}.${letraImagen(letra++)}` }
+          : { ...e, numero: ++anexos, etiqueta: `Anexo ${anexos}` }
+      )
+    );
+  }
+  return m;
 }

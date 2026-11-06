@@ -212,10 +212,26 @@ export default function EditorEjecucion({
                           onChange={(e) => reemplazar(et.id, { registro: { ...et.registro, conclusion: { ...et.registro.conclusion, max: Number(e.target.value) } } })} />
                       </div>
                     </div>
-                    <Numero id={`${pre}-img`} etiqueta="Imágenes" valor={et.registro.imagenes} max={10} editable={editable} onChange={(v) => reemplazar(et.id, { registro: { ...et.registro, imagenes: v } })} />
+                    {op.modo === "actividad" ? (
+                      <div>
+                        <span className={etiquetaCompacta}>Evidencias</span>
+                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                          <label className="sr-only" htmlFor={`${pre}-evmin`}>Mínimo de evidencias por actividad</label>
+                          <input id={`${pre}-evmin`} type="number" min={0} max={20} className={`${campoCompacto} w-[4.5rem]`} disabled={!editable} value={op.evidencias.min}
+                            onChange={(e) => reemplazar(et.id, { registro: { ...et.registro, evidencias: { ...op.evidencias, min: Number(e.target.value) } } })} />
+                          –
+                          <label className="sr-only" htmlFor={`${pre}-evmax`}>Máximo de evidencias por actividad</label>
+                          <input id={`${pre}-evmax`} type="number" min={0} max={20} className={`${campoCompacto} w-[4.5rem]`} disabled={!editable} value={op.evidencias.max}
+                            onChange={(e) => reemplazar(et.id, { registro: { ...et.registro, evidencias: { ...op.evidencias, max: Number(e.target.value) } } })} />
+                        </div>
+                      </div>
+                    ) : (
+                      <Numero id={`${pre}-img`} etiqueta="Imágenes" valor={et.registro.imagenes} max={10} editable={editable} onChange={(v) => reemplazar(et.id, { registro: { ...et.registro, imagenes: v } })} />
+                    )}
                   </div>
                   <p className="text-[11px] text-gray-500 mt-2">
                     0 = sin mínimo (sin métrica). {sinMetrica ? "Imágenes, tablas y marco teórico quedan como apoyo opcional." : ""}
+                    {op.modo === "actividad" ? " Evidencias: imágenes, documentos PDF o enlaces (por ejemplo, a un video) que respaldan el resultado de cada actividad; con máximo 0 no se piden." : ""}
                   </p>
                 </Tarjeta>
 

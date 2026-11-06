@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enviarInformeGeneral, enviarInformeIndividual, revisarInformeGeneral, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
-import { actividadesDelPeriodo, avancePorNodo, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
+import { actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
 
 export const ESTADO_ACTIVIDAD: Record<string, { label: string; badge: string; accion: string }> = {
   pendiente: { label: "Sin registrar", badge: "bg-slate-100 text-slate-600 border-slate-300", accion: "Registrar" },
@@ -60,6 +60,7 @@ type Pestana = "actual" | "proximas" | "completadas" | "equipo" | "revisar";
 export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) {
   const { plan, periodos, periodoActual, registros, reglas } = datos;
   const arbol = plan.plan.arbol;
+  const individual = plan.equipo.length === 1;
   const esAsesor = plan.rol === "asesor";
   const [pestana, setPestana] = useState<Pestana>(esAsesor ? "revisar" : "actual");
   const [periodoEquipo, setPeriodoEquipo] = useState(periodoActual);
@@ -78,10 +79,18 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
     return avancePorNodo(arbol, new Map([...ultimo].map(([k, v]) => [k, v.avance])));
   }, [registros, arbol]);
 
-  // Actividades (actividad + período) de todo el plan, para las pestañas.
+  // Actividades (actividad + período) de todo el plan, para las pestañas. En los períodos abiertos se suman las que
+  // vienen incompletas de uno anterior (la ficha pide avance): el resto de la actividad sigue en el período.
+  const arrastre = useMemo(
+    () => new Map(periodos.map((p) => [p.numero, reglas.avance && p.numero <= periodoActual ? arrastradasAlPeriodo(arbol, p.numero, plan.columnas, registros) : new Map<string, { desde: number; avance: number }>()])),
+    [periodos, periodoActual, reglas.avance, arbol, plan.columnas, registros]
+  );
   const todas = useMemo(
-    () => periodos.flatMap((p) => actividadesDelPeriodo(arbol, p.numero, plan.columnas).map((a) => ({ a, periodo: p.numero }))),
-    [periodos, arbol, plan.columnas]
+    () =>
+      periodos.flatMap((p) =>
+        actividadesDelPeriodo(arbol, p.numero, plan.columnas, reglas.avance && p.numero <= periodoActual ? registros : null).map((a) => ({ a, periodo: p.numero }))
+      ),
+    [periodos, periodoActual, reglas.avance, arbol, plan.columnas, registros]
   );
   const mias = todas.filter((x) => resp.get(x.a.id) === plan.miId);
   const estadoDe = (x: { a: NodoPlan; periodo: number }) => regDe(x.a.id, x.periodo)?.estado ?? "pendiente";
@@ -99,14 +108,14 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
   const pestanas: { id: Pestana; label: string; total: number }[] = esAsesor
     ? [
         { id: "revisar", label: "Por revisar", total: porRevisar.length },
-        { id: "equipo", label: "Equipo por período", total: equipo.length },
+        { id: "equipo", label: individual ? "Por período" : "Equipo por período", total: equipo.length },
         { id: "completadas", label: "Aprobadas", total: completadas.length },
       ]
     : [
         { id: "actual", label: "Período actual", total: actual.length },
         { id: "proximas", label: "Próximas", total: proximas.length },
         { id: "completadas", label: "Completadas", total: completadas.length },
-        { id: "equipo", label: "Equipo", total: equipo.length },
+        ...(individual ? [] : [{ id: "equipo" as const, label: "Equipo", total: equipo.length }]),
       ];
 
   const filaActividad = (x: { a: NodoPlan; periodo: number }) => {
@@ -118,11 +127,13 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
       { label: `Acciones (${palabras(r?.acciones ?? "")} palabras)`, ok: !!r?.acciones.trim() },
       { label: `Resultado (${palabras(r?.resultado ?? "")} palabras)`, ok: !!r?.resultado.trim() },
       ...(reglas.marcoTeorico === "obligatorio" ? [{ label: "Marco teórico", ok: !!r?.marcoTeorico.trim() }] : []),
+      ...(datos.evidencias.max > 0 ? [{ label: `Evidencias (${r?.evidencias.length ?? 0})`, ok: (r?.evidencias.length ?? 0) >= Math.max(1, datos.evidencias.min) }] : []),
     ];
     const completos = indicadores.filter((i) => i.ok).length;
     const propia = resp.get(x.a.id) === plan.miId;
     const accion = esAsesor ? (estado === "enviado" ? "Revisar" : "Ver") : propia ? info.accion : "Ver";
     const bloqueada = !esAsesor && x.periodo > periodoActual;
+    const vieneDe = arrastre.get(x.periodo)?.get(x.a.id);
     return (
       <li key={`${x.a.id}-${x.periodo}`} className="p-4 flex flex-col md:flex-row md:items-center gap-3">
         <div className="flex-1 min-w-0 space-y-1.5">
@@ -130,7 +141,12 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
             <span className="text-[11px] font-mono font-bold text-slate-500">{x.a.codigo}</span>
             <Pastilla clase={bloqueada ? "bg-slate-50 text-slate-400 border-slate-200" : info.badge}>{bloqueada ? "Bloqueada" : info.label}</Pastilla>
             <span className="text-[10px] font-bold text-slate-400">Período {x.periodo}</span>
-            {(esAsesor || !propia) && <span className="text-[10px] font-bold text-slate-500">· {nombre(resp.get(x.a.id))}</span>}
+            {vieneDe && (
+              <span className="px-2 py-0.5 rounded-md text-[10px] font-bold border bg-amber-50 text-amber-900 border-amber-200" title="No se completó en su período: el resto se ejecuta en este.">
+                Viene del período {vieneDe.desde} con {vieneDe.avance}%
+              </span>
+            )}
+            {(esAsesor || !propia) && !individual && <span className="text-[10px] font-bold text-slate-500">· {nombre(resp.get(x.a.id))}</span>}
           </div>
           <p className={`text-xs font-bold ${bloqueada ? "text-slate-400" : "text-slate-800"}`}>{x.a.titulo || "Actividad sin título"}</p>
           <p className="text-[11px] text-slate-500 font-semibold">{rutaEnPlan(arbol, x.a.id).slice(0, -1).map((n) => n.titulo).join(" › ")}</p>
@@ -209,7 +225,7 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden" aria-label="Avance del objetivo general">
           <div className="h-full bg-unicaes rounded-full" style={{ width: `${avanceProyecto}%` }} />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {!individual && <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {plan.equipo.map((i) => {
             const suyas = todas.filter((x) => resp.get(x.a.id) === i.id && x.periodo <= periodoActual);
             const env = suyas.filter((x) => ["enviado", "aprobado"].includes(estadoDe(x))).length;
@@ -227,7 +243,7 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
               </div>
             );
           })}
-        </div>
+        </div>}
         <div className="flex flex-wrap gap-1.5">
           {arbol.hijos.map((o) => (
             <span key={o.id} title={o.titulo} className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${(avance.get(o.id) ?? 0) >= 100 ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-white text-slate-600 border-slate-200"}`}>
@@ -239,7 +255,7 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
           <summary className="cursor-pointer w-fit font-bold text-slate-600 hover:text-slate-900 select-none">Más información</summary>
           <p className="mt-2 leading-relaxed">
             Cada actividad toma el último avance que registró su responsable; cada objetivo y el objetivo general muestran el promedio
-            de lo que contienen. {reglas.marcoTeorico === "opcional" ? "El marco teórico es opcional: úselo solo si hace falta contextualizar una actividad. " : ""}
+            de lo que contienen. {reglas.avance ? "Si una actividad no llega al 100 % en su período, el resto pasa al período siguiente y vuelve a aparecer para registrarse. " : ""}{reglas.marcoTeorico === "opcional" ? "El marco teórico es opcional: úselo solo si hace falta contextualizar una actividad. " : ""}
             En proyecto no se exige un mínimo de páginas.
           </p>
         </details>
@@ -252,8 +268,10 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
             <h2 className="text-sm font-extrabold text-slate-900">Actividades del plan de trabajo</h2>
             <p className="text-[11px] text-slate-500 font-semibold mt-0.5 max-w-2xl">
               {esAsesor
-                ? "Revise los registros de cada integrante. Cada actividad indica quién es su responsable."
-                : "Registre las actividades de su plan individual planificadas en el período y envíelas a su asesor designado. Cada integrante registra solo lo que está a su cargo."}
+                ? individual ? "Revise los registros de las actividades del plan." : "Revise los registros de cada integrante. Cada actividad indica quién es su responsable."
+                : individual
+                  ? "Registre las actividades de su plan planificadas en el período y envíelas a su asesor designado."
+                  : "Registre las actividades de su plan individual planificadas en el período y envíelas a su asesor designado. Cada integrante registra solo lo que está a su cargo."}
             </p>
           </div>
           {pestana === "equipo" && (
@@ -310,6 +328,7 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
 export function InformesDelPeriodo({ datos }: { datos: DatosEjecucion }) {
   const router = useRouter();
   const { plan, informes, informe: modo, periodos, periodoActual } = datos;
+  const solo = plan.equipo.length === 1;
   const [periodo, setPeriodo] = useState(periodoActual);
   const [comentario, setComentario] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
@@ -337,7 +356,9 @@ export function InformesDelPeriodo({ datos }: { datos: DatosEjecucion }) {
           Cada informe se compone automáticamente con las actividades registradas.{" "}
           {modo === "individual_y_general"
             ? "Cada integrante entrega su informe individual y, con todos, el líder envía el informe general a su asesor designado. La fecha de entrega es el último día del período."
-            : "El líder envía el informe del período a su asesor designado. La fecha de entrega es el último día del período."}
+            : solo
+              ? "Envíe el informe del período a su asesor designado. La fecha de entrega es el último día del período."
+              : "El líder envía el informe del período a su asesor designado. La fecha de entrega es el último día del período."}
         </p>
       </div>
 
@@ -375,7 +396,7 @@ export function InformesDelPeriodo({ datos }: { datos: DatosEjecucion }) {
       </div>
 
       <div className="rounded-xl border border-slate-200 p-4 space-y-3">
-        <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">Informe {periodo}: entregas del equipo</h3>
+        <h3 className="text-xs font-extrabold text-slate-800 uppercase tracking-wide">Informe {periodo}{solo ? "" : ": entregas del equipo"}</h3>
         <ul className="divide-y divide-slate-100 text-xs">
           {modo === "individual_y_general" && plan.equipo.map((i) => {
             const e = de(i.id, periodo);
@@ -390,7 +411,7 @@ export function InformesDelPeriodo({ datos }: { datos: DatosEjecucion }) {
             );
           })}
           <li className="py-2 flex flex-wrap items-center justify-between gap-2">
-            <span className="font-extrabold text-slate-800">Informe general del período</span>
+            <span className="font-extrabold text-slate-800">{solo ? "Informe del período" : "Informe general del período"}</span>
             <span className="flex items-center gap-3">
               <Pastilla clase={ESTADO_INFORME[general?.estado ?? "pendiente"].badge}>{ESTADO_INFORME[general?.estado ?? "pendiente"].label}</Pastilla>
               <a href={enlace("general", periodo)} className="text-[11px] font-bold text-unicaes hover:underline">Ver documento</a>
@@ -413,9 +434,9 @@ export function InformesDelPeriodo({ datos }: { datos: DatosEjecucion }) {
           )}
           {plan.rol === "lider" && (!general || general.estado === "observado") && (
             <button type="button" disabled={pendiente}
-              onClick={() => { if (window.confirm("¿Enviar al asesor el informe general del período?")) ejecutar(() => enviarInformeGeneral(plan.propuesta.id, periodo), "Informe general enviado al asesor."); }}
+              onClick={() => { if (window.confirm(solo ? "¿Enviar al asesor el informe del período?" : "¿Enviar al asesor el informe general del período?")) ejecutar(() => enviarInformeGeneral(plan.propuesta.id, periodo), "Informe general enviado al asesor."); }}
               className="px-5 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs shadow-md disabled:opacity-50">
-              Enviar informe general
+              {solo ? "Enviar informe" : "Enviar informe general"}
             </button>
           )}
         </div>

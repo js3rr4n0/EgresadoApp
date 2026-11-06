@@ -253,10 +253,61 @@ export function cargaPorIds(raiz: NodoPlan, ids: number[], columnas: number): Ca
 
 // ─────────────── Ejecución del proyecto (entrega P4) ───────────────
 
-/** Actividades (hojas de nivel 4 o 5) planificadas en un período: tienen monto o marca en alguna de sus columnas. */
-export function actividadesDelPeriodo(raiz: NodoPlan, periodo: number, columnas: { periodo: number }[]): NodoPlan[] {
+/** Avance que dejó un registro de ejecución; solo se usa para arrastrar lo pendiente al período siguiente. */
+export interface AvanceRegistrado {
+  nodoId: string;
+  periodo: number;
+  avance: number | null;
+  /** Los borradores no cuentan: el avance vale cuando el responsable lo envía. */
+  estado?: string;
+}
+
+const planificadaEn = (n: NodoPlan, columnas: { periodo: number }[]) =>
+  [...new Set(columnas.map((c, i) => ((n.montos[i] ?? 0) > 0 ? c.periodo : 0)).filter((p) => p > 0))];
+
+/**
+ * Actividades que no estaban planificadas en el período, pero que vienen de uno anterior sin llegar al 100 %:
+ * el resto pasa a este período (por ejemplo, 70 % en el período 1 → sigue en el 2). Devuelve, por actividad, el
+ * último período en que estaba planificada y el avance con el que llega. Sin registro previo, llega con 0 %.
+ */
+export function arrastradasAlPeriodo(
+  raiz: NodoPlan,
+  periodo: number,
+  columnas: { periodo: number }[],
+  registros: AvanceRegistrado[]
+): Map<string, { desde: number; avance: number }> {
+  const m = new Map<string, { desde: number; avance: number }>();
+  for (const n of aplanar(raiz)) {
+    if (n.hijos.length > 0 || n.nivel < 4) continue;
+    const planes = planificadaEn(n, columnas);
+    if (planes.includes(periodo)) continue;
+    const anteriores = planes.filter((p) => p < periodo);
+    if (anteriores.length === 0) continue;
+    const ultimo = registros
+      .filter((r) => r.nodoId === n.id && r.periodo < periodo && r.estado !== "borrador")
+      .sort((a, b) => b.periodo - a.periodo)[0];
+    const avance = ultimo?.avance ?? 0;
+    if (avance < 100) m.set(n.id, { desde: Math.max(...anteriores), avance });
+  }
+  return m;
+}
+
+/**
+ * Actividades (hojas de nivel 4 o 5) del período: las planificadas en él (con monto o marca en alguna de sus columnas)
+ * y, si se pasan los registros (la ficha pide avance), las que vienen incompletas de un período anterior. Los registros
+ * solo se pasan para períodos ya abiertos: en uno futuro todavía no se sabe qué quedará pendiente.
+ */
+export function actividadesDelPeriodo(
+  raiz: NodoPlan,
+  periodo: number,
+  columnas: { periodo: number }[],
+  registros?: AvanceRegistrado[] | null
+): NodoPlan[] {
   const cols = columnas.map((c, i) => (c.periodo === periodo ? i : -1)).filter((i) => i >= 0);
-  return aplanar(raiz).filter((n) => n.hijos.length === 0 && n.nivel >= 4 && cols.some((i) => (n.montos[i] ?? 0) > 0));
+  const arrastradas = registros ? arrastradasAlPeriodo(raiz, periodo, columnas, registros) : new Map();
+  return aplanar(raiz).filter(
+    (n) => n.hijos.length === 0 && n.nivel >= 4 && (cols.some((i) => (n.montos[i] ?? 0) > 0) || arrastradas.has(n.id))
+  );
 }
 
 /**
