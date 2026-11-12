@@ -1,17 +1,18 @@
-// Prueba completa del flujo de proyecto (entrega P6). Solo lectura: revisa que una propuesta de proyecto sea
-// coherente de punta a punta con su ficha, etapa por etapa:
+// Prueba completa del flujo de una propuesta con ficha (proyecto, entrega P6; investigación, entrega I6). Solo lectura:
+// revisa que la propuesta sea coherente de punta a punta con su ficha, etapa por etapa:
 //   ficha → equipo → propuesta (pasos y firmas) → [protocolo, en investigación] → plan de trabajo → ejecución (registros)
-//   → informes del período.
+//   → informes del período → [informe final por capítulos, en investigación].
 // No cambia nada. Termina con código 1 si alguna comprobación falla.
-// Uso: npx tsx --env-file=.env.local scripts/fichas/verificar_flujo_proyecto.ts <propuestaId>
+// Uso: npx tsx --env-file=.env.local scripts/fichas/verificar_flujo.ts <propuestaId>
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import {
-  fichas, fichasVersiones, historialEstados, informesPlan, integrantesProyecto, periodos, planesTrabajo, propuestas,
-  ratificacionesPlan, ratificacionesPropuesta, registrosPlan, respuestasEspacios, usuarios,
+  fichas, fichasVersiones, historialEstados, informesFinalesFicha, informesPlan, integrantesProyecto, periodos, planesTrabajo, propuestas,
+  ratificacionesInformeFinal, ratificacionesPlan, ratificacionesPropuesta, registrosPlan, respuestasEspacios, usuarios, versionesCapitulo,
 } from "../../src/lib/schema";
-import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, type DefinicionFicha } from "../../src/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, type DefinicionFicha } from "../../src/lib/fichas/tipos";
 import { problemasProtocolo } from "../../src/lib/fichas/protocolo";
+import { capitulosPendientes, leerCapitulos } from "../../src/lib/fichas/informeFinalFicha";
 import crypto from "crypto";
 import { actividadesDelPeriodo, aplanar, numerar, responsables, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 import { armarInformePeriodo } from "../../src/lib/fichas/informePeriodo";
@@ -29,9 +30,9 @@ const etapa = (t: string) => console.log(`\n— ${t}`);
 const DESPUES_DEL_ENVIO = ["enviada", "coordinador_asignado", "aprobada", "primer_contacto_completado", "en_ejecucion"];
 
 async function main() {
-  exigirBaseDesarrollo("verificar_flujo_proyecto");
+  exigirBaseDesarrollo("verificar_flujo");
   const id = Number(process.argv[2]);
-  if (!Number.isInteger(id)) throw new Error("Indica el id de la propuesta: verificar_flujo_proyecto.ts <propuestaId>");
+  if (!Number.isInteger(id)) throw new Error("Indica el id de la propuesta: verificar_flujo.ts <propuestaId>");
 
   // 1. Ficha
   etapa("1. Ficha");
@@ -165,6 +166,47 @@ async function main() {
         if (general.estado === "aprobado") ok(`Período ${p}: con el general aprobado, los individuales también`, infs.filter((x) => x.periodo === p && x.egresadoId !== null).every((x) => x.estado === "aprobado"));
         console.log(`  Período ${p}: general ${general.estado} · avance del proyecto ${g.avanceProyecto}%`);
       }
+    }
+  }
+
+  // 7. Informe final por capítulos (investigación, I5): nada se sobrescribe y lo entregado es lo ratificado.
+  const etInforme = def.etapas.find(esEtapaInformeFinal);
+  if (etInforme) {
+    etapa("7. Informe final");
+    const idsEquipo = equipo.map((i) => i.id);
+    const [inf] = await db.select().from(informesFinalesFicha).where(eq(informesFinalesFicha.propuestaId, id));
+    const versiones = await db.select().from(versionesCapitulo).where(eq(versionesCapitulo.propuestaId, id));
+    if (!inf) console.log("  El equipo todavía no ha abierto el informe final.");
+    else {
+      const estados = leerCapitulos(inf.capitulos);
+      console.log(`  Estado ${inf.estado} · ${versiones.length} versión(es) en ${new Set(versiones.map((v) => v.espacioId)).size} capítulo(s)`);
+      const idsCap = new Set(etInforme.espacios.map((e) => e.id));
+      ok("Las versiones son de capítulos de la ficha", versiones.every((v) => idsCap.has(v.espacioId)));
+      // Cada capítulo numera sus versiones 1, 2, 3… sin huecos: ninguna se borró.
+      const porCap = new Map<string, number[]>();
+      for (const v of versiones) porCap.set(v.espacioId, [...(porCap.get(v.espacioId) ?? []), v.numero]);
+      ok("Ninguna versión falta (numeración continua por capítulo)", [...porCap.values()].every((ns) => [...ns].sort((a, b) => a - b).every((n, i) => n === i + 1)));
+      const sinAutor = versiones.filter((v) => v.autorId === null || !idsEquipo.includes(v.autorId));
+      ok("Cada versión tiene un autor del equipo", sinAutor.length === 0, sinAutor.map((v) => `${v.espacioId} v${v.numero}`).join(", "));
+      const ultimas = new Map<string, (typeof versiones)[number]>();
+      for (const v of versiones) if ((ultimas.get(v.espacioId)?.numero ?? 0) < v.numero) ultimas.set(v.espacioId, v);
+      for (const [cap, est] of Object.entries(estados)) {
+        if (est.estado === "enviado" || est.estado === "aprobado") {
+          ok(`"${cap}" ${est.estado}: la versión revisada es la vigente`, est.version === (ultimas.get(cap)?.numero ?? null), `revisada v${est.version}, vigente v${ultimas.get(cap)?.numero}`);
+        }
+      }
+      if (inf.estado === "entregado" || inf.estado === "aprobado") {
+        const contenidos = Object.fromEntries(etInforme.espacios.map((e) => [e.id, ultimas.get(e.id)?.contenido ?? ""]));
+        ok("Todos los capítulos estaban aprobados al entregar", capitulosPendientes(etInforme, estados, contenidos).length === 0);
+        // Misma huella que actions/informeFinalFicha.ts: [espacio, versión, contenido] en el orden de la ficha.
+        const huella = crypto.createHash("sha256").update(JSON.stringify(etInforme.espacios.map((e) => [e.id, ultimas.get(e.id)?.numero ?? null, ultimas.get(e.id)?.contenido ?? ""]))).digest("hex");
+        ok("El contenido vigente es exactamente el entregado (misma huella)", inf.huellaFinal === huella);
+        if (etInforme.revision.ratificacion && idsEquipo.length > 1) {
+          const firmas = await db.select().from(ratificacionesInformeFinal).where(eq(ratificacionesInformeFinal.propuestaId, id));
+          ok("Todo el equipo ratificó la versión entregada", idsEquipo.every((u) => firmas.some((f) => f.usuarioId === u && f.huellaFirmada === inf.huellaFinal)));
+        }
+      }
+      if (inf.estado === "aprobado") ok("El dictamen final del asesor quedó por escrito", (inf.comentarioFinal ?? "").trim().length >= 20);
     }
   }
 

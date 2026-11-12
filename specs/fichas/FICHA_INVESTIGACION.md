@@ -109,7 +109,7 @@ Propuesta ─ aprobada ─► Protocolo + Plan de trabajo ─ dictamen del aseso
 > - I3 está hecha ([ENTREGA_I3.md](ENTREGA_I3.md)): la 71 tiene el protocolo y el plan aprobados por el asesor, con dictamen escrito.
 > - I4 está hecha ([ENTREGA_I4.md](ENTREGA_I4.md)): la 71 está en ejecución, con una actividad registrada y su evidencia.
 > - I5 está hecha ([ENTREGA_I5.md](ENTREGA_I5.md)): el informe del período, y el informe final por capítulos (versiones, revisión, ratificación, entrega congelada, PDF y Word). La 71 tiene el informe final aprobado.
-> - Sigue I6: la prueba completa con un equipo y con una persona sola, y el verificador generalizado.
+> - I6 está hecha ([FLUJO_INVESTIGACION.md](FLUJO_INVESTIGACION.md)): el flujo de referencia, la prueba con un equipo (71) y con una persona sola (72), y `verificar_flujo.ts` para cualquier modalidad con ficha.
 
 | # | Entrega | Qué incluye | Resultado visible |
 |---|---|---|---|

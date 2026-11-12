@@ -20,11 +20,13 @@
 // INV-ING-001 solo agrega el informe final; las propuestas reales conservan la versión con la que empezaron).
 // Con --completar-informe-final escribe una versión de prueba en los capítulos del informe final que no tienen ninguna
 // y los marca como aprobados (como lo haría el asesor); no toca los capítulos que el equipo ya escribió.
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final]
+// Caso individual (I6): --individual crea a inv.solo@prueba.test (sin equipo) con su investigación ya aprobada en la
+// versión vigente de INV-ING-001; con --solo, los demás atajos actúan sobre su propuesta en lugar de la del equipo.
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual] [--solo]
 import crypto from "crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
-import { cartasAceptacion, fichasVersiones, historialEstados, informesFinalesFicha, versionesCapitulo, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
+import { cartasAceptacion, detallesProyecto, fichas, ratificacionesPropuesta, fichasVersiones, historialEstados, informesFinalesFicha, versionesCapitulo, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
 import { esEtapaInformeFinal, esEtapaProtocolo, type DefinicionFicha } from "../../src/lib/fichas/tipos";
 import { numerar, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 import { exigirBaseDesarrollo } from "./guardia";
@@ -38,10 +40,14 @@ const EGRESADOS = [
   { correo: "inv.integrante2@prueba.test", nombre: "Prueba Investigación Integrante Dos", carnet: "INV-0003", carreraId: 9 },
 ];
 
+/** Egresado del caso individual (I6). */
+const SOLO = { correo: "inv.solo@prueba.test", nombre: "Prueba Investigación Individual", carnet: "INV-0004", carreraId: 1 };
+const usarSolo = process.argv.includes("--solo");
+
 const lista = (ids: number[]) => sql.join(ids.map((i) => sql`${i}`), sql`, `);
 
 async function borrar() {
-  const ids = (await db.select({ id: usuarios.id }).from(usuarios).where(inArray(usuarios.correo, EGRESADOS.map((e) => e.correo)))).map((u) => u.id);
+  const ids = (await db.select({ id: usuarios.id }).from(usuarios).where(inArray(usuarios.correo, [...EGRESADOS, SOLO].map((e) => e.correo)))).map((u) => u.id);
   if (ids.length > 0) {
     await db.delete(propuestas).where(inArray(propuestas.egresadoId, ids));
     await db.execute(sql`DELETE FROM integrantes_proyecto WHERE egresado_id IN (${lista(ids)})`);
@@ -102,7 +108,7 @@ async function aprobar() {
 }
 
 async function propuestaDelLider() {
-  const [lider] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.correo, EGRESADOS[0].correo));
+  const [lider] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.correo, usarSolo ? SOLO.correo : EGRESADOS[0].correo));
   const [prop] = lider ? await db.select().from(propuestas).where(and(eq(propuestas.egresadoId, lider.id), eq(propuestas.tipo, "investigacion"))) : [];
   if (!prop) throw new Error("El líder de prueba no tiene propuesta de investigación.");
   return { lider: lider.id, prop };
@@ -134,12 +140,12 @@ async function completarPlan() {
   const [plan] = await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, prop.id));
   if (!plan) throw new Error("El equipo todavía no abrió su plan de trabajo.");
   if (plan.estado !== "redactando" && plan.estado !== "observado") throw new Error(`El plan está "${plan.estado}".`);
-  const otros = (await db.select({ id: usuarios.id }).from(usuarios).where(inArray(usuarios.correo, EGRESADOS.slice(1).map((e) => e.correo)))).map((u) => u.id);
+  const otros = usarSolo ? [] : (await db.select({ id: usuarios.id }).from(usuarios).where(inArray(usuarios.correo, EGRESADOS.slice(1).map((e) => e.correo)))).map((u) => u.id);
   const raiz = plan.arbol as NodoPlan;
   const marca = (k: number) => Array.from({ length: plan.columnas }, (_, c) => (c === k % Math.min(plan.columnas, 8) ? 1 : 0));
   let k = 0;
   for (const id of [lider, ...otros]) {
-    const suyos = raiz.hijos.filter((o) => o.responsable === id);
+    const suyos = usarSolo ? raiz.hijos : raiz.hijos.filter((o) => o.responsable === id);
     // Primero los objetivos de la propuesta que todavía no tienen responsable.
     for (const o of raiz.hijos) if (suyos.length < 3 && o.responsable == null) { o.responsable = id; suyos.push(o); }
     while (suyos.length < 3) {
@@ -210,6 +216,61 @@ async function completarInformeFinal() {
   console.log(`Informe final de la propuesta ${prop.id}: ${n} capítulos de prueba aprobados.`);
 }
 
+/**
+ * Atajo de prueba (I6): investigación individual ya aprobada (la propuesta en equipo se probó en I2), con la carta, los
+ * actores y 4 objetivos, ligada a la versión habilitada más reciente de INV-ING-001. El resto se recorre en pantalla.
+ */
+async function sembrarIndividual() {
+  const [cohorte] = await db.select().from(periodos).where(eq(periodos.nombre, COHORTE));
+  if (!cohorte) throw new Error("Primero ejecuta el script sin opciones para crear la cohorte de prueba.");
+  const [plantilla] = await db.select({ passwordHash: usuarios.passwordHash }).from(usuarios).where(eq(usuarios.id, PLANTILLA_ID));
+  let [u] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.correo, SOLO.correo));
+  if (!u) {
+    [u] = await db.insert(usuarios)
+      .values({ nombreCompleto: SOLO.nombre, correo: SOLO.correo, passwordHash: plantilla.passwordHash, rol: "egresado", carnet: SOLO.carnet, carreraId: SOLO.carreraId, facultadId: 1, cohorte: COHORTE })
+      .returning({ id: usuarios.id });
+    await db.execute(sql`
+      INSERT INTO documentos_egresado (egresado_id, tipo, archivo_url, subido_en)
+      SELECT ${u.id}, tipo, archivo_url, now() FROM documentos_egresado WHERE egresado_id = ${PLANTILLA_ID}`);
+  }
+  const [existente] = await db.select({ id: propuestas.id }).from(propuestas).where(and(eq(propuestas.egresadoId, u.id), eq(propuestas.tipo, "investigacion")));
+  if (existente) return console.log(`El egresado individual ya tiene la propuesta ${existente.id}.`);
+  const [ficha] = await db.select({ id: fichasVersiones.id, numero: fichasVersiones.numero }).from(fichasVersiones)
+    .innerJoin(fichas, eq(fichasVersiones.fichaId, fichas.id))
+    .where(and(eq(fichas.codigo, "INV-ING-001-SIST"), eq(fichasVersiones.estado, "habilitada"))).orderBy(sql`${fichasVersiones.numero} DESC`).limit(1);
+  const [asesor] = await db.select({ id: usuarios.id }).from(usuarios).where(sql`lower(${usuarios.correo}) = 'marco.solis@catolica.edu.sv'`);
+  const [coord] = await db.select({ id: usuarios.id }).from(usuarios).where(sql`lower(${usuarios.correo}) = 'jose.luis@uni.test'`);
+  const [prop] = await db.insert(propuestas).values({
+    egresadoId: u.id, periodoId: cohorte.id, tipo: "investigacion", numero: 1, estado: "aprobada", fichaVersionId: ficha.id,
+    titulo: "Hábitos de estudio y rendimiento en Programación I (investigación individual de prueba)",
+    asesorId: asesor.id, coordinadorId: coord.id, fechaAprobacion: new Date(),
+  }).returning();
+  await db.insert(detallesProyecto).values({
+    propuestaId: prop.id,
+    actorPatrocinador: "Facultad de Ingeniería.", actorBeneficiario: "El egresado que realiza la investigación.", actorFinancista: "Fondos propios.",
+    descripcionProblema: "Se desconoce la relación entre los hábitos de estudio y el rendimiento en Programación I.",
+    justificacion: "Conocerla permitirá orientar las tutorías de primer año.",
+    objetivoGeneral: "Analizar la relación entre los hábitos de estudio y el rendimiento en Programación I.",
+    objetivosEspecificos: [
+      { titulo: "Caracterizar los hábitos de estudio", descripcion: "Encuesta a estudiantes de primer año." },
+      { titulo: "Medir el rendimiento", descripcion: "Notas parciales de Programación I." },
+      { titulo: "Relacionar ambas variables", descripcion: "Análisis de correlación." },
+      { titulo: "Proponer recomendaciones", descripcion: "Guía para las tutorías." },
+    ],
+  });
+  await db.insert(cartasAceptacion).values({
+    propuestaId: prop.id, archivoUrl: "data:application/pdf;base64,JVBERi0xLjQKJSVFT0Y=", fechaEmision: "2026-09-20", fechaInicio: "2026-10-15", fechaFin: "2027-03-14",
+    supTitulo: "Msc.", supNombres: "Ana María", supApellidos: "Prueba Docente",
+  });
+  // Como en el envío real: el egresado ratifica la versión enviada y el envío queda en el historial.
+  const { huellaPropuesta } = await import("../../src/lib/huellaPropuesta");
+  await db.insert(ratificacionesPropuesta).values({ propuestaId: prop.id, usuarioId: u.id, huellaFirmada: await huellaPropuesta(prop.id) });
+  await db.update(propuestas).set({ enviadaEn: new Date() }).where(eq(propuestas.id, prop.id));
+  await db.insert(historialEstados).values({ propuestaId: prop.id, de: "redactando", a: "enviada", usuarioId: u.id });
+  await db.insert(historialEstados).values({ propuestaId: prop.id, de: "enviada", a: "aprobada", usuarioId: asesor.id });
+  console.log(`Egresado individual ${SOLO.correo} (id ${u.id}) con la investigación ${prop.id} aprobada en la versión ${ficha.numero} de INV-ING-001.`);
+}
+
 async function run() {
   exigirBaseDesarrollo("sembrar_equipo_investigacion");
   if (process.argv.includes("--borrar")) await borrar();
@@ -219,6 +280,7 @@ async function run() {
   else if (process.argv.includes("--iniciar")) await iniciar();
   else if (process.argv.includes("--usar-version-vigente")) await usarVersionVigente();
   else if (process.argv.includes("--completar-informe-final")) await completarInformeFinal();
+  else if (process.argv.includes("--individual")) await sembrarIndividual();
   else await sembrar();
 }
 
