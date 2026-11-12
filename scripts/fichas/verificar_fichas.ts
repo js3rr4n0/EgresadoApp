@@ -379,6 +379,7 @@ const protocoloDe = (d: DefinicionFicha) => d.etapas.find(esEtapaProtocolo)!;
   comprobar("El dictamen del protocolo es a 5 días hábiles", prot.revision.diasRevision === 5 && prot.revision.diasHabiles);
   const plan = d.etapas.find(esEtapaPlan)!;
   comprobar("El plan de investigación pide el documento solicitado; el de proyecto no", documentoSolicitado(plan) === "obligatorio" && documentoSolicitado(planNuevo("p")) === "no");
+  comprobar("El plan de investigación no lleva presupuesto; el de proyecto sí", !plan.presupuesto.activo && planNuevo("p").presupuesto.activo);
   const op = opcionesRegistro(ejec(d));
   comprobar("La ejecución de investigación tiene marco teórico opcional", op.marcoTeorico === "opcional" && op.modo === "actividad");
   comprobar("La ejecución de investigación termina con la presentación de los resultados",

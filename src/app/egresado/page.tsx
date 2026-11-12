@@ -445,7 +445,7 @@ export default async function EgresadoLandingPage() {
                   <tr className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-6 py-4 font-bold text-slate-900">Propuesta #{acceptedTeam.propuesta.numero}</td>
                     <td className="px-6 py-4 font-medium text-slate-800 max-w-[280px] truncate">
-                      Propuesta de Proyecto (Equipo de {acceptedTeam.liderNombre})
+                      Propuesta de {acceptedTeam.propuesta.tipo === "investigacion" ? "Investigación" : "Proyecto"} (Equipo de {acceptedTeam.liderNombre})
                     </td>
                     <td className="px-6 py-4 uppercase text-xs font-bold text-slate-500">
                       {acceptedTeam.propuesta.tipo}

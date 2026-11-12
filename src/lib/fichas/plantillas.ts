@@ -15,7 +15,8 @@ export function planNuevo(id: string, modalidad: Modalidad = "proyecto"): EtapaP
     nombre: "Plan de trabajo",
     subactividades: "opcional",
     minimos: { objetivosPorIntegrante: 3, macroPorObjetivo: 1, actividadesPorMacro: 1 },
-    presupuesto: { activo: true, desglose: "monto", moneda: "USD" },
+    // Investigación: el plan no lleva presupuesto (respuesta del 12-nov-2026, Q4).
+    presupuesto: { activo: modalidad !== "investigacion", desglose: "monto", moneda: "USD" },
     granularidad: "subperiodo",
     equipo: { responsable: "objetivo", planIndividual: true, panelCarga: true },
     aprobacion: { validaSupervisor: true, diasRevision: 5 },

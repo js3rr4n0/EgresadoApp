@@ -104,7 +104,7 @@ export default function DescripcionProblemaForm({
             onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior ?? 3}`)}
             className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
           >
-            ← Volver a Carta
+            {pasoAnterior ? "← Paso anterior" : "← Volver a Carta"}
           </button>
 
           {!disabled && (

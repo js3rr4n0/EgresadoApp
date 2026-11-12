@@ -34,7 +34,7 @@ async function main() {
   etapa("1. Ficha");
   const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, id));
   if (!prop) throw new Error(`La propuesta ${id} no existe.`);
-  ok("Es una propuesta de proyecto", prop.tipo === "proyecto", prop.tipo);
+  ok(`Es una propuesta de una modalidad con ficha (${prop.tipo})`, prop.tipo === "proyecto" || prop.tipo === "investigacion", prop.tipo);
   ok("Está ligada a una versión de ficha", prop.fichaVersionId !== null);
   if (!prop.fichaVersionId) return;
   const [ver] = await db.select({ v: fichasVersiones, codigo: fichas.codigo, esBase: fichas.esBase }).from(fichasVersiones)

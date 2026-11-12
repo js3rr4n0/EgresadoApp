@@ -211,7 +211,7 @@ export default function ObjetivosProyectoForm({
             value={objetivoGeneral}
             onChange={(e) => setObjetivoGeneral(e.target.value)}
             disabled={disabled}
-            placeholder="Formula la meta principal que pretende alcanzar la propuesta de proyecto..."
+            placeholder={`Formula la meta principal que pretende alcanzar la propuesta de ${isInvestigacion ? "investigación" : "proyecto"}...`}
             className="w-full p-3.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm leading-relaxed disabled:opacity-75"
             required
           />
@@ -305,7 +305,7 @@ export default function ObjetivosProyectoForm({
               onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior ?? (isInvestigacion ? 5 : 6)}`)}
               className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
             >
-              {isInvestigacion ? "← Volver a Justificación" : "← Volver a Alcance"}
+              {pasoAnterior ? "← Paso anterior" : isInvestigacion ? "← Volver a Justificación" : "← Volver a Alcance"}
             </button>
           )}
 

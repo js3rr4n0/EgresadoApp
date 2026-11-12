@@ -104,7 +104,7 @@ export default function JustificacionProyectoForm({
             onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior ?? 4}`)}
             className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
           >
-            ← Volver a Descripción
+            {pasoAnterior ? "← Paso anterior" : "← Volver a Descripción"}
           </button>
 
           {!disabled && (

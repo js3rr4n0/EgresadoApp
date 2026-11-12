@@ -100,7 +100,7 @@ export default function AlcanceProyectoForm({
             onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior ?? 5}`)}
             className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
           >
-            ← Volver a Justificación
+            {pasoAnterior ? "← Paso anterior" : "← Volver a Justificación"}
           </button>
 
           {!disabled && (

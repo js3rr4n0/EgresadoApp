@@ -97,14 +97,14 @@ export default async function EgresadoPage({
   const isInvestigacion = propuesta?.tipo === "investigacion";
   const isMultiUserFlow = isProyecto || isInvestigacion;
 
-  // Proyecto: los pasos salen de la ficha ligada a la propuesta (o de la ficha base, que es la fase 1 tal cual).
-  const fichaProyecto = isProyecto ? await fichaDePropuesta(propuesta.id) : null;
+  // Proyecto e investigación: los pasos salen de la ficha ligada a la propuesta (o de la ficha base, que es la fase 1 tal cual).
+  const fichaProyecto = isMultiUserFlow ? await fichaDePropuesta(propuesta.id) : null;
   const pasosProyecto = fichaProyecto
     ? espaciosPropuesta(fichaProyecto.definicion).map((espacio, i) => ({ num: i + 1, espacio, tipo: tipoPasoProyecto(espacio) }))
     : [];
   const numPasoProyecto = (tipo: TipoPasoProyecto, porDefecto: number) => pasosProyecto.find((p) => p.tipo === tipo)?.num ?? porDefecto;
 
-  const defaultStepForAdjustments = isProyecto ? numPasoProyecto("objetivos", 7) : isInvestigacion ? 6 : 5;
+  const defaultStepForAdjustments = isMultiUserFlow ? numPasoProyecto("objetivos", isInvestigacion ? 6 : 7) : 5;
   const currentStep = hasAdvisorObservations
     ? defaultStepForAdjustments
     : parseInt(params.step || "1", 10);
@@ -123,10 +123,10 @@ export default async function EgresadoPage({
   if (isMultiUserFlow) {
     teamMembers = await getEquipoProyecto(propuesta.id);
     detallesProj = await getDetallesProyecto(propuesta.id);
-    if (isProyecto) respuestasProyecto = await getRespuestasEspacios(propuesta.id);
+    respuestasProyecto = await getRespuestasEspacios(propuesta.id);
     cartaData = await getCartaAceptacion(propuesta.id);
 
-    const docStepNumber = isInvestigacion ? 7 : numPasoProyecto("documentos", 8);
+    const docStepNumber = numPasoProyecto("documentos", isInvestigacion ? 7 : 8);
     if (currentStep === docStepNumber) {
       const { documentosEgresado } = await import("@/lib/schema");
       documentosSubidos = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId));
@@ -181,37 +181,21 @@ export default async function EgresadoPage({
   // Calculate max allowed step
   let maxAllowedStep = 1;
 
-  if (isInvestigacion) {
-    const isStep2Complete =
-      detallesProj?.actorPatrocinador &&
-      detallesProj?.actorBeneficiario &&
-      detallesProj?.actorFinancista;
-
-    const isStep3Complete =
-      isStep2Complete &&
-      cartaData?.archivoUrl &&
-      cartaData?.fechaEmision &&
-      cartaData?.fechaInicio &&
-      cartaData?.fechaFin &&
-      cartaData?.supNombres;
-
-    const isStep4Complete = isStep3Complete && detallesProj?.descripcionProblema;
-    const isStep5Complete = isStep4Complete && detallesProj?.justificacion;
-    const isStep6Complete =
-      isStep5Complete &&
-      detallesProj?.objetivoGeneral &&
-      Array.isArray(detallesProj?.objetivosEspecificos) &&
-      detallesProj.objetivosEspecificos.length >= 4;
-
-    maxAllowedStep = isStep6Complete ? 7 : isStep5Complete ? 6 : isStep4Complete ? 5 : isStep3Complete ? 4 : isStep2Complete ? 3 : 2;
-  } else if (isProyecto) {
+  if (isMultiUserFlow) {
     // Cada paso se desbloquea al completar el anterior, en el orden de la ficha. Mismas condiciones que la fase 1.
     const completo = (p: (typeof pasosProyecto)[number]): boolean => {
       switch (p.tipo) {
         case "portada":
           return true;
-        case "actores":
-          return !!(detallesProj?.actorPatrocinador && detallesProj?.actorBeneficiario && detallesProj?.actorEjecutor && detallesProj?.actorFinancista);
+        case "actores": {
+          // Solo los actores que pide la ficha (investigación no pide el ejecutor).
+          const pedidos = Array.isArray(p.espacio.parametros.actores) ? p.espacio.parametros.actores : ["patrocinador", "beneficiario", "ejecutor", "financista"];
+          const campo: Record<string, string | null | undefined> = {
+            patrocinador: detallesProj?.actorPatrocinador, beneficiario: detallesProj?.actorBeneficiario,
+            ejecutor: detallesProj?.actorEjecutor, financista: detallesProj?.actorFinancista,
+          };
+          return pedidos.every((a) => !!campo[a]);
+        }
         case "carta":
           return !!(cartaData?.archivoUrl && cartaData?.fechaEmision && cartaData?.fechaInicio && cartaData?.fechaFin && cartaData?.supNombres);
         case "problema":
@@ -263,17 +247,7 @@ export default async function EgresadoPage({
     datos_rechazados: "Datos Rechazados",
   };
 
-  const steps = isInvestigacion
-    ? [
-        { num: 1, title: "Portada", desc: "Información general e integrantes" },
-        { num: 2, title: "Actores intervinientes", desc: "Patrocinador, investigador y financista" },
-        { num: 3, title: "Carta de Aceptación", desc: "Documento de la institución" },
-        { num: 4, title: "Descripción del problema", desc: "Problema u oportunidad a investigar" },
-        { num: 5, title: "Justificación", desc: "Justificación de la investigación" },
-        { num: 6, title: "Objetivos", desc: "Objetivo general y específicos" },
-        { num: 7, title: "Documentación de soporte", desc: "Documentos obligatorios" },
-      ]
-    : isProyecto
+  const steps = isMultiUserFlow
     ? pasosProyecto.map((p) => ({ num: p.num, title: p.espacio.titulo, desc: p.espacio.descripcion }))
     : [
         { num: 1, title: "Portada", desc: "Información general del trabajo" },
@@ -520,85 +494,8 @@ export default async function EgresadoPage({
                 Has enviado una solicitud para registrar o actualizar datos empresariales o de supervisor. No puedes avanzar en la redacción de tu propuesta hasta que la administración apruebe los datos.
               </p>
             </div>
-          ) : isInvestigacion ? (
-            /* RENDER INVESTIGACIÓN STEPS */
-            <>
-              {currentStep === 1 && (
-                <ProyectoPortadaForm
-                  propuestaId={propuesta.id}
-                  userDetails={userDetails}
-                  mesEnvio={mesEnvio}
-                  isLocked={isFormLocked}
-                  isLeader={isLeader}
-                  teamMembers={teamMembers}
-                  memberInfo={memberInfo}
-                  isInvestigacion={true}
-                  initialTitulo={propuesta.titulo}
-                />
-              )}
-
-              {currentStep === 2 && (
-                <ActoresIntervinientesForm
-                  propuestaId={propuesta.id}
-                  initialData={detallesProj}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                  isInvestigacion={true}
-                />
-              )}
-
-              {currentStep === 3 && (
-                <CartaProyectoForm
-                  propuestaId={propuesta.id}
-                  initialData={cartaData}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                  isInvestigacion={true}
-                />
-              )}
-
-              {currentStep === 4 && (
-                <DescripcionProblemaForm
-                  propuestaId={propuesta.id}
-                  initialData={detallesProj?.descripcionProblema}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                  isInvestigacion={true}
-                />
-              )}
-
-              {currentStep === 5 && (
-                <JustificacionProyectoForm
-                  propuestaId={propuesta.id}
-                  initialData={detallesProj?.justificacion}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                  isInvestigacion={true}
-                />
-              )}
-
-              {currentStep === 6 && (
-                <ObjetivosProyectoForm
-                  propuestaId={propuesta.id}
-                  initialObjetivoGeneral={detallesProj?.objetivoGeneral}
-                  initialObjetivosEspecificos={detallesProj?.objetivosEspecificos}
-                  isLocked={isFormLocked}
-                  isReadOnly={!isLeader}
-                  isInvestigacion={true}
-                  observaciones={propuesta.observaciones}
-                />
-              )}
-
-              {currentStep === 7 && (
-                <DocumentosEstudianteForm
-                  propuestaId={propuesta.id}
-                  isLocked={isFormLocked || !isLeader}
-                  documentosSubidos={documentosSubidos}
-                />
-              )}
-            </>
-          ) : isProyecto ? (
-            /* RENDER PROYECTO STEPS: en el orden de la ficha (P2). Sin ficha, la base reproduce los 8 pasos de la fase 1. */
+          ) : isMultiUserFlow ? (
+            /* RENDER PROYECTO E INVESTIGACIÓN: en el orden de la ficha (P2, I2). Sin ficha, la base reproduce los pasos de la fase 1. */
             (() => {
               const paso = pasosProyecto[currentStep - 1];
               if (!paso) return null;
@@ -615,26 +512,26 @@ export default async function EgresadoPage({
                     <div className="p-4 bg-blue-50 border border-blue-100 text-blue-900 rounded-xl text-sm whitespace-pre-wrap">{e.ayuda}</div>
                   )}
                   {paso.tipo === "portada" && (
-                    <ProyectoPortadaForm {...nav} propuestaId={propuesta.id} userDetails={userDetails} mesEnvio={mesEnvio} isLocked={isFormLocked}
+                    <ProyectoPortadaForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} userDetails={userDetails} mesEnvio={mesEnvio} isLocked={isFormLocked}
                       isLeader={isLeader} teamMembers={teamMembers} memberInfo={memberInfo} initialTitulo={propuesta.titulo} />
                   )}
                   {paso.tipo === "actores" && (
-                    <ActoresIntervinientesForm {...nav} propuestaId={propuesta.id} initialData={detallesProj} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                    <ActoresIntervinientesForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={detallesProj} isLocked={isFormLocked} isReadOnly={!isLeader} />
                   )}
                   {paso.tipo === "carta" && (
-                    <CartaProyectoForm {...nav} propuestaId={propuesta.id} initialData={cartaData} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                    <CartaProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={cartaData} isLocked={isFormLocked} isReadOnly={!isLeader} />
                   )}
                   {paso.tipo === "problema" && (
-                    <DescripcionProblemaForm {...nav} propuestaId={propuesta.id} initialData={detallesProj?.descripcionProblema} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                    <DescripcionProblemaForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={detallesProj?.descripcionProblema} isLocked={isFormLocked} isReadOnly={!isLeader} />
                   )}
                   {paso.tipo === "justificacion" && (
-                    <JustificacionProyectoForm {...nav} propuestaId={propuesta.id} initialData={detallesProj?.justificacion} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                    <JustificacionProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={detallesProj?.justificacion} isLocked={isFormLocked} isReadOnly={!isLeader} />
                   )}
                   {paso.tipo === "alcance" && (
                     <AlcanceProyectoForm {...nav} propuestaId={propuesta.id} initialData={detallesProj?.alcance} isLocked={isFormLocked} isReadOnly={!isLeader} />
                   )}
                   {paso.tipo === "objetivos" && (
-                    <ObjetivosProyectoForm {...nav} propuestaId={propuesta.id} initialObjetivoGeneral={detallesProj?.objetivoGeneral}
+                    <ObjetivosProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialObjetivoGeneral={detallesProj?.objetivoGeneral}
                       initialObjetivosEspecificos={detallesProj?.objetivosEspecificos} isLocked={isFormLocked} isReadOnly={!isLeader}
                       observaciones={propuesta.observaciones}
                       minEspecificos={Number(e.parametros.minEspecificos ?? 4)} maxEspecificos={Number(e.parametros.maxEspecificos ?? 6)} />
@@ -655,7 +552,7 @@ export default async function EgresadoPage({
                   {paso.tipo === "no_disponible" && (
                     <div className="bg-white border border-border rounded-xl p-6 text-sm text-muted">
                       <h2 className="text-xl font-bold text-card-dark mb-2">{e.titulo}</h2>
-                      Este paso de la ficha todavía no tiene formulario para proyecto. Puedes continuar con el siguiente.
+                      Este paso de la ficha todavía no tiene formulario en el asistente. Puedes continuar con el siguiente.
                     </div>
                   )}
                 </div>

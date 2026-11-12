@@ -103,7 +103,9 @@ Propuesta ─ aprobada ─► Protocolo + Plan de trabajo ─ dictamen del aseso
 
 ## 5. Ruta ajustada
 
-> **Avance:** I1 está hecha ([ENTREGA_I1.md](ENTREGA_I1.md)). INV-ING-001-SIST está en borrador en `dev-fichas`.
+> **Avance:**
+> - I1 está hecha ([ENTREGA_I1.md](ENTREGA_I1.md)).
+> - I2 está hecha ([ENTREGA_I2.md](ENTREGA_I2.md)): INV-ING-001-SIST v1 está habilitada, y la propuesta 71 del equipo de prueba quedó enviada.
 
 | # | Entrega | Qué incluye | Resultado visible |
 |---|---|---|---|
@@ -137,12 +139,12 @@ Propuesta ─ aprobada ─► Protocolo + Plan de trabajo ─ dictamen del aseso
 ## 6. Dudas que quedan (se pueden responder durante las etapas)
 
 - ~~**Q1, carta de aceptación**~~. **Respondida el 12-nov: sí pide carta.** La ejecución empieza en la fecha de la carta.
-- **Q2, alcance** (I1). ¿Se quita de la propuesta? Hoy investigación tampoco lo tiene.
-- **Q3, descripción narrativa** (I1). ¿Es un solo texto, o un texto por cada objetivo específico?
-- **Q4, presupuesto** (I1). ¿El plan de investigación lleva presupuesto, como proyecto? Por defecto: sí, porque "es el mismo formato".
+- ~~**Q2, alcance**~~. **Respondida el 12-nov: no se agrega.**
+- ~~**Q3, descripción narrativa**~~. **Respondida el 12-nov: ya existe.** Es la descripción de cada objetivo en el paso "Objetivos".
+- ~~**Q4, presupuesto**~~. **Respondida el 12-nov: el plan de investigación no lleva presupuesto.**
 - **Q5, protocolo e hipótesis** (I3).
   - ¿El protocolo lo redacta solo el líder, o cada integrante su parte?
-  - ¿La matriz de hipótesis es una tabla con columnas fijas (hipótesis, variables, indicadores…)? ¿Cuáles?
+  - **La matriz de hipótesis queda provisionalmente con Hipótesis, Variables e Indicadores**, hasta la reunión.
 - **Q6, días hábiles** (I3). El dictamen es a "5 días hábiles". Hoy el sistema cuenta días calendario. ¿Se cambia a hábiles, sin contar fines de semana?
 - **Q7, documento solicitado** (I3). ¿Lo define el egresado en el plan para cada actividad, o el asesor al aprobarlo?
 - **Q8, informe final** (I5). ¿Lo redacta el equipo en el sistema, capítulo por capítulo, o se sube un documento y el sistema solo arma la portada, el índice y los anexos?

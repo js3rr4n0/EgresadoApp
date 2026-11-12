@@ -2,7 +2,7 @@
 //   - Al crear una propuesta se le asigna la versión habilitada de la ficha que mejor corresponde al egresado.
 //   - Al redactarla, el asistente y las reglas (equipo, objetivos) leen esa versión.
 //   - Las propuestas sin ficha (las anteriores) usan la ficha base, que describe la fase 1 tal como es.
-// Por ahora solo se asigna en proyecto: es la modalidad cuyo asistente ya lee la ficha.
+// Se asigna en proyecto (P2) e investigación (I2): son las modalidades cuyo asistente lee la ficha.
 import { db } from "@/lib/db";
 import { carreras, fichas, fichasVersiones, propuestas, usuarios } from "@/lib/schema";
 import { and, desc, eq } from "drizzle-orm";
@@ -10,7 +10,7 @@ import { definicionBase } from "./fichasBase";
 import { esEtapaPropuesta, type DefinicionFicha, type Espacio, type Modalidad } from "./tipos";
 
 /** Modalidades cuyo asistente ya lee la ficha. */
-export const MODALIDADES_CON_FICHA: Modalidad[] = ["proyecto"];
+export const MODALIDADES_CON_FICHA: Modalidad[] = ["proyecto", "investigacion"];
 
 export interface FichaDePropuesta {
   definicion: DefinicionFicha;

@@ -185,7 +185,7 @@ export default function ActoresIntervinientesForm({
             onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior ?? 1}`)}
             className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer"
           >
-            ← Volver a Portada
+            {pasoAnterior ? "← Paso anterior" : "← Volver a Portada"}
           </button>
 
           {!disabled && (

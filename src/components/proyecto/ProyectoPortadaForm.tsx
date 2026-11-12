@@ -439,7 +439,7 @@ export default function ProyectoPortadaForm({
               {/* Leader row */}
               <tr className="bg-slate-50/50">
                 <td className="px-6 py-4 font-bold text-card-dark">
-                  {userDetails?.nombreCompleto} <span className="ml-2 text-xs bg-brand-red text-white px-2 py-0.5 rounded font-semibold">Líder del proyecto</span>
+                  {userDetails?.nombreCompleto} <span className="ml-2 text-xs bg-brand-red text-white px-2 py-0.5 rounded font-semibold">{isInvestigacion ? "Líder de la investigación" : "Líder del proyecto"}</span>
                 </td>
                 <td className="px-6 py-4 text-muted">{userDetails?.carnet || "N/A"}</td>
                 <td className="px-6 py-4">
