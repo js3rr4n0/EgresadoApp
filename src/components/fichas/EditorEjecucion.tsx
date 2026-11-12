@@ -1,6 +1,6 @@
 "use client";
 
-import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, TIPOS_HITO, type DefinicionFicha, type EtapaEjecucion, type Hito, type TipoHito } from "@/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, TIPOS_HITO, type DefinicionFicha, type EtapaEjecucion, type Hito, type TipoHito } from "@/lib/fichas/tipos";
 import { ejecucionNueva } from "@/lib/fichas/plantillas";
 import { APARTADOS_INFORME_PERIODO_PROYECTO } from "@/lib/fichas/disenoFuturo";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
@@ -29,9 +29,11 @@ function Recorrido({ definicion }: { definicion: DefinicionFicha }) {
   const propuesta = definicion.etapas.find(esEtapaPropuesta);
   const ejecuciones = definicion.etapas.filter(esEtapaEjecucion);
   const plan = definicion.etapas.find(esEtapaPlan);
+  const protocolo = definicion.etapas.find(esEtapaProtocolo);
   const requisitos = ejecuciones[0]?.hitos.filter((h) => h.momento === "antes").length ?? 0;
   const pasos = [
     { titulo: "Propuesta", detalle: `${propuesta?.espacios.length ?? 0} espacios`, color: "bg-gray-700" },
+    ...(protocolo ? [{ titulo: protocolo.nombre, detalle: `${protocolo.espacios.length} espacios`, color: "bg-violet-600" }] : []),
     ...(plan ? [{ titulo: plan.nombre, detalle: plan.presupuesto.activo ? "cronograma y presupuesto" : "cronograma", color: "bg-sky-600" }] : []),
     ...(requisitos > 0 ? [{ titulo: "Requisitos", detalle: `${requisitos} antes de iniciar`, color: "bg-indigo-500" }] : []),
     ...ejecuciones.map((e) => ({ titulo: e.nombre, detalle: `${e.periodos} × ${e.duracionPeriodo} ${e.unidad === "dias" ? "días" : "meses"}`, color: "bg-brand-red" })),

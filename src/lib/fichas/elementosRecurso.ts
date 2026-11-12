@@ -3,7 +3,7 @@
 // lectura y validación compartidas por el asistente, el servidor y la vista previa.
 import type { ClaveElemento, Espacio } from "./tipos";
 
-export const ELEMENTOS_RECURSO = ["imagen", "archivo", "enlace", "lista"] as const;
+export const ELEMENTOS_RECURSO = ["imagen", "archivo", "enlace", "lista", "tabla"] as const;
 export type ElementoRecurso = (typeof ELEMENTOS_RECURSO)[number];
 export const esRecurso = (c: ClaveElemento): c is ElementoRecurso => (ELEMENTOS_RECURSO as readonly string[]).includes(c);
 
@@ -26,6 +26,8 @@ export function leerItems(elemento: ElementoRecurso, contenido: string | null | 
     const v = JSON.parse(contenido);
     if (!Array.isArray(v)) return [];
     if (elemento === "lista") return v.filter((x) => typeof x === "string");
+    // Tabla: cada fila es una lista de celdas de texto.
+    if (elemento === "tabla") return v.filter((f) => Array.isArray(f) && f.every((c) => typeof c === "string"));
     return v.filter((x) => x && typeof x === "object" && typeof x.url === "string");
   } catch {
     return [];
@@ -55,7 +57,7 @@ export const enlaceValido = (t: string) => {
 export function problemasRecurso(e: Espacio & { elemento: ElementoRecurso }, items: unknown[]): string[] {
   const p: string[] = [];
   const { min, max } = limitesRecurso(e);
-  const nombre = { imagen: "imagen(es)", archivo: "archivo(s)", enlace: "enlace(s)", lista: "elemento(s)" }[e.elemento];
+  const nombre = { imagen: "imagen(es)", archivo: "archivo(s)", enlace: "enlace(s)", lista: "elemento(s)", tabla: "fila(s)" }[e.elemento];
   if (e.obligatorio && items.length < Math.max(1, min)) p.push(`"${e.titulo}" necesita al menos ${Math.max(1, min)} ${nombre}.`);
   else if (items.length > 0 && items.length < min) p.push(`"${e.titulo}" necesita al menos ${min} ${nombre}.`);
   if (max > 0 && items.length > max) p.push(`"${e.titulo}" admite como máximo ${max} ${nombre}.`);
@@ -64,6 +66,13 @@ export function problemasRecurso(e: Espacio & { elemento: ElementoRecurso }, ite
     (items as string[]).forEach((t, i) => {
       if (!t.trim()) p.push(`El elemento ${i + 1} de "${e.titulo}" está vacío.`);
       else if (maxPal > 0 && palabras(t) > maxPal) p.push(`El elemento ${i + 1} de "${e.titulo}" pasa de ${maxPal} palabras.`);
+    });
+  }
+  if (e.elemento === "tabla") {
+    const columnas = columnasTabla(e);
+    (items as string[][]).forEach((fila, i) => {
+      if (fila.length !== columnas.length) p.push(`La fila ${i + 1} de "${e.titulo}" no tiene las ${columnas.length} columnas.`);
+      else if (fila.every((c) => !c.trim())) p.push(`La fila ${i + 1} de "${e.titulo}" está vacía.`);
     });
   }
   if (e.elemento === "enlace") {
@@ -99,5 +108,13 @@ export function reglasRecurso(e: Espacio & { elemento: ElementoRecurso }): strin
       const maxPal = num(e.parametros.maxPalabrasElemento, 0);
       return [cant("elemento(s)"), maxPal > 0 ? `Hasta ${maxPal} palabras por elemento.` : "Elementos cortos, uno por línea."];
     }
+    case "tabla":
+      return [cant("fila(s)"), `Columnas: ${columnasTabla(e).join(" · ")}.`];
   }
+}
+
+/** Encabezados de una tabla, según el parámetro "columnas" del espacio. */
+export function columnasTabla(e: Espacio): string[] {
+  const c = e.parametros.columnas;
+  return Array.isArray(c) && c.length ? c : ["Columna 1"];
 }

@@ -81,7 +81,7 @@ export default function CatalogoElementos() {
                     <div className="text-gray-800">{p.etiqueta}</div>
                     <div className="text-xs text-gray-500">
                       Valor actual:{" "}
-                      {p.tipo === "numero" ? `${p.porDefecto}${p.sufijo ? ` ${p.sufijo}` : ""} (de ${p.min} a ${p.max})` : p.tipo === "booleano" ? (p.porDefecto ? "sí" : "no") : p.porDefecto.map((v) => p.opciones.find((o) => o.valor === v)?.etiqueta).join(", ")}
+                      {p.tipo === "numero" ? `${p.porDefecto}${p.sufijo ? ` ${p.sufijo}` : ""} (de ${p.min} a ${p.max})` : p.tipo === "booleano" ? (p.porDefecto ? "sí" : "no") : p.tipo === "textos" ? p.porDefecto.join(" · ") : p.porDefecto.map((v) => p.opciones.find((o) => o.valor === v)?.etiqueta).join(", ")}
                     </div>
                   </li>
                 ))}

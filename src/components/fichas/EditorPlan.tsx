@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, NIVELES_PLAN, type DefinicionFicha, type EtapaPlan } from "@/lib/fichas/tipos";
+import { documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, NIVELES_PLAN, type DefinicionFicha, type EtapaPlan } from "@/lib/fichas/tipos";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
 import { planNuevo } from "@/lib/fichas/plantillas";
 import { aplanar, cargaPorIntegrante, planEjemplo, planIndividual, totalesNodo } from "@/lib/fichas/planTrabajo";
@@ -83,8 +83,11 @@ export default function EditorPlan({
         </p>
         {editable && (
           <button type="button" onClick={() => {
-            const [propuesta, ...resto] = definicion.etapas;
-            onChange({ ...definicion, etapas: [propuesta, planNuevo(nuevoId("plan")), ...resto] });
+            // Va después de la propuesta o, si la ficha tiene protocolo, después de él.
+            const pos = definicion.etapas.findIndex((e) => !esEtapaPropuesta(e) && !esEtapaProtocolo(e));
+            const corte = pos === -1 ? definicion.etapas.length : pos;
+            const plan = planNuevo(nuevoId("plan"), definicion.modalidad);
+            onChange({ ...definicion, etapas: [...definicion.etapas.slice(0, corte), plan, ...definicion.etapas.slice(corte)] });
           }} className="px-3.5 py-2 rounded-lg text-sm font-bold bg-brand-red hover:bg-red-800 text-white">
             + Agregar plan de trabajo
           </button>
@@ -105,7 +108,7 @@ export default function EditorPlan({
       <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <header className="px-4 py-2.5 border-b border-gray-100 bg-gray-50 flex flex-wrap items-center gap-3 justify-between">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="text-xs font-bold text-white bg-sky-600 rounded-md px-2 py-1 shrink-0">Después de la propuesta</span>
+            <span className="text-xs font-bold text-white bg-sky-600 rounded-md px-2 py-1 shrink-0">{definicion.etapas.some(esEtapaProtocolo) ? "Cronograma del protocolo" : "Después de la propuesta"}</span>
             <label htmlFor="plan-nombre" className="sr-only">Nombre de la etapa</label>
             <input id="plan-nombre" className={`${campoCompacto} font-bold w-64 max-w-full`} disabled={!editable} value={plan.nombre} onChange={(e) => set({ nombre: e.target.value })} />
           </div>
@@ -149,6 +152,14 @@ export default function EditorPlan({
                     onChange={(v) => set({ minimos: { ...plan.minimos, macroPorObjetivo: v } })} sufijo="mín." />
                   <Numero id="plan-act" etiqueta="Actividades por macro" valor={plan.minimos.actividadesPorMacro} max={20} editable={editable}
                     onChange={(v) => set({ minimos: { ...plan.minimos, actividadesPorMacro: v } })} sufijo="mín." />
+                </div>
+                <div>
+                  <span id="plan-doc" className={etiquetaCompacta}>Documento solicitado por actividad</span>
+                  <Opciones id="plan-doc" valor={documentoSolicitado(plan)} editable={editable} onChange={(v) => set({ documentoSolicitado: v })}
+                    opciones={[{ valor: "no", texto: "No se pide" }, { valor: "opcional", texto: "Opcional" }, { valor: "obligatorio", texto: "Obligatorio" }]} />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Cada actividad declara qué documento entregará como prueba; el informe del período lo muestra en «Resultados por actividad».
+                  </p>
                 </div>
                 {equipo && maxPropuesta !== null && necesarios > maxPropuesta && (
                   <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">

@@ -24,7 +24,8 @@ export type ClaveElemento =
   | "imagen"
   | "archivo"
   | "enlace"
-  | "lista";
+  | "lista"
+  | "tabla";
 
 export type ValorParametro = number | boolean | string | string[];
 
@@ -42,6 +43,11 @@ export interface Espacio {
    * Solo lo tienen los espacios de las fichas base; los espacios nuevos guardarán su respuesta en una tabla propia.
    */
   origenFase1?: string;
+  /**
+   * Solo en el protocolo: id de un espacio de la propuesta cuya respuesta se precarga aquí (por ejemplo, la
+   * problemática parte de la descripción del problema). El egresado la ajusta en lugar de escribirla de nuevo.
+   */
+  precargarDe?: string;
 }
 
 export interface EtapaPropuesta {
@@ -49,6 +55,26 @@ export interface EtapaPropuesta {
   id: string;
   nombre: string;
   espacios: Espacio[];
+}
+
+/**
+ * Protocolo (investigación, contexto del 12-nov-2026): documento que se redacta después de la propuesta aprobada,
+ * junto con el plan de trabajo, que es su "cronograma de actividades". Lo dictamina el asesor. Sus espacios son
+ * elementos del mismo catálogo que la propuesta. La portada y el índice se generan; no son espacios.
+ */
+export interface EtapaProtocolo {
+  tipo: "protocolo";
+  id: string;
+  nombre: string;
+  espacios: Espacio[];
+  revision: {
+    /** Plazo del asesor para emitir el dictamen. */
+    diasRevision: number;
+    /** El plazo se cuenta en días hábiles (sin sábados ni domingos). */
+    diasHabiles: boolean;
+    /** En equipo, todos los integrantes ratifican el protocolo antes de enviarlo, como la propuesta. */
+    ratificacion: boolean;
+  };
 }
 
 export type TipoHito = "primer_contacto" | "visita" | "dictamen_propuesta" | "dictamen_plan" | "personalizado";
@@ -169,22 +195,33 @@ export interface EtapaPlan {
     /** Días que tiene el asesor para revisar el plan enviado. */
     diasRevision: number;
   };
+  /**
+   * Opcional en el formato 1 (falta = "no"). Cada actividad declara el documento que se entregará como prueba;
+   * el informe del período lo muestra en "Resultados por actividad" (investigación).
+   */
+  documentoSolicitado?: "no" | "opcional" | "obligatorio";
 }
 
-export type Etapa = EtapaPropuesta | EtapaPlan | EtapaEjecucion;
+export type Etapa = EtapaPropuesta | EtapaProtocolo | EtapaPlan | EtapaEjecucion;
 
 export interface DefinicionFicha {
   formato: typeof FORMATO_DEFINICION;
   modalidad: Modalidad;
   /** Los integrantes siempre son de la misma cohorte. `mismaCarrera` es opcional en el formato 1 (falta = no se exige). */
   participantes: { min: number; max: number; mismaCarrera?: boolean };
-  /** Una etapa de propuesta, opcionalmente un plan de trabajo, y cero o más etapas de ejecución. El cierre, los
+  /** Una etapa de propuesta, opcionalmente un protocolo (investigación) y un plan de trabajo, y cero o más etapas de ejecución. El cierre, los
    *  roles y la plantilla de documento se agregarán al formato en entregas posteriores. */
   etapas: Etapa[];
 }
 
 export const esEtapaPropuesta = (e: Etapa): e is EtapaPropuesta => e.tipo === "propuesta";
+export const esEtapaProtocolo = (e: Etapa): e is EtapaProtocolo => e.tipo === "protocolo";
 export const esEtapaPlan = (e: Etapa): e is EtapaPlan => e.tipo === "plan";
+/** Etapas que se arman con espacios del catálogo. */
+export type EtapaConEspacios = EtapaPropuesta | EtapaProtocolo;
+export const tieneEspacios = (e: Etapa): e is EtapaConEspacios => e.tipo === "propuesta" || e.tipo === "protocolo";
+/** Valor efectivo de "documento solicitado" de un plan (las versiones anteriores no lo tienen). */
+export const documentoSolicitado = (p: EtapaPlan) => p.documentoSolicitado ?? "no";
 export const esEtapaEjecucion = (e: Etapa): e is EtapaEjecucion => e.tipo === "ejecucion";
 
 /** Niveles del plan, con su numeración de ejemplo. */

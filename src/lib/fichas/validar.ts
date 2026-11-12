@@ -1,8 +1,11 @@
 // Validación de la definición de una ficha antes de guardarla o habilitarla. Módulo puro.
 // Devuelve la lista de problemas en lenguaje del administrador; una lista vacía significa que la ficha es válida.
-import { CATALOGO } from "./catalogo";
+import { CATALOGO, elementoEnEtapa } from "./catalogo";
 import { esRecurso } from "./elementosRecurso";
-import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, FORMATO_DEFINICION, type DefinicionFicha, type EtapaEjecucion, type EtapaPlan } from "./tipos";
+import {
+  esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, FORMATO_DEFINICION,
+  type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaPlan, type EtapaProtocolo,
+} from "./tipos";
 
 export interface ProblemaFicha {
   /** Dónde está el problema: "ficha", el id de una etapa o "etapaId/espacioId". */
@@ -59,41 +62,20 @@ function validarPlan(plan: EtapaPlan, def: DefinicionFicha, problemas: ProblemaF
   if (!entero(plan.aprobacion.diasRevision) || plan.aprobacion.diasRevision < 1 || plan.aprobacion.diasRevision > 30) p("los días de revisión del asesor deben estar entre 1 y 30.");
   if (plan.presupuesto.activo && !plan.presupuesto.moneda.trim()) p("falta la moneda del presupuesto.");
   if (def.modalidad === "pasantia") p("la pasantía usa el cronograma dentro de la propuesta; el plan de trabajo es para proyecto e investigación.");
+  if (!["no", "opcional", "obligatorio", undefined].includes(plan.documentoSolicitado)) p("el documento solicitado por actividad no es válido.");
 }
 
-export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
-  const problemas: ProblemaFicha[] = [];
-  const ficha = (mensaje: string) => problemas.push({ ubicacion: "ficha", mensaje });
-
-  if (def.formato !== FORMATO_DEFINICION) ficha(`El formato ${def.formato} no es compatible con esta versión del sistema.`);
-  if (def.participantes.min < 1 || def.participantes.max < def.participantes.min) {
-    ficha("El número de participantes no es válido.");
-  }
-
-  const [primera, ...resto] = def.etapas;
-  if (!primera || !esEtapaPropuesta(primera)) {
-    ficha("La ficha debe empezar con la etapa de propuesta.");
-    return problemas;
-  }
-  // Orden: propuesta, a lo sumo un plan de trabajo (inmediatamente después) y luego las ejecuciones.
-  const planes = resto.filter(esEtapaPlan);
-  if (planes.length > 1) ficha("La ficha solo puede tener un plan de trabajo.");
-  if (planes.length === 1 && !esEtapaPlan(resto[0])) ficha("El plan de trabajo debe ir inmediatamente después de la propuesta.");
-  if (resto.some((e) => !esEtapaEjecucion(e) && !esEtapaPlan(e))) ficha("Después de la propuesta solo puede haber un plan de trabajo y etapas de ejecución.");
-
-  const ids = new Set<string>();
-  for (const e of def.etapas) {
-    if (ids.has(e.id)) ficha(`Hay dos etapas con el identificador "${e.id}".`);
-    ids.add(e.id);
-  }
-
-  // Etapa de propuesta: elementos permitidos, orden de dependencias y parámetros.
-  if (primera.espacios.length === 0) ficha("La propuesta no tiene espacios.");
+/**
+ * Espacios de una etapa (propuesta o protocolo): elementos permitidos, orden de dependencias y parámetros.
+ * Devuelve los elementos presentes, en orden, para las reglas de coherencia entre etapas.
+ */
+function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problemas: ProblemaFicha[], propuesta: EtapaConEspacios | null): Set<string> {
   const vistos = new Set<string>();
   const idsEspacios = new Set<string>();
-  for (const esp of primera.espacios) {
+  const nombreEtapa = etapa.tipo === "propuesta" ? "la propuesta" : "el protocolo";
+  for (const esp of etapa.espacios) {
     const el = CATALOGO[esp.elemento];
-    const ubicacion = `${primera.id}/${esp.id}`;
+    const ubicacion = `${etapa.id}/${esp.id}`;
     const p = (mensaje: string) => problemas.push({ ubicacion, mensaje: `${esp.titulo || el?.nombre || esp.elemento}: ${mensaje}` });
 
     if (!el) {
@@ -104,6 +86,7 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
     idsEspacios.add(esp.id);
     if (!esp.titulo.trim()) p("falta el título.");
     if (!el.modalidades.includes(def.modalidad)) p(`este elemento todavía no está disponible para la modalidad ${def.modalidad}.`);
+    else if (!elementoEnEtapa(esp.elemento, etapa.tipo)) p(`este elemento no se puede usar en ${nombreEtapa}.`);
     if (!el.repetible && vistos.has(esp.elemento)) p("este elemento solo puede aparecer una vez.");
     for (const req of el.requiere) {
       if (!vistos.has(req)) p(`debe ir después de "${CATALOGO[req].nombre}".`);
@@ -117,6 +100,11 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
       } else if (par.tipo === "booleano") {
         if (typeof v !== "boolean") p(`"${par.etiqueta}" debe ser sí o no.`);
         else if (v && par.soloEquipo && def.participantes.max < 2) p(`"${par.etiqueta}" solo aplica a trabajos en equipo.`);
+      } else if (par.tipo === "textos") {
+        if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) p(`"${par.etiqueta}" no es válido.`);
+        else if (v.some((x) => !x.trim())) p(`"${par.etiqueta}" tiene un texto vacío.`);
+        else if (v.length < par.minimo || v.length > par.maximo) p(`"${par.etiqueta}" debe tener de ${par.minimo} a ${par.maximo}.`);
+        else if (new Set(v.map((x) => x.trim().toLowerCase())).size !== v.length) p(`"${par.etiqueta}" tiene textos repetidos.`);
       } else {
         const validos = new Set(par.opciones.map((o) => o.valor));
         if (!Array.isArray(v) || v.some((x) => !validos.has(x))) p(`"${par.etiqueta}" tiene opciones que no existen.`);
@@ -135,6 +123,71 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
       const { minEspecificos, maxEspecificos } = esp.parametros as { minEspecificos: number; maxEspecificos: number };
       if (minEspecificos > maxEspecificos) p("el mínimo de objetivos específicos es mayor que el máximo.");
     }
+    if (esp.precargarDe !== undefined) {
+      if (etapa.tipo !== "protocolo") p("solo los espacios del protocolo se precargan desde la propuesta.");
+      else if (esp.elemento !== "texto") p("solo un bloque de texto se puede precargar desde la propuesta.");
+      else {
+        const origen = propuesta?.espacios.find((x) => x.id === esp.precargarDe);
+        if (!origen) p("se precarga desde un espacio que ya no está en la propuesta.");
+        else if (origen.elemento !== "texto" && origen.elemento !== "objetivos") p(`no se puede precargar desde "${origen.titulo}": solo desde un texto o los objetivos.`);
+      }
+    }
+  }
+  return vistos;
+}
+
+function validarProtocolo(protocolo: EtapaProtocolo, def: DefinicionFicha, problemas: ProblemaFicha[]) {
+  const p = (mensaje: string) => problemas.push({ ubicacion: protocolo.id, mensaje: `${protocolo.nombre}: ${mensaje}` });
+  if (def.modalidad !== "investigacion") p("el protocolo es, por ahora, solo para investigación.");
+  if (protocolo.espacios.length === 0) p("no tiene espacios.");
+  const { diasRevision } = protocolo.revision;
+  if (!entero(diasRevision) || diasRevision < 1 || diasRevision > 30) p("los días para el dictamen del asesor deben estar entre 1 y 30.");
+}
+
+export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
+  const problemas: ProblemaFicha[] = [];
+  const ficha = (mensaje: string) => problemas.push({ ubicacion: "ficha", mensaje });
+
+  if (def.formato !== FORMATO_DEFINICION) ficha(`El formato ${def.formato} no es compatible con esta versión del sistema.`);
+  if (def.participantes.min < 1 || def.participantes.max < def.participantes.min) {
+    ficha("El número de participantes no es válido.");
+  }
+
+  const [primera, ...resto] = def.etapas;
+  if (!primera || !esEtapaPropuesta(primera)) {
+    ficha("La ficha debe empezar con la etapa de propuesta.");
+    return problemas;
+  }
+  // Orden: propuesta, a lo sumo un protocolo (inmediatamente después), a lo sumo un plan de trabajo (después de la
+  // propuesta o del protocolo) y luego las ejecuciones.
+  const protocolos = resto.filter(esEtapaProtocolo);
+  const planes = resto.filter(esEtapaPlan);
+  if (protocolos.length > 1) ficha("La ficha solo puede tener un protocolo.");
+  if (protocolos.length === 1 && !esEtapaProtocolo(resto[0])) ficha("El protocolo debe ir inmediatamente después de la propuesta.");
+  if (planes.length > 1) ficha("La ficha solo puede tener un plan de trabajo.");
+  const posPlan = protocolos.length === 1 && esEtapaProtocolo(resto[0]) ? 1 : 0;
+  if (planes.length === 1 && !esEtapaPlan(resto[posPlan])) {
+    ficha(posPlan === 1 ? "El plan de trabajo debe ir inmediatamente después del protocolo." : "El plan de trabajo debe ir inmediatamente después de la propuesta.");
+  }
+  if (resto.some((e) => !esEtapaEjecucion(e) && !esEtapaPlan(e) && !esEtapaProtocolo(e))) ficha("Después de la propuesta solo puede haber un protocolo, un plan de trabajo y etapas de ejecución.");
+  if (resto.some((e) => esEtapaPropuesta(e))) ficha("La ficha solo puede tener una propuesta.");
+
+  const ids = new Set<string>();
+  for (const e of def.etapas) {
+    if (ids.has(e.id)) ficha(`Hay dos etapas con el identificador "${e.id}".`);
+    ids.add(e.id);
+  }
+
+  // Etapa de propuesta: elementos permitidos, orden de dependencias y parámetros.
+  if (primera.espacios.length === 0) ficha("La propuesta no tiene espacios.");
+  const vistos = validarEspacios(primera, def, problemas, null);
+
+  // Protocolo (investigación): mismos elementos, sin los que solo van en la propuesta.
+  const protocolo = protocolos[0];
+  if (protocolo) {
+    validarProtocolo(protocolo, def, problemas);
+    validarEspacios(protocolo, def, problemas, primera);
+    if (!planes.length) ficha("El protocolo incluye el cronograma de actividades: agrega el plan de trabajo.");
   }
 
   // Etapas de ejecución.
@@ -190,9 +243,21 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
   if (mismaCarrera !== undefined && typeof mismaCarrera !== "boolean") return false;
   return x.etapas.every((e: unknown) => {
     if (!obj(e) || !str(e.id) || !str(e.nombre)) return false;
+    const espaciosValidos = (v: unknown) =>
+      Array.isArray(v) &&
+      v.every(
+        (s: unknown) =>
+          obj(s) && str(s.id) && str(s.elemento) && str(s.titulo) && str(s.descripcion) && str(s.ayuda) &&
+          typeof s.obligatorio === "boolean" && obj(s.parametros) && (s.precargarDe === undefined || str(s.precargarDe))
+      );
+    if (e.tipo === "protocolo") {
+      const r = e.revision;
+      return espaciosValidos(e.espacios) && obj(r) && num(r.diasRevision) && typeof r.diasHabiles === "boolean" && typeof r.ratificacion === "boolean";
+    }
     if (e.tipo === "plan") {
       const m = e.minimos, pr = e.presupuesto, eq = e.equipo, ap = e.aprobacion;
       return (
+        opcional(e.documentoSolicitado, ["no", "opcional", "obligatorio"]) &&
         ["no", "opcional", "obligatorio"].includes(e.subactividades as string) &&
         obj(m) && num(m.objetivosPorIntegrante) && num(m.macroPorObjetivo) && num(m.actividadesPorMacro) &&
         obj(pr) && typeof pr.activo === "boolean" && (pr.desglose === "monto" || pr.desglose === "recursos_gastos") && str(pr.moneda) &&
@@ -201,16 +266,7 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
         obj(ap) && typeof ap.validaSupervisor === "boolean" && num(ap.diasRevision)
       );
     }
-    if (e.tipo === "propuesta") {
-      return (
-        Array.isArray(e.espacios) &&
-        e.espacios.every(
-          (s: unknown) =>
-            obj(s) && str(s.id) && str(s.elemento) && str(s.titulo) && str(s.descripcion) && str(s.ayuda) &&
-            typeof s.obligatorio === "boolean" && obj(s.parametros)
-        )
-      );
-    }
+    if (e.tipo === "propuesta") return espaciosValidos(e.espacios);
     if (e.tipo === "ejecucion") {
       const r = e.registro;
       const i = e.informe;

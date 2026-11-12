@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ACTORES, CATALOGO, DOCUMENTOS_ESTUDIANTE } from "@/lib/fichas/catalogo";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import { reglasRecurso } from "@/lib/fichas/elementosRecurso";
-import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaEjecucion } from "@/lib/fichas/tipos";
+import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
 
 /** Reglas de un espacio en frases cortas, como las leería el egresado. */
 function reglas(e: Espacio, equipo: boolean): string[] {
@@ -40,6 +40,7 @@ function reglas(e: Espacio, equipo: boolean): string[] {
     case "archivo":
     case "enlace":
     case "lista":
+    case "tabla":
       return reglasRecurso({ ...e, elemento: e.elemento });
   }
 }
@@ -73,18 +74,25 @@ function calcularCalendario(ejecuciones: EtapaEjecucion[], inicio: string) {
 }
 
 /** Propuesta paso a paso, como la ve el egresado. */
-export function PasosEgresado({ definicion }: { definicion: DefinicionFicha }) {
-  const propuesta = definicion.etapas.find(esEtapaPropuesta);
+export function PasosEgresado({ definicion, etapa }: { definicion: DefinicionFicha; etapa?: EtapaConEspacios }) {
+  const origen = definicion.etapas.find(esEtapaPropuesta);
+  const propuesta = etapa ?? origen;
+  const esProtocolo = propuesta?.tipo === "protocolo";
   const equipo = definicion.participantes.max > 1;
   const [paso, setPaso] = useState(0);
   const espacio = propuesta?.espacios[paso];
+  const precarga = espacio?.precargarDe ? origen?.espacios.find((e) => e.id === espacio.precargarDe) : undefined;
 
   return (
     <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <header className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="font-bold text-gray-800">Propuesta</h2>
-          <p className="text-xs text-gray-500">Los pasos se habilitan en orden: cada uno se desbloquea al completar el anterior.</p>
+          <h2 className="font-bold text-gray-800">{esProtocolo ? propuesta.nombre : "Propuesta"}</h2>
+          <p className="text-xs text-gray-500">
+            {esProtocolo
+              ? "Después de la propuesta aprobada. La portada y el índice se generan, y el cronograma de actividades es el plan de trabajo."
+              : "Los pasos se habilitan en orden: cada uno se desbloquea al completar el anterior."}
+          </p>
         </div>
         <span className="text-xs font-bold text-gray-500">Paso {paso + 1} de {propuesta?.espacios.length ?? 0}</span>
       </header>
@@ -113,6 +121,7 @@ export function PasosEgresado({ definicion }: { definicion: DefinicionFicha }) {
                 : <p className="text-xs text-gray-400">Sin texto de ayuda.</p>}
               <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">
                 {reglas(espacio, equipo).map((r, i) => <li key={i}>{r}</li>)}
+                {precarga && <li>Empieza con lo que escribiste en «{precarga.titulo}» de la propuesta; puedes ajustarlo.</li>}
                 {!espacio.obligatorio && <li>Este paso es opcional.</li>}
               </ul>
               <div className="grid sm:grid-cols-2 gap-2">
@@ -131,7 +140,7 @@ export function PasosEgresado({ definicion }: { definicion: DefinicionFicha }) {
                   className="bg-brand-red text-white text-sm font-bold rounded-lg px-4 py-2 disabled:opacity-40">Guardar y continuar</button>
               </div>
             </div>
-          ) : <p className="text-sm text-gray-500">La propuesta no tiene espacios.</p>}
+          ) : <p className="text-sm text-gray-500">{esProtocolo ? "El protocolo" : "La propuesta"} no tiene espacios.</p>}
         </div>
       </div>
     </section>

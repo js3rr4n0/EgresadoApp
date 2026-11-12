@@ -7,7 +7,12 @@ import { TIPOS_ARCHIVO } from "./elementosRecurso";
 export type DefinicionParametro =
   | { clave: string; etiqueta: string; tipo: "numero"; porDefecto: number; min: number; max: number; ayuda?: string; sufijo?: string }
   | { clave: string; etiqueta: string; tipo: "booleano"; porDefecto: boolean; ayuda?: string; soloEquipo?: boolean }
-  | { clave: string; etiqueta: string; tipo: "opciones"; porDefecto: string[]; opciones: { valor: string; etiqueta: string }[]; minimo: number; ayuda?: string };
+  | { clave: string; etiqueta: string; tipo: "opciones"; porDefecto: string[]; opciones: { valor: string; etiqueta: string }[]; minimo: number; ayuda?: string }
+  /** Lista de textos que escribe el administrador (por ejemplo, las columnas de una tabla). */
+  | { clave: string; etiqueta: string; tipo: "textos"; porDefecto: string[]; minimo: number; maximo: number; ayuda?: string };
+
+/** Etapas que se arman con espacios del catálogo. */
+export type EtapaDeEspacios = "propuesta" | "protocolo";
 
 export interface ElementoCatalogo {
   clave: ClaveElemento;
@@ -22,6 +27,8 @@ export interface ElementoCatalogo {
   alcance: "equipo" | "integrante";
   /** Elementos que deben estar antes en la misma etapa. */
   requiere: ClaveElemento[];
+  /** Etapas en las que puede usarse; si falta, en la propuesta y en el protocolo. */
+  etapas?: EtapaDeEspacios[];
   parametros: DefinicionParametro[];
 }
 
@@ -48,6 +55,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     repetible: false,
     alcance: "equipo",
     requiere: [],
+    etapas: ["propuesta"],
     parametros: [],
   },
   empresa: {
@@ -59,6 +67,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     repetible: false,
     alcance: "equipo",
     requiere: [],
+    etapas: ["propuesta"],
     parametros: [
       { clave: "aprobarEmpresaNueva", etiqueta: "Una empresa nueva o con datos modificados requiere aprobación", tipo: "booleano", porDefecto: true },
     ],
@@ -72,6 +81,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     repetible: false,
     alcance: "equipo",
     requiere: ["empresa"],
+    etapas: ["propuesta"],
     parametros: [
       { clave: "revisarSupervisorNuevo", etiqueta: "Un supervisor nuevo requiere revisión administrativa", tipo: "booleano", porDefecto: true },
     ],
@@ -85,6 +95,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     repetible: false,
     alcance: "equipo",
     requiere: [],
+    etapas: ["propuesta"],
     parametros: [
       { clave: "diasAnticipacion", etiqueta: "Días mínimos entre la emisión y el inicio", tipo: "numero", porDefecto: 21, min: 0, max: 120, sufijo: "días" },
       { clave: "duracionDias", etiqueta: "Duración entre el inicio y el fin", tipo: "numero", porDefecto: 150, min: 1, max: 730, sufijo: "días", ayuda: "Si la ficha tiene etapa de ejecución, debe coincidir con su duración total." },
@@ -99,6 +110,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     repetible: false,
     alcance: "equipo",
     requiere: ["carta"],
+    etapas: ["propuesta"],
     parametros: [
       { clave: "minActividadesPeriodo", etiqueta: "Actividades mínimas por período", tipo: "numero", porDefecto: 4, min: 1, max: 20 },
       { clave: "minActividadesSubperiodo", etiqueta: "Actividades mínimas por subperíodo", tipo: "numero", porDefecto: 1, min: 0, max: 10 },
@@ -128,6 +140,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     repetible: false,
     alcance: "equipo",
     requiere: [],
+    etapas: ["propuesta"],
     parametros: [
       { clave: "actores", etiqueta: "Actores que se piden", tipo: "opciones", porDefecto: ACTORES.map((a) => a.valor), opciones: ACTORES, minimo: 1 },
     ],
@@ -141,6 +154,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     repetible: false,
     alcance: "equipo",
     requiere: [],
+    etapas: ["propuesta"],
     parametros: [
       { clave: "minEspecificos", etiqueta: "Objetivos específicos mínimos", tipo: "numero", porDefecto: 4, min: 1, max: 20 },
       { clave: "maxEspecificos", etiqueta: "Objetivos específicos máximos", tipo: "numero", porDefecto: 6, min: 1, max: 20 },
@@ -155,6 +169,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     repetible: false,
     alcance: "integrante",
     requiere: [],
+    etapas: ["propuesta"],
     parametros: [
       { clave: "documentos", etiqueta: "Documentos que se piden", tipo: "opciones", porDefecto: DOCUMENTOS_ESTUDIANTE.map((d) => d.valor), opciones: DOCUMENTOS_ESTUDIANTE, minimo: 0 },
     ],
@@ -165,7 +180,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Imagen",
     grupo: "Recursos",
     descripcion: "Una o varias imágenes con su pie y su origen; por ejemplo, un código QR, un diagrama o una captura.",
-    modalidades: ["proyecto"],
+    modalidades: ["proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -180,7 +195,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Archivo adjunto",
     grupo: "Recursos",
     descripcion: "Uno o varios archivos: un manual, un acta, una hoja de cálculo u otro documento de apoyo.",
-    modalidades: ["proyecto"],
+    modalidades: ["proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -196,7 +211,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Enlace",
     grupo: "Recursos",
     descripcion: "Direcciones a recursos en línea con su descripción: un video, un repositorio, un sitio publicado o un proceso.",
-    modalidades: ["proyecto"],
+    modalidades: ["proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -210,7 +225,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Lista de elementos",
     grupo: "Recursos",
     descripcion: "Una lista de elementos cortos: requisitos, entregables, herramientas, beneficiarios, etc.",
-    modalidades: ["proyecto"],
+    modalidades: ["proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -220,7 +235,28 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
       { clave: "maxPalabrasElemento", etiqueta: "Palabras máximas por elemento", tipo: "numero", porDefecto: 0, min: 0, max: 200, ayuda: "0 = sin máximo" },
     ],
   },
+  // Tabla (catálogo ampliado, parte 2): por ahora solo en el protocolo de investigación, por ejemplo para la matriz de
+  // hipótesis. Todas las columnas son de texto.
+  tabla: {
+    clave: "tabla",
+    nombre: "Tabla",
+    grupo: "Recursos",
+    descripcion: "Filas con las columnas que define el administrador; por ejemplo, la matriz de hipótesis o una operacionalización de variables.",
+    modalidades: ["investigacion"],
+    repetible: true,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["protocolo"],
+    parametros: [
+      { clave: "columnas", etiqueta: "Columnas", tipo: "textos", porDefecto: ["Hipótesis", "Variables", "Indicadores"], minimo: 1, maximo: 8, ayuda: "Encabezados de la tabla, en orden." },
+      { clave: "minimo", etiqueta: "Filas mínimas", tipo: "numero", porDefecto: 1, min: 0, max: 50 },
+      { clave: "maximo", etiqueta: "Filas máximas", tipo: "numero", porDefecto: 10, min: 1, max: 50 },
+    ],
+  },
 };
+
+/** El elemento puede usarse en esa etapa (propuesta o protocolo). */
+export const elementoEnEtapa = (clave: ClaveElemento, etapa: EtapaDeEspacios) => (CATALOGO[clave].etapas ?? ["propuesta", "protocolo"]).includes(etapa);
 
 /** Parámetros de un elemento con sus valores por defecto, opcionalmente sobrescritos. */
 export function parametrosPorDefecto(

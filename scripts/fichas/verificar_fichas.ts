@@ -10,8 +10,8 @@ import path from "path";
 import { definicionBase, VALORES_FASE1_COPIADOS as V } from "../../src/lib/fichas/fichasBase";
 import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/validar";
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
-import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
-import { ejecucionNueva, planNuevo } from "../../src/lib/fichas/plantillas";
+import { diasSubperiodos, documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
+import { ejecucionNueva, planNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
 import { parametrosPorDefecto } from "../../src/lib/fichas/catalogo";
 import { leerItems, problemasRecurso, recursoCompleto } from "../../src/lib/fichas/elementosRecurso";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
@@ -351,6 +351,73 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   comprobar("Un enlace necesita dirección válida y descripción", problemasRecurso(enl, [{ url: "no-es-url", descripcion: "" }]).length === 2);
   comprobar("Un recurso opcional vacío está completo", recursoCompleto({ ...lista, obligatorio: false }, ""));
   comprobar("Lee con cuidado un contenido que no es JSON", leerItems("imagen", "texto suelto").length === 0);
+}
+
+// 13. Ficha de investigación (entrega I1): protocolo, plan con documento solicitado, tabla y precarga
+function investigacionCompleta(): DefinicionFicha {
+  const d = definicionBase("investigacion");
+  const [prop] = d.etapas;
+  d.etapas = [prop, protocoloNuevo("protocolo"), planNuevo("plan", "investigacion"), ejecucionNueva("ejecucion", "investigacion", 1, true)];
+  return d;
+}
+function investigacionConCambio(cambiar: (d: DefinicionFicha) => void): string[] {
+  const d = investigacionCompleta();
+  cambiar(d);
+  return validarDefinicion(d).map((p) => p.mensaje);
+}
+const protocoloDe = (d: DefinicionFicha) => d.etapas.find(esEtapaProtocolo)!;
+{
+  const d = investigacionCompleta();
+  const problemas = validarDefinicion(d);
+  comprobar("La ficha de investigación con protocolo, plan y ejecución es válida", problemas.length === 0, problemas.map((p) => p.mensaje).join(" | "));
+  comprobar("La ficha de investigación completa tiene la forma esperada", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
+  const prot = protocoloDe(d);
+  comprobar("El protocolo trae las partes del contexto (15 espacios, con matriz, bibliografía y anexos)",
+    prot.espacios.length === 15 && ["tabla", "lista", "archivo"].every((el) => prot.espacios.some((e) => e.elemento === el)));
+  comprobar("El protocolo precarga la problemática, la justificación y los objetivos",
+    prot.espacios.filter((e) => e.precargarDe).map((e) => e.precargarDe).join() === "problema,justificacion,objetivos");
+  comprobar("El dictamen del protocolo es a 5 días hábiles", prot.revision.diasRevision === 5 && prot.revision.diasHabiles);
+  const plan = d.etapas.find(esEtapaPlan)!;
+  comprobar("El plan de investigación pide el documento solicitado; el de proyecto no", documentoSolicitado(plan) === "obligatorio" && documentoSolicitado(planNuevo("p")) === "no");
+  const op = opcionesRegistro(ejec(d));
+  comprobar("La ejecución de investigación tiene marco teórico opcional", op.marcoTeorico === "opcional" && op.modo === "actividad");
+  comprobar("La ejecución de investigación termina con la presentación de los resultados",
+    ejec(d).hitos.some((h) => h.id === "presentacion-resultados" && h.hasta === ejec(d).periodos * ejec(d).duracionPeriodo));
+  comprobar("La ejecución de proyecto no cambia (sin hitos y sin marco teórico)",
+    ejecucionNueva("e", "proyecto", 1, true).hitos.length === 0 && opcionesRegistro(ejecucionNueva("e", "proyecto", 1, true)).marcoTeorico === "no");
+}
+detecta("protocolo después del plan", investigacionConCambio((d) => { d.etapas = [d.etapas[0], d.etapas[2], d.etapas[1], d.etapas[3]]; }), "protocolo debe ir inmediatamente después");
+detecta("protocolo sin plan de trabajo", investigacionConCambio((d) => { d.etapas = d.etapas.filter((e) => !esEtapaPlan(e)); }), "agrega el plan de trabajo");
+detecta("protocolo en proyecto", proyectoConCambio((d) => { d.etapas.splice(1, 0, protocoloNuevo("protocolo")); }), "solo para investigación");
+detecta("dos protocolos", investigacionConCambio((d) => { d.etapas.splice(1, 0, protocoloNuevo("protocolo2")); }), "solo puede tener un protocolo");
+detecta("un elemento de la propuesta en el protocolo", investigacionConCambio((d) => {
+  protocoloDe(d).espacios.push({ ...propuesta(d).espacios.find((e) => e.elemento === "objetivos")!, id: "obj2" });
+}), "no se puede usar en el protocolo");
+detecta("una tabla en la propuesta", investigacionConCambio((d) => {
+  propuesta(d).espacios.push({ ...protocoloDe(d).espacios.find((e) => e.elemento === "tabla")!, id: "tabla_prop" });
+}), "no se puede usar en la propuesta");
+detecta("precarga desde un espacio que no existe", investigacionConCambio((d) => { protocoloDe(d).espacios[2].precargarDe = "no_existe"; }), "ya no está en la propuesta");
+detecta("precarga en la propuesta", investigacionConCambio((d) => { propuesta(d).espacios.find((e) => e.elemento === "texto")!.precargarDe = "problema"; }), "solo los espacios del protocolo");
+detecta("columnas vacías o repetidas en una tabla", investigacionConCambio((d) => {
+  protocoloDe(d).espacios.find((e) => e.elemento === "tabla")!.parametros.columnas = ["Hipótesis", "hipótesis"];
+}), "textos repetidos");
+detecta("plazo del dictamen fuera de rango", investigacionConCambio((d) => { protocoloDe(d).revision.diasRevision = 0; }), "días para el dictamen");
+comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicion(proyectoCompleto()).length === 0);
+{
+  const tabla = { ...protocoloNuevo("p").espacios.find((e) => e.elemento === "tabla")!, elemento: "tabla" as const, obligatorio: true };
+  comprobar("La tabla lee filas de texto y descarta lo demás", leerItems("tabla", JSON.stringify([["a", "b", "c"], "x", [1, 2]])).length === 1);
+  comprobar("Una fila con columnas de menos es un problema", problemasRecurso(tabla, [["a", "b"]]).some((p) => p.includes("no tiene las 3 columnas")));
+  comprobar("Una tabla obligatoria con una fila completa está completa", recursoCompleto(tabla, JSON.stringify([["H1", "Edad", "Años cumplidos"]])));
+  comprobar("Una fila vacía no cuenta como completa", !recursoCompleto(tabla, JSON.stringify([["", "", ""]])));
+  const ant = investigacionCompleta();
+  const nueva = investigacionCompleta();
+  protocoloDe(nueva).revision.diasHabiles = false;
+  protocoloDe(nueva).espacios.pop();
+  nueva.etapas.find(esEtapaPlan)!.documentoSolicitado = "opcional";
+  const cambios = compararDefiniciones(ant, nueva);
+  comprobar("Los cambios del protocolo y del documento solicitado aparecen al habilitar",
+    ["Protocolo: Se quitó el espacio \"Anexos\"", "días calendario", "documento solicitado por actividad, obligatorio → opcional"].every((t) => cambios.some((c) => c.includes(t))), cambios.join(" | "));
+  comprobar("Agregar el protocolo aparece como cambio", compararDefiniciones(definicionBase("investigacion"), ant).some((c) => c.startsWith("Se agregó el protocolo")));
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

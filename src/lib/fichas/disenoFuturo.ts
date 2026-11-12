@@ -72,6 +72,7 @@ export const CAMPOS_ELEMENTO: Record<ClaveElemento, CampoElemento[]> = {
     { nombre: "Descripción del enlace", tipo: "texto", obligatorio: true },
   ],
   lista: [{ nombre: "Elementos de la lista", tipo: "lista", obligatorio: true }],
+  tabla: [{ nombre: "Filas (una celda de texto por columna)", tipo: "lista", obligatorio: true }],
 };
 
 /** Apartados del informe final como los arma hoy el sistema (src/lib/informeFinal.ts). */

@@ -6,16 +6,17 @@ import { useRouter } from "next/navigation";
 import { crearFicha, descartarBorrador, guardarBorrador, habilitarVersion, nuevaVersion, retirarVersion } from "@/app/actions/fichas";
 import { compararDefiniciones } from "@/lib/fichas/diferencias";
 import { validarDefinicion, type ProblemaFicha } from "@/lib/fichas/validar";
-import { esEtapaEjecucion, esEtapaPlan, type DefinicionFicha, type EstadoVersion, type Modalidad } from "@/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, type DefinicionFicha, type EstadoVersion, type Modalidad } from "@/lib/fichas/tipos";
 import { ETIQUETA_MODALIDAD, EstadoVersionBadge, Proximamente } from "./comunes";
 import EditorPropuesta from "./EditorPropuesta";
+import EditorProtocolo from "./EditorProtocolo";
 import EditorEjecucion from "./EditorEjecucion";
 import EditorPlan from "./EditorPlan";
 import { CalendarioEjecucion, PasosEgresado, PlanEgresado } from "./VistaPrevia";
 import { EjemploPlan } from "./EditorPlan";
 import { EditorCierre, EditorPresentacion, EditorRoles } from "./PestanasDiseno";
 
-type Pestana = "propuesta" | "plan" | "ejecucion"| "ejecucion" | "cierre" | "revision" | "publica" | "roles" | "cambios" | "versiones";
+type Pestana = "propuesta" | "protocolo" | "plan" | "ejecucion" | "cierre" | "revision" | "publica" | "roles" | "cambios" | "versiones";
 
 interface Props {
   ficha: { id: number; codigo: string | null; nombre: string; modalidad: Modalidad; esBase: boolean; alcance: string };
@@ -86,13 +87,20 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
       return habilitarVersion(version.id, notas);
     }, `Versión ${version.numero} habilitada.`, () => setHabilitando(false));
 
-  const enPropuesta = problemas.filter((p) => p.ubicacion.includes("/")).length;
+  const idPropuesta = definicion.etapas.find(esEtapaPropuesta)?.id;
+  const protocoloActual = definicion.etapas.find(esEtapaProtocolo);
+  const idProtocolo = protocoloActual?.id;
+  const enPropuesta = problemas.filter((p) => p.ubicacion.startsWith(`${idPropuesta}/`)).length;
+  const enProtocolo = idProtocolo ? problemas.filter((p) => p.ubicacion === idProtocolo || p.ubicacion.startsWith(`${idProtocolo}/`)).length : 0;
   const planActual = definicion.etapas.find(esEtapaPlan);
   const idPlan = planActual?.id;
   const enPlan = problemas.filter((p) => p.ubicacion === idPlan).length;
-  const enEjecucion = problemas.filter((p) => p.ubicacion !== "ficha" && p.ubicacion !== idPlan && !p.ubicacion.includes("/")).length;
+  const enEjecucion = problemas.filter((p) => p.ubicacion !== "ficha" && p.ubicacion !== idPlan && p.ubicacion !== idProtocolo && !p.ubicacion.includes("/")).length;
+  // El protocolo es, por ahora, de investigación; si otra ficha lo tuviera (no debería), la pestaña también se muestra.
+  const conProtocolo = ficha.modalidad === "investigacion" || Boolean(protocoloActual);
   const pestanas: { id: Pestana; texto: string; marca?: number; diseno?: boolean }[] = [
     { id: "propuesta", texto: "Propuesta", marca: enPropuesta },
+    ...(conProtocolo ? [{ id: "protocolo" as const, texto: "Protocolo", marca: enProtocolo }] : []),
     ...(ficha.modalidad === "pasantia" ? [] : [{ id: "plan" as const, texto: "Plan de trabajo", marca: enPlan }]),
     { id: "ejecucion", texto: "Ejecución", marca: enEjecucion },
     { id: "cierre", texto: "Cierre", diseno: true },
@@ -202,6 +210,7 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
             Así verá el egresado esta ficha: los pasos de su propuesta y las fechas de su ejecución.
           </div>
           <PasosEgresado definicion={definicion} />
+          {protocoloActual && <PasosEgresado definicion={definicion} etapa={protocoloActual} />}
           <PlanEgresado definicion={definicion} />
           {planActual && <EjemploPlan definicion={definicion} plan={planActual} />}
           <CalendarioEjecucion ejecuciones={definicion.etapas.filter(esEtapaEjecucion)} />
@@ -219,7 +228,8 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
             ))}
           </div>
 
-          {pestana === "propuesta" && <EditorPropuesta definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
+          {pestana === "propuesta" && <EditorPropuesta key="propuesta" definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
+          {pestana === "protocolo" && <EditorProtocolo definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "plan" && <EditorPlan definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "ejecucion" && <EditorEjecucion definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "cierre" && <EditorCierre modalidad={ficha.modalidad} />}

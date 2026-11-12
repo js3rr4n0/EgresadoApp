@@ -1,7 +1,10 @@
 // Cambios entre dos definiciones de una ficha, en lenguaje del administrador. Se muestran antes de habilitar
 // una versión nueva para que se vea qué cambia respecto de la anterior. Módulo puro.
 import { CATALOGO } from "./catalogo";
-import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, rangoPalabras, type DefinicionFicha, type EtapaEjecucion, type EtapaPlan, type ValorParametro } from "./tipos";
+import {
+  documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, rangoPalabras,
+  type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaPlan, type EtapaProtocolo, type ValorParametro,
+} from "./tipos";
 
 const texto = (v: ValorParametro | null | undefined) =>
   Array.isArray(v) ? (v.length ? v.join(", ") : "ninguno") : typeof v === "boolean" ? (v ? "sí" : "no") : String(v ?? "—");
@@ -44,7 +47,42 @@ const CAMPOS_PLAN: [string, (p: EtapaPlan) => ValorParametro][] = [
   ["Panel de carga para el asesor", (p) => p.equipo.panelCarga],
   ["Validación del supervisor", (p) => p.aprobacion.validaSupervisor],
   ["Días de revisión del asesor", (p) => p.aprobacion.diasRevision],
+  ["Documento solicitado por actividad", (p) => documentoSolicitado(p)],
 ];
+
+const CAMPOS_PROTOCOLO: [string, (p: EtapaProtocolo) => ValorParametro][] = [
+  ["Plazo del dictamen", (p) => `${p.revision.diasRevision} días ${p.revision.diasHabiles ? "hábiles" : "calendario"}`],
+  ["Ratificación del equipo", (p) => p.revision.ratificacion],
+];
+
+/** Cambios en los espacios de una etapa (propuesta o protocolo). */
+function compararEspacios(a: EtapaConEspacios, n: EtapaConEspacios, prefijo: string, nombreEtapa: string): string[] {
+  const cambios: string[] = [];
+  const porIdA = new Map(a.espacios.map((e, i) => [e.id, { e, i }]));
+  const porIdN = new Map(n.espacios.map((e, i) => [e.id, { e, i }]));
+  for (const { e } of porIdA.values()) if (!porIdN.has(e.id)) cambios.push(`${prefijo}Se quitó el espacio "${e.titulo}".`);
+  for (const { e, i } of porIdN.values()) {
+    const previo = porIdA.get(e.id);
+    if (!previo) {
+      cambios.push(`${prefijo}Se agregó el espacio "${e.titulo}" (${CATALOGO[e.elemento]?.nombre ?? e.elemento}) en la posición ${i + 1}.`);
+      continue;
+    }
+    const v = previo.e;
+    if (v.titulo !== e.titulo) cambios.push(`${prefijo}El espacio "${v.titulo}" ahora se llama "${e.titulo}".`);
+    if (v.descripcion !== e.descripcion || v.ayuda !== e.ayuda) cambios.push(`${prefijo}"${e.titulo}": cambió la descripción o la ayuda.`);
+    if (v.obligatorio !== e.obligatorio) cambios.push(`${prefijo}"${e.titulo}": ahora es ${e.obligatorio ? "obligatorio" : "opcional"}.`);
+    if ((v.precargarDe ?? "") !== (e.precargarDe ?? "")) cambios.push(`${prefijo}"${e.titulo}": cambió de dónde se precarga.`);
+    for (const par of CATALOGO[e.elemento]?.parametros ?? []) {
+      const va = v.parametros[par.clave];
+      const vn = e.parametros[par.clave];
+      if (texto(va) !== texto(vn)) cambios.push(`${prefijo}"${e.titulo}": ${par.etiqueta.toLowerCase()}, ${texto(va)} → ${texto(vn)}.`);
+    }
+  }
+  const ordenA = a.espacios.filter((e) => porIdN.has(e.id)).map((e) => e.id).join();
+  const ordenN = n.espacios.filter((e) => porIdA.has(e.id)).map((e) => e.id).join();
+  if (ordenA !== ordenN) cambios.push(`Cambió el orden de los espacios de ${nombreEtapa}.`);
+  return cambios;
+}
 
 export function compararDefiniciones(anterior: DefinicionFicha, nueva: DefinicionFicha): string[] {
   const cambios: string[] = [];
@@ -61,29 +99,19 @@ export function compararDefiniciones(anterior: DefinicionFicha, nueva: Definicio
 
   const pa = anterior.etapas.find(esEtapaPropuesta);
   const pn = nueva.etapas.find(esEtapaPropuesta);
-  if (pa && pn) {
-    const porIdA = new Map(pa.espacios.map((e, i) => [e.id, { e, i }]));
-    const porIdN = new Map(pn.espacios.map((e, i) => [e.id, { e, i }]));
-    for (const { e } of porIdA.values()) if (!porIdN.has(e.id)) cambios.push(`Se quitó el espacio "${e.titulo}".`);
-    for (const { e, i } of porIdN.values()) {
-      const previo = porIdA.get(e.id);
-      if (!previo) {
-        cambios.push(`Se agregó el espacio "${e.titulo}" (${CATALOGO[e.elemento]?.nombre ?? e.elemento}) en la posición ${i + 1}.`);
-        continue;
-      }
-      const a = previo.e;
-      if (a.titulo !== e.titulo) cambios.push(`El espacio "${a.titulo}" ahora se llama "${e.titulo}".`);
-      if (a.descripcion !== e.descripcion || a.ayuda !== e.ayuda) cambios.push(`"${e.titulo}": cambió la descripción o la ayuda.`);
-      if (a.obligatorio !== e.obligatorio) cambios.push(`"${e.titulo}": ahora es ${e.obligatorio ? "obligatorio" : "opcional"}.`);
-      for (const par of CATALOGO[e.elemento]?.parametros ?? []) {
-        const va = a.parametros[par.clave];
-        const vn = e.parametros[par.clave];
-        if (texto(va) !== texto(vn)) cambios.push(`"${e.titulo}": ${par.etiqueta.toLowerCase()}, ${texto(va)} → ${texto(vn)}.`);
-      }
+  if (pa && pn) cambios.push(...compararEspacios(pa, pn, "", "la propuesta"));
+
+  const prA = anterior.etapas.find(esEtapaProtocolo);
+  const prN = nueva.etapas.find(esEtapaProtocolo);
+  if (prA && !prN) cambios.push("Se quitó el protocolo.");
+  if (!prA && prN) cambios.push(`Se agregó el protocolo, con ${prN.espacios.length} espacios.`);
+  if (prA && prN) {
+    cambios.push(...compararEspacios(prA, prN, "Protocolo: ", "el protocolo"));
+    for (const [etiqueta, leer] of CAMPOS_PROTOCOLO) {
+      const va = texto(leer(prA));
+      const vn = texto(leer(prN));
+      if (va !== vn) cambios.push(`Protocolo: ${etiqueta.toLowerCase()}, ${va} → ${vn}.`);
     }
-    const ordenA = pa.espacios.filter((e) => porIdN.has(e.id)).map((e) => e.id).join();
-    const ordenN = pn.espacios.filter((e) => porIdA.has(e.id)).map((e) => e.id).join();
-    if (ordenA !== ordenN) cambios.push("Cambió el orden de los espacios de la propuesta.");
   }
 
   const plA = anterior.etapas.find(esEtapaPlan);

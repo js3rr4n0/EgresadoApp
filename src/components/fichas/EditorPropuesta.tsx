@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { CATALOGO, parametrosPorDefecto, type DefinicionParametro } from "@/lib/fichas/catalogo";
+import { CATALOGO, elementoEnEtapa, parametrosPorDefecto, type DefinicionParametro, type EtapaDeEspacios } from "@/lib/fichas/catalogo";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
-import type { ClaveElemento, DefinicionFicha, Espacio, EtapaPropuesta, ValorParametro } from "@/lib/fichas/tipos";
+import { esEtapaPropuesta, type ClaveElemento, type DefinicionFicha, type Espacio, type EtapaConEspacios, type ValorParametro } from "@/lib/fichas/tipos";
 import { Proximamente } from "./comunes";
 import { nuevoId } from "./ids";
 
@@ -47,19 +47,26 @@ export function Interruptor({ activo, onChange, deshabilitado, etiqueta }: { act
   );
 }
 
+/** Edita los espacios de la propuesta o, con tipoEtapa="protocolo", los del protocolo de investigación. */
 export default function EditorPropuesta({
   definicion,
   editable,
   problemas,
   onChange,
+  tipoEtapa = "propuesta",
 }: {
   definicion: DefinicionFicha;
   editable: boolean;
   problemas: ProblemaFicha[];
   onChange: (d: DefinicionFicha) => void;
+  tipoEtapa?: EtapaDeEspacios;
 }) {
-  const indiceEtapa = definicion.etapas.findIndex((e) => e.tipo === "propuesta");
-  const etapa = definicion.etapas[indiceEtapa] as EtapaPropuesta;
+  const indiceEtapa = definicion.etapas.findIndex((e) => e.tipo === tipoEtapa);
+  const etapa = definicion.etapas[indiceEtapa] as EtapaConEspacios;
+  const esProtocolo = tipoEtapa === "protocolo";
+  const propuesta = definicion.etapas.find(esEtapaPropuesta);
+  // Espacios de la propuesta desde los que un texto del protocolo puede precargarse.
+  const fuentesPrecarga = esProtocolo ? (propuesta?.espacios ?? []).filter((e) => e.elemento === "texto" || e.elemento === "objetivos") : [];
   const [seleccion, setSeleccion] = useState<string | null>(etapa.espacios[0]?.id ?? null);
   const [arrastrando, setArrastrando] = useState<number | null>(null);
   const espacio = etapa.espacios.find((e) => e.id === seleccion) ?? null;
@@ -120,7 +127,7 @@ export default function EditorPropuesta({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-white border border-gray-200 rounded-lg px-4 py-2.5">
+      {!esProtocolo && <div className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-white border border-gray-200 rounded-lg px-4 py-2.5">
         <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wide">Participantes por trabajo</span>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <label className="sr-only" htmlFor="part-min">Mínimo</label>
@@ -145,11 +152,11 @@ export default function EditorPropuesta({
             </span>
           </div>
         )}
-      </div>
+      </div>}
 
       <div className="grid lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-4">
         <section className="space-y-3 min-w-0">
-          <h2 className="text-sm font-bold text-gray-700">Espacios de la propuesta <span className="text-gray-400 font-medium">({etapa.espacios.length})</span></h2>
+          <h2 className="text-sm font-bold text-gray-700">Espacios {esProtocolo ? "del protocolo" : "de la propuesta"} <span className="text-gray-400 font-medium">({etapa.espacios.length})</span></h2>
           <ol className="space-y-1.5">
             {etapa.espacios.map((e, i) => {
               const malos = problemasDe(e.id).length;
@@ -170,6 +177,7 @@ export default function EditorPropuesta({
                     <div className="text-[11px] text-gray-500 truncate">
                       {CATALOGO[e.elemento]?.nombre ?? e.elemento}
                       {!e.obligatorio && " · opcional"}
+                      {e.precargarDe && " · se precarga"}
                     </div>
                   </div>
                   {malos > 0 && <span className="text-xs font-bold text-red-700 bg-red-50 rounded px-1.5 py-0.5" title="Problemas en este espacio">{malos}</span>}
@@ -193,10 +201,10 @@ export default function EditorPropuesta({
                 {GRUPOS.map((g) => (
                   <div key={g} className="flex flex-wrap items-center gap-1.5">
                     <span className="text-[11px] text-gray-500 w-20 shrink-0">{g}</span>
-                    {Object.values(CATALOGO).filter((el) => el.grupo === g).map((el) => {
+                    {Object.values(CATALOGO).filter((el) => el.grupo === g && elementoEnEtapa(el.clave, tipoEtapa)).map((el) => {
                       const fueraDeModalidad = !el.modalidades.includes(definicion.modalidad);
                       const yaEsta = !el.repetible && presentes.has(el.clave);
-                      const motivo = fueraDeModalidad ? "Todavía no disponible en esta modalidad" : yaEsta ? "Ya está en la propuesta" : el.descripcion;
+                      const motivo = fueraDeModalidad ? "Todavía no disponible en esta modalidad" : yaEsta ? `Ya está en ${esProtocolo ? "el protocolo" : "la propuesta"}` : el.descripcion;
                       return (
                         <button key={el.clave} type="button" title={motivo} disabled={fueraDeModalidad || yaEsta} onClick={() => agregar(el.clave)}
                           className="text-xs font-bold px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-700 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:text-gray-700 disabled:cursor-not-allowed">
@@ -255,6 +263,21 @@ export default function EditorPropuesta({
                     </div>
                   </div>
                 </Tarjeta>
+
+                {esProtocolo && espacio.elemento === "texto" && (
+                  <Tarjeta titulo="Precarga desde la propuesta">
+                    <label htmlFor="esp-precarga" className="block text-xs text-gray-600 mb-1">Se precarga con la respuesta de</label>
+                    <select id="esp-precarga" className={campoCompacto} disabled={!editable} value={espacio.precargarDe ?? ""}
+                      onChange={(e) => actualizar({ precargarDe: e.target.value || undefined })}>
+                      <option value="">Nada: el egresado lo escribe desde cero</option>
+                      {fuentesPrecarga.map((f) => <option key={f.id} value={f.id}>{f.titulo}</option>)}
+                      {espacio.precargarDe && !fuentesPrecarga.some((f) => f.id === espacio.precargarDe) && (
+                        <option value={espacio.precargarDe}>(espacio que ya no está en la propuesta)</option>
+                      )}
+                    </select>
+                    <p className="text-[11px] text-gray-500 mt-1">El egresado parte de lo que escribió en la propuesta aprobada y lo ajusta, sin volver a escribirlo.</p>
+                  </Tarjeta>
+                )}
 
                 {elemento.parametros.length > 0 && (
                   <Tarjeta titulo="Reglas">
@@ -334,6 +357,31 @@ function CampoParametro({
         </span>
         <Interruptor etiqueta={p.etiqueta} activo={valor === true} deshabilitado={!editable || (bloqueado && valor !== true)} onChange={onChange} />
       </div>
+    );
+  }
+  if (p.tipo === "textos") {
+    const lista = Array.isArray(valor) ? valor : p.porDefecto;
+    return (
+      <fieldset className="sm:col-span-2">
+        <legend className="text-xs text-gray-600 mb-1">{p.etiqueta}{p.ayuda && <span className="text-[11px] text-gray-400"> · {p.ayuda}</span>}</legend>
+        <ol className="space-y-1.5">
+          {lista.map((t, i) => (
+            <li key={i} className="flex items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 w-4 text-right">{i + 1}</span>
+              <input aria-label={`${p.etiqueta} ${i + 1}`} className={campoCompacto} disabled={!editable} value={t} maxLength={60}
+                onChange={(e) => onChange(lista.map((x, j) => (j === i ? e.target.value : x)))} />
+              {editable && (
+                <button type="button" aria-label={`Quitar ${t || "texto"}`} disabled={lista.length <= p.minimo}
+                  onClick={() => onChange(lista.filter((_, j) => j !== i))}
+                  className="text-xs font-bold text-gray-400 hover:text-red-700 px-1 disabled:opacity-30">✕</button>
+              )}
+            </li>
+          ))}
+        </ol>
+        {editable && lista.length < p.maximo && (
+          <button type="button" onClick={() => onChange([...lista, ""])} className="mt-1.5 text-xs font-bold text-gray-600 hover:text-brand-red">+ Agregar</button>
+        )}
+      </fieldset>
     );
   }
   const seleccion = Array.isArray(valor) ? valor : p.porDefecto;
