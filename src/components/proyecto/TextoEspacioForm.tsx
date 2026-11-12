@@ -19,14 +19,19 @@ interface Props {
   isReadOnly?: boolean;
   pasoSiguiente: number;
   pasoAnterior: number | null;
+  /** Dirección de cada paso; por defecto, el asistente de la propuesta (?id=…&step=n). El protocolo usa la suya. */
+  hrefPaso?: (n: number) => string;
+  /** Aviso sobre el contenido inicial (por ejemplo, que se precargó desde la propuesta). */
+  aviso?: string;
 }
 
 const contar = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 
 export default function TextoEspacioForm({
-  propuestaId, espacioId, titulo, descripcion, obligatorio, minPalabras, maxPalabras, initialData, isLocked, isReadOnly = false, pasoSiguiente, pasoAnterior,
+  propuestaId, espacioId, titulo, descripcion, obligatorio, minPalabras, maxPalabras, initialData, isLocked, isReadOnly = false, pasoSiguiente, pasoAnterior, hrefPaso, aviso,
 }: Props) {
   const router = useRouter();
+  const ir = hrefPaso ?? ((n: number) => `?id=${propuestaId}&step=${n}`);
   const [texto, setTexto] = useState(initialData || "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,9 +51,9 @@ export default function TextoEspacioForm({
     else {
       setSuccess(`${titulo} guardado correctamente.`);
       if (avanzar) {
-        router.push(`?id=${propuestaId}&step=${pasoSiguiente}`);
-        router.refresh();
+        router.push(ir(pasoSiguiente));
       }
+      router.refresh();
     }
     setPending(false);
   };
@@ -59,6 +64,7 @@ export default function TextoEspacioForm({
         <h2 className="text-xl font-bold text-card-dark">{titulo}</h2>
         {descripcion && <p className="text-sm text-muted mt-1">{descripcion}</p>}
       </div>
+      {aviso && <div className="mb-6 p-3 bg-blue-50 border border-blue-100 text-blue-900 rounded-lg text-sm">{aviso}</div>}
 
       {error && <div className="mb-6 p-4 bg-red-50 text-red-600 border border-red-200 rounded-lg text-sm font-medium">{error}</div>}
       {success && <div className="mb-6 p-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium">{success}</div>}
@@ -78,7 +84,7 @@ export default function TextoEspacioForm({
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border mt-8">
           {pasoAnterior !== null ? (
-            <button type="button" onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior}`)}
+            <button type="button" onClick={() => router.push(ir(pasoAnterior))}
               className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer">
               ← Volver al paso anterior
             </button>

@@ -187,6 +187,11 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
   if (protocolo) {
     validarProtocolo(protocolo, def, problemas);
     validarEspacios(protocolo, def, problemas, primera);
+    // Las respuestas de ambas etapas se guardan juntas (respuestas_espacios), por id de espacio.
+    const idsPropuesta = new Set(primera.espacios.map((e) => e.id));
+    for (const e of protocolo.espacios) {
+      if (idsPropuesta.has(e.id)) problemas.push({ ubicacion: `${protocolo.id}/${e.id}`, mensaje: `${e.titulo}: el identificador "${e.id}" ya se usa en la propuesta.` });
+    }
     if (!planes.length) ficha("El protocolo incluye el cronograma de actividades: agrega el plan de trabajo.");
   }
 

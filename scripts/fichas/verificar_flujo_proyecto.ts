@@ -1,15 +1,18 @@
 // Prueba completa del flujo de proyecto (entrega P6). Solo lectura: revisa que una propuesta de proyecto sea
 // coherente de punta a punta con su ficha, etapa por etapa:
-//   ficha → equipo → propuesta (pasos y firmas) → plan de trabajo → ejecución (registros) → informes del período.
+//   ficha → equipo → propuesta (pasos y firmas) → [protocolo, en investigación] → plan de trabajo → ejecución (registros)
+//   → informes del período.
 // No cambia nada. Termina con código 1 si alguna comprobación falla.
 // Uso: npx tsx --env-file=.env.local scripts/fichas/verificar_flujo_proyecto.ts <propuestaId>
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import {
   fichas, fichasVersiones, historialEstados, informesPlan, integrantesProyecto, periodos, planesTrabajo, propuestas,
-  ratificacionesPropuesta, registrosPlan, respuestasEspacios, usuarios,
+  ratificacionesPlan, ratificacionesPropuesta, registrosPlan, respuestasEspacios, usuarios,
 } from "../../src/lib/schema";
-import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha } from "../../src/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, type DefinicionFicha } from "../../src/lib/fichas/tipos";
+import { problemasProtocolo } from "../../src/lib/fichas/protocolo";
+import crypto from "crypto";
 import { actividadesDelPeriodo, aplanar, numerar, responsables, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 import { armarInformePeriodo } from "../../src/lib/fichas/informePeriodo";
 import { exigirBaseDesarrollo } from "./guardia";
@@ -65,7 +68,9 @@ async function main() {
   // 3. Propuesta
   etapa("3. Propuesta");
   const resp = await db.select().from(respuestasEspacios).where(eq(respuestasEspacios.propuestaId, id));
-  const idsEspacios = new Set(espacios.map((e) => e.id));
+  const protocolo = def.etapas.find(esEtapaProtocolo);
+  // Las respuestas del protocolo se guardan en la misma tabla que las de la propuesta.
+  const idsEspacios = new Set([...espacios, ...(protocolo?.espacios ?? [])].map((e) => e.id));
   ok("Las respuestas de espacios nuevos corresponden a espacios de la ficha", resp.every((r) => idsEspacios.has(r.espacioId)));
   for (const e of espacios.filter((x) => x.elemento === "texto" && !x.origenFase1 && x.obligatorio)) {
     ok(`El espacio "${e.titulo}" tiene respuesta`, resp.some((r) => r.espacioId === e.id && (r.contenido ?? "").trim().length > 0));
@@ -83,8 +88,29 @@ async function main() {
   }
 
   // 4. Plan de trabajo
-  etapa("4. Plan de trabajo");
   const [plan] = await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, id));
+
+  // 3b. Protocolo (investigación, I3): se envía con el plan; en equipo, ratificado por todos sobre la misma versión.
+  if (protocolo) {
+    etapa("3b. Protocolo");
+    const respProt = Object.fromEntries(resp.filter((r) => protocolo.espacios.some((e) => e.id === r.espacioId)).map((r) => [r.espacioId, r.contenido ?? ""]));
+    console.log(`  ${Object.keys(respProt).length} de ${protocolo.espacios.length} partes con respuesta`);
+    if (plan && (plan.estado === "enviado" || plan.estado === "aprobado")) {
+      const pend = problemasProtocolo(protocolo, respProt);
+      ok("El protocolo enviado está completo", pend.length === 0, pend.map((p) => p.mensaje).join(" | "));
+      if (protocolo.revision.ratificacion && equipo.length > 1) {
+        // Misma huella que actions/protocolo.ts: respuestas del protocolo ordenadas y el árbol del plan enviado.
+        const huella = crypto.createHash("sha256").update(JSON.stringify({ r: Object.keys(respProt).sort().map((k) => [k, respProt[k]]), a: plan.arbol })).digest("hex");
+        const firmas = await db.select().from(ratificacionesPlan).where(eq(ratificacionesPlan.propuestaId, id));
+        ok("Todo el equipo ratificó el protocolo y el plan enviados", equipo.every((i) => firmas.some((f) => f.usuarioId === i.id && f.huellaFirmada === huella)));
+      }
+      if (plan.estado === "aprobado") ok("El dictamen del asesor quedó por escrito", (plan.comentarioAsesor ?? "").trim().length >= 20);
+    } else {
+      console.log("  Todavía no se envía al asesor.");
+    }
+  }
+
+  etapa("4. Plan de trabajo");
   if (!plan) {
     if (["aprobada", "primer_contacto_completado", "en_ejecucion"].includes(prop.estado)) aviso("La propuesta está aprobada, pero el equipo no ha abierto su plan.");
     else console.log("  Sin plan todavía (la propuesta no está aprobada).");

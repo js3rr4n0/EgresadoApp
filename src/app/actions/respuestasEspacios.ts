@@ -4,19 +4,19 @@
 // catálogo ampliado, imágenes, archivos, enlaces y listas (guardados como JSON en el mismo campo).
 // Las reglas (obligatorio, palabras, cantidades y formatos) salen de la ficha ligada a la propuesta.
 import { db } from "@/lib/db";
-import { propuestas, respuestasEspacios } from "@/lib/schema";
+import { planesTrabajo, propuestas, respuestasEspacios } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { espaciosPropuesta, fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
-import type { Espacio } from "@/lib/fichas/tipos";
+import { esEtapaProtocolo, type ClaveElemento, type Espacio } from "@/lib/fichas/tipos";
 import {
   leerItems,
   limitesRecurso,
   problemasRecurso,
   TIPOS_ARCHIVO,
+  columnasTabla,
   type ArchivoEspacio,
-  type ElementoRecurso,
   type EnlaceEspacio,
   type ImagenEspacio,
 } from "@/lib/fichas/elementosRecurso";
@@ -27,19 +27,10 @@ const palabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 
 export async function guardarRespuestaEspacio(propuestaId: number, espacioId: string, contenido: string) {
   try {
-    const session = await getSession();
-    if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
-
-    const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
-    // Como en el resto de la propuesta en equipo, solo el líder redacta.
-    if (!prop || prop.egresadoId !== session.userId) return { success: false, error: "Solo el líder del equipo puede redactar la propuesta." };
-    if (prop.estado !== "redactando" || prop.bloqueada) return { success: false, error: "La propuesta no se puede modificar en su estado actual." };
-
-    const ficha = await fichaDePropuesta(propuestaId);
-    const espacio = ficha ? espaciosPropuesta(ficha.definicion).find((e) => e.id === espacioId) : undefined;
-    if (!ficha?.version || !espacio || espacio.elemento !== "texto" || espacio.origenFase1) {
-      return { success: false, error: "Este paso no existe en la ficha de la propuesta." };
-    }
+    const ctx = await espacioEditable(propuestaId, espacioId, ["texto"]);
+    if (!ctx.ok) return { success: false, error: ctx.error };
+    const { espacio, session } = ctx;
+    if (espacio.origenFase1) return { success: false, error: "Este paso no existe en la ficha de la propuesta." };
 
     const texto = contenido.trim();
     const n = palabras(texto);
@@ -57,7 +48,7 @@ export async function guardarRespuestaEspacio(propuestaId: number, espacioId: st
         set: { contenido: texto, actualizadoPor: session.userId, actualizadoEn: new Date() },
       });
 
-    revalidatePath("/egresado/redactar");
+    refrescar();
     return { success: true };
   } catch (error) {
     console.error("Error guardarRespuestaEspacio:", error);
@@ -80,20 +71,39 @@ export async function getRespuestasEspacios(propuestaId: number): Promise<Record
 
 type ResultadoEspacio = { success: true } | { success: false; error: string };
 
-async function espacioEditable(propuestaId: number, espacioId: string, elementos: ElementoRecurso[]) {
+/** Estados de la propuesta en los que el equipo redacta el protocolo y el plan de trabajo. */
+const ESTADOS_CON_PLAN = ["aprobada", "primer_contacto_completado", "en_ejecucion"];
+
+function refrescar() {
+  revalidatePath("/egresado/redactar");
+  revalidatePath("/egresado/plan");
+}
+
+/**
+ * Espacio de la ficha que el usuario puede editar ahora. En la propuesta: el líder, mientras se redacta. En el
+ * protocolo (I3): el líder, después de aprobada la propuesta y mientras el plan no esté enviado ni aprobado.
+ */
+async function espacioEditable<E extends ClaveElemento>(propuestaId: number, espacioId: string, elementos: E[]) {
   const session = await getSession();
   if (!session || session.rol !== "egresado") return { ok: false, error: "No autorizado" } as const;
   const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
-  if (!prop || prop.egresadoId !== session.userId) return { ok: false, error: "Solo el líder del equipo puede redactar la propuesta." } as const;
-  if (prop.estado !== "redactando" || prop.bloqueada) return { ok: false, error: "La propuesta no se puede modificar en su estado actual." } as const;
   const ficha = await fichaDePropuesta(propuestaId);
-  const espacio = ficha ? espaciosPropuesta(ficha.definicion).find((e) => e.id === espacioId) : undefined;
-  if (!ficha?.version || !espacio || !(elementos as string[]).includes(espacio.elemento)) return { ok: false, error: "Este paso no existe en la ficha de la propuesta." } as const;
+  const enPropuesta = ficha ? espaciosPropuesta(ficha.definicion).find((e) => e.id === espacioId) : undefined;
+  const enProtocolo = !enPropuesta ? ficha?.definicion.etapas.find(esEtapaProtocolo)?.espacios.find((e) => e.id === espacioId) : undefined;
+  const espacio = enPropuesta ?? enProtocolo;
+  if (!prop || !ficha?.version || !espacio || !(elementos as string[]).includes(espacio.elemento)) return { ok: false, error: "Este paso no existe en la ficha de la propuesta." } as const;
+  if (prop.egresadoId !== session.userId) return { ok: false, error: `Solo el líder del equipo puede redactar ${enProtocolo ? "el protocolo" : "la propuesta"}.` } as const;
+  if (enPropuesta && (prop.estado !== "redactando" || prop.bloqueada)) return { ok: false, error: "La propuesta no se puede modificar en su estado actual." } as const;
+  if (enProtocolo) {
+    if (!ESTADOS_CON_PLAN.includes(prop.estado)) return { ok: false, error: "El protocolo se redacta después de aprobada la propuesta." } as const;
+    const [plan] = await db.select({ estado: planesTrabajo.estado }).from(planesTrabajo).where(eq(planesTrabajo.propuestaId, propuestaId));
+    if (plan && (plan.estado === "enviado" || plan.estado === "aprobado")) return { ok: false, error: "El protocolo ya se envió al asesor; no se puede modificar." } as const;
+  }
   const [fila] = await db
     .select({ contenido: respuestasEspacios.contenido })
     .from(respuestasEspacios)
     .where(and(eq(respuestasEspacios.propuestaId, propuestaId), eq(respuestasEspacios.espacioId, espacioId)));
-  return { ok: true, session, espacio: espacio as Espacio & { elemento: ElementoRecurso }, actual: fila?.contenido ?? null } as const;
+  return { ok: true, session, espacio: espacio as Espacio & { elemento: E }, actual: fila?.contenido ?? null } as const;
 }
 
 async function guardarItems(propuestaId: number, espacioId: string, usuarioId: number, items: unknown[]) {
@@ -105,18 +115,23 @@ async function guardarItems(propuestaId: number, espacioId: string, usuarioId: n
       target: [respuestasEspacios.propuestaId, respuestasEspacios.espacioId],
       set: { contenido, actualizadoPor: usuarioId, actualizadoEn: new Date() },
     });
-  revalidatePath("/egresado/redactar");
+  refrescar();
 }
 
-/** Enlaces o lista: se guarda la lista completa. La cantidad mínima se exige para avanzar, no para guardar. */
+/** Enlaces, lista o tabla: se guarda la lista completa. La cantidad mínima se exige para avanzar, no para guardar. */
 export async function guardarRespuestaRecurso(propuestaId: number, espacioId: string, items: unknown[]): Promise<ResultadoEspacio> {
   try {
-    const ctx = await espacioEditable(propuestaId, espacioId, ["enlace", "lista"]);
+    const ctx = await espacioEditable(propuestaId, espacioId, ["enlace", "lista", "tabla"]);
     if (!ctx.ok) return { success: false, error: ctx.error };
     const { espacio, session } = ctx;
     const lista = Array.isArray(items) ? items : [];
+    const columnas = columnasTabla(espacio).length;
     const limpios =
-      espacio.elemento === "lista"
+      espacio.elemento === "tabla"
+        ? lista
+            .map((f) => Array.from({ length: columnas }, (_, i) => String((Array.isArray(f) ? f[i] : "") ?? "").trim().slice(0, 1000)))
+            .filter((f) => f.some(Boolean))
+        : espacio.elemento === "lista"
         ? lista.map((x) => String(x ?? "").trim().slice(0, 2000)).filter(Boolean)
         : lista
             .map((x) => ({

@@ -106,6 +106,7 @@ Propuesta ─ aprobada ─► Protocolo + Plan de trabajo ─ dictamen del aseso
 > **Avance:**
 > - I1 está hecha ([ENTREGA_I1.md](ENTREGA_I1.md)).
 > - I2 está hecha ([ENTREGA_I2.md](ENTREGA_I2.md)): INV-ING-001-SIST v1 está habilitada, y la propuesta 71 del equipo de prueba quedó enviada.
+> - I3 está hecha ([ENTREGA_I3.md](ENTREGA_I3.md)): la 71 tiene el protocolo y el plan aprobados por el asesor, con dictamen escrito.
 
 | # | Entrega | Qué incluye | Resultado visible |
 |---|---|---|---|
@@ -145,7 +146,7 @@ Propuesta ─ aprobada ─► Protocolo + Plan de trabajo ─ dictamen del aseso
 - **Q5, protocolo e hipótesis** (I3).
   - ¿El protocolo lo redacta solo el líder, o cada integrante su parte?
   - **La matriz de hipótesis queda provisionalmente con Hipótesis, Variables e Indicadores**, hasta la reunión.
-- **Q6, días hábiles** (I3). El dictamen es a "5 días hábiles". Hoy el sistema cuenta días calendario. ¿Se cambia a hábiles, sin contar fines de semana?
-- **Q7, documento solicitado** (I3). ¿Lo define el egresado en el plan para cada actividad, o el asesor al aprobarlo?
+- **Q6, días hábiles** (I3). El dictamen es a "5 días hábiles". Desde I3 se cuentan sin sábados ni domingos; la ficha permite cambiarlo a días calendario. Falta confirmar si los feriados también se descuentan.
+- ~~**Q7, documento solicitado**~~. **Respondida el 12-nov: lo escribe el egresado en el plan.** Al subir las evidencias se le recuerda qué documento se espera.
 - **Q8, informe final** (I5). ¿Lo redacta el equipo en el sistema, capítulo por capítulo, o se sube un documento y el sistema solo arma la portada, el índice y los anexos?
 

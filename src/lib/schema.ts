@@ -1087,3 +1087,22 @@ export const evidenciasPlan = pgTable(
     check("evidencias_plan_tipo_check", sql`${table.tipo} IN ('imagen', 'documento', 'enlace')`),
   ]
 );
+
+// Ratificación del protocolo y el plan de trabajo (entrega I3, investigación): en equipo, cada integrante firma la
+// versión que se envía al asesor. La huella cubre las respuestas del protocolo y el árbol del plan; si algo cambia,
+// las firmas anteriores dejan de valer. Script: scripts/fichas/crear_ratificaciones_plan.ts
+export const ratificacionesPlan = pgTable(
+  "ratificaciones_plan",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    huellaFirmada: text("huella_firmada").notNull(),
+    momento: timestamp("momento", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("ratificaciones_plan_propuesta_usuario").on(table.propuestaId, table.usuarioId)]
+);

@@ -10,7 +10,10 @@ import { getSession } from "@/lib/session";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
-import { esEtapaEjecucion, esEtapaPlan, type EtapaEjecucion, type EtapaPlan } from "@/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaPlan, esEtapaProtocolo, type EtapaEjecucion, type EtapaPlan } from "@/lib/fichas/tipos";
+import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
+
+const fechaCorta = (d: Date) => d.toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" });
 import { cambioNoPermitido, numerar, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
 import { notificarEquipo } from "@/lib/notificarEquipo";
 
@@ -35,6 +38,8 @@ export interface DatosPlan {
   rol: RolPlan;
   miId: number;
   plan: { arbol: NodoPlan; version: number; estado: string; comentarioAsesor: string | null; enviadoEn: string | null; revisadoEn: string | null };
+  /** Investigación (I3): el plan es el cronograma del protocolo y se envía y dictamina junto con él. */
+  protocolo: { nombre: string; diasRevision: number; diasHabiles: boolean; fechaLimite: string | null } | null;
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string; problemas?: ProblemaPlan[] };
@@ -87,6 +92,7 @@ function arbolValido(x: unknown, columnas: number): x is NodoPlan {
       typeof o.titulo === "string" && o.titulo.length <= 500 &&
       o.nivel === nivel &&
       (o.responsable === null || (typeof o.responsable === "number" && Number.isInteger(o.responsable))) &&
+      (o.documento === undefined || (typeof o.documento === "string" && o.documento.length <= 300)) &&
       Array.isArray(o.montos) && o.montos.length <= columnas && o.montos.every((m) => typeof m === "number" && Number.isFinite(m) && m >= 0 && m <= 1e9) &&
       Array.isArray(o.hijos) && (nivel < 5 || o.hijos.length === 0) && o.hijos.every((h) => rec(h, nivel + 1))
     );
@@ -111,6 +117,7 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
 
   const ficha = await fichaDePropuesta(propuestaId);
   const etapa = ficha?.definicion.etapas.find(esEtapaPlan);
+  const protocolo = ficha?.definicion.etapas.find(esEtapaProtocolo);
   const ejec = ficha?.definicion.etapas.find(esEtapaEjecucion);
   if (!ficha?.version || !etapa || !ejec) return { success: false, error: "La ficha de esta propuesta no tiene plan de trabajo." };
   if (!ESTADOS_CON_PLAN.includes(prop.estado)) return { success: false, error: "El plan de trabajo se elabora después de aprobada la propuesta." };
@@ -148,6 +155,14 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
         enviadoEn: fila.enviadoEn?.toISOString() ?? null,
         revisadoEn: fila.revisadoEn?.toISOString() ?? null,
       },
+      protocolo: protocolo
+        ? {
+            nombre: protocolo.nombre,
+            diasRevision: protocolo.revision.diasRevision,
+            diasHabiles: protocolo.revision.diasHabiles,
+            fechaLimite: fila.enviadoEn && (fila.estado === "enviado" || fila.estado === "aprobado") ? fechaLimiteDictamen(fila.enviadoEn, protocolo).toISOString() : null,
+          }
+        : null,
     },
   };
 }
@@ -189,13 +204,24 @@ export async function enviarPlanTrabajo(propuestaId: number): Promise<Resultado>
   if (datos.plan.estado !== "redactando" && datos.plan.estado !== "observado") return { success: false, error: "El plan ya fue enviado." };
   const problemas = validarPlanEquipo(datos.plan.arbol, datos.etapa, datos.equipo.map((i) => i.id), datos.columnas.length);
   if (problemas.length > 0) return { success: false, error: "El plan todavía no cumple las reglas de la ficha.", problemas };
-
-  await db.update(planesTrabajo).set({ estado: "enviado", enviadoEn: new Date() }).where(eq(planesTrabajo.propuestaId, propuestaId));
-  const [prop] = await db.select({ asesorId: propuestas.asesorId, numero: propuestas.numero }).from(propuestas).where(eq(propuestas.id, propuestaId));
-  if (prop?.asesorId) {
-    await db.insert(notificaciones).values({ usuarioId: prop.asesorId, tipo: "plan_trabajo_enviado", mensaje: `El equipo de la propuesta #${prop.numero} envió su plan de trabajo para revisión.` });
+  if (datos.protocolo) {
+    // Investigación: el protocolo completo y, en equipo, ratificado por todos (actions/protocolo.ts).
+    const { motivoProtocoloNoEnviable } = await import("./protocolo");
+    const motivo = await motivoProtocoloNoEnviable(propuestaId);
+    if (motivo) return { success: false, error: motivo };
   }
-  await notificarEquipo(propuestaId, "plan_trabajo_enviado", `El plan de trabajo de la propuesta #${prop?.numero ?? ""} se envió al asesor.`);
+
+  const enviadoEn = new Date();
+  await db.update(planesTrabajo).set({ estado: "enviado", enviadoEn }).where(eq(planesTrabajo.propuestaId, propuestaId));
+  const [prop] = await db.select({ asesorId: propuestas.asesorId, numero: propuestas.numero }).from(propuestas).where(eq(propuestas.id, propuestaId));
+  const que = datos.protocolo ? "el protocolo y el plan de trabajo" : "el plan de trabajo";
+  const plazo = datos.protocolo
+    ? ` Dictamen a más tardar el ${fechaCorta(fechaLimiteDictamen(enviadoEn, { revision: { diasRevision: datos.protocolo.diasRevision, diasHabiles: datos.protocolo.diasHabiles } }))}.`
+    : "";
+  if (prop?.asesorId) {
+    await db.insert(notificaciones).values({ usuarioId: prop.asesorId, tipo: "plan_trabajo_enviado", mensaje: `El equipo de la propuesta #${prop.numero} envió ${que} para revisión.${plazo}` });
+  }
+  await notificarEquipo(propuestaId, "plan_trabajo_enviado", `Se envió al asesor ${que} de la propuesta #${prop?.numero ?? ""}.${plazo}`);
   revalidatePath("/egresado/plan");
   return { success: true };
 }
@@ -208,6 +234,8 @@ export async function revisarPlanTrabajo(propuestaId: number, decision: "aprobar
   if (datos.plan.estado !== "enviado") return { success: false, error: "El plan no está pendiente de revisión." };
   const texto = comentario.trim();
   if (decision === "observar" && texto.length < 10) return { success: false, error: "Escribe las observaciones para el equipo (al menos 10 caracteres)." };
+  // Investigación: el asesor emite su dictamen del protocolo por escrito, también al aprobar.
+  if (datos.protocolo && decision === "aprobar" && texto.length < 20) return { success: false, error: "Escribe el dictamen del protocolo y el plan (al menos 20 caracteres)." };
 
   await db
     .update(planesTrabajo)
@@ -216,7 +244,9 @@ export async function revisarPlanTrabajo(propuestaId: number, decision: "aprobar
   await notificarEquipo(
     propuestaId,
     decision === "aprobar" ? "plan_trabajo_aprobado" : "plan_trabajo_observado",
-    decision === "aprobar" ? `El asesor aprobó el plan de trabajo de la propuesta #${datos.propuesta.numero}.` : `El asesor hizo observaciones al plan de trabajo de la propuesta #${datos.propuesta.numero}: ${texto}`
+    decision === "aprobar"
+      ? `El asesor aprobó ${datos.protocolo ? "el protocolo y el plan de trabajo" : "el plan de trabajo"} de la propuesta #${datos.propuesta.numero}.`
+      : `El asesor hizo observaciones ${datos.protocolo ? "al protocolo y el plan de trabajo" : "al plan de trabajo"} de la propuesta #${datos.propuesta.numero}: ${texto}`
   );
   revalidatePath(`/asesor/plan/${propuestaId}`);
   return { success: true };

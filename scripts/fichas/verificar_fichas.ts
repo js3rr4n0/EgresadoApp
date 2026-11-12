@@ -14,6 +14,7 @@ import { diasSubperiodos, documentoSolicitado, esEtapaEjecucion, esEtapaPlan, es
 import { ejecucionNueva, planNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
 import { parametrosPorDefecto } from "../../src/lib/fichas/catalogo";
 import { leerItems, problemasRecurso, recursoCompleto } from "../../src/lib/fichas/elementosRecurso";
+import { fechaLimiteDictamen, problemasProtocolo, sumarDias, textoPrecarga } from "../../src/lib/fichas/protocolo";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
 import { ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
@@ -419,6 +420,68 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   comprobar("Los cambios del protocolo y del documento solicitado aparecen al habilitar",
     ["Protocolo: Se quitó el espacio \"Anexos\"", "días calendario", "documento solicitado por actividad, obligatorio → opcional"].every((t) => cambios.some((c) => c.includes(t))), cambios.join(" | "));
   comprobar("Agregar el protocolo aparece como cambio", compararDefiniciones(definicionBase("investigacion"), ant).some((c) => c.startsWith("Se agregó el protocolo")));
+}
+
+// 14. Protocolo en uso y documento solicitado (entrega I3)
+{
+  const prot = protocoloNuevo("protocolo");
+  const vacio = problemasProtocolo(prot, {});
+  comprobar("Un protocolo vacío tiene pendientes solo en sus partes obligatorias",
+    vacio.length > 0 && !vacio.some((p) => ["hipotesis", "matriz_hipotesis", "anexos_protocolo"].includes(p.espacioId)), vacio.map((p) => p.espacioId).join(","));
+  const completo: Record<string, string> = {};
+  for (const e of prot.espacios) {
+    if (e.elemento === "texto") completo[e.id] = "Texto de prueba.";
+    if (e.elemento === "lista") completo[e.id] = JSON.stringify(["Uno", "Dos", "Tres"]);
+  }
+  comprobar("Un protocolo con sus partes obligatorias está completo", problemasProtocolo(prot, completo).length === 0, problemasProtocolo(prot, completo).map((p) => p.mensaje).join(" | "));
+  comprobar("Una tabla opcional mal llenada sí cuenta como pendiente",
+    problemasProtocolo(prot, { ...completo, matriz_hipotesis: JSON.stringify([["H1"]]) }).some((p) => p.espacioId === "matriz_hipotesis"));
+
+  const base = definicionBase("investigacion");
+  const esp = (id: string) => base.etapas.find(esEtapaPropuesta)!.espacios.find((e) => e.id === id);
+  const datosProp = {
+    descripcionProblema: " El problema. ", justificacion: "La justificación.", objetivoGeneral: "Analizar X.",
+    objetivosEspecificos: [{ titulo: "Identificar A", descripcion: "Con una encuesta" }, { titulo: "Medir B", descripcion: "" }],
+    respuestas: { nueva: "Texto de un espacio nuevo" },
+  };
+  comprobar("La precarga toma el problema y la justificación de la propuesta",
+    textoPrecarga(esp("problema"), datosProp) === "El problema." && textoPrecarga(esp("justificacion"), datosProp) === "La justificación.");
+  comprobar("La precarga de los objetivos lista el general y los específicos con su descripción",
+    textoPrecarga(esp("objetivos"), datosProp) === "Objetivo general: Analizar X.\n\nObjetivos específicos:\n1. Identificar A: Con una encuesta\n2. Medir B");
+  comprobar("La precarga de un texto nuevo de la propuesta usa su respuesta",
+    textoPrecarga({ ...esp("problema")!, id: "nueva", origenFase1: undefined }, datosProp) === "Texto de un espacio nuevo");
+
+  // Viernes 13-nov-2026 + 5 días hábiles = viernes 20; + 5 días calendario = miércoles 18.
+  const viernes = new Date(2026, 10, 13);
+  comprobar("El dictamen a 5 días hábiles salta el fin de semana", sumarDias(viernes, 5, true).getDate() === 20 && sumarDias(viernes, 5, false).getDate() === 18);
+  comprobar("La fecha límite usa los días de la ficha", fechaLimiteDictamen(viernes, prot).getDate() === 20);
+
+  const inv = investigacionCompleta();
+  detecta("un espacio del protocolo con el id de uno de la propuesta", validarDefinicion((() => {
+    protocoloDe(inv).espacios[0].id = "problema";
+    return inv;
+  })()).map((p) => p.mensaje), "ya se usa en la propuesta");
+
+  const planInv = planNuevo("plan", "investigacion");
+  const raizDoc = numerar({ id: "og", codigo: "", nivel: 1, titulo: "OG", responsable: 1, montos: [], hijos: [
+    { id: "o1", codigo: "", nivel: 2, titulo: "OE", responsable: null, montos: [], hijos: [
+      { id: "m1", codigo: "", nivel: 3, titulo: "Macro", responsable: null, montos: [], hijos: [
+        { id: "a1", codigo: "", nivel: 4, titulo: "Actividad", responsable: null, montos: [1], hijos: [] },
+      ] },
+    ] },
+  ] });
+  const sinDoc = validarPlanEquipo(raizDoc, { ...planInv, minimos: { ...planInv.minimos, objetivosPorIntegrante: 1 } }, [1], 1);
+  comprobar("Con documento obligatorio, cada actividad debe indicarlo", sinDoc.some((p) => p.mensaje.includes("documento que entregarás")), sinDoc.map((p) => p.mensaje).join(" | "));
+  const conDoc = structuredClone(raizDoc);
+  conDoc.hijos[0].hijos[0].hijos[0].documento = "Cuestionario aplicado (PDF)";
+  comprobar("Con el documento indicado, el plan no tiene ese pendiente",
+    !validarPlanEquipo(conDoc, { ...planInv, minimos: { ...planInv.minimos, objetivosPorIntegrante: 1 } }, [1], 1).some((p) => p.mensaje.includes("documento")));
+  comprobar("En proyecto no se pide documento", !validarPlanEquipo(raizDoc, { ...planNuevo("p"), minimos: { ...planNuevo("p").minimos, objetivosPorIntegrante: 1 } }, [1], 1).some((p) => p.mensaje.includes("documento")));
+  const ajeno = structuredClone(raizDoc);
+  ajeno.hijos[0].responsable = 2;
+  const cambiado = structuredClone(ajeno);
+  cambiado.hijos[0].hijos[0].hijos[0].documento = "Otro";
+  comprobar("Un integrante no cambia el documento de una actividad ajena", cambioNoPermitido(ajeno, cambiado, 3) !== null && cambioNoPermitido(ajeno, cambiado, 2) === null);
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

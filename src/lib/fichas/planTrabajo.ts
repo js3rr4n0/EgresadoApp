@@ -1,6 +1,6 @@
 // Plan de trabajo jerárquico: sumas por nivel, plan individual y carga por integrante. Módulo puro.
 // Lo usa la vista de ejemplo del constructor y lo usará el editor del plan del egresado (entrega P3).
-import type { EtapaPlan } from "./tipos";
+import { documentoSolicitado, type EtapaPlan } from "./tipos";
 
 export interface NodoPlan {
   /** Identificador estable: los registros de la ejecución (P4) apuntarán a él. */
@@ -15,6 +15,11 @@ export interface NodoPlan {
   /** Monto por columna del cronograma (subperíodo o período). Solo lo llevan las hojas; los demás niveles suman. */
   montos: number[];
   hijos: NodoPlan[];
+  /**
+   * Solo actividades (nivel 4), si la ficha pide "documento solicitado": el documento que el egresado entregará como
+   * prueba. Se le recuerda al subir sus evidencias y aparece en "Resultados por actividad" (investigación).
+   */
+  documento?: string;
 }
 
 /** Monto por columna de un nodo: el suyo si es hoja, o la suma de sus hijos (consecuencia lógica). */
@@ -176,6 +181,9 @@ export function validarPlanEquipo(raiz: NodoPlan, plan: EtapaPlan, integrantes: 
     if (n.nivel === 3 && n.hijos.length < plan.minimos.actividadesPorMacro) p(n, `${n.codigo}: necesita al menos ${plan.minimos.actividadesPorMacro} actividad(es).`);
     if (n.nivel === 4 && plan.subactividades === "obligatorio" && n.hijos.length === 0) p(n, `${n.codigo}: la ficha pide subactividades.`);
     if (n.nivel === 4 && plan.subactividades === "no" && n.hijos.length > 0) p(n, `${n.codigo}: la ficha no usa subactividades.`);
+    if (n.nivel === 4 && documentoSolicitado(plan) === "obligatorio" && !n.documento?.trim()) {
+      p(n, `${n.codigo}: indica el documento que entregarás como prueba de la actividad.`);
+    }
     if (n.hijos.length === 0 && n.nivel >= 4) {
       const montos = Array.from({ length: columnas }, (_, i) => n.montos[i] ?? 0);
       if (montos.some((m) => m < 0)) p(n, `${n.codigo}: hay montos negativos.`);
@@ -218,7 +226,7 @@ export function cambioNoPermitido(anterior: NodoPlan, nuevo: NodoPlan, integrant
   const plano = (r: NodoPlan) => new Map(aplanar(r).map((n) => [n.id, n]));
   const a = plano(anterior);
   const n = plano(nuevo);
-  const firma = (x: NodoPlan) => JSON.stringify({ t: x.titulo, r: x.responsable, m: x.montos, h: x.hijos.map((h) => h.id) });
+  const firma = (x: NodoPlan) => JSON.stringify({ t: x.titulo, r: x.responsable, m: x.montos, d: x.documento ?? "", h: x.hijos.map((h) => h.id) });
   for (const [id, viejo] of a) {
     const actual = n.get(id);
     const eraSuyo = respA.get(id) === integrante;

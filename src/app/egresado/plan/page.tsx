@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { integrantesProyecto, propuestas } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { getPlanTrabajo } from "@/app/actions/planTrabajo";
-import PlanTrabajoEquipo from "@/components/proyecto/PlanTrabajoEquipo";
+import ProtocoloYPlan from "@/components/proyecto/ProtocoloYPlan";
 
 /** Propuesta del egresado (propia o de su equipo) que ya está aprobada: la que tiene plan de trabajo. */
 async function propuestaConPlan(userId: number): Promise<number | null> {
@@ -19,7 +19,7 @@ async function propuestaConPlan(userId: number): Promise<number | null> {
   return deEquipo?.id ?? null;
 }
 
-export default async function PlanTrabajoEgresadoPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
+export default async function PlanTrabajoEgresadoPage({ searchParams }: { searchParams: Promise<{ id?: string; tab?: string; paso?: string }> }) {
   const params = await searchParams;
   const session = await getSession();
   if (!session) return null;
@@ -31,11 +31,11 @@ export default async function PlanTrabajoEgresadoPage({ searchParams }: { search
       <div className="max-w-xl mx-auto my-16 p-8 bg-white border border-border rounded-2xl text-center space-y-3 shadow-sm">
         <h1 className="text-lg font-bold text-card-dark">Plan de trabajo</h1>
         <p className="text-sm text-muted">
-          {res && !res.success ? res.error : "El plan de trabajo se elabora después de que tu propuesta de proyecto sea aprobada."}
+          {res && !res.success ? res.error : "El plan de trabajo se elabora después de que tu propuesta sea aprobada."}
         </p>
         <Link href="/egresado" className="inline-block bg-brand-red text-white text-xs font-bold px-4 py-2.5 rounded-xl">Volver al panel</Link>
       </div>
     );
   }
-  return <PlanTrabajoEquipo key={res.datos.plan.estado} datos={res.datos} />;
+  return <ProtocoloYPlan datos={res.datos} tab={params.tab} paso={params.paso} consulta={`?id=${res.datos.propuesta.id}`} />;
 }

@@ -12,6 +12,7 @@ import {
   problemasRecurso,
   reglasRecurso,
   TIPOS_ARCHIVO,
+  columnasTabla,
   type ArchivoEspacio,
   type ElementoRecurso,
   type EnlaceEspacio,
@@ -32,12 +33,15 @@ interface Props {
   isReadOnly?: boolean;
   pasoSiguiente: number;
   pasoAnterior: number | null;
+  /** Dirección de cada paso; por defecto, el asistente de la propuesta (?id=…&step=n). El protocolo usa la suya. */
+  hrefPaso?: (n: number) => string;
 }
 
 const campo = "w-full p-2.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75";
 
-export default function RecursoEspacioForm({ propuestaId, espacio, initialData, isLocked, isReadOnly = false, pasoSiguiente, pasoAnterior }: Props) {
+export default function RecursoEspacioForm({ propuestaId, espacio, initialData, isLocked, isReadOnly = false, pasoSiguiente, pasoAnterior, hrefPaso }: Props) {
   const router = useRouter();
+  const ir = hrefPaso ?? ((n: number) => `?id=${propuestaId}&step=${n}`);
   const disabled = isLocked || isReadOnly;
   const items = leerItems(espacio.elemento, initialData);
   const { max } = limitesRecurso(espacio);
@@ -48,14 +52,17 @@ export default function RecursoEspacioForm({ propuestaId, espacio, initialData, 
   // Enlaces y lista se editan en el formulario y se guardan juntos.
   const [enlaces, setEnlaces] = useState<EnlaceEspacio[]>(espacio.elemento === "enlace" ? (items as EnlaceEspacio[]) : []);
   const [lista, setLista] = useState<string[]>(espacio.elemento === "lista" ? (items as string[]) : []);
+  // Tabla: filas de celdas de texto, una por columna.
+  const columnas = columnasTabla(espacio);
+  const [filas, setFilas] = useState<string[][]>(espacio.elemento === "tabla" ? (items as string[][]) : []);
   // Imagen o archivo: se agregan de a uno.
   const [archivo, setArchivo] = useState<File | null>(null);
   const [leyenda, setLeyenda] = useState("");
   const [origen, setOrigen] = useState<DatosOrigenImagen>({ origen: null, fuente: null });
   const [inputKey, setInputKey] = useState(0);
 
-  const editable = espacio.elemento === "enlace" || espacio.elemento === "lista";
-  const actuales = espacio.elemento === "enlace" ? enlaces : espacio.elemento === "lista" ? lista : items;
+  const editable = espacio.elemento === "enlace" || espacio.elemento === "lista" || espacio.elemento === "tabla";
+  const actuales = espacio.elemento === "enlace" ? enlaces : espacio.elemento === "lista" ? lista : espacio.elemento === "tabla" ? filas : items;
   const problemas = problemasRecurso(espacio, actuales);
   const pedirOrigen = espacio.parametros.pedirOrigen !== false;
   const permitidos = (Array.isArray(espacio.parametros.tipos) ? espacio.parametros.tipos : ["pdf"]) as string[];
@@ -63,7 +70,7 @@ export default function RecursoEspacioForm({ propuestaId, espacio, initialData, 
 
   const terminar = (ok: string, avanzar: boolean) => {
     setSuccess(ok);
-    if (avanzar) router.push(`?id=${propuestaId}&step=${pasoSiguiente}`);
+    if (avanzar) router.push(ir(pasoSiguiente));
     router.refresh();
   };
 
@@ -73,7 +80,7 @@ export default function RecursoEspacioForm({ propuestaId, espacio, initialData, 
     if (avanzar && problemas.length > 0) return setError(problemas[0]);
     setPending(true);
     if (editable) {
-      const res = await guardarRespuestaRecurso(propuestaId, espacio.id, espacio.elemento === "enlace" ? enlaces : lista);
+      const res = await guardarRespuestaRecurso(propuestaId, espacio.id, espacio.elemento === "enlace" ? enlaces : espacio.elemento === "tabla" ? filas : lista);
       setPending(false);
       if (!res.success) return setError(res.error);
       return terminar(`${espacio.titulo} guardado correctamente.`, avanzar);
@@ -142,6 +149,47 @@ export default function RecursoEspacioForm({ propuestaId, espacio, initialData, 
             ))}
             {!disabled && lista.length < max && (
               <button type="button" onClick={() => setLista([...lista, ""])} className="text-sm font-bold text-brand-red hover:underline">+ Agregar elemento</button>
+            )}
+          </div>
+        )}
+
+        {espacio.elemento === "tabla" && (
+          <div className="space-y-2">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border border-gray-200">
+                <thead className="bg-gray-100 text-xs uppercase text-gray-600">
+                  <tr>
+                    <th className="w-8 px-2 py-1.5">#</th>
+                    {columnas.map((c) => <th key={c} className="text-left px-2 py-1.5">{c}</th>)}
+                    {!disabled && <th className="w-16" />}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filas.length === 0 && (
+                    <tr><td colSpan={columnas.length + 2} className="px-3 py-3 text-xs text-muted">Todavía no hay filas.</td></tr>
+                  )}
+                  {filas.map((f, i) => (
+                    <tr key={i} className="border-t border-gray-100 align-top">
+                      <td className="px-2 py-1.5 text-xs font-bold text-muted text-center">{i + 1}</td>
+                      {columnas.map((c, j) => (
+                        <td key={c} className="px-1 py-1">
+                          <textarea aria-label={`${c}, fila ${i + 1}`} rows={2} value={f[j] ?? ""} disabled={disabled}
+                            onChange={(e) => setFilas(filas.map((x, k) => (k === i ? columnas.map((_, m) => (m === j ? e.target.value : x[m] ?? "")) : x)))}
+                            className="w-full p-2 rounded-md border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75" />
+                        </td>
+                      ))}
+                      {!disabled && (
+                        <td className="px-1 py-1 text-center">
+                          <button type="button" onClick={() => setFilas(filas.filter((_, k) => k !== i))} className="text-xs font-bold text-red-600 hover:underline">Quitar</button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {!disabled && filas.length < max && (
+              <button type="button" onClick={() => setFilas([...filas, columnas.map(() => "")])} className="text-sm font-bold text-brand-red hover:underline">+ Agregar fila</button>
             )}
           </div>
         )}
@@ -219,7 +267,7 @@ export default function RecursoEspacioForm({ propuestaId, espacio, initialData, 
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border mt-8">
           {pasoAnterior !== null ? (
-            <button type="button" onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior}`)}
+            <button type="button" onClick={() => router.push(ir(pasoAnterior))}
               className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer">
               ← Volver al paso anterior
             </button>

@@ -72,6 +72,10 @@ export default function RegistroActividadProyecto({
 
   const valores = { avance: avance === "" ? null : Number(avance), acciones, resultado, marcoTeorico: marco };
   const limiteEvidencias = datos.evidencias;
+  // Documento que el egresado comprometió en el plan como prueba de la actividad (investigación, I3). Una
+  // subactividad usa el de su actividad.
+  const actividadDelNodo = nodo.nivel === 5 ? aplanar(plan.plan.arbol).find((x) => x.hijos.some((h) => h.id === nodo.id)) : nodo;
+  const documentoEsperado = actividadDelNodo?.documento?.trim() || null;
   const pendientes = [
     ...validarRegistroProyecto(valores, reglas, nodo.nivel === 5),
     ...(limiteEvidencias.max > 0 && evidencias.length < limiteEvidencias.min ? [`Adjunte al menos ${limiteEvidencias.min} evidencia(s).`] : []),
@@ -269,6 +273,11 @@ export default function RegistroActividadProyecto({
               {evidencias.length} de {limiteEvidencias.max}{limiteEvidencias.min > 0 ? ` · mínimo ${limiteEvidencias.min}` : ""}
             </span>
           </div>
+          {documentoEsperado && (
+            <p className="text-sm text-blue-900 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+              <strong>Documento que se espera:</strong> {documentoEsperado}. Es el que se indicó en el plan de trabajo como prueba de esta actividad; adjúntalo aquí.
+            </p>
+          )}
           <EvidenciasActividad propuestaId={plan.propuesta.id} nodoId={nodoId} periodo={periodo} evidencias={evidencias} limite={limiteEvidencias} editable={editable} />
         </div>
       )}

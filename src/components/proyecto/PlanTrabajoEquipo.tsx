@@ -6,6 +6,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enviarPlanTrabajo, guardarPlanTrabajo, revisarPlanTrabajo, type DatosPlan } from "@/app/actions/planTrabajo";
+import { documentoSolicitado } from "@/lib/fichas/tipos";
 import { aplanar, cargaPorIds, numerar, planIndividual, responsables, totalesNodo, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
 
 const NIVEL = ["", "Objetivo general", "Objetivo específico", "Macroactividad", "Actividad", "Subactividad"];
@@ -62,6 +63,9 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
   const periodos = Math.max(...columnas.map((c) => c.periodo), 1);
   const visibles = columnas.map((c, i) => ({ ...c, i })).filter((c) => !porSub || c.periodo === periodo);
   const nivelResp = etapa.equipo.responsable === "objetivo" ? 2 : 4;
+  const pideDocumento = documentoSolicitado(etapa);
+  const prot = datos.protocolo;
+  const queSeEnvia = prot ? "el protocolo y el plan" : "el plan";
   const maxNivel = etapa.subactividades === "no" ? 4 : 5;
 
   const mostrado = vista === 0 ? arbol : planIndividual(arbol, vista);
@@ -118,6 +122,12 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
           <p className="text-sm text-muted mt-1">
             Propuesta #{datos.propuesta.numero} · {datos.propuesta.titulo} · {equipoMultiple ? `equipo de ${equipo.length}` : "individual"}
           </p>
+          {prot?.fechaLimite && estado === "enviado" && (
+            <p className="text-sm font-bold text-blue-800 mt-1">
+              Dictamen del asesor a más tardar el {new Date(prot.fechaLimite).toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" })} ({prot.diasRevision} días{prot.diasHabiles ? " hábiles" : ""}).
+            </p>
+          )}
+          {prot && <p className="text-xs text-muted mt-1">Es el cronograma de actividades del protocolo: se envía y se dictamina junto con él.</p>}
           <p className="text-xs text-muted mt-1">
             {rol === "lider" && "Como líder, estructuras el plan y asignas un responsable a cada " + (nivelResp === 2 ? "objetivo específico." : "actividad.")}
             {rol === "integrante" && "Completa lo que está a tu cargo: títulos, actividades y montos. El líder asigna responsables y envía el plan."}
@@ -134,17 +144,17 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
           {editableEstado && rol === "lider" && (
             <button type="button" disabled={pendiente || sucio || problemas.length > 0}
               title={sucio ? "Guarda los cambios antes de enviar" : problemas.length > 0 ? "Corrige los pendientes antes de enviar" : undefined}
-              onClick={() => { if (window.confirm("¿Enviar el plan al asesor? Mientras lo revisa no se podrá modificar.")) ejecutar(() => enviarPlanTrabajo(datos.propuesta.id), "Plan enviado al asesor."); }}
+              onClick={() => { if (window.confirm(`¿Enviar ${queSeEnvia} al asesor? Mientras lo revisa no se podrá modificar.`)) ejecutar(() => enviarPlanTrabajo(datos.propuesta.id), prot ? "Protocolo y plan enviados al asesor." : "Plan enviado al asesor."); }}
               className="px-4 py-2 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white disabled:opacity-50">
-              Enviar al asesor
+              {prot ? "Enviar protocolo y plan" : "Enviar al asesor"}
             </button>
           )}
         </div>
       </div>
 
-      {estado === "observado" && datos.plan.comentarioAsesor && (
+      {(estado === "observado" || (prot && estado === "aprobado")) && datos.plan.comentarioAsesor && (
         <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-xl text-sm text-amber-950">
-          <strong className="block text-xs uppercase tracking-wide mb-1">Observaciones del asesor</strong>
+          <strong className="block text-xs uppercase tracking-wide mb-1">{prot ? "Dictamen del asesor" : "Observaciones del asesor"}</strong>
           <p className="whitespace-pre-wrap">{datos.plan.comentarioAsesor}</p>
         </div>
       )}
@@ -218,6 +228,16 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
                       ) : (
                         <span>{n.titulo || <em className="text-gray-400">{NIVEL[n.nivel]} sin título</em>}</span>
                       )}
+                      {n.nivel === 4 && pideDocumento !== "no" && (
+                        editable ? (
+                          <input aria-label={`Documento que se entregará como prueba de ${n.codigo}`} value={n.documento ?? ""} maxLength={300}
+                            placeholder={`Documento que se entregará como prueba${pideDocumento === "opcional" ? " (opcional)" : ""}`}
+                            onChange={(e) => cambiar(actualizar(arbol, n.id, (x) => ({ ...x, documento: e.target.value })))}
+                            className="mt-1 w-full h-7 border border-dashed border-gray-300 rounded-md px-2 text-[11px] bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25" />
+                        ) : n.documento?.trim() ? (
+                          <span className="block text-[11px] text-gray-500 mt-0.5">📄 Documento: {n.documento}</span>
+                        ) : null
+                      )}
                     </td>
                     {equipoMultiple && (
                       <td className="px-2 py-1">
@@ -284,19 +304,20 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
 
       {rol === "asesor" && estado === "enviado" && (
         <section className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-3">
-          <h2 className="font-bold text-card-dark">Revisión del plan</h2>
+          <h2 className="font-bold text-card-dark">{prot ? "Dictamen del protocolo y el plan de trabajo" : "Revisión del plan"}</h2>
+          {prot && <p className="text-xs text-muted">Revisa también la pestaña del protocolo. El dictamen es por escrito, también al aprobar.</p>}
           {etapa.aprobacion.validaSupervisor && <p className="text-xs text-muted">Recuerda: el supervisor de la institución valida el plan y queda documentado en tu informe de primer contacto.</p>}
           <textarea value={comentario} onChange={(e) => setComentario(e.target.value)} rows={3} aria-label="Observaciones para el equipo"
-            placeholder="Observaciones para el equipo (obligatorias si pides ajustes)"
+            placeholder={prot ? "Dictamen escrito para el equipo (obligatorio)" : "Observaciones para el equipo (obligatorias si pides ajustes)"}
             className="w-full p-3 rounded-lg border border-gray-300 text-sm" />
           <div className="flex flex-wrap gap-2 justify-end">
             <button type="button" disabled={pendiente} onClick={() => ejecutar(() => revisarPlanTrabajo(datos.propuesta.id, "observar", comentario), "Observaciones enviadas al equipo.")}
               className="px-4 py-2 rounded-lg text-sm font-bold border border-amber-300 text-amber-800 bg-amber-50 hover:bg-amber-100 disabled:opacity-50">
               Pedir ajustes
             </button>
-            <button type="button" disabled={pendiente} onClick={() => { if (window.confirm("¿Aprobar el plan de trabajo del equipo?")) ejecutar(() => revisarPlanTrabajo(datos.propuesta.id, "aprobar", comentario), "Plan aprobado."); }}
+            <button type="button" disabled={pendiente} onClick={() => { if (window.confirm(`¿Aprobar ${queSeEnvia} del equipo?`)) ejecutar(() => revisarPlanTrabajo(datos.propuesta.id, "aprobar", comentario), prot ? "Protocolo y plan aprobados." : "Plan aprobado."); }}
               className="px-4 py-2 rounded-lg text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50">
-              Aprobar plan
+              {prot ? "Aprobar protocolo y plan" : "Aprobar plan"}
             </button>
           </div>
         </section>
