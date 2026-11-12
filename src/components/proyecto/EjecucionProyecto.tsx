@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { enviarInformeGeneral, enviarInformeIndividual, revisarInformeGeneral, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
 import { actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, ganttPlan, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import GanttProyecto from "./GanttProyecto";
+import { textosModalidad } from "@/lib/fichas/textosModalidad";
 
 export const ESTADO_ACTIVIDAD: Record<string, { label: string; badge: string; accion: string }> = {
   pendiente: { label: "Sin registrar", badge: "bg-slate-100 text-slate-600 border-slate-300", accion: "Registrar" },
@@ -60,6 +61,7 @@ type Pestana = "actual" | "proximas" | "completadas" | "equipo" | "revisar";
 
 export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) {
   const { plan, periodos, periodoActual, registros, reglas } = datos;
+  const t = textosModalidad(plan.propuesta.tipo);
   const arbol = plan.plan.arbol;
   const individual = plan.equipo.length === 1;
   const esAsesor = plan.rol === "asesor";
@@ -202,9 +204,9 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900">Ejecución del proyecto</h1>
+          <h1 className="text-2xl font-extrabold text-slate-900">Ejecución {t.del}</h1>
           <p className="text-xs text-slate-500 font-medium mt-1">
-            Proyecto como Trabajo de Graduación · Propuesta #{plan.propuesta.numero} · {plan.propuesta.titulo}
+            {t.Nombre} como Trabajo de Graduación · Propuesta #{plan.propuesta.numero} · {plan.propuesta.titulo}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -265,8 +267,12 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
           <summary className="cursor-pointer w-fit font-bold text-slate-600 hover:text-slate-900 select-none">Más información</summary>
           <p className="mt-2 leading-relaxed">
             Cada actividad toma el último avance que registró su responsable; si tiene subactividades, avanza según cuántas están terminadas. Cada objetivo y el objetivo general muestran el promedio simple
-            de lo que contienen. {reglas.avance ? "Si una actividad no llega al 100 % en su período, el resto pasa al período siguiente y vuelve a aparecer para registrarse. " : ""}{reglas.marcoTeorico === "opcional" ? "El marco teórico es opcional: úselo solo si hace falta contextualizar una actividad. " : ""}
-            En proyecto no se exige un mínimo de páginas.
+            de lo que contienen. {reglas.avance ? "Si una actividad no llega al 100 % en su período, el resto pasa al período siguiente y vuelve a aparecer para registrarse. " : ""}{reglas.marcoTeorico === "opcional"
+              ? t.esInvestigacion
+                ? "El marco teórico o referencial se construye durante el desarrollo: regístrelo en las actividades que lo trabajan, con sus citas. "
+                : "El marco teórico es opcional: úselo solo si hace falta contextualizar una actividad. "
+              : ""}
+            {t.En} no se exige un mínimo de páginas.
           </p>
         </details>
       </div>

@@ -13,6 +13,7 @@ import { leyendaDocumento } from "@/lib/reglasRegistroActividad";
 import BotonImprimir from "./BotonImprimir";
 import GanttProyecto from "./GanttProyecto";
 import { ganttPlan, planIndividual } from "@/lib/fichas/planTrabajo";
+import { textosModalidad } from "@/lib/fichas/textosModalidad";
 
 const dinero = (v: number) => (v ? `$${v.toLocaleString("es-SV")}` : "");
 const fecha = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("es-SV", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—");
@@ -24,6 +25,7 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
   const res = await getEjecucionProyecto(propuestaId);
   if (!res.success) return <p className="p-8 text-center text-sm text-muted">{res.error}</p>;
   const { plan, registros, periodos, informes, reglas } = res.datos;
+  const t = textosModalidad(plan.propuesta.tipo);
   const integrante = de === "general" ? null : Number(de);
   if (integrante !== null && !plan.equipo.some((i) => i.id === integrante)) return <p className="p-8 text-center text-sm text-muted">Integrante no válido.</p>;
   if (!Number.isInteger(periodo) || periodo < 1 || periodo > periodos.length) return <p className="p-8 text-center text-sm text-muted">Período no válido.</p>;
@@ -63,7 +65,7 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/unicaes-logo.png" alt="UNICAES" className="w-24 h-24 object-contain mx-auto" />
           <p className="font-bold uppercase tracking-wide">Universidad Católica de El Salvador</p>
-          <p className="uppercase text-xs">Trabajo de graduación · Modalidad proyecto</p>
+          <p className="uppercase text-xs">Trabajo de graduación · Modalidad {t.nombre}</p>
           <h1 className="text-lg font-bold uppercase mt-4">{integrante === null ? "Informe general" : "Informe individual"} de avances del período {periodo}</h1>
           <p className="font-bold">{plan.propuesta.titulo}</p>
           <p className="text-xs">Del {fecha(p?.desde ?? null)} al {fecha(p?.hasta ?? null)}</p>
@@ -113,7 +115,7 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
         {/* 4. Informe de avances */}
         <section className="space-y-3">
           <h2 className="font-bold uppercase text-xs tracking-wide">3. Informe de avances de ejecución del período {fecha(p?.desde ?? null)} al {fecha(p?.hasta ?? null)}</h2>
-          <p><strong>1. {sinPunto(plan.plan.arbol.titulo)}:</strong> nivel de avance de {inf.avanceProyecto}% del total del proyecto alcanzado en el período.</p>
+          <p><strong>1. {sinPunto(plan.plan.arbol.titulo)}:</strong> nivel de avance de {inf.avanceProyecto}% del total {t.del} alcanzado en el período.</p>
           {inf.filas.filter((f) => f.nivel >= 2).map((f) => (
             <div key={f.id} style={sangria(f.nivel - 1)} className="space-y-1">
               <p>

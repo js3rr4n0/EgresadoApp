@@ -14,11 +14,13 @@
 // Con --completar-protocolo llena con texto de prueba las partes del protocolo que el equipo no ha escrito (I3).
 // Con --completar-plan completa el plan hasta los mínimos de la ficha, con su documento solicitado (I3).
 // Ninguno de los dos atajos toca lo que el equipo ya escribió.
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan]
+// Con --iniciar da inicio a la ejecución si el protocolo y el plan están aprobados (I4; en lugar de los documentos de
+// coordinación). Para poder registrar ya, mueve la fecha de inicio de la carta al 15-oct-2026 (períodos 1 y 2 abiertos).
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar]
 import crypto from "crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
-import { fichasVersiones, historialEstados, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
+import { cartasAceptacion, fichasVersiones, historialEstados, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
 import { esEtapaProtocolo, type DefinicionFicha } from "../../src/lib/fichas/tipos";
 import { numerar, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 import { exigirBaseDesarrollo } from "./guardia";
@@ -154,12 +156,29 @@ async function completarPlan() {
   console.log(`Plan de la propuesta ${prop.id} completado: ${raiz.hijos.length} objetivos específicos.`);
 }
 
+/** Atajo de prueba (I4): inicia la ejecución de la propuesta del líder con el plan aprobado. */
+async function iniciar() {
+  const { prop } = await propuestaDelLider();
+  const [plan] = await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, prop.id));
+  if (plan?.estado !== "aprobado") throw new Error("La propuesta del líder necesita el protocolo y el plan aprobados.");
+  const inicio = new Date(2026, 9, 15);
+  const fin = new Date(inicio);
+  fin.setDate(fin.getDate() + 150);
+  const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  await db.update(cartasAceptacion).set({ fechaInicio: iso(inicio), fechaFin: iso(fin) }).where(eq(cartasAceptacion.propuestaId, prop.id));
+  if (prop.estado === "en_ejecucion") return console.log(`La propuesta ${prop.id} ya está en ejecución (carta desde ${iso(inicio)}).`);
+  await db.update(propuestas).set({ estado: "en_ejecucion" }).where(eq(propuestas.id, prop.id));
+  await db.insert(historialEstados).values({ propuestaId: prop.id, de: prop.estado, a: "en_ejecucion", usuarioId: prop.coordinadorId });
+  console.log(`Propuesta ${prop.id} en ejecución; la carta inicia el ${iso(inicio)}.`);
+}
+
 async function run() {
   exigirBaseDesarrollo("sembrar_equipo_investigacion");
   if (process.argv.includes("--borrar")) await borrar();
   else if (process.argv.includes("--aprobar")) await aprobar();
   else if (process.argv.includes("--completar-protocolo")) await completarProtocolo();
   else if (process.argv.includes("--completar-plan")) await completarPlan();
+  else if (process.argv.includes("--iniciar")) await iniciar();
   else await sembrar();
 }
 

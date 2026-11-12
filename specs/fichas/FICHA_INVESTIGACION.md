@@ -107,6 +107,7 @@ Propuesta ─ aprobada ─► Protocolo + Plan de trabajo ─ dictamen del aseso
 > - I1 está hecha ([ENTREGA_I1.md](ENTREGA_I1.md)).
 > - I2 está hecha ([ENTREGA_I2.md](ENTREGA_I2.md)): INV-ING-001-SIST v1 está habilitada, y la propuesta 71 del equipo de prueba quedó enviada.
 > - I3 está hecha ([ENTREGA_I3.md](ENTREGA_I3.md)): la 71 tiene el protocolo y el plan aprobados por el asesor, con dictamen escrito.
+> - I4 está hecha ([ENTREGA_I4.md](ENTREGA_I4.md)): la 71 está en ejecución, con una actividad registrada y su evidencia.
 
 | # | Entrega | Qué incluye | Resultado visible |
 |---|---|---|---|
@@ -148,5 +149,28 @@ Propuesta ─ aprobada ─► Protocolo + Plan de trabajo ─ dictamen del aseso
   - **La matriz de hipótesis queda provisionalmente con Hipótesis, Variables e Indicadores**, hasta la reunión.
 - **Q6, días hábiles** (I3). El dictamen es a "5 días hábiles". Desde I3 se cuentan sin sábados ni domingos; la ficha permite cambiarlo a días calendario. Falta confirmar si los feriados también se descuentan.
 - ~~**Q7, documento solicitado**~~. **Respondida el 12-nov: lo escribe el egresado en el plan.** Al subir las evidencias se le recuerda qué documento se espera.
-- **Q8, informe final** (I5). ¿Lo redacta el equipo en el sistema, capítulo por capítulo, o se sube un documento y el sistema solo arma la portada, el índice y los anexos?
+- ~~**Q8, informe final**~~. **Respondida el 12-nov:** lo ideal es redactarlo dentro del sistema, con mucho cuidado, porque es el documento final de la investigación (la tesis). Ver §7.
 
+
+## 7. Informe final dentro del sistema (Q8): propuesta para I5
+
+El informe final es la tesis. Si se redacta en el sistema, perder o corromper texto no es aceptable. **Propuesta de cuidados**, para validar antes de construirlo:
+
+1. **Capítulos como espacios de una etapa "Informe final" de la ficha.** Es el mismo mecanismo que la propuesta y el protocolo, con las partes del contexto:
+   - portada, autoridades e índice, que se generan;
+   - introducción, generalidades, problemática, justificación y objetivos, que se precargan del protocolo;
+   - marco teórico, que se precarga con lo registrado en las actividades;
+   - metodología;
+   - resultados, comprobación de hipótesis, hallazgos y conclusiones;
+   - bibliografía y anexos, con las evidencias numeradas.
+2. **Nada se sobrescribe.** Cada guardado de un capítulo crea una **versión nueva**, con su autor y su fecha. El historial se puede ver y comparar, y se puede volver a una versión anterior.
+3. **Guardado automático** del borrador cada pocos segundos, con un aviso si se cierra la página con cambios sin guardar.
+4. **Edición por capítulo** con un aviso de "otro integrante está editando". Si dos guardan a la vez, gana el primero y el segundo recibe un aviso: es el mismo control de versión que ya usa el plan de trabajo.
+5. **Revisión por capítulo.** El asesor comenta o aprueba cada capítulo. Al final, el equipo ratifica la versión completa, igual que la propuesta.
+6. **Exportar en todo momento** a PDF y Word, con el formato institucional. Así el equipo siempre tiene su copia fuera del sistema.
+7. **Versión final congelada.** Una vez aprobada no se edita, y queda su huella para comprobar que el documento presentado es el aprobado.
+
+**Para empezar I5 conviene confirmar:**
+- ¿Redactan todos los integrantes, cada uno sus capítulos, o solo el líder?
+- ¿El asesor revisa por capítulo o el documento completo?
+- ¿Hay un formato institucional (márgenes, fuente, normas APA 7) que el PDF deba respetar?

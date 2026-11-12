@@ -12,6 +12,7 @@ import TextoRedaccion from "@/app/egresado/reportes/actividad/[actividadId]/Text
 import { rutaEnPlan, enlaceActividad, ESTADO_ACTIVIDAD } from "./EjecucionProyecto";
 import EvidenciasActividad from "./EvidenciasActividad";
 import type { EvidenciaCompleta } from "@/app/actions/evidenciasPlan";
+import { textosModalidad } from "@/lib/fichas/textosModalidad";
 
 const ESTADO_BANNER: Record<string, { className: string; title: string }> = {
   enviado: { className: "bg-blue-50 border-blue-200 text-blue-900", title: "Esta actividad fue enviada y está en revisión por su asesor designado." },
@@ -72,6 +73,7 @@ export default function RegistroActividadProyecto({
 
   const valores = { avance: avance === "" ? null : Number(avance), acciones, resultado, marcoTeorico: marco };
   const limiteEvidencias = datos.evidencias;
+  const t = textosModalidad(plan.propuesta.tipo);
   // Documento que el egresado comprometió en el plan como prueba de la actividad (investigación, I3). Una
   // subactividad usa el de su actividad.
   const actividadDelNodo = nodo.nivel === 5 ? aplanar(plan.plan.arbol).find((x) => x.hijos.some((h) => h.id === nodo.id)) : nodo;
@@ -211,7 +213,7 @@ export default function RegistroActividadProyecto({
         <div className={tarjeta}>
           <div className="border-b border-slate-100 pb-2">
             <h2 className={tituloTarjeta}>Avance de la actividad</h2>
-            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Porcentaje ejecutado al cierre del período. Se acumula en el objetivo y en el proyecto.</p>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Porcentaje ejecutado al cierre del período. Se acumula en el objetivo y en {t.el}.</p>
           </div>
           <div className="flex items-center gap-4">
             <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
@@ -253,7 +255,9 @@ export default function RegistroActividadProyecto({
           <div className="border-b border-slate-100 pb-2">
             <h2 className={tituloTarjeta}>Marco teórico {reglas.marcoTeorico === "opcional" && <span className="normal-case font-semibold text-slate-400">(opcional)</span>}</h2>
             <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-              {reglas.marcoTeorico === "opcional" ? "Úselo solo si hace falta contextualizar técnicamente la actividad." : "Fundamente teóricamente la actividad realizada."}
+              {t.esInvestigacion
+                ? "Parte del marco teórico o referencial de la investigación que se elaboró en esta actividad. Cite las fuentes en formato APA."
+                : reglas.marcoTeorico === "opcional" ? "Úselo solo si hace falta contextualizar técnicamente la actividad." : "Fundamente teóricamente la actividad realizada."}
             </p>
           </div>
           <TextoRedaccion id="marco" valor={marco} onChange={setMarco} deshabilitado={!editable} filas={4} placeholder="Fundamento teórico que contextualiza la actividad." />

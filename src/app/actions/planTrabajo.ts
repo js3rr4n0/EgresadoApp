@@ -31,7 +31,7 @@ export interface IntegrantePlan {
 }
 
 export interface DatosPlan {
-  propuesta: { id: number; numero: number; titulo: string | null; estado: string };
+  propuesta: { id: number; numero: number; titulo: string | null; estado: string; tipo: string };
   etapa: EtapaPlan;
   columnas: { periodo: number; sub: number | null; texto: string }[];
   equipo: IntegrantePlan[];
@@ -141,7 +141,7 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
   return {
     success: true,
     datos: {
-      propuesta: { id: prop.id, numero: prop.numero, titulo: prop.titulo, estado: prop.estado },
+      propuesta: { id: prop.id, numero: prop.numero, titulo: prop.titulo, estado: prop.estado, tipo: prop.tipo },
       etapa,
       columnas,
       equipo,

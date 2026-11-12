@@ -13,7 +13,7 @@ export default async function EjecucionAsesorPage({ params }: { params: Promise<
         <EjecucionProyecto datos={res.datos} />
       ) : (
         <div className="max-w-xl mx-auto my-12 p-8 bg-white border border-border rounded-2xl text-center shadow-sm">
-          <h1 className="text-lg font-bold text-card-dark mb-2">Ejecución del proyecto</h1>
+          <h1 className="text-lg font-bold text-card-dark mb-2">Ejecución del trabajo</h1>
           <p className="text-sm text-muted">{res && !res.success ? res.error : "Propuesta inválida."}</p>
         </div>
       )}
