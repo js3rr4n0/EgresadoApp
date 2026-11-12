@@ -10,11 +10,12 @@ import path from "path";
 import { definicionBase, VALORES_FASE1_COPIADOS as V } from "../../src/lib/fichas/fichasBase";
 import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/validar";
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
-import { diasSubperiodos, documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
-import { ejecucionNueva, planNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
+import { diasSubperiodos, documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaInformeFinal, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, PRECARGA_MARCO_REGISTROS, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
+import { ejecucionNueva, informeFinalNuevo, planNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
 import { parametrosPorDefecto } from "../../src/lib/fichas/catalogo";
 import { leerItems, problemasRecurso, recursoCompleto } from "../../src/lib/fichas/elementosRecurso";
 import { fechaLimiteDictamen, problemasProtocolo, sumarDias, textoPrecarga } from "../../src/lib/fichas/protocolo";
+import { CAPITULO_NUEVO, capituloEditable, capitulosPendientes, editandoOtro, precargaCapitulo, textoMarcoRegistros } from "../../src/lib/fichas/informeFinalFicha";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
 import { ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
@@ -482,6 +483,51 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   const cambiado = structuredClone(ajeno);
   cambiado.hijos[0].hijos[0].hijos[0].documento = "Otro";
   comprobar("Un integrante no cambia el documento de una actividad ajena", cambioNoPermitido(ajeno, cambiado, 3) !== null && cambioNoPermitido(ajeno, cambiado, 2) === null);
+}
+
+// 15. Informe final por capítulos (entrega I5)
+{
+  const conInforme = () => {
+    const d = investigacionCompleta();
+    d.etapas.push(informeFinalNuevo("informe_final"));
+    return d;
+  };
+  const d = conInforme();
+  const problemas = validarDefinicion(d);
+  comprobar("La ficha de investigación con informe final es válida", problemas.length === 0, problemas.map((p) => p.mensaje).join(" | "));
+  comprobar("La ficha con informe final conserva su forma", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
+  const inf = d.etapas.find(esEtapaInformeFinal)!;
+  comprobar("El informe final trae los 17 capítulos del contexto, con bibliografía y anexos", inf.espacios.length === 17 && inf.espacios.some((e) => e.elemento === "lista") && inf.espacios.some((e) => e.elemento === "archivo"));
+  comprobar("El marco teórico se precarga de las actividades", inf.espacios.find((e) => e.id === "if_marco")?.precargarDe === PRECARGA_MARCO_REGISTROS);
+  comprobar("Revisión por capítulo y ratificación por defecto", inf.revision.porCapitulo && inf.revision.ratificacion);
+  const mal = (cambiar: (x: DefinicionFicha) => void) => { const x = conInforme(); cambiar(x); return validarDefinicion(x).map((p) => p.mensaje); };
+  detecta("informe final antes de la ejecución", mal((x) => { const i = x.etapas.pop()!; x.etapas.splice(1, 0, i); }), "debe ser la última etapa");
+  detecta("informe final en proyecto", proyectoConCambio((x) => { x.etapas.push(informeFinalNuevo("if")); }), "solo para investigación");
+  detecta("precarga desde un capítulo que no existe", mal((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios[0].precargarDe = "nada"; }), "ya no está en la propuesta ni en el protocolo");
+  detecta("marco de las actividades en el protocolo", investigacionConCambio((x) => { x.etapas.find(esEtapaProtocolo)!.espacios[0].precargarDe = PRECARGA_MARCO_REGISTROS; }), "solo se precarga en el informe final");
+  detecta("una lista precargada desde un texto", mal((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios.find((e) => e.elemento === "lista")!.precargarDe = "introduccion"; }), "una lista solo se precarga desde otra lista");
+  detecta("un capítulo con el id de un espacio del protocolo", mal((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios[0].id = "introduccion"; }), "ya se usa en el protocolo");
+  comprobar("Agregar el informe final aparece como cambio", compararDefiniciones(investigacionCompleta(), conInforme()).some((c) => c.startsWith("Se agregó el informe final")));
+
+  // Precarga y estados
+  const fuentes = [...propuesta(d).espacios, ...protocoloDe(d).espacios];
+  const datos = { descripcionProblema: "P", justificacion: "J", objetivoGeneral: "OG", objetivosEspecificos: [], respuestas: { introduccion: "Intro del protocolo", bibliografia: JSON.stringify(["A", "B", "C"]) } };
+  const cap = (id: string) => inf.espacios.find((e) => e.id === id)!;
+  comprobar("Un capítulo se precarga con la respuesta del protocolo", precargaCapitulo(cap("if_introduccion"), fuentes, datos, "") === "Intro del protocolo");
+  comprobar("La bibliografía se copia como lista", precargaCapitulo(cap("if_bibliografia"), fuentes, datos, "") === JSON.stringify(["A", "B", "C"]));
+  const marco = textoMarcoRegistros([{ codigo: "1.1.1.1", titulo: "Encuesta", marco: "Texto A" }, { codigo: "1.2.1.1", titulo: "Sin marco", marco: " " }]);
+  comprobar("El marco de las actividades lleva su código y omite las vacías", marco === "1.1.1.1 Encuesta\nTexto A" && precargaCapitulo(cap("if_marco"), fuentes, datos, marco) === marco);
+  comprobar("Solo se edita en redacción y con el capítulo en borrador u observado",
+    capituloEditable("redactando", { ...CAPITULO_NUEVO }) && capituloEditable("redactando", { ...CAPITULO_NUEVO, estado: "observado" })
+    && !capituloEditable("redactando", { ...CAPITULO_NUEVO, estado: "enviado" }) && !capituloEditable("entregado", { ...CAPITULO_NUEVO }));
+  const ahora = new Date("2026-11-12T10:00:00Z");
+  const cap1 = { ...CAPITULO_NUEVO, editando: { usuarioId: 2, nombre: "Otro", desde: "2026-11-12T09:59:00Z" } };
+  comprobar("Avisa si otro integrante editó hace menos de 2 minutos", editandoOtro(cap1, 1, ahora)?.nombre === "Otro" && editandoOtro(cap1, 2, ahora) === null
+    && editandoOtro({ ...cap1, editando: { ...cap1.editando, desde: "2026-11-12T09:50:00Z" } }, 1, ahora) === null);
+  const contenidos = Object.fromEntries(inf.espacios.map((e) => [e.id, e.elemento === "lista" ? JSON.stringify(["a", "b", "c"]) : e.elemento === "texto" ? "Texto." : ""]));
+  const estados = Object.fromEntries(inf.espacios.map((e) => [e.id, { ...CAPITULO_NUEVO, estado: "aprobado" as const }]));
+  comprobar("Con todo aprobado no quedan pendientes (los opcionales vacíos no cuentan)", capitulosPendientes(inf, { ...estados, if_anexos: CAPITULO_NUEVO }, { ...contenidos, if_anexos: "" }).length === 0);
+  comprobar("Un capítulo sin aprobar queda pendiente", capitulosPendientes(inf, { ...estados, if_conclusiones: CAPITULO_NUEVO }, contenidos).map((e) => e.id).join() === "if_conclusiones");
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

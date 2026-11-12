@@ -3,8 +3,8 @@
 import { CATALOGO, elementoEnEtapa } from "./catalogo";
 import { esRecurso } from "./elementosRecurso";
 import {
-  esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, FORMATO_DEFINICION,
-  type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaPlan, type EtapaProtocolo,
+  esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, FORMATO_DEFINICION, PRECARGA_MARCO_REGISTROS,
+  type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo,
 } from "./tipos";
 
 export interface ProblemaFicha {
@@ -69,10 +69,10 @@ function validarPlan(plan: EtapaPlan, def: DefinicionFicha, problemas: ProblemaF
  * Espacios de una etapa (propuesta o protocolo): elementos permitidos, orden de dependencias y parámetros.
  * Devuelve los elementos presentes, en orden, para las reglas de coherencia entre etapas.
  */
-function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problemas: ProblemaFicha[], propuesta: EtapaConEspacios | null): Set<string> {
+function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problemas: ProblemaFicha[], fuentes: EtapaConEspacios[]): Set<string> {
   const vistos = new Set<string>();
   const idsEspacios = new Set<string>();
-  const nombreEtapa = etapa.tipo === "propuesta" ? "la propuesta" : "el protocolo";
+  const nombreEtapa = etapa.tipo === "propuesta" ? "la propuesta" : etapa.tipo === "protocolo" ? "el protocolo" : "el informe final";
   for (const esp of etapa.espacios) {
     const el = CATALOGO[esp.elemento];
     const ubicacion = `${etapa.id}/${esp.id}`;
@@ -124,16 +124,29 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
       if (minEspecificos > maxEspecificos) p("el mínimo de objetivos específicos es mayor que el máximo.");
     }
     if (esp.precargarDe !== undefined) {
-      if (etapa.tipo !== "protocolo") p("solo los espacios del protocolo se precargan desde la propuesta.");
-      else if (esp.elemento !== "texto") p("solo un bloque de texto se puede precargar desde la propuesta.");
+      // Protocolo: desde la propuesta. Informe final: desde la propuesta, el protocolo o el marco teórico de los registros.
+      if (etapa.tipo === "propuesta") p("solo los espacios del protocolo y del informe final se precargan.");
+      else if (esp.precargarDe === PRECARGA_MARCO_REGISTROS) {
+        if (etapa.tipo !== "informe_final") p("el marco teórico de las actividades solo se precarga en el informe final.");
+        else if (esp.elemento !== "texto") p("el marco teórico de las actividades solo se precarga en un bloque de texto.");
+      } else if (esp.elemento !== "texto" && esp.elemento !== "lista") p("solo un texto o una lista se pueden precargar.");
       else {
-        const origen = propuesta?.espacios.find((x) => x.id === esp.precargarDe);
-        if (!origen) p("se precarga desde un espacio que ya no está en la propuesta.");
-        else if (origen.elemento !== "texto" && origen.elemento !== "objetivos") p(`no se puede precargar desde "${origen.titulo}": solo desde un texto o los objetivos.`);
+        const origen = fuentes.flatMap((x) => x.espacios).find((x) => x.id === esp.precargarDe);
+        if (!origen) p(`se precarga desde un espacio que ya no está en ${etapa.tipo === "protocolo" ? "la propuesta" : "la propuesta ni en el protocolo"}.`);
+        else if (esp.elemento === "texto" && origen.elemento !== "texto" && origen.elemento !== "objetivos") p(`no se puede precargar desde "${origen.titulo}": solo desde un texto o los objetivos.`);
+        else if (esp.elemento === "lista" && origen.elemento !== "lista") p(`no se puede precargar desde "${origen.titulo}": una lista solo se precarga desde otra lista.`);
       }
     }
   }
   return vistos;
+}
+
+function validarInformeFinal(informe: EtapaInformeFinal, def: DefinicionFicha, problemas: ProblemaFicha[]) {
+  const p = (mensaje: string) => problemas.push({ ubicacion: informe.id, mensaje: `${informe.nombre}: ${mensaje}` });
+  if (def.modalidad !== "investigacion") p("el informe final por capítulos es, por ahora, solo para investigación.");
+  if (informe.espacios.length === 0) p("no tiene capítulos.");
+  const { diasRevision } = informe.revision;
+  if (!entero(diasRevision) || diasRevision < 1 || diasRevision > 30) p("los días de revisión del asesor deben estar entre 1 y 30.");
 }
 
 function validarProtocolo(protocolo: EtapaProtocolo, def: DefinicionFicha, problemas: ProblemaFicha[]) {
@@ -169,7 +182,10 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
   if (planes.length === 1 && !esEtapaPlan(resto[posPlan])) {
     ficha(posPlan === 1 ? "El plan de trabajo debe ir inmediatamente después del protocolo." : "El plan de trabajo debe ir inmediatamente después de la propuesta.");
   }
-  if (resto.some((e) => !esEtapaEjecucion(e) && !esEtapaPlan(e) && !esEtapaProtocolo(e))) ficha("Después de la propuesta solo puede haber un protocolo, un plan de trabajo y etapas de ejecución.");
+  const informesFinales = resto.filter(esEtapaInformeFinal);
+  if (informesFinales.length > 1) ficha("La ficha solo puede tener un informe final.");
+  if (informesFinales.length === 1 && !esEtapaInformeFinal(resto[resto.length - 1])) ficha("El informe final debe ser la última etapa.");
+  if (resto.some((e) => !esEtapaEjecucion(e) && !esEtapaPlan(e) && !esEtapaProtocolo(e) && !esEtapaInformeFinal(e))) ficha("Después de la propuesta solo puede haber un protocolo, un plan de trabajo, etapas de ejecución y el informe final.");
   if (resto.some((e) => esEtapaPropuesta(e))) ficha("La ficha solo puede tener una propuesta.");
 
   const ids = new Set<string>();
@@ -180,19 +196,35 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
 
   // Etapa de propuesta: elementos permitidos, orden de dependencias y parámetros.
   if (primera.espacios.length === 0) ficha("La propuesta no tiene espacios.");
-  const vistos = validarEspacios(primera, def, problemas, null);
+  const vistos = validarEspacios(primera, def, problemas, []);
 
   // Protocolo (investigación): mismos elementos, sin los que solo van en la propuesta.
   const protocolo = protocolos[0];
   if (protocolo) {
     validarProtocolo(protocolo, def, problemas);
-    validarEspacios(protocolo, def, problemas, primera);
-    // Las respuestas de ambas etapas se guardan juntas (respuestas_espacios), por id de espacio.
-    const idsPropuesta = new Set(primera.espacios.map((e) => e.id));
-    for (const e of protocolo.espacios) {
-      if (idsPropuesta.has(e.id)) problemas.push({ ubicacion: `${protocolo.id}/${e.id}`, mensaje: `${e.titulo}: el identificador "${e.id}" ya se usa en la propuesta.` });
-    }
+    validarEspacios(protocolo, def, problemas, [primera]);
     if (!planes.length) ficha("El protocolo incluye el cronograma de actividades: agrega el plan de trabajo.");
+  }
+
+  // Informe final (investigación): capítulos con el mismo catálogo; se precargan de la propuesta, el protocolo o los registros.
+  const informeFinal = informesFinales[0];
+  if (informeFinal) {
+    validarInformeFinal(informeFinal, def, problemas);
+    validarEspacios(informeFinal, def, problemas, [primera, ...protocolos]);
+    if (!resto.some(esEtapaEjecucion)) ficha("El informe final necesita una etapa de ejecución antes.");
+  }
+
+  // Las respuestas de la propuesta y el protocolo se guardan juntas (respuestas_espacios), por id de espacio; el
+  // informe final usa sus propias versiones, pero sus ids tampoco deben confundirse con los de las otras etapas.
+  const usados = new Map<string, string>();
+  for (const etapa of [primera, ...protocolos, ...informesFinales]) {
+    for (const e of etapa.espacios) {
+      const otra = usados.get(e.id);
+      if (otra && otra !== etapa.id) {
+        const nombre = otra === primera.id ? "la propuesta" : protocolos.some((x) => x.id === otra) ? "el protocolo" : "otra etapa";
+        problemas.push({ ubicacion: `${etapa.id}/${e.id}`, mensaje: `${e.titulo}: el identificador "${e.id}" ya se usa en ${nombre}.` });
+      } else usados.set(e.id, etapa.id);
+    }
   }
 
   // Etapas de ejecución.
@@ -255,6 +287,10 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
           obj(s) && str(s.id) && str(s.elemento) && str(s.titulo) && str(s.descripcion) && str(s.ayuda) &&
           typeof s.obligatorio === "boolean" && obj(s.parametros) && (s.precargarDe === undefined || str(s.precargarDe))
       );
+    if (e.tipo === "informe_final") {
+      const r = e.revision;
+      return espaciosValidos(e.espacios) && obj(r) && typeof r.porCapitulo === "boolean" && typeof r.ratificacion === "boolean" && num(r.diasRevision) && typeof r.diasHabiles === "boolean";
+    }
     if (e.tipo === "protocolo") {
       const r = e.revision;
       return espaciosValidos(e.espacios) && obj(r) && num(r.diasRevision) && typeof r.diasHabiles === "boolean" && typeof r.ratificacion === "boolean";

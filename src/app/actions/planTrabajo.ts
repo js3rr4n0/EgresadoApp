@@ -10,7 +10,7 @@ import { getSession } from "@/lib/session";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
-import { esEtapaEjecucion, esEtapaPlan, esEtapaProtocolo, type EtapaEjecucion, type EtapaPlan } from "@/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaProtocolo, type EtapaEjecucion, type EtapaPlan } from "@/lib/fichas/tipos";
 import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
 
 const fechaCorta = (d: Date) => d.toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" });
@@ -40,6 +40,8 @@ export interface DatosPlan {
   plan: { arbol: NodoPlan; version: number; estado: string; comentarioAsesor: string | null; enviadoEn: string | null; revisadoEn: string | null };
   /** Investigación (I3): el plan es el cronograma del protocolo y se envía y dictamina junto con él. */
   protocolo: { nombre: string; diasRevision: number; diasHabiles: boolean; fechaLimite: string | null } | null;
+  /** La ficha tiene informe final por capítulos (investigación, I5). */
+  informeFinal: boolean;
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string; problemas?: ProblemaPlan[] };
@@ -118,6 +120,7 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
   const ficha = await fichaDePropuesta(propuestaId);
   const etapa = ficha?.definicion.etapas.find(esEtapaPlan);
   const protocolo = ficha?.definicion.etapas.find(esEtapaProtocolo);
+  const informeFinal = !!ficha?.definicion.etapas.some(esEtapaInformeFinal);
   const ejec = ficha?.definicion.etapas.find(esEtapaEjecucion);
   if (!ficha?.version || !etapa || !ejec) return { success: false, error: "La ficha de esta propuesta no tiene plan de trabajo." };
   if (!ESTADOS_CON_PLAN.includes(prop.estado)) return { success: false, error: "El plan de trabajo se elabora después de aprobada la propuesta." };
@@ -163,6 +166,7 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
             fechaLimite: fila.enviadoEn && (fila.estado === "enviado" || fila.estado === "aprobado") ? fechaLimiteDictamen(fila.enviadoEn, protocolo).toISOString() : null,
           }
         : null,
+      informeFinal,
     },
   };
 }

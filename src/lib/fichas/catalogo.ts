@@ -12,7 +12,7 @@ export type DefinicionParametro =
   | { clave: string; etiqueta: string; tipo: "textos"; porDefecto: string[]; minimo: number; maximo: number; ayuda?: string };
 
 /** Etapas que se arman con espacios del catálogo. */
-export type EtapaDeEspacios = "propuesta" | "protocolo";
+export type EtapaDeEspacios = "propuesta" | "protocolo" | "informe_final";
 
 export interface ElementoCatalogo {
   clave: ClaveElemento;
@@ -27,7 +27,7 @@ export interface ElementoCatalogo {
   alcance: "equipo" | "integrante";
   /** Elementos que deben estar antes en la misma etapa. */
   requiere: ClaveElemento[];
-  /** Etapas en las que puede usarse; si falta, en la propuesta y en el protocolo. */
+  /** Etapas en las que puede usarse; si falta, en todas las que se arman con espacios. */
   etapas?: EtapaDeEspacios[];
   parametros: DefinicionParametro[];
 }
@@ -246,7 +246,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     repetible: true,
     alcance: "equipo",
     requiere: [],
-    etapas: ["protocolo"],
+    etapas: ["protocolo", "informe_final"],
     parametros: [
       { clave: "columnas", etiqueta: "Columnas", tipo: "textos", porDefecto: ["Hipótesis", "Variables", "Indicadores"], minimo: 1, maximo: 8, ayuda: "Encabezados de la tabla, en orden." },
       { clave: "minimo", etiqueta: "Filas mínimas", tipo: "numero", porDefecto: 1, min: 0, max: 50 },
@@ -256,7 +256,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
 };
 
 /** El elemento puede usarse en esa etapa (propuesta o protocolo). */
-export const elementoEnEtapa = (clave: ClaveElemento, etapa: EtapaDeEspacios) => (CATALOGO[clave].etapas ?? ["propuesta", "protocolo"]).includes(etapa);
+export const elementoEnEtapa = (clave: ClaveElemento, etapa: EtapaDeEspacios) => (CATALOGO[clave].etapas ?? ["propuesta", "protocolo", "informe_final"]).includes(etapa);
 
 /** Parámetros de un elemento con sus valores por defecto, opcionalmente sobrescritos. */
 export function parametrosPorDefecto(

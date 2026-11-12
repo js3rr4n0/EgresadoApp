@@ -202,14 +202,39 @@ export interface EtapaPlan {
   documentoSolicitado?: "no" | "opcional" | "obligatorio";
 }
 
-export type Etapa = EtapaPropuesta | EtapaProtocolo | EtapaPlan | EtapaEjecucion;
+/**
+ * Informe final por capítulos (investigación, I5; respuesta Q8): el documento final de la investigación (la tesis),
+ * redactado dentro del sistema por todo el equipo. Sus capítulos son espacios del catálogo; la portada, las autoridades
+ * y el índice se generan. Cada guardado crea una versión nueva (nada se sobrescribe), el asesor revisa y al final el
+ * equipo ratifica la versión completa, que queda congelada con su huella.
+ */
+export interface EtapaInformeFinal {
+  tipo: "informe_final";
+  id: string;
+  nombre: string;
+  espacios: Espacio[];
+  revision: {
+    /** true: el asesor revisa capítulo por capítulo; false: el equipo envía el documento completo. */
+    porCapitulo: boolean;
+    /** En equipo, todos ratifican la versión final antes de entregarla. */
+    ratificacion: boolean;
+    diasRevision: number;
+    diasHabiles: boolean;
+  };
+}
+
+/** Fuente de precarga especial del informe final: el marco teórico registrado en las actividades de la ejecución. */
+export const PRECARGA_MARCO_REGISTROS = "registros:marco_teorico";
+
+export type Etapa = EtapaPropuesta | EtapaProtocolo | EtapaPlan | EtapaEjecucion | EtapaInformeFinal;
 
 export interface DefinicionFicha {
   formato: typeof FORMATO_DEFINICION;
   modalidad: Modalidad;
   /** Los integrantes siempre son de la misma cohorte. `mismaCarrera` es opcional en el formato 1 (falta = no se exige). */
   participantes: { min: number; max: number; mismaCarrera?: boolean };
-  /** Una etapa de propuesta, opcionalmente un protocolo (investigación) y un plan de trabajo, y cero o más etapas de ejecución. El cierre, los
+  /** Una etapa de propuesta, opcionalmente un protocolo (investigación) y un plan de trabajo, cero o más etapas de ejecución y, al final,
+   *  opcionalmente el informe final por capítulos (investigación). El cierre, los
    *  roles y la plantilla de documento se agregarán al formato en entregas posteriores. */
   etapas: Etapa[];
 }
@@ -217,9 +242,10 @@ export interface DefinicionFicha {
 export const esEtapaPropuesta = (e: Etapa): e is EtapaPropuesta => e.tipo === "propuesta";
 export const esEtapaProtocolo = (e: Etapa): e is EtapaProtocolo => e.tipo === "protocolo";
 export const esEtapaPlan = (e: Etapa): e is EtapaPlan => e.tipo === "plan";
+export const esEtapaInformeFinal = (e: Etapa): e is EtapaInformeFinal => e.tipo === "informe_final";
 /** Etapas que se arman con espacios del catálogo. */
-export type EtapaConEspacios = EtapaPropuesta | EtapaProtocolo;
-export const tieneEspacios = (e: Etapa): e is EtapaConEspacios => e.tipo === "propuesta" || e.tipo === "protocolo";
+export type EtapaConEspacios = EtapaPropuesta | EtapaProtocolo | EtapaInformeFinal;
+export const tieneEspacios = (e: Etapa): e is EtapaConEspacios => e.tipo === "propuesta" || e.tipo === "protocolo" || e.tipo === "informe_final";
 /** Valor efectivo de "documento solicitado" de un plan (las versiones anteriores no lo tienen). */
 export const documentoSolicitado = (p: EtapaPlan) => p.documentoSolicitado ?? "no";
 export const esEtapaEjecucion = (e: Etapa): e is EtapaEjecucion => e.tipo === "ejecucion";

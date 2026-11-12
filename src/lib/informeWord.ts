@@ -36,12 +36,12 @@ export type InformeCompilado = Extract<Awaited<ReturnType<typeof getInformeCompi
 
 // Formato general de trabajos de graduación: carta, margen izquierdo 3 cm (encuadernado) y 2.54 cm (1 pulgada) en los
 // demás (1 cm = 567 twips), páginas numeradas en la parte inferior derecha.
-const PAGINA = { ancho: 12240, alto: 15840, margenIzq: 1701, margenOtros: 1440 };
-const ANCHO_CONTENIDO = PAGINA.ancho - PAGINA.margenIzq - PAGINA.margenOtros;
-const FUENTE = "Times New Roman";
-const TAMANO_TEXTO = 24; // 12 pt (medios puntos)
-const TAMANO_LEYENDA = 20; // 10 pt
-const INTERLINEADO = 360; // 1.5
+export const PAGINA = { ancho: 12240, alto: 15840, margenIzq: 1701, margenOtros: 1440 };
+export const ANCHO_CONTENIDO = PAGINA.ancho - PAGINA.margenIzq - PAGINA.margenOtros;
+export const FUENTE = "Times New Roman";
+export const TAMANO_TEXTO = 24; // 12 pt (medios puntos)
+export const TAMANO_LEYENDA = 20; // 10 pt
+export const INTERLINEADO = 360; // 1.5
 const LADO_IMAGEN_PX = 189; // 5 cm a 96 ppp
 
 const borde = { style: BorderStyle.SINGLE, size: 6, color: "000000" };
@@ -49,7 +49,7 @@ const bordes = { top: borde, bottom: borde, left: borde, right: borde };
 
 type TipoImagen = "png" | "jpg" | "gif" | "bmp";
 
-function decodificarImagen(dataUrl: string): { datos: Buffer; tipo: TipoImagen } | null {
+export function decodificarImagen(dataUrl: string): { datos: Buffer; tipo: TipoImagen } | null {
   const coincidencia = /^data:image\/([a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl);
   if (!coincidencia) return null;
   const subtipo = coincidencia[1].toLowerCase();
@@ -82,7 +82,7 @@ function dimensionesImagen(datos: Buffer, tipo: TipoImagen): { ancho: number; al
 }
 
 /** Imagen de soporte de 5 x 5 cm (las cargadas por el sistema ya vienen recortadas a cuadrado); si no es cuadrada, conserva la proporción dentro de 5 x 5 cm. */
-function tamanoImagen(datos: Buffer, tipo: TipoImagen) {
+export function tamanoImagen(datos: Buffer, tipo: TipoImagen) {
   const dim = dimensionesImagen(datos, tipo);
   if (!dim || dim.ancho <= 0 || dim.alto <= 0) return { width: LADO_IMAGEN_PX, height: LADO_IMAGEN_PX };
   const factor = LADO_IMAGEN_PX / Math.max(dim.ancho, dim.alto);
@@ -99,11 +99,11 @@ function tamanoFoto(datos: Buffer, tipo: TipoImagen) {
   return { width: Math.round(dim.ancho * factor), height: Math.round(dim.alto * factor) };
 }
 
-function texto(contenido: string, opciones: { bold?: boolean; italics?: boolean; size?: number } = {}) {
+export function texto(contenido: string, opciones: { bold?: boolean; italics?: boolean; size?: number } = {}) {
   return new TextRun({ text: contenido, font: FUENTE, size: opciones.size ?? TAMANO_TEXTO, bold: opciones.bold, italics: opciones.italics });
 }
 
-function parrafo(runs: TextRun[] | string, opciones: { justificado?: boolean; centrado?: boolean; despues?: number } = {}) {
+export function parrafo(runs: TextRun[] | string, opciones: { justificado?: boolean; centrado?: boolean; despues?: number } = {}) {
   return new Paragraph({
     children: typeof runs === "string" ? [texto(runs)] : runs,
     alignment: opciones.centrado ? AlignmentType.CENTER : opciones.justificado ? AlignmentType.JUSTIFIED : AlignmentType.LEFT,
@@ -114,7 +114,7 @@ function parrafo(runs: TextRun[] | string, opciones: { justificado?: boolean; ce
 // Texto de las actividades: justificado, interlineado 1.5 y 12 pt de espacio anterior y posterior; un párrafo por línea.
 const ESPACIO_CUERPO = 240;
 
-function parrafosCuerpo(contenido: string) {
+export function parrafosCuerpo(contenido: string) {
   return parrafosDe(contenido).map(
     (p) =>
       new Paragraph({
@@ -256,7 +256,7 @@ function imagenesSoporte(imagenes: ImagenInforme[], codigo?: string): (Paragraph
   ];
 }
 
-function leyenda(contenido: string) {
+export function leyenda(contenido: string) {
   return new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { line: INTERLINEADO, after: 160 },
@@ -264,7 +264,7 @@ function leyenda(contenido: string) {
   });
 }
 
-function celda(
+export function celda(
   contenido: string,
   ancho: number,
   opciones: { bold?: boolean; sombra?: string; centrado?: boolean; size?: number; italics?: boolean; justificado?: boolean } = {}
@@ -352,7 +352,7 @@ function tablaCronograma(d: SeccionInforme) {
   });
 }
 
-async function cargarLogo(alto: number): Promise<ImageRun | null> {
+export async function cargarLogo(alto: number): Promise<ImageRun | null> {
   try {
     const datos = await readFile(path.join(process.cwd(), "public", "unicaes-logo.png"));
     const dim = dimensionesImagen(datos, "png");
@@ -366,7 +366,7 @@ async function cargarLogo(alto: number): Promise<ImageRun | null> {
 // Portada: interlineado sencillo y los grupos de líneas distribuidos en la hoja (área de texto de 9 pulgadas).
 const ESPACIO_GRUPO_PORTADA = 800; // 40 pt
 
-function portadaWord(p: DatosPortada, logo: ImageRun | null): Paragraph[] {
+export function portadaWord(p: DatosPortada, logo: ImageRun | null): Paragraph[] {
   const linea = (contenido: string, antes = 0) =>
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -531,7 +531,7 @@ export async function generarInformeWord(d: InformeCompilado, opciones: { origen
 const ESTILO_ACTIVIDAD = "TituloActividad";
 
 /** Entradas del índice de contenidos: interlineado sencillo y sangría por nivel. */
-function estiloIndice(id: string, name: string, sangria: number, bold: boolean) {
+export function estiloIndice(id: string, name: string, sangria: number, bold: boolean) {
   return {
     id,
     name,
@@ -608,7 +608,7 @@ type CambiosCronograma = NonNullable<InformeCompilado["cambiosPeriodo"]>;
  * Título de un apartado del informe final: en hoja nueva, centrado y en mayúsculas. Los contenidos son nivel 1 del índice;
  * los agradecimientos, los índices y los anexos llevan el mismo formato pero no forman parte del índice de contenidos.
  */
-function apartadoFinal(contenido: string, nuevaHoja = true, enIndice = true) {
+export function apartadoFinal(contenido: string, nuevaHoja = true, enIndice = true) {
   if (!enIndice) {
     return new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -627,7 +627,7 @@ function apartadoFinal(contenido: string, nuevaHoja = true, enIndice = true) {
 }
 
 /** Título de un anexo: negrita, en hoja nueva y fuera del índice de contenidos. */
-function tituloAnexo(contenido: string, nuevaHoja = true) {
+export function tituloAnexo(contenido: string, nuevaHoja = true) {
   return new Paragraph({
     pageBreakBefore: nuevaHoja,
     keepNext: true,

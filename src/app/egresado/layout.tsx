@@ -11,6 +11,7 @@ const navItems: NavItem[] = [
   { label: "Historial Propuesta", href: "/egresado/historial" },
   { label: "Plan de trabajo", href: "/egresado/plan" },
   { label: "Ejecución del trabajo", href: "/egresado/ejecucion" },
+  { label: "Informe final", href: "/egresado/informe-final" },
   { label: "Reportes de actividades", href: "/egresado/reportes" },
   { label: "Preferencias de notificaciones", href: "/egresado/notificaciones" },
 ];

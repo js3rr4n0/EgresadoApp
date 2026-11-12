@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ACTORES, CATALOGO, DOCUMENTOS_ESTUDIANTE } from "@/lib/fichas/catalogo";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import { reglasRecurso } from "@/lib/fichas/elementosRecurso";
-import { diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
+import { PRECARGA_MARCO_REGISTROS, diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
 
 /** Reglas de un espacio en frases cortas, como las leería el egresado. */
 function reglas(e: Espacio, equipo: boolean): string[] {
@@ -78,18 +78,24 @@ export function PasosEgresado({ definicion, etapa }: { definicion: DefinicionFic
   const origen = definicion.etapas.find(esEtapaPropuesta);
   const propuesta = etapa ?? origen;
   const esProtocolo = propuesta?.tipo === "protocolo";
+  const esInformeFinal = propuesta?.tipo === "informe_final";
   const equipo = definicion.participantes.max > 1;
   const [paso, setPaso] = useState(0);
   const espacio = propuesta?.espacios[paso];
-  const precarga = espacio?.precargarDe ? origen?.espacios.find((e) => e.id === espacio.precargarDe) : undefined;
+  const fuentesPrecarga = definicion.etapas.flatMap((e) => (e.tipo === "propuesta" || e.tipo === "protocolo" ? e.espacios : []));
+  const precarga = espacio?.precargarDe === PRECARGA_MARCO_REGISTROS
+    ? { titulo: "marco teórico de las actividades" }
+    : espacio?.precargarDe ? fuentesPrecarga.find((e) => e.id === espacio.precargarDe) : undefined;
 
   return (
     <section className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       <header className="px-5 py-3 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="font-bold text-gray-800">{esProtocolo ? propuesta.nombre : "Propuesta"}</h2>
+          <h2 className="font-bold text-gray-800">{esProtocolo || esInformeFinal ? propuesta.nombre : "Propuesta"}</h2>
           <p className="text-xs text-gray-500">
-            {esProtocolo
+            {esInformeFinal
+              ? "Lo redacta todo el equipo por capítulos, durante y al final de la ejecución. La portada, las autoridades, el índice y los anexos de resultados se generan."
+              : esProtocolo
               ? "Después de la propuesta aprobada. La portada y el índice se generan, y el cronograma de actividades es el plan de trabajo."
               : "Los pasos se habilitan en orden: cada uno se desbloquea al completar el anterior."}
           </p>
@@ -121,7 +127,7 @@ export function PasosEgresado({ definicion, etapa }: { definicion: DefinicionFic
                 : <p className="text-xs text-gray-400">Sin texto de ayuda.</p>}
               <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">
                 {reglas(espacio, equipo).map((r, i) => <li key={i}>{r}</li>)}
-                {precarga && <li>Empieza con lo que escribiste en «{precarga.titulo}» de la propuesta; puedes ajustarlo.</li>}
+                {precarga && <li>Empieza con lo que ya escribieron en «{precarga.titulo}»; pueden ajustarlo.</li>}
                 {!espacio.obligatorio && <li>Este paso es opcional.</li>}
               </ul>
               <div className="grid sm:grid-cols-2 gap-2">
@@ -140,7 +146,7 @@ export function PasosEgresado({ definicion, etapa }: { definicion: DefinicionFic
                   className="bg-brand-red text-white text-sm font-bold rounded-lg px-4 py-2 disabled:opacity-40">Guardar y continuar</button>
               </div>
             </div>
-          ) : <p className="text-sm text-gray-500">{esProtocolo ? "El protocolo" : "La propuesta"} no tiene espacios.</p>}
+          ) : <p className="text-sm text-gray-500">{esInformeFinal ? "El informe final" : esProtocolo ? "El protocolo" : "La propuesta"} no tiene espacios.</p>}
         </div>
       </div>
     </section>

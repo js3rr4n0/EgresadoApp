@@ -6,17 +6,18 @@ import { useRouter } from "next/navigation";
 import { crearFicha, descartarBorrador, guardarBorrador, habilitarVersion, nuevaVersion, retirarVersion } from "@/app/actions/fichas";
 import { compararDefiniciones } from "@/lib/fichas/diferencias";
 import { validarDefinicion, type ProblemaFicha } from "@/lib/fichas/validar";
-import { esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, type DefinicionFicha, type EstadoVersion, type Modalidad } from "@/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaPlan, esEtapaInformeFinal, esEtapaPropuesta, esEtapaProtocolo, type DefinicionFicha, type EstadoVersion, type Modalidad } from "@/lib/fichas/tipos";
 import { ETIQUETA_MODALIDAD, EstadoVersionBadge, Proximamente } from "./comunes";
 import EditorPropuesta from "./EditorPropuesta";
 import EditorProtocolo from "./EditorProtocolo";
+import EditorInformeFinal from "./EditorInformeFinal";
 import EditorEjecucion from "./EditorEjecucion";
 import EditorPlan from "./EditorPlan";
 import { CalendarioEjecucion, PasosEgresado, PlanEgresado } from "./VistaPrevia";
 import { EjemploPlan } from "./EditorPlan";
 import { EditorCierre, EditorPresentacion, EditorRoles } from "./PestanasDiseno";
 
-type Pestana = "propuesta" | "protocolo" | "plan" | "ejecucion" | "cierre" | "revision" | "publica" | "roles" | "cambios" | "versiones";
+type Pestana = "propuesta" | "protocolo" | "plan" | "ejecucion" | "informe_final" | "cierre" | "revision" | "publica" | "roles" | "cambios" | "versiones";
 
 interface Props {
   ficha: { id: number; codigo: string | null; nombre: string; modalidad: Modalidad; esBase: boolean; alcance: string };
@@ -95,7 +96,10 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
   const planActual = definicion.etapas.find(esEtapaPlan);
   const idPlan = planActual?.id;
   const enPlan = problemas.filter((p) => p.ubicacion === idPlan).length;
-  const enEjecucion = problemas.filter((p) => p.ubicacion !== "ficha" && p.ubicacion !== idPlan && p.ubicacion !== idProtocolo && !p.ubicacion.includes("/")).length;
+  const informeFinalActual = definicion.etapas.find(esEtapaInformeFinal);
+  const idInforme = informeFinalActual?.id;
+  const enInforme = idInforme ? problemas.filter((p) => p.ubicacion === idInforme || p.ubicacion.startsWith(`${idInforme}/`)).length : 0;
+  const enEjecucion = problemas.filter((p) => p.ubicacion !== "ficha" && p.ubicacion !== idPlan && p.ubicacion !== idProtocolo && p.ubicacion !== idInforme && !p.ubicacion.includes("/")).length;
   // El protocolo es, por ahora, de investigación; si otra ficha lo tuviera (no debería), la pestaña también se muestra.
   const conProtocolo = ficha.modalidad === "investigacion" || Boolean(protocoloActual);
   const pestanas: { id: Pestana; texto: string; marca?: number; diseno?: boolean }[] = [
@@ -103,6 +107,7 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
     ...(conProtocolo ? [{ id: "protocolo" as const, texto: "Protocolo", marca: enProtocolo }] : []),
     ...(ficha.modalidad === "pasantia" ? [] : [{ id: "plan" as const, texto: "Plan de trabajo", marca: enPlan }]),
     { id: "ejecucion", texto: "Ejecución", marca: enEjecucion },
+    ...(conProtocolo || informeFinalActual ? [{ id: "informe_final" as const, texto: "Informe final", marca: enInforme }] : []),
     { id: "cierre", texto: "Cierre", diseno: true },
     { id: "revision", texto: "Presentación de revisión", diseno: true },
     { id: "publica", texto: "Presentación pública", diseno: true },
@@ -211,6 +216,7 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
           </div>
           <PasosEgresado definicion={definicion} />
           {protocoloActual && <PasosEgresado definicion={definicion} etapa={protocoloActual} />}
+          {informeFinalActual && <PasosEgresado definicion={definicion} etapa={informeFinalActual} />}
           <PlanEgresado definicion={definicion} />
           {planActual && <EjemploPlan definicion={definicion} plan={planActual} />}
           <CalendarioEjecucion ejecuciones={definicion.etapas.filter(esEtapaEjecucion)} />
@@ -231,6 +237,7 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
           {pestana === "propuesta" && <EditorPropuesta key="propuesta" definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "protocolo" && <EditorProtocolo definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "plan" && <EditorPlan definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
+          {pestana === "informe_final" && <EditorInformeFinal definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "ejecucion" && <EditorEjecucion definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "cierre" && <EditorCierre modalidad={ficha.modalidad} />}
           {pestana === "revision" && <EditorPresentacion key="revision" tipo="revision" modalidad={ficha.modalidad} />}

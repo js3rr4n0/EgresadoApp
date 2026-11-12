@@ -16,12 +16,16 @@
 // Ninguno de los dos atajos toca lo que el equipo ya escribió.
 // Con --iniciar da inicio a la ejecución si el protocolo y el plan están aprobados (I4; en lugar de los documentos de
 // coordinación). Para poder registrar ya, mueve la fecha de inicio de la carta al 15-oct-2026 (períodos 1 y 2 abiertos).
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar]
+// Con --usar-version-vigente liga la propuesta del líder a la última versión habilitada de su ficha (I5: la v2 de
+// INV-ING-001 solo agrega el informe final; las propuestas reales conservan la versión con la que empezaron).
+// Con --completar-informe-final escribe una versión de prueba en los capítulos del informe final que no tienen ninguna
+// y los marca como aprobados (como lo haría el asesor); no toca los capítulos que el equipo ya escribió.
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final]
 import crypto from "crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
-import { cartasAceptacion, fichasVersiones, historialEstados, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
-import { esEtapaProtocolo, type DefinicionFicha } from "../../src/lib/fichas/tipos";
+import { cartasAceptacion, fichasVersiones, historialEstados, informesFinalesFicha, versionesCapitulo, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
+import { esEtapaInformeFinal, esEtapaProtocolo, type DefinicionFicha } from "../../src/lib/fichas/tipos";
 import { numerar, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 import { exigirBaseDesarrollo } from "./guardia";
 
@@ -172,6 +176,40 @@ async function iniciar() {
   console.log(`Propuesta ${prop.id} en ejecución; la carta inicia el ${iso(inicio)}.`);
 }
 
+/** Atajo de prueba (I5): liga la propuesta del líder a la última versión habilitada de su misma ficha. */
+async function usarVersionVigente() {
+  const { prop } = await propuestaDelLider();
+  if (!prop.fichaVersionId) throw new Error("La propuesta no tiene ficha.");
+  const [actual] = await db.select({ fichaId: fichasVersiones.fichaId }).from(fichasVersiones).where(eq(fichasVersiones.id, prop.fichaVersionId));
+  const [ultima] = await db.select({ id: fichasVersiones.id, numero: fichasVersiones.numero }).from(fichasVersiones)
+    .where(and(eq(fichasVersiones.fichaId, actual.fichaId), eq(fichasVersiones.estado, "habilitada"))).orderBy(sql`${fichasVersiones.numero} DESC`).limit(1);
+  if (!ultima) throw new Error("La ficha no tiene versiones habilitadas.");
+  await db.update(propuestas).set({ fichaVersionId: ultima.id }).where(eq(propuestas.id, prop.id));
+  console.log(`Propuesta ${prop.id} ligada a la versión ${ultima.numero} (id ${ultima.id}).`);
+}
+
+/** Atajo de prueba (I5): capítulos de prueba aprobados en el informe final, sin tocar los que ya tienen versiones. */
+async function completarInformeFinal() {
+  const { lider, prop } = await propuestaDelLider();
+  const [v] = await db.select({ def: fichasVersiones.definicion }).from(fichasVersiones).where(eq(fichasVersiones.id, prop.fichaVersionId!));
+  const etapa = (v.def as DefinicionFicha).etapas.find(esEtapaInformeFinal);
+  if (!etapa) throw new Error("La ficha de la propuesta no tiene informe final.");
+  const conVersiones = new Set((await db.select({ id: versionesCapitulo.espacioId }).from(versionesCapitulo).where(eq(versionesCapitulo.propuestaId, prop.id))).map((x) => x.id));
+  let [fila] = await db.select().from(informesFinalesFicha).where(eq(informesFinalesFicha.propuestaId, prop.id));
+  if (!fila) [fila] = await db.insert(informesFinalesFicha).values({ propuestaId: prop.id }).returning();
+  const estados = { ...(fila.capitulos as Record<string, unknown>) };
+  let n = 0;
+  for (const e of etapa.espacios) {
+    if (conVersiones.has(e.id) || !e.obligatorio) continue;
+    const contenido = e.elemento === "lista" ? JSON.stringify(["Autor, A. (2024). Obra de prueba. Editorial.", "Autor, B. (2023). Artículo de prueba. Revista, 1(2), 3-4.", "Autor, C. (2022). Libro de prueba. Editorial."]) : `Texto de prueba del capítulo "${e.titulo}".`;
+    await db.insert(versionesCapitulo).values({ propuestaId: prop.id, espacioId: e.id, numero: 1, contenido, autorId: lider });
+    estados[e.id] = { estado: "aprobado", version: 1, comentario: "Aprobado (atajo de prueba).", enviadoEn: new Date().toISOString(), revisadoEn: new Date().toISOString(), editando: null };
+    n++;
+  }
+  await db.update(informesFinalesFicha).set({ capitulos: estados }).where(eq(informesFinalesFicha.propuestaId, prop.id));
+  console.log(`Informe final de la propuesta ${prop.id}: ${n} capítulos de prueba aprobados.`);
+}
+
 async function run() {
   exigirBaseDesarrollo("sembrar_equipo_investigacion");
   if (process.argv.includes("--borrar")) await borrar();
@@ -179,6 +217,8 @@ async function run() {
   else if (process.argv.includes("--completar-protocolo")) await completarProtocolo();
   else if (process.argv.includes("--completar-plan")) await completarPlan();
   else if (process.argv.includes("--iniciar")) await iniciar();
+  else if (process.argv.includes("--usar-version-vigente")) await usarVersionVigente();
+  else if (process.argv.includes("--completar-informe-final")) await completarInformeFinal();
   else await sembrar();
 }
 

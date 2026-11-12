@@ -8,7 +8,7 @@ import type { Espacio, EtapaProtocolo } from "./tipos";
 const palabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 
 /** Problemas de las respuestas del protocolo frente a las reglas de sus espacios (vacío = se puede enviar). */
-export function problemasProtocolo(etapa: EtapaProtocolo, respuestas: Record<string, string | null | undefined>): { espacioId: string; mensaje: string }[] {
+export function problemasProtocolo(etapa: { espacios: Espacio[] }, respuestas: Record<string, string | null | undefined>): { espacioId: string; mensaje: string }[] {
   const problemas: { espacioId: string; mensaje: string }[] = [];
   for (const e of etapa.espacios) {
     const valor = respuestas[e.id] ?? "";

@@ -1106,3 +1106,65 @@ export const ratificacionesPlan = pgTable(
   },
   (table) => [unique("ratificaciones_plan_propuesta_usuario").on(table.propuestaId, table.usuarioId)]
 );
+
+// Informe final por capítulos (entrega I5, investigación): cada guardado de un capítulo es una fila nueva (nada se
+// sobrescribe), con su autor; el estado del informe y de cada capítulo vive en informes_finales_ficha. Al entregar,
+// todos ratifican la versión completa, que queda congelada con su huella. Script: scripts/fichas/crear_informe_final_ficha.ts
+export const versionesCapitulo = pgTable(
+  "versiones_capitulo",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    espacioId: varchar("espacio_id", { length: 64 }).notNull(),
+    numero: integer("numero").notNull(),
+    contenido: text("contenido").notNull(),
+    autorId: integer("autor_id").references(() => usuarios.id),
+    /** Guardado automático (true) o versión guardada a mano / restaurada (false). */
+    automatica: boolean("automatica").notNull().default(false),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("versiones_capitulo_numero").on(table.propuestaId, table.espacioId, table.numero),
+    index("versiones_capitulo_propuesta_idx").on(table.propuestaId),
+  ]
+);
+
+export const informesFinalesFicha = pgTable(
+  "informes_finales_ficha",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .unique()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    // redactando | entregado (versión final congelada, en revisión del asesor) | aprobado
+    estado: varchar("estado", { length: 20 }).notNull().default("redactando"),
+    /** Estado de cada capítulo: { [espacioId]: { estado, version, comentario, enviadoEn, revisadoEn, editando } }. */
+    capitulos: jsonb("capitulos").notNull().default({}),
+    huellaFinal: text("huella_final"),
+    entregadoEn: timestamp("entregado_en", { withTimezone: true }),
+    aprobadoEn: timestamp("aprobado_en", { withTimezone: true }),
+    comentarioFinal: text("comentario_final"),
+    revisadoPor: integer("revisado_por").references(() => usuarios.id),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [check("informes_finales_ficha_estado_check", sql`${table.estado} IN ('redactando', 'entregado', 'aprobado')`)]
+);
+
+export const ratificacionesInformeFinal = pgTable(
+  "ratificaciones_informe_final",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    huellaFirmada: text("huella_firmada").notNull(),
+    momento: timestamp("momento", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("ratificaciones_informe_final_propuesta_usuario").on(table.propuestaId, table.usuarioId)]
+);

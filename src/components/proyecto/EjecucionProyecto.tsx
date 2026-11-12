@@ -214,6 +214,12 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-extrabold text-xs transition-colors w-fit">
             Plan de trabajo
           </Link>
+          {plan.informeFinal && (
+            <Link href={esAsesor ? `/asesor/informe-final/${plan.propuesta.id}` : "/egresado/informe-final"}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-brand-red text-brand-red bg-white hover:bg-red-50 font-extrabold text-xs transition-colors w-fit">
+              Informe final
+            </Link>
+          )}
           <Link href={esAsesor ? `/asesor/propuestas/${plan.propuesta.id}` : "/egresado"}
             className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs transition-colors shadow-2xs w-fit">
             {esAsesor ? "Volver a la propuesta" : "Volver al panel principal"}

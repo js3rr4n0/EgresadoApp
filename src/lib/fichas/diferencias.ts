@@ -2,8 +2,8 @@
 // una versión nueva para que se vea qué cambia respecto de la anterior. Módulo puro.
 import { CATALOGO } from "./catalogo";
 import {
-  documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, rangoPalabras,
-  type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaPlan, type EtapaProtocolo, type ValorParametro,
+  documentoSolicitado, esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, rangoPalabras,
+  type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type ValorParametro,
 } from "./tipos";
 
 const texto = (v: ValorParametro | null | undefined) =>
@@ -48,6 +48,12 @@ const CAMPOS_PLAN: [string, (p: EtapaPlan) => ValorParametro][] = [
   ["Validación del supervisor", (p) => p.aprobacion.validaSupervisor],
   ["Días de revisión del asesor", (p) => p.aprobacion.diasRevision],
   ["Documento solicitado por actividad", (p) => documentoSolicitado(p)],
+];
+
+const CAMPOS_INFORME_FINAL: [string, (p: EtapaInformeFinal) => ValorParametro][] = [
+  ["Revisión del asesor", (p) => (p.revision.porCapitulo ? "por capítulo" : "documento completo")],
+  ["Ratificación del equipo", (p) => p.revision.ratificacion],
+  ["Plazo de revisión", (p) => `${p.revision.diasRevision} días ${p.revision.diasHabiles ? "hábiles" : "calendario"}`],
 ];
 
 const CAMPOS_PROTOCOLO: [string, (p: EtapaProtocolo) => ValorParametro][] = [
@@ -111,6 +117,19 @@ export function compararDefiniciones(anterior: DefinicionFicha, nueva: Definicio
       const va = texto(leer(prA));
       const vn = texto(leer(prN));
       if (va !== vn) cambios.push(`Protocolo: ${etiqueta.toLowerCase()}, ${va} → ${vn}.`);
+    }
+  }
+
+  const ifA = anterior.etapas.find(esEtapaInformeFinal);
+  const ifN = nueva.etapas.find(esEtapaInformeFinal);
+  if (ifA && !ifN) cambios.push("Se quitó el informe final.");
+  if (!ifA && ifN) cambios.push(`Se agregó el informe final, con ${ifN.espacios.length} capítulos.`);
+  if (ifA && ifN) {
+    cambios.push(...compararEspacios(ifA, ifN, "Informe final: ", "el informe final"));
+    for (const [etiqueta, leer] of CAMPOS_INFORME_FINAL) {
+      const va = texto(leer(ifA));
+      const vn = texto(leer(ifN));
+      if (va !== vn) cambios.push(`Informe final: ${etiqueta.toLowerCase()}, ${va} → ${vn}.`);
     }
   }
 

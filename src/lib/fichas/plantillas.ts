@@ -3,7 +3,7 @@
 // incluyen plan ni ejecución de proyecto: estas plantillas son el punto de partida al agregarlas en una ficha nueva.
 // Los valores de proyecto salen del documento "Ejemplo para plantilla proyecto" (5-nov-2026).
 import { parametrosPorDefecto } from "./catalogo";
-import type { ClaveElemento, Espacio, EtapaEjecucion, EtapaPlan, EtapaProtocolo, Modalidad } from "./tipos";
+import { PRECARGA_MARCO_REGISTROS, type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
 
 /** Plan de trabajo jerárquico con los valores recomendados para proyecto (e investigación, que usa el mismo formato). */
 export function planNuevo(id: string, modalidad: Modalidad = "proyecto"): EtapaPlan {
@@ -112,6 +112,46 @@ export function protocoloNuevo(id: string): EtapaProtocolo {
       espacioProtocolo("anexos_protocolo", "archivo", "Anexos", "Instrumentos y documentos de apoyo", {
         obligatorio: false,
         parametros: parametrosPorDefecto("archivo", { tipos: ["pdf", "word", "excel"], minimo: 0, maximo: 5 }),
+      }),
+    ],
+  };
+}
+
+/**
+ * Informe final de investigación por capítulos (I5; partes del contexto del 12-nov-2026). La portada, las autoridades
+ * académicas y el índice se generan; los anexos de resultados salen de las evidencias de la ejecución. Los capítulos que
+ * ya existen se precargan: del protocolo (ids de protocoloNuevo) o del marco teórico registrado en las actividades.
+ */
+export function informeFinalNuevo(id: string): EtapaInformeFinal {
+  const texto = (i: string, t: string, d: string, extra: Partial<Espacio> = {}) => espacioProtocolo(i, "texto", t, d, extra);
+  return {
+    tipo: "informe_final",
+    id,
+    nombre: "Informe final de investigación",
+    revision: { porCapitulo: true, ratificacion: true, diasRevision: 5, diasHabiles: true },
+    espacios: [
+      texto("if_introduccion", "Introducción", "Presentación del estudio y de la estructura del informe", { precargarDe: "introduccion" }),
+      texto("if_generalidades", "Generalidades del estudio", "Institución, contexto y delimitación", { precargarDe: "generalidades" }),
+      texto("if_problematica", "Problemática o temática investigada", "Parte de la problemática del protocolo", { precargarDe: "problematica" }),
+      texto("if_justificacion", "Justificación de la investigación", "Parte de la justificación del protocolo", { precargarDe: "justificacion_protocolo" }),
+      texto("if_objetivos", "Objetivos", "Parte de los objetivos del protocolo", { precargarDe: "objetivos_protocolo" }),
+      texto("if_marco", "Marco teórico o referencial", "Parte del marco teórico registrado en las actividades", { precargarDe: PRECARGA_MARCO_REGISTROS }),
+      texto("if_tipo", "Tipo de investigación", "Metodología", { precargarDe: "tipo_investigacion" }),
+      texto("if_poblacion", "Población y muestra", "Metodología", { precargarDe: "poblacion_muestra" }),
+      texto("if_tecnicas", "Técnica e instrumentos utilizados", "Metodología", { precargarDe: "tecnicas" }),
+      texto("if_procedimiento", "Procedimiento realizado", "Metodología", { precargarDe: "procedimiento" }),
+      texto("if_analisis", "Análisis estadístico o de información realizada", "Metodología", { precargarDe: "analisis" }),
+      texto("if_resultados", "Resultados obtenidos", "Presentación de los resultados del estudio"),
+      texto("if_hipotesis", "Comprobación de hipótesis", "Si procede según el tipo de investigación", { obligatorio: false }),
+      texto("if_hallazgos", "Presentación de los hallazgos principales", "Hallazgos más relevantes y su interpretación"),
+      texto("if_conclusiones", "Conclusiones", "Conclusiones de la investigación"),
+      espacioProtocolo("if_bibliografia", "lista", "Bibliografía", "Referencias en formato APA", {
+        precargarDe: "bibliografia",
+        parametros: parametrosPorDefecto("lista", { minimo: 3, maximo: 50 }),
+      }),
+      espacioProtocolo("if_anexos", "archivo", "Anexos", "Instrumentos y documentos complementarios (las evidencias de las actividades se agregan solas)", {
+        obligatorio: false,
+        parametros: parametrosPorDefecto("archivo", { tipos: ["pdf", "word", "excel"], minimo: 0, maximo: 10 }),
       }),
     ],
   };
