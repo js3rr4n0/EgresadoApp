@@ -108,6 +108,7 @@ Propuesta ─ aprobada ─► Protocolo + Plan de trabajo ─ dictamen del aseso
 > - I2 está hecha ([ENTREGA_I2.md](ENTREGA_I2.md)): INV-ING-001-SIST v1 está habilitada, y la propuesta 71 del equipo de prueba quedó enviada.
 > - I3 está hecha ([ENTREGA_I3.md](ENTREGA_I3.md)): la 71 tiene el protocolo y el plan aprobados por el asesor, con dictamen escrito.
 > - I4 está hecha ([ENTREGA_I4.md](ENTREGA_I4.md)): la 71 está en ejecución, con una actividad registrada y su evidencia.
+> - I5, parte 1 ([ENTREGA_I5.md](ENTREGA_I5.md)): el informe del período sin presupuesto y con el documento solicitado. La parte 2, el informe final, espera las respuestas de §7.
 
 | # | Entrega | Qué incluye | Resultado visible |
 |---|---|---|---|

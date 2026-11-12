@@ -12,7 +12,8 @@ import { notaImagen } from "@/lib/fuenteImagen";
 import { leyendaDocumento } from "@/lib/reglasRegistroActividad";
 import BotonImprimir from "./BotonImprimir";
 import GanttProyecto from "./GanttProyecto";
-import { ganttPlan, planIndividual } from "@/lib/fichas/planTrabajo";
+import { aplanar, ganttPlan, planIndividual, type NodoPlan } from "@/lib/fichas/planTrabajo";
+import { documentoSolicitado } from "@/lib/fichas/tipos";
 import { textosModalidad } from "@/lib/fichas/textosModalidad";
 
 const dinero = (v: number) => (v ? `$${v.toLocaleString("es-SV")}` : "");
@@ -44,6 +45,20 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
   const todas = await getEvidenciasRegistro(propuestaId, actividades.map((f) => regIds.get(f.id)).filter((x): x is number => x !== undefined));
   const porActividad = new Map<string, EvidenciaCompleta[]>(actividades.map((f) => [f.id, todas.filter((e) => e.registroId === regIds.get(f.id))]));
   const evidencias = numerarEvidencias(actividades, porActividad);
+  // Investigación (I5): sin presupuesto, el cronograma solo marca dónde se ejecuta cada actividad; y "Resultados por
+  // actividad" muestra la macroactividad y el documento solicitado de cada una, como en el contexto del 12-nov-2026.
+  const conPresupuesto = plan.etapa.presupuesto.activo;
+  const conDocumento = documentoSolicitado(plan.etapa) !== "no";
+  const padres = new Map<string, NodoPlan>();
+  for (const n of aplanar(plan.plan.arbol)) for (const h of n.hijos) padres.set(h.id, n);
+  const actividadDe = (id: string) => {
+    const n = aplanar(plan.plan.arbol).find((x) => x.id === id);
+    return n?.nivel === 5 ? padres.get(id) : n;
+  };
+  const macroDe = (id: string) => {
+    const a = actividadDe(id);
+    return a ? padres.get(a.id) : undefined;
+  };
   const listaEvidencias = actividades.flatMap((f) => (evidencias.get(f.id) ?? []).map((e) => ({ ...e, codigo: f.codigo })));
   // Gantt hasta el período del informe (el individual, solo con la parte del integrante). Cuenta lo enviado o aprobado.
   const baseGantt = integrante === null ? plan.plan.arbol : planIndividual(plan.plan.arbol, integrante);
@@ -87,26 +102,30 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
           </dl>
         </section>
 
-        {/* 3. Cronograma y presupuesto del período */}
+        {/* 3. Cronograma (y presupuesto, si la ficha lo lleva) del período */}
         <section className="space-y-2">
-          <h2 className="font-bold uppercase text-xs tracking-wide">2. Cronograma y presupuesto de actividades del período</h2>
-          <p className="text-xs text-gray-500">Los valores solo se incluyen en las actividades ejecutadas en el período. Cada nivel suma los de sus hijos.</p>
+          <h2 className="font-bold uppercase text-xs tracking-wide">2. {conPresupuesto ? "Cronograma y presupuesto de actividades del período" : "Cronograma de actividades del período"}</h2>
+          <p className="text-xs text-gray-500">
+            {conPresupuesto ? "Los valores solo se incluyen en las actividades ejecutadas en el período. Cada nivel suma los de sus hijos." : "Se marcan los subperíodos en que se ejecuta cada actividad."}
+          </p>
           <div className="overflow-x-auto">
             <table className="w-full text-xs border border-gray-300">
               <thead className="bg-gray-100">
                 <tr><th className="text-left px-2 py-1 border-b border-gray-300 w-20">ID</th><th className="text-left px-2 py-1 border-b border-gray-300">Descripción de la actividad</th>
-                  {inf.columnas.map((c) => <th key={c} className="text-right px-2 py-1 border-b border-gray-300 w-16">{c}</th>)}<th className="text-right px-2 py-1 border-b border-gray-300 w-20">Total</th></tr>
+                  {inf.columnas.map((c) => <th key={c} className={`${conPresupuesto ? "text-right" : "text-center"} px-2 py-1 border-b border-gray-300 w-16`}>{c}</th>)}{conPresupuesto && <th className="text-right px-2 py-1 border-b border-gray-300 w-20">Total</th>}</tr>
               </thead>
               <tbody>
                 {inf.filas.map((f) => (
                   <tr key={f.id} className={f.nivel <= 2 ? "font-bold" : ""}>
                     <td className="px-2 py-0.5 font-mono">{f.codigo}</td>
                     <td className="px-2 py-0.5" style={sangria(f.nivel)}>{f.titulo}</td>
-                    {f.montos.map((m, i) => <td key={i} className="px-2 py-0.5 text-right tabular-nums">{dinero(m)}</td>)}
-                    <td className="px-2 py-0.5 text-right tabular-nums font-bold">{dinero(f.total)}</td>
+                    {f.montos.map((m, i) => conPresupuesto
+                      ? <td key={i} className="px-2 py-0.5 text-right tabular-nums">{dinero(m)}</td>
+                      : <td key={i} className="px-2 py-0.5 text-center">{m > 0 ? <span className="inline-block w-full h-2.5 bg-gray-700 rounded-sm" aria-label="Se ejecuta" /> : ""}</td>)}
+                    {conPresupuesto && <td className="px-2 py-0.5 text-right tabular-nums font-bold">{dinero(f.total)}</td>}
                   </tr>
                 ))}
-                {inf.filas.length === 0 && <tr><td colSpan={inf.columnas.length + 3} className="px-2 py-2 text-gray-500">Sin actividades planificadas en el período.</td></tr>}
+                {inf.filas.length === 0 && <tr><td colSpan={inf.columnas.length + (conPresupuesto ? 3 : 2)} className="px-2 py-2 text-gray-500">Sin actividades planificadas en el período.</td></tr>}
               </tbody>
             </table>
           </div>
@@ -160,12 +179,27 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
           <h2 className="font-bold uppercase text-xs tracking-wide">5. Resultados por actividad</h2>
           {actividades.length === 0 ? <p className="text-gray-500">Todavía no hay actividades registradas en el período.</p> : (
             <table className="w-full text-xs border border-gray-300">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="text-left px-2 py-1 w-20">Actividad</th>
+                  <th className="text-left px-2 py-1">{conDocumento ? "Macroactividad / actividad" : "Descripción"}</th>
+                  {conDocumento && <th className="text-left px-2 py-1 w-44">Documento solicitado</th>}
+                  <th className="text-left px-2 py-1">Resultado</th>
+                  <th className="text-right px-2 py-1 w-40">Anexo</th>
+                </tr>
+              </thead>
               <tbody>
                 {actividades.map((f) => {
                   const suyas = evidencias.get(f.id) ?? [];
+                  const macro = conDocumento ? macroDe(f.id) : undefined;
                   return (
                     <tr key={f.id} className="border-t border-gray-200 align-top">
-                      <td className="px-2 py-1 font-mono w-20">{f.codigo}</td><td className="px-2 py-1 w-56">{f.titulo}</td>
+                      <td className="px-2 py-1 font-mono w-20">{f.codigo}</td>
+                      <td className="px-2 py-1 w-56">
+                        {macro && <span className="block text-gray-500">{macro.codigo} {macro.titulo}</span>}
+                        {f.titulo}
+                      </td>
+                      {conDocumento && <td className="px-2 py-1">{actividadDe(f.id)?.documento?.trim() || <span className="text-gray-400">—</span>}</td>}
                       <td className="px-2 py-1 whitespace-pre-wrap">{f.registro?.resultado}</td>
                       <td className="px-2 py-1 w-40 text-right">
                         {suyas.length === 0 ? <span className="text-gray-400">Sin evidencias</span> : suyas.map((e) => <a key={e.id} href={`#evidencia-${e.id}`} className="block hover:underline">Ver {e.etiqueta}</a>)}
