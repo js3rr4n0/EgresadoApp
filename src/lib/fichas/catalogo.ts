@@ -1,26 +1,45 @@
-// Catálogo de elementos con los que se arma la etapa de propuesta de una ficha.
-// Sale del inventario del código de la fase 1 (specs/fichas): cada elemento corresponde a un paso que ya existe.
+// Catálogo de elementos con los que se arman las etapas con espacios de una ficha (propuesta, protocolo e informe final).
+// Reúne todos los elementos usados en las fichas de pasantía, proyecto e investigación, y cualquiera se puede elegir en
+// cualquier ficha (revisión del 13-nov-2026). "formularioEn" solo informa en qué asistentes ya tiene formulario.
 // Los valores por defecto de los parámetros reproducen el comportamiento actual. Módulo puro.
 import type { ClaveElemento, Modalidad, ValorParametro } from "./tipos";
 import { TIPOS_ARCHIVO } from "./elementosRecurso";
+import { TIPOS_APARTADO_OPCIONES } from "./apartadosAcademicos";
 
 export type DefinicionParametro =
   | { clave: string; etiqueta: string; tipo: "numero"; porDefecto: number; min: number; max: number; ayuda?: string; sufijo?: string }
   | { clave: string; etiqueta: string; tipo: "booleano"; porDefecto: boolean; ayuda?: string; soloEquipo?: boolean }
   | { clave: string; etiqueta: string; tipo: "opciones"; porDefecto: string[]; opciones: { valor: string; etiqueta: string }[]; minimo: number; ayuda?: string }
+  /** Una sola opción de la lista (por ejemplo, el tipo de apartado académico). */
+  | { clave: string; etiqueta: string; tipo: "opcion"; porDefecto: string; opciones: { valor: string; etiqueta: string }[]; ayuda?: string }
   /** Lista de textos que escribe el administrador (por ejemplo, las columnas de una tabla). */
   | { clave: string; etiqueta: string; tipo: "textos"; porDefecto: string[]; minimo: number; maximo: number; ayuda?: string };
 
 /** Etapas que se arman con espacios del catálogo. */
 export type EtapaDeEspacios = "propuesta" | "protocolo" | "informe_final";
 
+/** Secciones del catálogo, en el orden en que se muestran. */
+export const GRUPOS_CATALOGO = [
+  { grupo: "Datos generales", descripcion: "Identifican el trabajo y a quienes lo realizan." },
+  { grupo: "Institución", descripcion: "Dónde se realiza el trabajo y quién lo respalda." },
+  { grupo: "Planteamiento", descripcion: "Quiénes intervienen y qué se busca lograr." },
+  { grupo: "Planificación", descripcion: "Actividades distribuidas en el tiempo." },
+  { grupo: "Contenido", descripcion: "Texto y datos que redacta el egresado." },
+  { grupo: "Recursos y evidencias", descripcion: "Imágenes, archivos y enlaces de apoyo." },
+  { grupo: "Apartados académicos", descripcion: "Partes de un protocolo o informe que se redactan por subapartados, con guía y revisión de redacción y citas." },
+] as const;
+export type GrupoCatalogo = (typeof GRUPOS_CATALOGO)[number]["grupo"];
+
 export interface ElementoCatalogo {
   clave: ClaveElemento;
   nombre: string;
-  grupo: "Generales" | "Institución" | "Planificación" | "Proyecto" | "Documentos" | "Recursos";
+  grupo: GrupoCatalogo;
   descripcion: string;
-  /** Modalidades en las que la fase 1 ya sabe guardar y mostrar este elemento. */
-  modalidades: Modalidad[];
+  /**
+   * Asistentes que ya tienen formulario para este elemento. Es informativo: el elemento se puede usar en cualquier ficha.
+   * El asistente de pasantía todavía es el de la fase 1 (sus 7 pasos fijos); proyecto e investigación siguen la ficha.
+   */
+  formularioEn: Modalidad[];
   /** Puede aparecer más de una vez en la misma etapa (por ejemplo, varios bloques de texto). */
   repetible: boolean;
   /** "equipo": una respuesta por propuesta; "integrante": una por cada integrante. */
@@ -49,9 +68,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
   portada: {
     clave: "portada",
     nombre: "Portada",
-    grupo: "Generales",
+    grupo: "Datos generales",
     descripcion: "Título del trabajo y datos del egresado. Con equipo, incluye invitar y aceptar integrantes.",
-    modalidades: ["pasantia", "proyecto", "investigacion"],
+    formularioEn: ["pasantia", "proyecto", "investigacion"],
     repetible: false,
     alcance: "equipo",
     requiere: [],
@@ -63,7 +82,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Datos empresariales",
     grupo: "Institución",
     descripcion: "Empresa o sucursal del catálogo. Si no existe o sus datos cambian, se solicita su registro.",
-    modalidades: ["pasantia"],
+    formularioEn: ["pasantia"],
     repetible: false,
     alcance: "equipo",
     requiere: [],
@@ -77,7 +96,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Datos del supervisor",
     grupo: "Institución",
     descripcion: "Supervisor de la empresa que acompaña el proceso.",
-    modalidades: ["pasantia"],
+    formularioEn: ["pasantia"],
     repetible: false,
     alcance: "equipo",
     requiere: ["empresa"],
@@ -91,7 +110,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Carta de aceptación",
     grupo: "Institución",
     descripcion: "Carta de la institución con fechas de emisión, inicio y fin.",
-    modalidades: ["pasantia", "proyecto", "investigacion"],
+    formularioEn: ["pasantia", "proyecto", "investigacion"],
     repetible: false,
     alcance: "equipo",
     requiere: [],
@@ -106,7 +125,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Cronograma de actividades",
     grupo: "Planificación",
     descripcion: "Actividades por período y subperíodo. Su forma sale de la primera etapa de ejecución.",
-    modalidades: ["pasantia"],
+    formularioEn: ["pasantia"],
     repetible: false,
     alcance: "equipo",
     requiere: ["carta"],
@@ -120,9 +139,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
   texto: {
     clave: "texto",
     nombre: "Bloque de texto",
-    grupo: "Generales",
+    grupo: "Contenido",
     descripcion: "Texto con título, ayuda y límites. Sirve para la justificación, el problema, el alcance y similares.",
-    modalidades: ["pasantia", "proyecto", "investigacion"],
+    formularioEn: ["pasantia", "proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -134,9 +153,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
   actores: {
     clave: "actores",
     nombre: "Actores intervinientes",
-    grupo: "Proyecto",
+    grupo: "Planteamiento",
     descripcion: "Patrocinador, beneficiario, ejecutor y financista.",
-    modalidades: ["proyecto", "investigacion"],
+    formularioEn: ["proyecto", "investigacion"],
     repetible: false,
     alcance: "equipo",
     requiere: [],
@@ -148,9 +167,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
   objetivos: {
     clave: "objetivos",
     nombre: "Objetivos",
-    grupo: "Proyecto",
+    grupo: "Planteamiento",
     descripcion: "Objetivo general y objetivos específicos.",
-    modalidades: ["proyecto", "investigacion"],
+    formularioEn: ["proyecto", "investigacion"],
     repetible: false,
     alcance: "equipo",
     requiere: [],
@@ -163,9 +182,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
   documentos: {
     clave: "documentos",
     nombre: "Documentación de soporte",
-    grupo: "Documentos",
+    grupo: "Datos generales",
     descripcion: "Documentos obligatorios que sube cada egresado.",
-    modalidades: ["pasantia", "proyecto", "investigacion"],
+    formularioEn: ["pasantia", "proyecto", "investigacion"],
     repetible: false,
     alcance: "integrante",
     requiere: [],
@@ -178,9 +197,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
   imagen: {
     clave: "imagen",
     nombre: "Imagen",
-    grupo: "Recursos",
+    grupo: "Recursos y evidencias",
     descripcion: "Una o varias imágenes con su pie y su origen; por ejemplo, un código QR, un diagrama o una captura.",
-    modalidades: ["proyecto", "investigacion"],
+    formularioEn: ["proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -193,9 +212,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
   archivo: {
     clave: "archivo",
     nombre: "Archivo adjunto",
-    grupo: "Recursos",
+    grupo: "Recursos y evidencias",
     descripcion: "Uno o varios archivos: un manual, un acta, una hoja de cálculo u otro documento de apoyo.",
-    modalidades: ["proyecto", "investigacion"],
+    formularioEn: ["proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -209,9 +228,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
   enlace: {
     clave: "enlace",
     nombre: "Enlace",
-    grupo: "Recursos",
+    grupo: "Recursos y evidencias",
     descripcion: "Direcciones a recursos en línea con su descripción: un video, un repositorio, un sitio publicado o un proceso.",
-    modalidades: ["proyecto", "investigacion"],
+    formularioEn: ["proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -223,9 +242,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
   lista: {
     clave: "lista",
     nombre: "Lista de elementos",
-    grupo: "Recursos",
+    grupo: "Contenido",
     descripcion: "Una lista de elementos cortos: requisitos, entregables, herramientas, beneficiarios, etc.",
-    modalidades: ["proyecto", "investigacion"],
+    formularioEn: ["proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -235,14 +254,14 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
       { clave: "maxPalabrasElemento", etiqueta: "Palabras máximas por elemento", tipo: "numero", porDefecto: 0, min: 0, max: 200, ayuda: "0 = sin máximo" },
     ],
   },
-  // Tabla (catálogo ampliado, parte 2): por ahora solo en el protocolo de investigación, por ejemplo para la matriz de
-  // hipótesis. Todas las columnas son de texto.
+  // Tabla (catálogo ampliado, parte 2): en el protocolo y el informe final, por ejemplo para la matriz de hipótesis o la
+  // definición de variables. Todas las columnas son de texto.
   tabla: {
     clave: "tabla",
     nombre: "Tabla",
-    grupo: "Recursos",
+    grupo: "Contenido",
     descripcion: "Filas con las columnas que define el administrador; por ejemplo, la matriz de hipótesis o una operacionalización de variables.",
-    modalidades: ["investigacion"],
+    formularioEn: ["proyecto", "investigacion"],
     repetible: true,
     alcance: "equipo",
     requiere: [],
@@ -251,6 +270,34 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
       { clave: "columnas", etiqueta: "Columnas", tipo: "textos", porDefecto: ["Hipótesis", "Variables", "Indicadores"], minimo: 1, maximo: 8, ayuda: "Encabezados de la tabla, en orden." },
       { clave: "minimo", etiqueta: "Filas mínimas", tipo: "numero", porDefecto: 1, min: 0, max: 50 },
       { clave: "maximo", etiqueta: "Filas máximas", tipo: "numero", porDefecto: 10, min: 1, max: 50 },
+    ],
+  },
+  // Apartado académico (redacción académica guiada, 13-nov-2026; specs/fichas/REDACCION_ACADEMICA.md).
+  apartado: {
+    clave: "apartado",
+    nombre: "Apartado académico",
+    grupo: "Apartados académicos",
+    descripcion: "Una parte del protocolo o del informe (problemática, objetivos, hipótesis, variables, metodología, referencias…) que se redacta por subapartados, con guía, autoevaluación y revisiones de redacción y de citas APA 7.",
+    formularioEn: ["investigacion"],
+    repetible: true,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["protocolo", "informe_final"],
+    parametros: [
+      { clave: "tipo", etiqueta: "Tipo de apartado", tipo: "opcion", porDefecto: "problematica", opciones: TIPOS_APARTADO_OPCIONES, ayuda: "Define los subapartados, la guía y las revisiones." },
+      { clave: "extension", etiqueta: "Extensión respecto de la recomendada", tipo: "numero", porDefecto: 100, min: 25, max: 300, sufijo: "%", ayuda: "Escala los mínimos y máximos de palabras." },
+      { clave: "citasMinimas", etiqueta: "Citas APA mínimas", tipo: "numero", porDefecto: -1, min: -1, max: 50, ayuda: "-1 = las del tipo" },
+      {
+        clave: "tiempo", etiqueta: "Tiempo verbal que se revisa", tipo: "opcion", porDefecto: "etapa",
+        opciones: [
+          { valor: "etapa", etiqueta: "Según la etapa (protocolo: futuro; informe: pasado)" },
+          { valor: "futuro", etiqueta: "Futuro" },
+          { valor: "pasado", etiqueta: "Pasado" },
+          { valor: "no", etiqueta: "No revisar" },
+        ],
+      },
+      { clave: "revisarPersona", etiqueta: "Revisar que esté redactado en tercera persona", tipo: "booleano", porDefecto: true },
+      { clave: "autoevaluacion", etiqueta: "Mostrar la autoevaluación al egresado (el asesor ve lo que marcó)", tipo: "booleano", porDefecto: true },
     ],
   },
 };

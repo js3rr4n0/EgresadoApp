@@ -343,14 +343,43 @@ export interface ReglasRegistroProyecto {
 
 const contarPalabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 
+const FECHA = /^\d{4}-\d{2}-\d{2}$/;
+export const fechaValida = (f: string | null | undefined): f is string => !!f && FECHA.test(f);
+
+/** Problemas de las fechas en que se ejecutó la actividad (del… al…, en formato AAAA-MM-DD). */
+export function problemasFechasRegistro(r: { fechaInicio?: string | null; fechaFin?: string | null }): string[] {
+  const ini = r.fechaInicio ?? "";
+  const fin = r.fechaFin ?? "";
+  if (!ini || !fin) return ["Indica las fechas en que se realizó la actividad (del… al…)."];
+  if (!FECHA.test(ini) || !FECHA.test(fin)) return ["Las fechas de la actividad no son válidas."];
+  if (fin < ini) return ["La fecha final de la actividad es anterior a la inicial."];
+  return [];
+}
+
+/**
+ * Lo que falta antes de poder indicar el avance (notas del 13-nov-2026): primero se registra qué se hizo, cuándo, el
+ * resultado y las evidencias; el porcentaje va al final.
+ */
+export function faltaParaAvance(
+  r: { acciones: string; resultado: string; fechaInicio?: string | null; fechaFin?: string | null },
+  evidencias: { adjuntas: number; min: number; max: number }
+): string[] {
+  const p: string[] = [];
+  if (problemasFechasRegistro(r).length) p.push("las fechas");
+  if (!r.acciones.trim()) p.push("lo que se hizo");
+  if (!r.resultado.trim()) p.push("lo que se obtuvo");
+  if (evidencias.max > 0 && evidencias.adjuntas < Math.max(1, evidencias.min)) p.push("las evidencias");
+  return p;
+}
+
 /** Problemas de un registro antes de enviarlo al asesor. 0 en mínimo o máximo = sin límite (sin métrica). */
 export function validarRegistroProyecto(
-  r: { avance: number | null; acciones: string; resultado: string; marcoTeorico: string },
+  r: { avance: number | null; acciones: string; resultado: string; marcoTeorico: string; fechaInicio?: string | null; fechaFin?: string | null },
   reglas: ReglasRegistroProyecto,
   /** Subactividad (nivel 5): no lleva porcentaje, solo terminada (100) o no (0). */
   subactividad = false
 ): string[] {
-  const p: string[] = [];
+  const p: string[] = [...problemasFechasRegistro(r)];
   const rango = (nombre: string, texto: string, { min, max }: { min: number; max: number }) => {
     const n = contarPalabras(texto);
     if (!texto.trim()) p.push(`Falta ${nombre}.`);

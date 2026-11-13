@@ -78,6 +78,11 @@ function compararEspacios(a: EtapaConEspacios, n: EtapaConEspacios, prefijo: str
     if (v.descripcion !== e.descripcion || v.ayuda !== e.ayuda) cambios.push(`${prefijo}"${e.titulo}": cambió la descripción o la ayuda.`);
     if (v.obligatorio !== e.obligatorio) cambios.push(`${prefijo}"${e.titulo}": ahora es ${e.obligatorio ? "obligatorio" : "opcional"}.`);
     if ((v.precargarDe ?? "") !== (e.precargarDe ?? "")) cambios.push(`${prefijo}"${e.titulo}": cambió de dónde se precarga.`);
+    if (v.elemento !== e.elemento) {
+      // Otro elemento (por ejemplo, un texto que pasa a apartado académico): sus reglas no se comparan una por una.
+      cambios.push(`${prefijo}"${e.titulo}": pasó de ${CATALOGO[v.elemento]?.nombre ?? v.elemento} a ${CATALOGO[e.elemento]?.nombre ?? e.elemento}.`);
+      continue;
+    }
     for (const par of CATALOGO[e.elemento]?.parametros ?? []) {
       const va = v.parametros[par.clave];
       const vn = e.parametros[par.clave];

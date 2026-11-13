@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enviarInformeGeneral, enviarInformeIndividual, revisarInformeGeneral, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
-import { actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, ganttPlan, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
+import { actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, ganttPlan, planIndividual, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import GanttProyecto from "./GanttProyecto";
 import { textosModalidad } from "@/lib/fichas/textosModalidad";
 
@@ -68,6 +68,8 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
   const [pestana, setPestana] = useState<Pestana>(esAsesor ? "revisar" : "actual");
   const [periodoEquipo, setPeriodoEquipo] = useState(periodoActual);
   const [conSub, setConSub] = useState(false);
+  // Cronograma: todo el equipo (null) o la parte de un integrante (notas del 13-nov-2026: "Mi avance" y el de los demás).
+  const [verDe, setVerDe] = useState<number | null>(null);
 
   const resp = useMemo(() => responsables(arbol), [arbol]);
   const regDe = (nodoId: string, periodo: number) => registros.find((r) => r.nodoId === nodoId && r.periodo === periodo);
@@ -107,10 +109,25 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
   const enviadasProyecto = todas.filter((x) => x.periodo <= periodoActual && ["enviado", "aprobado"].includes(estadoDe(x))).length;
   const planificadasHastaHoy = todas.filter((x) => x.periodo <= periodoActual).length;
   const avanceProyecto = avance.get(arbol.id) ?? 0;
+  // La parte de un integrante: sus ramas del plan, con el avance calculado solo sobre lo suyo.
+  const raizGantt = useMemo(() => (verDe === null ? arbol : planIndividual(arbol, verDe)), [arbol, verDe]);
   const gantt = useMemo(
-    () => ganttPlan(arbol, plan.columnas, reglas.avance ? registros : [], periodos.length, periodoActual),
-    [arbol, plan.columnas, reglas.avance, registros, periodos.length, periodoActual]
+    () => (raizGantt ? ganttPlan(raizGantt, plan.columnas, reglas.avance ? registros : [], periodos.length, periodoActual) : []),
+    [raizGantt, plan.columnas, reglas.avance, registros, periodos.length, periodoActual]
   );
+  const avanceDe = useMemo(() => {
+    const ultimo = new Map<string, { periodo: number; avance: number }>();
+    for (const r of registros) {
+      if (r.avance === null || r.estado === "borrador") continue;
+      const u = ultimo.get(r.nodoId);
+      if (!u || r.periodo > u.periodo) ultimo.set(r.nodoId, { periodo: r.periodo, avance: r.avance });
+    }
+    const hojas = new Map([...ultimo].map(([k, v]) => [k, v.avance]));
+    return new Map(plan.equipo.map((i) => {
+      const suyo = planIndividual(arbol, i.id);
+      return [i.id, suyo ? (avancePorNodo(suyo, hojas).get(suyo.id) ?? 0) : 0];
+    }));
+  }, [registros, plan.equipo, arbol]);
   const p = periodos[periodoActual - 1];
 
   const pestanas: { id: Pestana; label: string; total: number }[] = esAsesor
@@ -130,16 +147,18 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
     const r = regDe(x.a.id, x.periodo);
     const estado = r?.estado ?? "pendiente";
     const info = ESTADO_ACTIVIDAD[estado] ?? ESTADO_ACTIVIDAD.pendiente;
+    // Mismo orden que el registro (notas del 13-nov-2026): fechas, qué se hizo, resultado, evidencias y, al final, el avance.
     const indicadores = [
+      { label: r?.fechaInicio && r?.fechaFin ? `Del ${fechaCorta(r.fechaInicio)} al ${fechaCorta(r.fechaFin)}` : "Fechas", ok: !!(r?.fechaInicio && r?.fechaFin) },
+      { label: `Qué se hizo (${palabras(r?.acciones ?? "")} palabras)`, ok: !!r?.acciones.trim() },
+      { label: `Resultado (${palabras(r?.resultado ?? "")} palabras)`, ok: !!r?.resultado.trim() },
+      ...(reglas.marcoTeorico === "obligatorio" ? [{ label: "Marco teórico", ok: !!r?.marcoTeorico.trim() }] : []),
+      ...(datos.evidencias.max > 0 ? [{ label: `Evidencias (${r?.evidencias.length ?? 0})`, ok: (r?.evidencias.length ?? 0) >= Math.max(1, datos.evidencias.min) }] : []),
       ...(reglas.avance
         ? [x.a.nivel === 5
             ? { label: r?.avance === 100 ? "Terminada" : "Sin terminar", ok: r?.avance != null }
             : { label: `Avance ${r?.avance ?? 0}%`, ok: r?.avance != null }]
         : []),
-      { label: `Acciones (${palabras(r?.acciones ?? "")} palabras)`, ok: !!r?.acciones.trim() },
-      { label: `Resultado (${palabras(r?.resultado ?? "")} palabras)`, ok: !!r?.resultado.trim() },
-      ...(reglas.marcoTeorico === "obligatorio" ? [{ label: "Marco teórico", ok: !!r?.marcoTeorico.trim() }] : []),
-      ...(datos.evidencias.max > 0 ? [{ label: `Evidencias (${r?.evidencias.length ?? 0})`, ok: (r?.evidencias.length ?? 0) >= Math.max(1, datos.evidencias.min) }] : []),
     ];
     const completos = indicadores.filter((i) => i.ok).length;
     const propia = resp.get(x.a.id) === plan.miId;
@@ -252,12 +271,14 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
               <div key={i.id} className={`rounded-xl border px-4 py-3 space-y-2 ${i.id === plan.miId ? "border-unicaes bg-red-50/30" : "border-slate-200 bg-slate-50"}`}>
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="text-xs font-extrabold text-slate-800">{i.nombre}{i.lider ? " · líder" : ""}</span>
-                  <span className="text-[11px] font-bold text-slate-600">{env} de {suyas.length}</span>
+                  <span className="text-[11px] font-bold text-slate-600">{avanceDe.get(i.id) ?? 0}%</span>
                 </div>
                 <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${suyas.length ? Math.round((env / suyas.length) * 100) : 0}%` }} />
+                  <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${avanceDe.get(i.id) ?? 0}%` }} />
                 </div>
-                <p className="text-[10px] text-slate-500 font-semibold">{apr} aprobada{apr === 1 ? "" : "s"} por el asesor</p>
+                <p className="text-[10px] text-slate-500 font-semibold">
+                  {env} de {suyas.length} enviadas · {apr} aprobada{apr === 1 ? "" : "s"} · <span className="text-slate-800 font-extrabold">avance de su parte: {avanceDe.get(i.id) ?? 0}%</span>
+                </p>
               </div>
             );
           })}
@@ -288,7 +309,10 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
           <div>
             <h2 className="text-sm font-extrabold text-slate-900">Cronograma planificado y real</h2>
-            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Avance de cada nivel del plan al cierre de cada período, frente a lo planificado.</p>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+              Avance de cada nivel del plan al cierre de cada período, frente a lo planificado.
+              {verDe !== null && ` Se muestra solo ${verDe === plan.miId ? "su parte" : `la parte de ${nombre(verDe)}`}: ${avanceDe.get(verDe) ?? 0}% de avance.`}
+            </p>
           </div>
           {gantt.some((g) => g.nivel === 5) && (
             <label className="flex items-center gap-2 text-[11px] font-bold text-slate-600 shrink-0">
@@ -296,6 +320,20 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
             </label>
           )}
         </div>
+        {!individual && (
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Avance que se muestra en el cronograma">
+            {[
+              { id: null, label: "Todo el equipo" },
+              ...(esAsesor ? [] : [{ id: plan.miId, label: "Mi avance" }]),
+              ...plan.equipo.filter((i) => esAsesor || i.id !== plan.miId).map((i) => ({ id: i.id as number | null, label: i.nombre })),
+            ].map((o) => (
+              <button key={o.id ?? "equipo"} type="button" role="radio" aria-checked={verDe === o.id} onClick={() => setVerDe(o.id)}
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors ${verDe === o.id ? "bg-unicaes text-white border-unicaes" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"}`}>
+                {o.label}{o.id !== null ? ` · ${avanceDe.get(o.id) ?? 0}%` : ` · ${avanceProyecto}%`}
+              </button>
+            ))}
+          </div>
+        )}
         <GanttProyecto filas={gantt} periodos={periodos.length} periodoActual={periodoActual} hastaNivel={conSub ? 5 : 4} />
       </div>
 

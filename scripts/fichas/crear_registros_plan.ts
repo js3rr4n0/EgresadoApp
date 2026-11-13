@@ -31,6 +31,9 @@ async function run() {
       CONSTRAINT "registros_plan_avance_check" CHECK ("avance" IS NULL OR "avance" BETWEEN 0 AND 100)
     );
   `);
+  // Notas del 13-nov-2026: fechas reales en que se ejecutó la actividad (del… al…).
+  await db.execute(sql`ALTER TABLE "registros_plan" ADD COLUMN IF NOT EXISTS "fecha_inicio" date`);
+  await db.execute(sql`ALTER TABLE "registros_plan" ADD COLUMN IF NOT EXISTS "fecha_fin" date`);
   console.log("Tabla registros_plan lista.");
 }
 

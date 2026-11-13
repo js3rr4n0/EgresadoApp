@@ -12,8 +12,17 @@ import {
   quitarArchivoCapitulo, ratificarInformeFinal, restaurarVersion, revisarCapitulo, revisarInformeFinal,
   type CapituloDatos, type DatosInformeFinal, type VersionResumen,
 } from "@/app/actions/informeFinalFicha";
-import { columnasTabla, leerItems, limitesRecurso, reglasRecurso, TIPOS_ARCHIVO, type ArchivoEspacio, type EnlaceEspacio } from "@/lib/fichas/elementosRecurso";
+import { columnasTabla, esRecurso, leerItems, limitesRecurso, reglasRecurso, TIPOS_ARCHIVO, type ArchivoEspacio, type EnlaceEspacio } from "@/lib/fichas/elementosRecurso";
 import { ETIQUETA_ESTADO_CAPITULO } from "@/lib/fichas/informeFinalFicha";
+import { contextoDeRevision, leerApartado, textoApartado, tipoApartado, type ContextoRevision } from "@/lib/fichas/apartadosAcademicos";
+import type { Espacio } from "@/lib/fichas/tipos";
+import { CapituloApartado } from "./ApartadoAcademicoForm";
+
+/** Contenido legible de una versión: un apartado académico se muestra con los títulos de sus subapartados. */
+function legible(e: Espacio, contenido: string) {
+  const tipo = e.elemento === "apartado" ? tipoApartado(e) : undefined;
+  return tipo ? textoApartado(tipo, leerApartado(tipo, contenido)) || "(vacío)" : contenido;
+}
 import { openDocument } from "@/lib/pdfViewer";
 
 const SEGUNDOS_AUTOGUARDADO = 20;
@@ -114,7 +123,8 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
         <div className="min-w-0 space-y-3">
           <EditorCapitulo key={`${cap.espacio.id}-${cap.ultima?.numero ?? 0}-${cap.estado.estado}`} propuestaId={plan.propuesta.id} cap={cap}
             siguiente={actual < datos.capitulos.length ? `${base}&cap=${actual + 1}` : null}
-            porCapitulo={etapa.revision.porCapitulo} enEquipo={enEquipo} />
+            porCapitulo={etapa.revision.porCapitulo} enEquipo={enEquipo}
+            contexto={contextoDeRevision(datos.capitulos.map((c) => c.espacio), Object.fromEntries(datos.capitulos.map((c) => [c.espacio.id, c.ultima?.contenido ?? c.precarga ?? ""])))} />
 
           {esAsesor && cap.estado.estado === "enviado" && (
             <section className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-3">
@@ -188,10 +198,10 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
 }
 
 /** Editor de un capítulo: texto, lista, tabla, enlaces o archivos. */
-function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo }: { propuestaId: number; cap: CapituloDatos; siguiente: string | null; porCapitulo: boolean; enEquipo: boolean }) {
+function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo, contexto }: { propuestaId: number; cap: CapituloDatos; siguiente: string | null; porCapitulo: boolean; enEquipo: boolean; contexto: ContextoRevision }) {
   const router = useRouter();
   const e = cap.espacio;
-  const inicial = cap.ultima?.contenido ?? cap.precarga ?? (e.elemento === "texto" ? "" : "[]");
+  const inicial = cap.ultima?.contenido ?? cap.precarga ?? (e.elemento === "texto" || e.elemento === "apartado" ? "" : "[]");
   const [contenido, setContenido] = useState(inicial);
   const [base, setBase] = useState<number | null>(cap.ultima?.numero ?? null);
   const [sucio, setSucio] = useState(!cap.ultima && !!cap.precarga);
@@ -275,9 +285,9 @@ function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo }: 
     setSucio(true);
   }
 
-  const items = e.elemento === "texto" ? [] : (leerItems(e.elemento as "lista", contenido) as unknown[]);
+  const items = !esRecurso(e.elemento) ? [] : (leerItems(e.elemento as "lista", contenido) as unknown[]);
   const setItems = (lista: unknown[]) => cambiar(JSON.stringify(lista));
-  const { max } = e.elemento === "texto" ? { max: 0 } : limitesRecurso(e);
+  const { max } = !esRecurso(e.elemento) ? { max: 0 } : limitesRecurso(e);
   const disabled = !editable;
 
   return (
@@ -286,7 +296,7 @@ function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo }: 
         <div>
           <h2 className="text-xl font-bold text-card-dark">{e.titulo} {e.obligatorio ? <span className="text-red-500">*</span> : <span className="text-xs font-medium text-muted">(opcional)</span>}</h2>
           {e.descripcion && <p className="text-sm text-muted mt-1">{e.descripcion}</p>}
-          {e.elemento !== "texto" && <ul className="mt-1 text-xs text-gray-600 list-disc pl-5">{reglasRecurso({ ...e, elemento: e.elemento as "lista" }).map((r) => <li key={r}>{r}</li>)}</ul>}
+          {esRecurso(e.elemento) && <ul className="mt-1 text-xs text-gray-600 list-disc pl-5">{reglasRecurso({ ...e, elemento: e.elemento as "lista" }).map((r) => <li key={r}>{r}</li>)}</ul>}
         </div>
         <div className="text-right text-xs text-muted space-y-1">
           <span className={`inline-block font-bold rounded px-2 py-0.5 ${COLOR[cap.estado.estado]}`}>{ETIQUETA_ESTADO_CAPITULO[cap.estado.estado]}</span>
@@ -314,7 +324,7 @@ function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo }: 
       {conflicto && (
         <div className="p-3 bg-amber-50 border-2 border-amber-300 rounded-lg text-sm space-y-2">
           <p><strong>Versión {conflicto.numero}</strong> guardada por {conflicto.autor} el {fechaHora(conflicto.creadoEn)}:</p>
-          <pre className="whitespace-pre-wrap text-xs bg-white border border-amber-200 rounded p-2 max-h-48 overflow-auto font-sans">{conflicto.contenido}</pre>
+          <pre className="whitespace-pre-wrap text-xs bg-white border border-amber-200 rounded p-2 max-h-48 overflow-auto font-sans">{legible(e, conflicto.contenido)}</pre>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={conservarMiTexto} className="px-3 py-1.5 rounded-md text-xs font-bold bg-brand-red text-white">Guardar mi texto como versión nueva</button>
             <button type="button" onClick={usarVersionNueva} className="px-3 py-1.5 rounded-md text-xs font-bold border border-gray-300">Cargar su versión</button>
@@ -323,6 +333,7 @@ function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo }: 
         </div>
       )}
 
+      {e.elemento === "apartado" && <CapituloApartado espacio={e} contenido={contenido} disabled={disabled} onChange={cambiar} contexto={contexto} />}
       {e.elemento === "texto" && (
         <div>
           <textarea aria-label={e.titulo} rows={16} value={contenido} disabled={disabled} onChange={(ev) => cambiar(ev.target.value)}
@@ -412,7 +423,7 @@ function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo }: 
                   {editable && v.numero !== base && <button type="button" onClick={() => restaurar(v.numero)} className="text-xs font-bold text-brand-red hover:underline">Volver a esta versión</button>}
                 </span>
               </div>
-              {verVersion === v.numero && <pre className="whitespace-pre-wrap text-xs bg-gray-50 border border-gray-200 rounded p-2 max-h-64 overflow-auto font-sans">{v.contenido}</pre>}
+              {verVersion === v.numero && <pre className="whitespace-pre-wrap text-xs bg-gray-50 border border-gray-200 rounded p-2 max-h-64 overflow-auto font-sans">{legible(e, v.contenido)}</pre>}
             </div>
           ))}
         </div>

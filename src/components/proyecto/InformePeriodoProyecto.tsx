@@ -144,6 +144,7 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
               </p>
               {f.registro && (
                 <>
+                  {f.registro.fechaInicio && f.registro.fechaFin && <p className="text-gray-600">Realizada del {fecha(f.registro.fechaInicio)} al {fecha(f.registro.fechaFin)}.</p>}
                   <p className="whitespace-pre-wrap text-gray-700">{f.registro.acciones}</p>
                   {f.registro.marcoTeorico && <p className="whitespace-pre-wrap text-gray-600 italic">{f.registro.marcoTeorico}</p>}
                 </>

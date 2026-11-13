@@ -147,7 +147,7 @@ function tituloSeccion(contenido: string) {
   return new Paragraph({ heading: HeadingLevel.HEADING_1, children: [texto(contenido.toUpperCase(), { bold: true })] });
 }
 
-function subtitulo1(contenido: string) {
+export function subtitulo1(contenido: string) {
   return new Paragraph({ heading: HeadingLevel.HEADING_2, children: [texto(contenido, { bold: true })] });
 }
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ACTORES, CATALOGO, DOCUMENTOS_ESTUDIANTE } from "@/lib/fichas/catalogo";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import { reglasRecurso } from "@/lib/fichas/elementosRecurso";
+import { tipoApartado } from "@/lib/fichas/apartadosAcademicos";
 import { PRECARGA_MARCO_REGISTROS, diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
 
 /** Reglas de un espacio en frases cortas, como las leería el egresado. */
@@ -42,6 +43,15 @@ function reglas(e: Espacio, equipo: boolean): string[] {
     case "lista":
     case "tabla":
       return reglasRecurso({ ...e, elemento: e.elemento });
+    case "apartado": {
+      const tipo = tipoApartado(e);
+      if (!tipo) return ["Tipo de apartado desconocido."];
+      return [
+        `${tipo.nombre}: se redacta por subapartados (${tipo.partes.map((x) => x.titulo).join(" · ")}).`,
+        ...(tipo.citasMinimas ? [`Al menos ${tipo.citasMinimas} citas en formato APA 7.`] : []),
+        "Con guía, autoevaluación y revisión de redacción (tercera persona, tiempo verbal, oraciones largas).",
+      ];
+    }
   }
 }
 

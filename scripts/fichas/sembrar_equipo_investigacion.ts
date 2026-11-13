@@ -22,12 +22,21 @@
 // y los marca como aprobados (como lo haría el asesor); no toca los capítulos que el equipo ya escribió.
 // Caso individual (I6): --individual crea a inv.solo@prueba.test (sin equipo) con su investigación ya aprobada en la
 // versión vigente de INV-ING-001; con --solo, los demás atajos actúan sobre su propuesta en lugar de la del equipo.
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual] [--solo]
+// Redacción académica guiada (13-nov-2026): --version-apartados crea el borrador de una versión de INV-ING-001 con el
+// protocolo de apartados académicos (se habilita en el constructor); --apartados usa a inv.apartados@prueba.test como
+// egresado individual (--individual --apartados lo crea en la versión vigente; los demás atajos actúan sobre él).
+// Notas del 13-nov-2026: --version-ejecucion crea el borrador de una versión de INV-ING-001 cuya ejecución ya no pide
+// marco teórico en el registro, entrega un solo informe general y precarga el marco del informe final de la
+// fundamentación del protocolo (se habilita en el constructor).
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual | --version-apartados | --version-ejecucion] [--solo | --apartados]
 import crypto from "crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import { cartasAceptacion, detallesProyecto, fichas, ratificacionesPropuesta, fichasVersiones, historialEstados, informesFinalesFicha, versionesCapitulo, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
-import { esEtapaInformeFinal, esEtapaProtocolo, type DefinicionFicha } from "../../src/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaProtocolo, type DefinicionFicha, type Espacio } from "../../src/lib/fichas/tipos";
+import { guardarComoTexto, tipoApartado } from "../../src/lib/fichas/apartadosAcademicos";
+import { informeFinalNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
+import { validarDefinicion } from "../../src/lib/fichas/validar";
 import { numerar, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 import { exigirBaseDesarrollo } from "./guardia";
 
@@ -40,14 +49,16 @@ const EGRESADOS = [
   { correo: "inv.integrante2@prueba.test", nombre: "Prueba Investigación Integrante Dos", carnet: "INV-0003", carreraId: 9 },
 ];
 
-/** Egresado del caso individual (I6). */
-const SOLO = { correo: "inv.solo@prueba.test", nombre: "Prueba Investigación Individual", carnet: "INV-0004", carreraId: 1 };
-const usarSolo = process.argv.includes("--solo");
+/** Egresado del caso individual (I6). Con --apartados, el del protocolo con apartados académicos (13-nov-2026). */
+const APARTADOS = { correo: "inv.apartados@prueba.test", nombre: "Prueba Investigación Apartados", carnet: "INV-0005", carreraId: 1 };
+const usarApartados = process.argv.includes("--apartados");
+const SOLO = usarApartados ? APARTADOS : { correo: "inv.solo@prueba.test", nombre: "Prueba Investigación Individual", carnet: "INV-0004", carreraId: 1 };
+const usarSolo = process.argv.includes("--solo") || usarApartados;
 
 const lista = (ids: number[]) => sql.join(ids.map((i) => sql`${i}`), sql`, `);
 
 async function borrar() {
-  const ids = (await db.select({ id: usuarios.id }).from(usuarios).where(inArray(usuarios.correo, [...EGRESADOS, SOLO].map((e) => e.correo)))).map((u) => u.id);
+  const ids = (await db.select({ id: usuarios.id }).from(usuarios).where(inArray(usuarios.correo, [...EGRESADOS, SOLO, APARTADOS].map((e) => e.correo)))).map((u) => u.id);
   if (ids.length > 0) {
     await db.delete(propuestas).where(inArray(propuestas.egresadoId, ids));
     await db.execute(sql`DELETE FROM integrantes_proyecto WHERE egresado_id IN (${lista(ids)})`);
@@ -114,6 +125,82 @@ async function propuestaDelLider() {
   return { lider: lider.id, prop };
 }
 
+const relleno = (n: number) => Array.from({ length: n }, (_, i) => ["el", "estudio", "permitirá", "orientar", "las", "tutorías"][i % 6]).join(" ");
+
+/** Apartado académico de prueba con cada subapartado en su mínimo (redacción académica guiada, 13-nov-2026). */
+function apartadoDePrueba(e: Espacio): string | null {
+  const tipo = tipoApartado(e);
+  if (!tipo) return null;
+  const partes: Record<string, string> = {};
+  for (const p of tipo.partes) {
+    if (p.opcional) continue;
+    if (p.formato === "texto") partes[p.id] = `Texto de prueba. ${relleno(p.min ?? 0)}.`;
+    else if (p.formato === "pregunta") partes[p.id] = "¿Qué relación existe entre los hábitos de estudio y el rendimiento en Programación I?";
+    else if (p.formato === "seleccion") partes[p.id] = p.opciones?.[0]?.valor ?? "";
+    else if (p.formato === "tabla") partes[p.id] = JSON.stringify([(p.columnas ?? []).map((c) => `${c} de prueba`)]);
+    else if (p.formato === "referencias") partes[p.id] = "Autor, A. (2024). Obra de prueba. Editorial.\nAutor, B. (2023). Artículo de prueba. Revista, 1(2), 3-4.";
+    else partes[p.id] = "Identificar el elemento 1\nDeterminar el elemento 2\nComparar el elemento 3";
+  }
+  return guardarComoTexto({ partes, autoevaluacion: [] });
+}
+
+/**
+ * Atajo de prueba (13-nov-2026): borrador de una versión nueva de INV-ING-001 copiada de la última habilitada, con el
+ * protocolo de apartados académicos (protocoloNuevo) y las precargas del informe final por subapartado. Se habilita
+ * desde el constructor, para revisar ahí la lista de cambios.
+ */
+async function versionApartados() {
+  const [ficha] = await db.select({ id: fichas.id }).from(fichas).where(eq(fichas.codigo, "INV-ING-001-SIST"));
+  if (!ficha) throw new Error("No existe la ficha INV-ING-001-SIST.");
+  const versiones = await db.select().from(fichasVersiones).where(eq(fichasVersiones.fichaId, ficha.id)).orderBy(sql`${fichasVersiones.numero} DESC`);
+  const borrador = versiones.find((v) => v.estado === "borrador");
+  if (borrador) return console.log(`Ya existe el borrador v${borrador.numero} (id ${borrador.id}); habilítalo o descártalo desde el constructor.`);
+  const base = versiones.find((v) => v.estado === "habilitada");
+  if (!base) throw new Error("La ficha no tiene versiones habilitadas.");
+  const def = structuredClone(base.definicion) as DefinicionFicha;
+  const prot = def.etapas.find(esEtapaProtocolo);
+  const inf = def.etapas.find(esEtapaInformeFinal);
+  if (!prot) throw new Error("La versión habilitada no tiene protocolo.");
+  prot.espacios = protocoloNuevo(prot.id).espacios;
+  if (inf) inf.espacios = informeFinalNuevo(inf.id).espacios;
+  const problemas = validarDefinicion(def);
+  if (problemas.length) throw new Error(`La definición nueva no es válida: ${problemas.map((p) => p.mensaje).join(" | ")}`);
+  const [v] = await db.insert(fichasVersiones).values({
+    fichaId: ficha.id, numero: versiones[0].numero + 1, estado: "borrador", definicion: def, basadaEnId: base.id,
+    notas: "Protocolo con apartados académicos (redacción guiada).",
+  }).returning({ id: fichasVersiones.id, numero: fichasVersiones.numero });
+  console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
+}
+
+/** Notas del 13-nov-2026: borrador con la ejecución sin marco teórico en el registro y con un solo informe general. */
+async function versionEjecucion() {
+  const [ficha] = await db.select({ id: fichas.id }).from(fichas).where(eq(fichas.codigo, "INV-ING-001-SIST"));
+  if (!ficha) throw new Error("No existe la ficha INV-ING-001-SIST.");
+  const versiones = await db.select().from(fichasVersiones).where(eq(fichasVersiones.fichaId, ficha.id)).orderBy(sql`${fichasVersiones.numero} DESC`);
+  const borrador = versiones.find((v) => v.estado === "borrador");
+  if (borrador) return console.log(`Ya existe el borrador v${borrador.numero} (id ${borrador.id}); habilítalo o descártalo desde el constructor.`);
+  const base = versiones.find((v) => v.estado === "habilitada");
+  if (!base) throw new Error("La ficha no tiene versiones habilitadas.");
+  const def = structuredClone(base.definicion) as DefinicionFicha;
+  for (const et of def.etapas.filter(esEtapaEjecucion)) {
+    et.registro.marcoTeorico = "no";
+    et.informe.modo = "unico";
+  }
+  const marco = def.etapas.find(esEtapaInformeFinal)?.espacios.find((e) => e.id === "if_marco");
+  const fund = def.etapas.find(esEtapaProtocolo)?.espacios.find((e) => e.id === "fundamentacion");
+  if (marco && fund?.elemento === "apartado" && marco.elemento === "apartado") {
+    marco.precargarDe = "fundamentacion";
+    marco.descripcion = "Parte de la fundamentación teórica del protocolo";
+  }
+  const problemas = validarDefinicion(def);
+  if (problemas.length) throw new Error(`La definición nueva no es válida: ${problemas.map((p) => p.mensaje).join(" | ")}`);
+  const [v] = await db.insert(fichasVersiones).values({
+    fichaId: ficha.id, numero: versiones[0].numero + 1, estado: "borrador", definicion: def, basadaEnId: base.id,
+    notas: "Ejecución por productos: registro sin marco teórico, con fechas, y un solo informe general.",
+  }).returning({ id: fichasVersiones.id, numero: fichasVersiones.numero });
+  console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
+}
+
 /** Atajo de prueba (I3): llena las partes del protocolo que faltan (texto y listas obligatorias). */
 async function completarProtocolo() {
   const { lider, prop } = await propuestaDelLider();
@@ -125,8 +212,9 @@ async function completarProtocolo() {
   let n = 0;
   for (const e of etapa.espacios) {
     if (hechas.has(e.id) || !e.obligatorio) continue;
-    const contenido = e.elemento === "texto" ? `Texto de prueba para "${e.titulo}".`
-      : e.elemento === "lista" ? JSON.stringify(["Elemento de prueba 1", "Elemento de prueba 2", "Elemento de prueba 3"]) : null;
+    const contenido = e.elemento === "texto" ? `Texto de prueba para "${e.titulo}". ${relleno(Number(e.parametros.minPalabras) || 0)}`
+      : e.elemento === "lista" ? JSON.stringify(["Elemento de prueba 1", "Elemento de prueba 2", "Elemento de prueba 3"])
+      : e.elemento === "apartado" ? apartadoDePrueba(e) : null;
     if (contenido === null) continue;
     await db.insert(respuestasEspacios).values({ propuestaId: prop.id, espacioId: e.id, contenido, actualizadoPor: lider, actualizadoEn: new Date() });
     n++;
@@ -207,7 +295,7 @@ async function completarInformeFinal() {
   let n = 0;
   for (const e of etapa.espacios) {
     if (conVersiones.has(e.id) || !e.obligatorio) continue;
-    const contenido = e.elemento === "lista" ? JSON.stringify(["Autor, A. (2024). Obra de prueba. Editorial.", "Autor, B. (2023). Artículo de prueba. Revista, 1(2), 3-4.", "Autor, C. (2022). Libro de prueba. Editorial."]) : `Texto de prueba del capítulo "${e.titulo}".`;
+    const contenido = e.elemento === "apartado" ? apartadoDePrueba(e) ?? "" : e.elemento === "lista" ? JSON.stringify(["Autor, A. (2024). Obra de prueba. Editorial.", "Autor, B. (2023). Artículo de prueba. Revista, 1(2), 3-4.", "Autor, C. (2022). Libro de prueba. Editorial."]) : `Texto de prueba del capítulo "${e.titulo}".`;
     await db.insert(versionesCapitulo).values({ propuestaId: prop.id, espacioId: e.id, numero: 1, contenido, autorId: lider });
     estados[e.id] = { estado: "aprobado", version: 1, comentario: "Aprobado (atajo de prueba).", enviadoEn: new Date().toISOString(), revisadoEn: new Date().toISOString(), editando: null };
     n++;
@@ -281,6 +369,8 @@ async function run() {
   else if (process.argv.includes("--usar-version-vigente")) await usarVersionVigente();
   else if (process.argv.includes("--completar-informe-final")) await completarInformeFinal();
   else if (process.argv.includes("--individual")) await sembrarIndividual();
+  else if (process.argv.includes("--version-apartados")) await versionApartados();
+  else if (process.argv.includes("--version-ejecucion")) await versionEjecucion();
   else await sembrar();
 }
 

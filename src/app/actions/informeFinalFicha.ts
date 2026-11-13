@@ -20,6 +20,7 @@ import { esEtapaInformeFinal, esEtapaProtocolo, type Espacio, type EtapaInformeF
 import { aplanar, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import { columnasTabla, enlaceValido, limitesRecurso, TIPOS_ARCHIVO, type ArchivoEspacio } from "@/lib/fichas/elementosRecurso";
 import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
+import { guardarComoTexto, leerApartado, leerTabla, parteVacia, tipoApartado } from "@/lib/fichas/apartadosAcademicos";
 import {
   CAPITULO_NUEVO, capituloEditable, capitulosPendientes, editandoOtro, leerCapitulos, precargaCapitulo, problemasInformeFinal,
   textoMarcoRegistros, type EstadoDeCapitulo, type EstadoInformeFinal,
@@ -197,6 +198,23 @@ export async function getInformeFinal(propuestaId: number): Promise<Resultado<{ 
 
 /** Limpia el contenido según el elemento del capítulo (texto o JSON). */
 function limpiar(e: Espacio, contenido: string): { ok: true; valor: string } | { ok: false; error: string } {
+  if (e.elemento === "apartado") {
+    // Apartado académico: solo los subapartados del tipo, con su formato; la autoevaluación por índice.
+    const tipo = tipoApartado(e);
+    if (!tipo) return { ok: false, error: "El tipo de este apartado no existe." };
+    if (contenido.length > MAX_TEXTO * 2) return { ok: false, error: "El capítulo es demasiado extenso." };
+    const c = leerApartado(tipo, contenido);
+    const partes: Record<string, string> = {};
+    for (const p of tipo.partes) {
+      const v = c.partes[p.id];
+      if (typeof v !== "string" || parteVacia(p, v)) continue;
+      if (p.formato === "tabla") partes[p.id] = JSON.stringify(leerTabla(v, p.columnas?.length ?? 1).map((f) => f.map((x) => x.trim().slice(0, 2000))).filter((f) => f.some(Boolean)).slice(0, 50));
+      else if (p.formato === "seleccion") { if (p.opciones?.some((o) => o.valor === v)) partes[p.id] = v; }
+      else partes[p.id] = v.replace(/\r\n/g, "\n").slice(0, MAX_TEXTO);
+    }
+    const autoevaluacion = [...new Set(c.autoevaluacion.filter((n) => n >= 0 && n < tipo.autoevaluacion.length))];
+    return { ok: true, valor: guardarComoTexto({ partes, autoevaluacion }) };
+  }
   if (e.elemento === "texto") {
     if (contenido.length > MAX_TEXTO) return { ok: false, error: `El capítulo admite hasta ${MAX_TEXTO.toLocaleString("es-SV")} caracteres.` };
     return { ok: true, valor: contenido.replace(/\r\n/g, "\n") };

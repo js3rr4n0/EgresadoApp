@@ -8,7 +8,7 @@ import {
 } from "docx";
 import {
   ANCHO_CONTENIDO, apartadoFinal, cargarLogo, celda, decodificarImagen, estiloIndice, FUENTE, INTERLINEADO, PAGINA, parrafo, parrafosCuerpo,
-  portadaWord, tamanoImagen, TAMANO_LEYENDA, TAMANO_TEXTO, texto, tituloAnexo,
+  portadaWord, subtitulo1, tamanoImagen, TAMANO_LEYENDA, TAMANO_TEXTO, texto, tituloAnexo,
 } from "@/lib/informeWord";
 import type { DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
 
@@ -44,10 +44,11 @@ export async function generarInformeFinalFichaWord(doc: DocumentoInformeFinal): 
     contenido.push(apartadoFinal(`${a.numero ? `${a.numero}. ` : ""}${a.titulo}`));
     for (const b of a.bloques) {
       if (b.tipo === "pendiente") contenido.push(parrafo([texto(b.texto, { italics: true })]));
+      else if (b.tipo === "subtitulo") contenido.push(subtitulo1(b.texto));
       else if (b.tipo === "parrafos") contenido.push(...parrafosCuerpo(b.parrafos.join("\n")));
       else if (b.tipo === "lista") {
-        // Bibliografía: sangría francesa de 1.27 cm (APA 7). Otras listas: viñetas.
-        const bibliografia = /bibliograf/i.test(a.titulo);
+        // Bibliografía y referencias: sangría francesa de 1.27 cm (APA 7). Otras listas: viñetas.
+        const bibliografia = b.referencias || /bibliograf/i.test(a.titulo);
         contenido.push(...b.items.map((t) => new Paragraph({
           children: [texto(bibliografia ? t : `• ${t}`)],
           indent: bibliografia ? { left: 720, hanging: 720 } : { left: 360 },

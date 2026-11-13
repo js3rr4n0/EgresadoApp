@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { guardarRegistroPlan, revisarRegistroPlan, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
-import { actividadesDelPeriodo, aplanar, arrastradasAlPeriodo, responsables, validarRegistroProyecto } from "@/lib/fichas/planTrabajo";
+import { actividadesDelPeriodo, aplanar, arrastradasAlPeriodo, faltaParaAvance, responsables, validarRegistroProyecto } from "@/lib/fichas/planTrabajo";
 import TextoRedaccion from "@/app/egresado/reportes/actividad/[actividadId]/TextoRedaccion";
 import { rutaEnPlan, enlaceActividad, ESTADO_ACTIVIDAD } from "./EjecucionProyecto";
 import EvidenciasActividad from "./EvidenciasActividad";
@@ -65,14 +65,19 @@ export default function RegistroActividadProyecto({
   const [acciones, setAcciones] = useState(registro?.acciones ?? "");
   const [resultado, setResultado] = useState(registro?.resultado ?? "");
   const [marco, setMarco] = useState(registro?.marcoTeorico ?? "");
+  const [fechaInicio, setFechaInicio] = useState(registro?.fechaInicio ?? "");
+  const [fechaFin, setFechaFin] = useState(registro?.fechaFin ?? "");
   const [comentario, setComentario] = useState("");
   const [saving, setSaving] = useState<"borrador" | "siguiente" | "enviar" | "revisar" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [problemas, setProblemas] = useState<string[]>([]);
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
-  const valores = { avance: avance === "" ? null : Number(avance), acciones, resultado, marcoTeorico: marco };
   const limiteEvidencias = datos.evidencias;
+  // El avance se indica al final (notas del 13-nov-2026): primero las fechas, lo que se hizo, el resultado y las evidencias.
+  const faltaAvance = faltaParaAvance({ acciones, resultado, fechaInicio, fechaFin }, { adjuntas: evidencias.length, ...limiteEvidencias });
+  const valores = { avance: avance === "" || faltaAvance.length > 0 ? null : Number(avance), acciones, resultado, marcoTeorico: marco, fechaInicio: fechaInicio || null, fechaFin: fechaFin || null };
+  const hoy = new Date().toLocaleDateString("en-CA");
   const t = textosModalidad(plan.propuesta.tipo);
   // Documento que el egresado comprometió en el plan como prueba de la actividad (investigación, I3). Una
   // subactividad usa el de su actividad.
@@ -190,60 +195,43 @@ export default function RegistroActividadProyecto({
         </div>
       </div>
 
-      {reglas.avance && nodo.nivel === 5 && (
-        <div className={tarjeta}>
-          <div className="border-b border-slate-100 pb-2">
-            <h2 className={tituloTarjeta}>¿Se terminó la subactividad?</h2>
-            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-              El avance de la actividad lo calcula el sistema: es el porcentaje de sus subactividades terminadas. Si no se termina en el período, pasa al siguiente.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Estado de ${nodo.codigo}`}>
-            {[{ v: "100", label: "Terminada" }, { v: "0", label: "Sin terminar" }].map((o) => (
-              <button key={o.v} type="button" role="radio" aria-checked={avance === o.v} disabled={!editable} onClick={() => setAvance(o.v)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold border transition-colors disabled:opacity-60 ${avance === o.v ? "bg-unicaes text-white border-unicaes" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"}`}>
-                {o.label}
-              </button>
-            ))}
-          </div>
+      <div className={tarjeta}>
+        <div className="border-b border-slate-100 pb-2">
+          <h2 className={tituloTarjeta}>¿Cuándo se realizó?</h2>
+          <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+            Fechas en que realmente se trabajó la actividad. Pueden salirse del período planificado ({fechaLarga(p?.desde ?? null)} al {fechaLarga(p?.hasta ?? null)}).
+          </p>
         </div>
-      )}
-
-      {reglas.avance && nodo.nivel !== 5 && (
-        <div className={tarjeta}>
-          <div className="border-b border-slate-100 pb-2">
-            <h2 className={tituloTarjeta}>Avance de la actividad</h2>
-            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Porcentaje ejecutado al cierre del período. Se acumula en el objetivo y en {t.el}.</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
-              <input type="number" min={0} max={100} value={avance} disabled={!editable} onChange={(e) => setAvance(e.target.value)} aria-label={`Avance de ${nodo.codigo}`}
-                className="w-24 bg-white border border-border rounded-lg px-3 py-2 text-xs font-bold text-right focus:ring-1 focus:ring-unicaes outline-none disabled:bg-slate-100 disabled:text-slate-500" />
-              %
-            </label>
-            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, Math.max(0, Number(avance) || 0))}%` }} />
-            </div>
-          </div>
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="text-xs font-bold text-slate-700 space-y-1">
+            <span className="block text-[10px] uppercase text-slate-400">Del</span>
+            <input type="date" value={fechaInicio} max={fechaFin || hoy} disabled={!editable} onChange={(e) => setFechaInicio(e.target.value)} aria-label={`Fecha inicial de ${nodo.codigo}`}
+              className="bg-white border border-border rounded-lg px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-unicaes outline-none disabled:bg-slate-100 disabled:text-slate-500" />
+          </label>
+          <label className="text-xs font-bold text-slate-700 space-y-1">
+            <span className="block text-[10px] uppercase text-slate-400">Al</span>
+            <input type="date" value={fechaFin} min={fechaInicio || undefined} max={hoy} disabled={!editable} onChange={(e) => setFechaFin(e.target.value)} aria-label={`Fecha final de ${nodo.codigo}`}
+              className="bg-white border border-border rounded-lg px-3 py-2 text-xs font-bold focus:ring-1 focus:ring-unicaes outline-none disabled:bg-slate-100 disabled:text-slate-500" />
+          </label>
         </div>
-      )}
+      </div>
 
       <div className={tarjeta}>
         <div className="border-b border-slate-100 pb-2">
-          <h2 className={tituloTarjeta}>Acciones realizadas</h2>
+          <h2 className={tituloTarjeta}>¿Qué se hizo?</h2>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-            Describa cómo se ejecutó la actividad: fechas, inversiones realizadas y acciones, en tiempo pasado ({textoRango(reglas.acciones)}).
+            Describa las acciones realizadas en la actividad, en tiempo pasado ({textoRango(reglas.acciones)}).
           </p>
         </div>
-        <TextoRedaccion id="acciones" valor={acciones} onChange={setAcciones} deshabilitado={!editable} filas={10}
-          placeholder="La actividad fue ejecutada del dd/mm al dd/mm; se realizaron las siguientes acciones..." {...rango(reglas.acciones)} />
+        <TextoRedaccion id="acciones" valor={acciones} onChange={setAcciones} deshabilitado={!editable} filas={8}
+          placeholder="Se realizaron las siguientes acciones..." {...rango(reglas.acciones)} />
       </div>
 
       <div className={tarjeta}>
         <div className="border-b border-slate-100 pb-2">
           <h2 className={tituloTarjeta}>Resultado obtenido</h2>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-            Indique qué se obtuvo y cómo contribuye a la macroactividad y al objetivo ({textoRango(reglas.resultado)}).
+            Describa qué se obtuvo y cómo contribuye a la macroactividad y al objetivo ({textoRango(reglas.resultado)}).
           </p>
         </div>
         <TextoRedaccion id="resultado" valor={resultado} onChange={setResultado} deshabilitado={!editable} filas={4}
@@ -279,10 +267,58 @@ export default function RegistroActividadProyecto({
           </div>
           {documentoEsperado && (
             <p className="text-sm text-blue-900 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
-              <strong>Documento que se espera:</strong> {documentoEsperado}. Es el que se indicó en el plan de trabajo como prueba de esta actividad; adjúntalo aquí.
+              <strong>Esto es lo que se espera:</strong> {documentoEsperado}. Es el producto que se prometió en el plan de trabajo; envíelo aquí como evidencia. Es lo que el asesor revisa primero.
             </p>
           )}
           <EvidenciasActividad propuestaId={plan.propuesta.id} nodoId={nodoId} periodo={periodo} evidencias={evidencias} limite={limiteEvidencias} editable={editable} />
+        </div>
+      )}
+
+      {reglas.avance && nodo.nivel === 5 && (
+        <div className={tarjeta}>
+          <div className="border-b border-slate-100 pb-2">
+            <h2 className={tituloTarjeta}>¿Se terminó la subactividad?</h2>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+              El avance de la actividad lo calcula el sistema: es el porcentaje de sus subactividades terminadas. Si no se termina en el período, pasa al siguiente.
+            </p>
+          </div>
+          {editable && faltaAvance.length > 0 && (
+            <p className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Antes de indicar el avance, registre {faltaAvance.length > 1 ? `${faltaAvance.slice(0, -1).join(", ")} y ${faltaAvance.at(-1)}` : faltaAvance[0]}.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Estado de ${nodo.codigo}`}>
+            {[{ v: "100", label: "Terminada" }, { v: "0", label: "Sin terminar" }].map((o) => (
+              <button key={o.v} type="button" role="radio" aria-checked={avance === o.v} disabled={!editable || faltaAvance.length > 0} onClick={() => setAvance(o.v)}
+                className={`px-4 py-2 rounded-lg text-xs font-bold border transition-colors disabled:opacity-60 ${avance === o.v ? "bg-unicaes text-white border-unicaes" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {reglas.avance && nodo.nivel !== 5 && (
+        <div className={tarjeta}>
+          <div className="border-b border-slate-100 pb-2">
+            <h2 className={tituloTarjeta}>Avance de la actividad</h2>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Porcentaje ejecutado al cierre del período; se indica después de registrar lo que se hizo y sus evidencias. Se acumula en el objetivo y en {t.el}.</p>
+          </div>
+          {editable && faltaAvance.length > 0 && (
+            <p className="text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Antes de indicar el avance, registre {faltaAvance.length > 1 ? `${faltaAvance.slice(0, -1).join(", ")} y ${faltaAvance.at(-1)}` : faltaAvance[0]}.
+            </p>
+          )}
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
+              <input type="number" min={0} max={100} value={avance} disabled={!editable || faltaAvance.length > 0} onChange={(e) => setAvance(e.target.value)} aria-label={`Avance de ${nodo.codigo}`}
+                className="w-24 bg-white border border-border rounded-lg px-3 py-2 text-xs font-bold text-right focus:ring-1 focus:ring-unicaes outline-none disabled:bg-slate-100 disabled:text-slate-500" />
+              %
+            </label>
+            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, Math.max(0, Number(avance) || 0))}%` }} />
+            </div>
+          </div>
         </div>
       )}
 

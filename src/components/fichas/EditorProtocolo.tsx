@@ -80,7 +80,8 @@ export default function EditorProtocolo({
           <ul className="text-[12px] text-gray-600 list-disc pl-5 space-y-0.5">
             <li>La <strong>portada</strong> y el <strong>índice</strong> se generan con los datos del trabajo: no son espacios.</li>
             <li>El <strong>cronograma de actividades</strong> es el plan de trabajo (pestaña Plan de trabajo){tienePlan ? "." : ": esta ficha todavía no lo tiene."}</li>
-            <li>Un texto puede <strong>precargarse</strong> con una respuesta de la propuesta (problemática, justificación, objetivos).</li>
+            <li>Un texto o un apartado académico puede <strong>precargarse</strong> con una respuesta de la propuesta (problemática, justificación, objetivos).</li>
+            <li>Los <strong>apartados académicos</strong> se redactan por subapartados, con guía, autoevaluación y revisión de redacción y citas APA 7 (guía de UNICAES).</li>
           </ul>
 
           <EncabezadoSeccion titulo="Comportamiento" descripcion="Cómo se entrega y se revisa el protocolo." />

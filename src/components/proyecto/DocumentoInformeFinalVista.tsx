@@ -47,7 +47,15 @@ export default function DocumentoInformeFinalVista({ doc, volver, word }: { doc:
         <section className={`${hoja} pt-10 print:pt-0`}>
           <h2 className="text-center font-bold mb-4">ÍNDICE</h2>
           <ol className="space-y-1">
-            {doc.apartados.map((a) => <li key={a.titulo}>{a.numero ? `${a.numero}. ` : ""}{a.titulo.toUpperCase()}</li>)}
+            {doc.apartados.map((a) => (
+              <li key={a.titulo}>
+                {a.numero ? `${a.numero}. ` : ""}{a.titulo.toUpperCase()}
+                {/* Subapartados de los apartados académicos, como en el índice de Word. */}
+                {a.bloques.some((b) => b.tipo === "subtitulo") && (
+                  <ol className="pl-6">{a.bloques.flatMap((b, k) => (b.tipo === "subtitulo" ? [<li key={k}>{b.texto}</li>] : []))}</ol>
+                )}
+              </li>
+            ))}
             {doc.anexos.length > 0 && <li>ANEXOS</li>}
           </ol>
         </section>
@@ -57,9 +65,10 @@ export default function DocumentoInformeFinalVista({ doc, volver, word }: { doc:
             <h2 className="text-center font-bold mb-4">{a.numero ? `${a.numero}. ` : ""}{a.titulo.toUpperCase()}</h2>
             {a.bloques.map((b, i) => {
               if (b.tipo === "pendiente") return <p key={i} className="italic text-gray-500">{b.texto}</p>;
+              if (b.tipo === "subtitulo") return <h3 key={i} className="font-bold mt-6 mb-2">{b.texto}</h3>;
               if (b.tipo === "parrafos") return b.parrafos.map((p, k) => <p key={`${i}-${k}`} className="text-justify my-3">{p}</p>);
               if (b.tipo === "lista") {
-                return /bibliograf/i.test(a.titulo)
+                return b.referencias || /bibliograf/i.test(a.titulo)
                   ? b.items.map((t, k) => <p key={`${i}-${k}`} className="pl-[1.27cm] -indent-[1.27cm] my-2">{t}</p>)
                   : <ul key={i} className="list-disc pl-8 my-3">{b.items.map((t, k) => <li key={k}>{t}</li>)}</ul>;
               }

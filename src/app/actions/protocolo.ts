@@ -12,7 +12,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta, espaciosPropuesta } from "@/lib/fichas/fichaDePropuesta";
 import { esEtapaProtocolo, type EtapaProtocolo } from "@/lib/fichas/tipos";
-import { fechaLimiteDictamen, problemasProtocolo, textoPrecarga } from "@/lib/fichas/protocolo";
+import { fechaLimiteDictamen, precargaEspacio, problemasProtocolo } from "@/lib/fichas/protocolo";
 import { validarPlanEquipo, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import { getPlanTrabajo, type DatosPlan } from "./planTrabajo";
 
@@ -56,8 +56,8 @@ async function armar(propuestaId: number, plan: DatosPlan): Promise<{ datos: Dat
   const espaciosProp = espaciosPropuesta(ficha.definicion);
   const precargas: Record<string, string> = {};
   for (const e of etapa.espacios) {
-    if (e.elemento !== "texto" || !e.precargarDe || respuestas[e.id]?.trim()) continue;
-    const texto = textoPrecarga(espaciosProp.find((x) => x.id === e.precargarDe), { ...det, respuestas: todas });
+    if ((e.elemento !== "texto" && e.elemento !== "apartado") || !e.precargarDe || respuestas[e.id]?.trim()) continue;
+    const texto = precargaEspacio(e, espaciosProp, { ...det, respuestas: todas });
     if (texto) precargas[e.id] = texto;
   }
 

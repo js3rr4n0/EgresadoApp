@@ -1,8 +1,19 @@
 // Informe final por capítulos (entrega I5, investigación): reglas compartidas por el servidor y la pantalla. Módulo puro.
 // Es el documento final de la investigación (la tesis): todo el equipo redacta, cada guardado es una versión nueva,
 // el asesor revisa por capítulo (o el documento completo) y al final todos ratifican la versión que se entrega.
-import { problemasProtocolo, textoPrecarga, type DatosPropuestaPrecarga } from "./protocolo";
+import { precargaEspacio, problemasProtocolo, type DatosPropuestaPrecarga } from "./protocolo";
 import { PRECARGA_MARCO_REGISTROS, type Espacio, type EtapaInformeFinal } from "./tipos";
+import { guardarComoTexto, leerApartado, parteVacia, tipoApartado } from "./apartadosAcademicos";
+
+/** Un capítulo sin contenido: texto vacío, lista vacía o apartado académico con todos sus subapartados vacíos. */
+export function contenidoVacio(e: Espacio, contenido: string | null | undefined): boolean {
+  const v = (contenido ?? "").trim();
+  if (!v || v === "[]") return true;
+  const tipo = e.elemento === "apartado" ? tipoApartado(e) : undefined;
+  if (!tipo) return false;
+  const c = leerApartado(tipo, v);
+  return tipo.partes.every((p) => parteVacia(p, c.partes[p.id]));
+}
 
 export type EstadoCapitulo = "borrador" | "enviado" | "observado" | "aprobado";
 export type EstadoInformeFinal = "redactando" | "entregado" | "aprobado";
@@ -62,11 +73,13 @@ export function precargaCapitulo(
   marcoRegistros: string
 ): string {
   if (!e.precargarDe) return "";
-  if (e.precargarDe === PRECARGA_MARCO_REGISTROS) return e.elemento === "texto" ? marcoRegistros : "";
-  const origen = fuentes.find((x) => x.id === e.precargarDe);
-  if (!origen) return "";
-  if (e.elemento === "lista") return origen.elemento === "lista" ? (datos.respuestas[origen.id] ?? "") : "";
-  return textoPrecarga(origen, datos);
+  if (e.precargarDe === PRECARGA_MARCO_REGISTROS) {
+    if (e.elemento === "texto") return marcoRegistros;
+    // Apartado académico: el marco de las actividades queda en su primer subapartado.
+    const tipo = e.elemento === "apartado" && marcoRegistros.trim() ? tipoApartado(e) : undefined;
+    return tipo ? guardarComoTexto(leerApartado(tipo, marcoRegistros)) : "";
+  }
+  return precargaEspacio(e, fuentes, datos);
 }
 
 /** Pendientes del informe por capítulo (contenido de la última versión de cada uno). */
@@ -77,7 +90,7 @@ export function problemasInformeFinal(etapa: EtapaInformeFinal, contenidos: Reco
 /** Capítulos que faltan aprobar para poder ratificar y entregar (los opcionales vacíos no cuentan). */
 export function capitulosPendientes(etapa: EtapaInformeFinal, estados: Record<string, EstadoDeCapitulo>, contenidos: Record<string, string | null | undefined>) {
   return etapa.espacios.filter((e) => {
-    const vacio = !(contenidos[e.id] ?? "").trim() || contenidos[e.id] === "[]";
+    const vacio = contenidoVacio(e, contenidos[e.id]);
     if (!e.obligatorio && vacio) return false;
     return (estados[e.id]?.estado ?? "borrador") !== "aprobado";
   });

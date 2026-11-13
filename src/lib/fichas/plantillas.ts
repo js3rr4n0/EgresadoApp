@@ -3,7 +3,7 @@
 // incluyen plan ni ejecución de proyecto: estas plantillas son el punto de partida al agregarlas en una ficha nueva.
 // Los valores de proyecto salen del documento "Ejemplo para plantilla proyecto" (5-nov-2026).
 import { parametrosPorDefecto } from "./catalogo";
-import { PRECARGA_MARCO_REGISTROS, type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
+import { type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
 
 /** Plan de trabajo jerárquico con los valores recomendados para proyecto (e investigación, que usa el mismo formato). */
 export function planNuevo(id: string, modalidad: Modalidad = "proyecto"): EtapaPlan {
@@ -25,8 +25,9 @@ export function planNuevo(id: string, modalidad: Modalidad = "proyecto"): EtapaP
 
 /**
  * Etapa de ejecución nueva. Pasantía: los valores de hoy. Proyecto e investigación: 5 informes mensuales, sin
- * métrica (sin mínimo de páginas, palabras ni imágenes), marco teórico opcional, un registro por actividad con su
- * avance y un informe individual por integrante más el general.
+ * métrica (sin mínimo de páginas, palabras ni imágenes), un registro por actividad con su avance, fechas y evidencias, y
+ * un solo informe general del equipo (notas del 13-nov-2026: sin marco teórico en el registro ni informes individuales;
+ * el sistema ya muestra el avance de cada integrante).
  */
 export function ejecucionNueva(id: string, modalidad: Modalidad, n: number, primera: boolean): EtapaEjecucion {
   const base = {
@@ -64,8 +65,8 @@ export function ejecucionNueva(id: string, modalidad: Modalidad, n: number, prim
       conclusion: { min: 0, max: 0 },
       imagenes: 0,
       modo: "actividad",
-      // Investigación: el desarrollo incluye la elaboración del marco teórico o referencial.
-      marcoTeorico: investigacion ? "opcional" : "no",
+      // El registro es puntual: qué se hizo, el resultado, el avance y la evidencia (notas del 13-nov-2026).
+      marcoTeorico: "no",
       avance: true,
       evidencias: { min: 1, max: 5 },
     },
@@ -73,7 +74,7 @@ export function ejecucionNueva(id: string, modalidad: Modalidad, n: number, prim
       paginasMinimas: 0,
       exigirActividadesAprobadas: true,
       comentariosDecanato: { activo: true, minPalabras: 40 },
-      modo: "individual_y_general",
+      modo: "unico",
     },
   };
 }
@@ -89,26 +90,27 @@ function espacioProtocolo(id: string, elemento: ClaveElemento, titulo: string, d
  */
 export function protocoloNuevo(id: string): EtapaProtocolo {
   const texto = (i: string, t: string, d: string, extra: Partial<Espacio> = {}) => espacioProtocolo(i, "texto", t, d, extra);
+  // Redacción académica guiada (13-nov-2026): las partes del protocolo son apartados académicos por subapartados.
+  const apartado = (i: string, tipo: string, t: string, d: string, extra: Partial<Espacio> = {}) =>
+    espacioProtocolo(i, "apartado", t, d, { parametros: parametrosPorDefecto("apartado", { tipo }), ...extra });
   return {
     tipo: "protocolo",
     id,
     nombre: "Protocolo de investigación",
     revision: { diasRevision: 5, diasHabiles: true, ratificacion: true },
     espacios: [
-      texto("introduccion", "Introducción", "Presentación general del estudio"),
-      texto("generalidades", "Generalidades del estudio", "Institución, contexto y delimitación"),
-      texto("problematica", "Problemática a investigar", "Parte de la descripción del problema de la propuesta", { precargarDe: "problema" }),
-      texto("justificacion_protocolo", "Justificación de la investigación", "Parte de la justificación de la propuesta", { precargarDe: "justificacion" }),
-      texto("objetivos_protocolo", "Objetivos", "Parte de los objetivos de la propuesta", { precargarDe: "objetivos" }),
-      texto("hipotesis", "Enunciado de la hipótesis", "Si procede según el tipo de investigación", { obligatorio: false }),
+      texto("introduccion", "Introducción", "Presentación general del estudio", { parametros: parametrosPorDefecto("texto", { minPalabras: 80, maxPalabras: 500 }) }),
+      apartado("generalidades", "generalidades", "Generalidades del estudio", "Línea de investigación, contexto y delimitación"),
+      apartado("problematica", "problematica", "Problemática a investigar", "Parte de la descripción del problema de la propuesta", { precargarDe: "problema" }),
+      apartado("justificacion_protocolo", "justificacion", "Justificación de la investigación", "Parte de la justificación de la propuesta", { precargarDe: "justificacion" }),
+      apartado("objetivos_protocolo", "objetivos", "Objetivos", "Parte de los objetivos de la propuesta", { precargarDe: "objetivos" }),
+      apartado("hipotesis", "hipotesis", "Hipótesis", "Si procede según el tipo de investigación", { obligatorio: false }),
       espacioProtocolo("matriz_hipotesis", "tabla", "Matriz de hipótesis", "Desglose de la hipótesis", { obligatorio: false }),
-      texto("tipo_investigacion", "Tipo de investigación", "Metodología: enfoque y tipo de estudio"),
-      texto("poblacion_muestra", "Población y muestra", "Metodología: a quién se estudia y cómo se selecciona"),
-      texto("tecnicas", "Técnica e instrumentos", "Metodología: cómo se recopilan los datos"),
-      texto("procedimiento", "Procedimiento", "Metodología: pasos para realizar el estudio"),
-      texto("analisis", "Análisis estadístico o de información", "Metodología: cómo se analizarán los datos"),
+      apartado("variables", "variables", "Definición de variables o categorías", "Definición conceptual, operacional e indicadores"),
+      apartado("fundamentacion", "fundamentacion", "Fundamentación teórica", "Esquema de temas y desarrollo inicial, con citas APA 7"),
+      apartado("metodologia", "metodologia", "Metodología", "Tipo, población y muestra, técnicas, procedimiento y análisis"),
       espacioProtocolo("esquema_informe", "lista", "Esquema del informe final", "Capítulos que llevará el informe de investigación"),
-      espacioProtocolo("bibliografia", "lista", "Bibliografía", "Referencias consultadas, en formato APA"),
+      apartado("bibliografia", "referencias", "Referencias", "Fuentes consultadas, en APA 7 y en orden alfabético"),
       espacioProtocolo("anexos_protocolo", "archivo", "Anexos", "Instrumentos y documentos de apoyo", {
         obligatorio: false,
         parametros: parametrosPorDefecto("archivo", { tipos: ["pdf", "word", "excel"], minimo: 0, maximo: 5 }),
@@ -120,35 +122,31 @@ export function protocoloNuevo(id: string): EtapaProtocolo {
 /**
  * Informe final de investigación por capítulos (I5; partes del contexto del 12-nov-2026). La portada, las autoridades
  * académicas y el índice se generan; los anexos de resultados salen de las evidencias de la ejecución. Los capítulos que
- * ya existen se precargan: del protocolo (ids de protocoloNuevo) o del marco teórico registrado en las actividades.
+ * ya existen se precargan del protocolo (ids de protocoloNuevo); el marco teórico, de la fundamentación teórica.
  */
 export function informeFinalNuevo(id: string): EtapaInformeFinal {
-  const texto = (i: string, t: string, d: string, extra: Partial<Espacio> = {}) => espacioProtocolo(i, "texto", t, d, extra);
+  // Redacción académica guiada (13-nov-2026): cada capítulo es un apartado académico (en pasado; conclusiones por objetivo).
+  const apartado = (i: string, tipo: string, t: string, d: string, extra: Partial<Espacio> = {}) =>
+    espacioProtocolo(i, "apartado", t, d, { parametros: parametrosPorDefecto("apartado", { tipo }), ...extra });
   return {
     tipo: "informe_final",
     id,
     nombre: "Informe final de investigación",
     revision: { porCapitulo: true, ratificacion: true, diasRevision: 5, diasHabiles: true },
     espacios: [
-      texto("if_introduccion", "Introducción", "Presentación del estudio y de la estructura del informe", { precargarDe: "introduccion" }),
-      texto("if_generalidades", "Generalidades del estudio", "Institución, contexto y delimitación", { precargarDe: "generalidades" }),
-      texto("if_problematica", "Problemática o temática investigada", "Parte de la problemática del protocolo", { precargarDe: "problematica" }),
-      texto("if_justificacion", "Justificación de la investigación", "Parte de la justificación del protocolo", { precargarDe: "justificacion_protocolo" }),
-      texto("if_objetivos", "Objetivos", "Parte de los objetivos del protocolo", { precargarDe: "objetivos_protocolo" }),
-      texto("if_marco", "Marco teórico o referencial", "Parte del marco teórico registrado en las actividades", { precargarDe: PRECARGA_MARCO_REGISTROS }),
-      texto("if_tipo", "Tipo de investigación", "Metodología", { precargarDe: "tipo_investigacion" }),
-      texto("if_poblacion", "Población y muestra", "Metodología", { precargarDe: "poblacion_muestra" }),
-      texto("if_tecnicas", "Técnica e instrumentos utilizados", "Metodología", { precargarDe: "tecnicas" }),
-      texto("if_procedimiento", "Procedimiento realizado", "Metodología", { precargarDe: "procedimiento" }),
-      texto("if_analisis", "Análisis estadístico o de información realizada", "Metodología", { precargarDe: "analisis" }),
-      texto("if_resultados", "Resultados obtenidos", "Presentación de los resultados del estudio"),
-      texto("if_hipotesis", "Comprobación de hipótesis", "Si procede según el tipo de investigación", { obligatorio: false }),
-      texto("if_hallazgos", "Presentación de los hallazgos principales", "Hallazgos más relevantes y su interpretación"),
-      texto("if_conclusiones", "Conclusiones", "Conclusiones de la investigación"),
-      espacioProtocolo("if_bibliografia", "lista", "Bibliografía", "Referencias en formato APA", {
-        precargarDe: "bibliografia",
-        parametros: parametrosPorDefecto("lista", { minimo: 3, maximo: 50 }),
-      }),
+      apartado("if_introduccion", "introduccion", "Introducción", "Presentación del estudio y de la estructura del informe", { precargarDe: "introduccion" }),
+      apartado("if_generalidades", "generalidades", "Generalidades del estudio", "Línea de investigación, contexto y delimitación", { precargarDe: "generalidades" }),
+      apartado("if_problematica", "problematica", "Problemática o temática investigada", "Parte de la problemática del protocolo", { precargarDe: "problematica" }),
+      apartado("if_justificacion", "justificacion", "Justificación de la investigación", "Parte de la justificación del protocolo", { precargarDe: "justificacion_protocolo" }),
+      apartado("if_objetivos", "objetivos", "Objetivos", "Parte de los objetivos del protocolo", { precargarDe: "objetivos_protocolo" }),
+      apartado("if_marco", "marco_teorico", "Marco teórico o referencial", "Parte de la fundamentación teórica del protocolo", { precargarDe: "fundamentacion" }),
+      // Los cinco subapartados de la metodología del protocolo, ahora en pasado (con los cambios respecto de lo planificado).
+      apartado("if_metodologia", "metodologia_realizada", "Metodología de la investigación", "Parte de la metodología del protocolo: lo que se realizó", { precargarDe: "metodologia" }),
+      apartado("if_resultados", "resultados", "Resultados obtenidos", "Presentación de los resultados del estudio, por objetivo"),
+      apartado("if_hipotesis", "comprobacion_hipotesis", "Comprobación de hipótesis", "Si procede según el tipo de investigación", { obligatorio: false }),
+      apartado("if_hallazgos", "discusion", "Presentación de los hallazgos principales", "Hallazgos más relevantes y su interpretación"),
+      apartado("if_conclusiones", "conclusiones", "Conclusiones y recomendaciones", "Una conclusión por objetivo específico"),
+      apartado("if_bibliografia", "referencias", "Bibliografía", "Referencias en APA 7 y en orden alfabético", { precargarDe: "bibliografia" }),
       espacioProtocolo("if_anexos", "archivo", "Anexos", "Instrumentos y documentos complementarios (las evidencias de las actividades se agregan solas)", {
         obligatorio: false,
         parametros: parametrosPorDefecto("archivo", { tipos: ["pdf", "word", "excel"], minimo: 0, maximo: 10 }),

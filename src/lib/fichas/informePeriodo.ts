@@ -14,6 +14,9 @@ export interface RegistroInforme {
   acciones: string;
   resultado: string;
   marcoTeorico: string;
+  /** Fechas reales en que se ejecutó (AAAA-MM-DD). */
+  fechaInicio?: string | null;
+  fechaFin?: string | null;
   estado: string;
 }
 

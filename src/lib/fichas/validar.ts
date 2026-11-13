@@ -2,6 +2,7 @@
 // Devuelve la lista de problemas en lenguaje del administrador; una lista vacía significa que la ficha es válida.
 import { CATALOGO, elementoEnEtapa } from "./catalogo";
 import { esRecurso } from "./elementosRecurso";
+import { partePrecarga, tipoApartado } from "./apartadosAcademicos";
 import {
   esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, FORMATO_DEFINICION, PRECARGA_MARCO_REGISTROS,
   type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo,
@@ -85,8 +86,8 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
     if (idsEspacios.has(esp.id)) p(`el identificador "${esp.id}" está repetido.`);
     idsEspacios.add(esp.id);
     if (!esp.titulo.trim()) p("falta el título.");
-    if (!el.modalidades.includes(def.modalidad)) p(`este elemento todavía no está disponible para la modalidad ${def.modalidad}.`);
-    else if (!elementoEnEtapa(esp.elemento, etapa.tipo)) p(`este elemento no se puede usar en ${nombreEtapa}.`);
+    // Cualquier elemento se puede usar en cualquier modalidad (revisión del 13-nov-2026); solo se limita por etapa.
+    if (!elementoEnEtapa(esp.elemento, etapa.tipo)) p(`este elemento no se puede usar en ${nombreEtapa}.`);
     if (!el.repetible && vistos.has(esp.elemento)) p("este elemento solo puede aparecer una vez.");
     for (const req of el.requiere) {
       if (!vistos.has(req)) p(`debe ir después de "${CATALOGO[req].nombre}".`);
@@ -105,6 +106,8 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
         else if (v.some((x) => !x.trim())) p(`"${par.etiqueta}" tiene un texto vacío.`);
         else if (v.length < par.minimo || v.length > par.maximo) p(`"${par.etiqueta}" debe tener de ${par.minimo} a ${par.maximo}.`);
         else if (new Set(v.map((x) => x.trim().toLowerCase())).size !== v.length) p(`"${par.etiqueta}" tiene textos repetidos.`);
+      } else if (par.tipo === "opcion") {
+        if (typeof v !== "string" || !par.opciones.some((o) => o.valor === v)) p(`"${par.etiqueta}" tiene una opción que no existe.`);
       } else {
         const validos = new Set(par.opciones.map((o) => o.valor));
         if (!Array.isArray(v) || v.some((x) => !validos.has(x))) p(`"${par.etiqueta}" tiene opciones que no existen.`);
@@ -128,13 +131,19 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
       if (etapa.tipo === "propuesta") p("solo los espacios del protocolo y del informe final se precargan.");
       else if (esp.precargarDe === PRECARGA_MARCO_REGISTROS) {
         if (etapa.tipo !== "informe_final") p("el marco teórico de las actividades solo se precarga en el informe final.");
-        else if (esp.elemento !== "texto") p("el marco teórico de las actividades solo se precarga en un bloque de texto.");
-      } else if (esp.elemento !== "texto" && esp.elemento !== "lista") p("solo un texto o una lista se pueden precargar.");
+        else if (esp.elemento !== "texto" && esp.elemento !== "apartado") p("el marco teórico de las actividades solo se precarga en un bloque de texto o un apartado académico.");
+      } else if (esp.elemento !== "texto" && esp.elemento !== "lista" && esp.elemento !== "apartado") p("solo un texto, una lista o un apartado académico se pueden precargar.");
       else {
-        const origen = fuentes.flatMap((x) => x.espacios).find((x) => x.id === esp.precargarDe);
+        // "id#parte": un subapartado de un apartado académico (por ejemplo, "bibliografia#lista").
+        const [id, parte] = partePrecarga(esp.precargarDe);
+        const origen = fuentes.flatMap((x) => x.espacios).find((x) => x.id === id);
+        const tipoOrigen = origen?.elemento === "apartado" ? tipoApartado(origen) : undefined;
+        const formatoParte = parte ? tipoOrigen?.partes.find((x) => x.id === parte)?.formato : undefined;
         if (!origen) p(`se precarga desde un espacio que ya no está en ${etapa.tipo === "protocolo" ? "la propuesta" : "la propuesta ni en el protocolo"}.`);
-        else if (esp.elemento === "texto" && origen.elemento !== "texto" && origen.elemento !== "objetivos") p(`no se puede precargar desde "${origen.titulo}": solo desde un texto o los objetivos.`);
-        else if (esp.elemento === "lista" && origen.elemento !== "lista") p(`no se puede precargar desde "${origen.titulo}": una lista solo se precarga desde otra lista.`);
+        else if (parte && !formatoParte) p(`se precarga desde el subapartado "${parte}", que no existe en "${origen.titulo}".`);
+        else if (esp.elemento === "texto" && !["texto", "objetivos", "apartado"].includes(origen.elemento)) p(`no se puede precargar desde "${origen.titulo}": solo desde un texto, los objetivos o un apartado.`);
+        else if (esp.elemento === "lista" && origen.elemento !== "lista" && !(formatoParte === "lista" || formatoParte === "referencias")) p(`no se puede precargar desde "${origen.titulo}": una lista solo se precarga desde otra lista o un subapartado de lista.`);
+        else if (esp.elemento === "apartado" && !["texto", "objetivos", "apartado"].includes(origen.elemento)) p(`no se puede precargar desde "${origen.titulo}": un apartado se precarga desde un texto, los objetivos u otro apartado.`);
       }
     }
   }

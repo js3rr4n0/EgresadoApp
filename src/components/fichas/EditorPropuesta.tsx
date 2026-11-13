@@ -1,14 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { CATALOGO, elementoEnEtapa, parametrosPorDefecto, type DefinicionParametro, type EtapaDeEspacios } from "@/lib/fichas/catalogo";
+import { tipoApartado } from "@/lib/fichas/apartadosAcademicos";
+import { CATALOGO, elementoEnEtapa, GRUPOS_CATALOGO, parametrosPorDefecto, type DefinicionParametro, type EtapaDeEspacios } from "@/lib/fichas/catalogo";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
 import { esEtapaPropuesta, esEtapaProtocolo, PRECARGA_MARCO_REGISTROS, type ClaveElemento, type DefinicionFicha, type Espacio, type EtapaConEspacios, type ValorParametro } from "@/lib/fichas/tipos";
 import { Proximamente } from "./comunes";
 import { nuevoId } from "./ids";
 
-const GRUPOS = ["Generales", "Institución", "Planificación", "Proyecto", "Documentos", "Recursos"] as const;
 export const campoCompacto =
   "w-full h-9 border border-gray-300 rounded-md px-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25 focus:border-brand-red disabled:bg-gray-50 disabled:text-gray-500";
 export const etiquetaCompacta = "block text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1";
@@ -74,8 +74,19 @@ export default function EditorPropuesta({
     ...(propuesta?.espacios ?? []).map((e) => ({ e, de: "Propuesta" })),
     ...(tipoEtapa === "informe_final" ? (protocoloDef?.espacios ?? []).map((e) => ({ e, de: "Protocolo" })) : []),
   ];
-  const fuentesPara = (elemento: string) =>
-    fuentes.filter(({ e }) => (elemento === "lista" ? e.elemento === "lista" : e.elemento === "texto" || e.elemento === "objetivos"));
+  // Opciones de precarga: espacios completos y, de los apartados académicos, cada subapartado ("id#parte").
+  const fuentesPara = (elemento: string): { valor: string; etiqueta: string }[] =>
+    fuentes.flatMap(({ e, de }) => {
+      const r: { valor: string; etiqueta: string }[] = [];
+      const enteros = elemento === "lista" ? ["lista"] : ["texto", "objetivos", "apartado"];
+      if (enteros.includes(e.elemento)) r.push({ valor: e.id, etiqueta: `${de} · ${e.titulo}` });
+      const tipo = e.elemento === "apartado" && elemento !== "apartado" ? tipoApartado(e) : undefined;
+      for (const p of tipo?.partes ?? []) {
+        const sirve = elemento === "lista" ? p.formato === "lista" || p.formato === "referencias" : p.formato !== "tabla";
+        if (sirve) r.push({ valor: `${e.id}#${p.id}`, etiqueta: `${de} · ${e.titulo} › ${p.titulo}` });
+      }
+      return r;
+    });
   const [seleccion, setSeleccion] = useState<string | null>(etapa.espacios[0]?.id ?? null);
   const [arrastrando, setArrastrando] = useState<number | null>(null);
   const espacio = etapa.espacios.find((e) => e.id === seleccion) ?? null;
@@ -185,6 +196,7 @@ export default function EditorPropuesta({
                     <div className="font-bold text-sm text-gray-800 truncate">{e.titulo || "(sin título)"}</div>
                     <div className="text-[11px] text-gray-500 truncate">
                       {CATALOGO[e.elemento]?.nombre ?? e.elemento}
+                      {CATALOGO[e.elemento] && !CATALOGO[e.elemento].formularioEn.includes(definicion.modalidad) && " · sin formulario en el asistente"}
                       {!e.obligatorio && " · opcional"}
                       {e.precargarDe && " · se precarga"}
                     </div>
@@ -207,22 +219,27 @@ export default function EditorPropuesta({
             <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg p-3">
               <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">Agregar espacio desde el catálogo</h3>
               <div className="space-y-1.5">
-                {GRUPOS.map((g) => (
-                  <div key={g} className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] text-gray-500 w-20 shrink-0">{g}</span>
-                    {Object.values(CATALOGO).filter((el) => el.grupo === g && elementoEnEtapa(el.clave, tipoEtapa)).map((el) => {
-                      const fueraDeModalidad = !el.modalidades.includes(definicion.modalidad);
-                      const yaEsta = !el.repetible && presentes.has(el.clave);
-                      const motivo = fueraDeModalidad ? "Todavía no disponible en esta modalidad" : yaEsta ? `Ya está en ${nombreEtapa}` : el.descripcion;
-                      return (
-                        <button key={el.clave} type="button" title={motivo} disabled={fueraDeModalidad || yaEsta} onClick={() => agregar(el.clave)}
-                          className="text-xs font-bold px-2 py-1 rounded-md bg-white border border-gray-200 text-gray-700 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:text-gray-700 disabled:cursor-not-allowed">
-                          + {el.nombre}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
+                {GRUPOS_CATALOGO.map(({ grupo }) => {
+                  const elementos = Object.values(CATALOGO).filter((el) => el.grupo === grupo && elementoEnEtapa(el.clave, tipoEtapa));
+                  if (elementos.length === 0) return null;
+                  return (
+                    <div key={grupo} className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-gray-500 w-24 shrink-0">{grupo}</span>
+                      {elementos.map((el) => {
+                        const yaEsta = !el.repetible && presentes.has(el.clave);
+                        const sinFormulario = !el.formularioEn.includes(definicion.modalidad);
+                        const motivo = yaEsta ? `Ya está en ${nombreEtapa}` : sinFormulario ? `${el.descripcion} (El asistente de esta modalidad todavía no tiene su formulario.)` : el.descripcion;
+                        return (
+                          <button key={el.clave} type="button" title={motivo} disabled={yaEsta} onClick={() => agregar(el.clave)}
+                            className={`text-xs font-bold px-2 py-1 rounded-md bg-white border text-gray-700 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:text-gray-700 disabled:cursor-not-allowed ${sinFormulario ? "border-dashed border-amber-300" : "border-gray-200"}`}>
+                            + {el.nombre}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+                <p className="text-[11px] text-gray-500 pt-1">Los de borde punteado todavía no tienen formulario en el asistente de esta modalidad: quedan en la ficha y el egresado verá el paso como pendiente de formulario.</p>
               </div>
             </div>
           )}
@@ -273,10 +290,10 @@ export default function EditorPropuesta({
                   </div>
                 </Tarjeta>
 
-                {!esPropuesta && (espacio.elemento === "texto" || espacio.elemento === "lista") && (() => {
+                {!esPropuesta && (espacio.elemento === "texto" || espacio.elemento === "lista" || espacio.elemento === "apartado") && (() => {
                   const opciones = fuentesPara(espacio.elemento);
-                  const marco = tipoEtapa === "informe_final" && espacio.elemento === "texto";
-                  const conocida = opciones.some(({ e }) => e.id === espacio.precargarDe) || (marco && espacio.precargarDe === PRECARGA_MARCO_REGISTROS);
+                  const marco = tipoEtapa === "informe_final" && (espacio.elemento === "texto" || espacio.elemento === "apartado");
+                  const conocida = opciones.some((o) => o.valor === espacio.precargarDe) || (marco && espacio.precargarDe === PRECARGA_MARCO_REGISTROS);
                   return (
                     <Tarjeta titulo={esProtocolo ? "Precarga desde la propuesta" : "Precarga"}>
                       <label htmlFor="esp-precarga" className="block text-xs text-gray-600 mb-1">Se precarga con</label>
@@ -284,7 +301,7 @@ export default function EditorPropuesta({
                         onChange={(e) => actualizar({ precargarDe: e.target.value || undefined })}>
                         <option value="">Nada: el egresado lo escribe desde cero</option>
                         {marco && <option value={PRECARGA_MARCO_REGISTROS}>Ejecución · marco teórico registrado en las actividades</option>}
-                        {opciones.map(({ e, de }) => <option key={e.id} value={e.id}>{de} · {e.titulo}</option>)}
+                        {opciones.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
                         {espacio.precargarDe && !conocida && <option value={espacio.precargarDe}>(espacio que ya no existe)</option>}
                       </select>
                       <p className="text-[11px] text-gray-500 mt-1">El equipo parte de lo que ya escribió y lo ajusta, sin volver a escribirlo.</p>
@@ -395,6 +412,16 @@ function CampoParametro({
           <button type="button" onClick={() => onChange([...lista, ""])} className="mt-1.5 text-xs font-bold text-gray-600 hover:text-brand-red">+ Agregar</button>
         )}
       </fieldset>
+    );
+  }
+  if (p.tipo === "opcion") {
+    return (
+      <div className="sm:col-span-2">
+        <label htmlFor={id} className="block text-xs text-gray-600 mb-1">{p.etiqueta}{p.ayuda && <span className="text-[11px] text-gray-400"> · {p.ayuda}</span>}</label>
+        <select id={id} className={campoCompacto} disabled={!editable} value={typeof valor === "string" ? valor : p.porDefecto} onChange={(e) => onChange(e.target.value)}>
+          {p.opciones.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
+        </select>
+      </div>
     );
   }
   const seleccion = Array.isArray(valor) ? valor : p.porDefecto;

@@ -3,10 +3,13 @@
 // apartados en mayúsculas y anexos). Módulo puro.
 import { columnasTabla, leerItems, type ArchivoEspacio, type EnlaceEspacio } from "./elementosRecurso";
 import type { EtapaInformeFinal } from "./tipos";
+import { leerApartado, leerTabla, lineas, parteVacia, textoParte, tipoApartado } from "./apartadosAcademicos";
 
 export type BloqueDocumento =
   | { tipo: "parrafos"; parrafos: string[] }
-  | { tipo: "lista"; items: string[] }
+  | { tipo: "subtitulo"; texto: string }
+  /** referencias: con sangría francesa (APA 7) en lugar de viñetas. */
+  | { tipo: "lista"; items: string[]; referencias?: boolean }
   | { tipo: "tabla"; columnas: string[]; filas: string[][] }
   | { tipo: "enlaces"; items: EnlaceEspacio[] }
   | { tipo: "pendiente"; texto: string };
@@ -88,19 +91,31 @@ export function apartadosInformeFinal(etapa: EtapaInformeFinal, contenidos: Reco
       anexosCapitulo = [...anexosCapitulo, ...(leerItems("archivo", valor) as ArchivoEspacio[])];
       continue;
     }
-    const vacio = !valor.trim() || valor.trim() === "[]";
+    const tipo = e.elemento === "apartado" ? tipoApartado(e) : undefined;
+    const ap = tipo ? leerApartado(tipo, valor) : null;
+    const vacio = tipo && ap ? tipo.partes.every((p) => parteVacia(p, ap.partes[p.id])) : !valor.trim() || valor.trim() === "[]";
     if (vacio && !e.obligatorio) continue;
-    const bibliografia = e.elemento === "lista" && esBibliografia(e.titulo);
+    const bibliografia = (e.elemento === "lista" && esBibliografia(e.titulo)) || !!tipo?.especiales.includes("referencias");
+    const numero = bibliografia ? null : ++n;
     const bloques: BloqueDocumento[] = [];
+    // La bibliografía va en orden alfabético (APA 7).
+    const ordenar = (items: string[]) => (bibliografia ? [...items].sort((a, b) => a.localeCompare(b, "es")) : items);
     if (vacio) bloques.push({ tipo: "pendiente", texto: `Pendiente: "${e.titulo}" todavía no tiene contenido.` });
-    else if (e.elemento === "texto") bloques.push({ tipo: "parrafos", parrafos: parrafosDe(valor) });
-    else if (e.elemento === "lista") {
-      const items = leerItems("lista", valor) as string[];
-      // La bibliografía va en orden alfabético (APA 7).
-      bloques.push({ tipo: "lista", items: bibliografia ? [...items].sort((a, b) => a.localeCompare(b, "es")) : items });
-    } else if (e.elemento === "tabla") bloques.push({ tipo: "tabla", columnas: columnasTabla(e), filas: leerItems("tabla", valor) as string[][] });
+    else if (tipo && ap) {
+      // Apartado académico: cada subapartado con su subtítulo numerado (3.1, 3.2…), si el tipo tiene más de uno.
+      const llenas = tipo.partes.filter((p) => !parteVacia(p, ap.partes[p.id]));
+      llenas.forEach((p, k) => {
+        if (tipo.partes.length > 1) bloques.push({ tipo: "subtitulo", texto: `${numero ? `${numero}.${k + 1} ` : ""}${p.titulo}` });
+        const v = ap.partes[p.id] ?? "";
+        if (p.formato === "lista" || p.formato === "referencias") bloques.push({ tipo: "lista", items: ordenar(lineas(v)), referencias: p.formato === "referencias" });
+        else if (p.formato === "tabla") bloques.push({ tipo: "tabla", columnas: p.columnas ?? [], filas: leerTabla(v, p.columnas?.length ?? 1).filter((f) => f.some(Boolean)) });
+        else bloques.push({ tipo: "parrafos", parrafos: parrafosDe(textoParte(tipo, ap, p.id)) });
+      });
+    } else if (e.elemento === "texto") bloques.push({ tipo: "parrafos", parrafos: parrafosDe(valor) });
+    else if (e.elemento === "lista") bloques.push({ tipo: "lista", items: ordenar(leerItems("lista", valor) as string[]), referencias: bibliografia });
+    else if (e.elemento === "tabla") bloques.push({ tipo: "tabla", columnas: columnasTabla(e), filas: leerItems("tabla", valor) as string[][] });
     else if (e.elemento === "enlace") bloques.push({ tipo: "enlaces", items: leerItems("enlace", valor) as EnlaceEspacio[] });
-    apartados.push({ numero: bibliografia ? null : ++n, titulo: e.titulo, bloques });
+    apartados.push({ numero, titulo: e.titulo, bloques });
   }
   return { apartados, anexosCapitulo };
 }

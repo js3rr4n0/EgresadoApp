@@ -12,12 +12,18 @@ import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
 import { diasSubperiodos, documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaInformeFinal, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, PRECARGA_MARCO_REGISTROS, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
 import { ejecucionNueva, informeFinalNuevo, planNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
-import { parametrosPorDefecto } from "../../src/lib/fichas/catalogo";
+import { CATALOGO, GRUPOS_CATALOGO, parametrosPorDefecto } from "../../src/lib/fichas/catalogo";
 import { leerItems, problemasRecurso, recursoCompleto } from "../../src/lib/fichas/elementosRecurso";
-import { fechaLimiteDictamen, problemasProtocolo, sumarDias, textoPrecarga } from "../../src/lib/fichas/protocolo";
-import { CAPITULO_NUEVO, capituloEditable, capitulosPendientes, editandoOtro, precargaCapitulo, textoMarcoRegistros } from "../../src/lib/fichas/informeFinalFicha";
+import { fechaLimiteDictamen, precargaEspacio, problemasProtocolo, sumarDias, textoPrecarga } from "../../src/lib/fichas/protocolo";
+import {
+  avanceApartado, citasEnTexto, guardarComoTexto, leerApartado, opcionesDeEspacio, parteVacia, revisarApartado, revisarReferencias, tipoApartado,
+  TIPOS_APARTADO, type ContenidoApartado,
+} from "../../src/lib/fichas/apartadosAcademicos";
+import type { Espacio } from "../../src/lib/fichas/tipos";
+import { CAPITULO_NUEVO, capituloEditable, capitulosPendientes, contenidoVacio, editandoOtro, precargaCapitulo, problemasInformeFinal, textoMarcoRegistros } from "../../src/lib/fichas/informeFinalFicha";
+import { apartadosInformeFinal } from "../../src/lib/fichas/documentoInformeFinal";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
-import { ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, faltaParaAvance, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
 let fallas = 0;
 function comprobar(descripcion: string, ok: boolean, detalle = "") {
@@ -28,6 +34,22 @@ function comprobar(descripcion: string, ok: boolean, detalle = "") {
 const raiz = path.resolve(__dirname, "../..");
 const fuente = (archivo: string) => readFileSync(path.join(raiz, archivo), "utf8");
 const contiene = (archivo: string, patron: RegExp) => patron.test(fuente(archivo));
+
+/** n palabras de relleno (para llegar a los mínimos de un texto). */
+const relleno = (n: number) => Array.from({ length: n }, (_, i) => `palabra${i}`).join(" ") + ".";
+/** Un apartado académico con todos sus subapartados en el mínimo. */
+function apartadoCompleto(e: Pick<Espacio, "parametros">): string {
+  const tipo = tipoApartado(e)!;
+  const partes: Record<string, string> = {};
+  for (const p of tipo.partes) {
+    if (p.formato === "texto") partes[p.id] = relleno(Math.max(p.min ?? 0, 5));
+    else if (p.formato === "pregunta") partes[p.id] = `¿${relleno(Math.max(p.min ?? 0, 8)).slice(0, -1)}?`;
+    else if (p.formato === "seleccion") partes[p.id] = p.opciones![0].valor;
+    else if (p.formato === "tabla") partes[p.id] = JSON.stringify([(p.columnas ?? []).map((c) => `${c} 1`)]);
+    else partes[p.id] = "Uno\nDos\nTres";
+  }
+  return guardarComoTexto({ partes, autoevaluacion: [] });
+}
 
 // 1. Fichas base
 for (const modalidad of ["pasantia", "proyecto", "investigacion"] as Modalidad[]) {
@@ -95,9 +117,13 @@ const detecta = (descripcion: string, mensajes: string[], parte: string) =>
   comprobar(`Detecta: ${descripcion}`, mensajes.some((m) => m.includes(parte)), mensajes.join(" | ") || "sin problemas");
 
 detecta("supervisor antes de la empresa", conCambio((d) => propuesta(d).espacios.reverse()), "debe ir después de");
-detecta("elemento no disponible en la modalidad", conCambio((d) => {
+// Revisión del catálogo (13-nov-2026): cualquier elemento se puede usar en cualquier modalidad.
+comprobar("Un elemento de proyecto (objetivos) se puede usar en una ficha de pasantía", conCambio((d) => {
   propuesta(d).espacios.push({ ...propuesta(d).espacios[0], id: "obj", elemento: "objetivos", titulo: "Objetivos", parametros: { minEspecificos: 4, maxEspecificos: 6 } });
-}), "no está disponible");
+}).length === 0);
+detecta("un elemento fuera de su etapa (tabla en la propuesta de pasantía)", conCambio((d) => {
+  propuesta(d).espacios.push({ ...propuesta(d).espacios[0], id: "t", elemento: "tabla", titulo: "Tabla", parametros: parametrosPorDefecto("tabla") });
+}), "no se puede usar en la propuesta");
 detecta("elemento no repetible duplicado", conCambio((d) => propuesta(d).espacios.push({ ...propuesta(d).espacios[0], id: "portada2" })), "solo puede aparecer una vez");
 detecta("parámetro fuera de rango", conCambio((d) => { propuesta(d).espacios.find((e) => e.elemento === "cronograma")!.parametros.minActividadesPeriodo = 0; }), "debe estar entre");
 detecta("carta y ejecución con duraciones distintas", conCambio((d) => { ejec(d).periodos = 4; }), "no coincide");
@@ -136,7 +162,7 @@ function proyectoCompleto(): DefinicionFicha {
   const et = ejec(d);
   const op = opcionesRegistro(et);
   comprobar("La ejecución de proyecto no aplica métrica", et.informe.paginasMinimas === 0 && et.registro.imagenes === 0 && op.marcoTeorico === "no");
-  comprobar("La ejecución de proyecto registra por actividad e informa por integrante", op.modo === "actividad" && op.informe === "individual_y_general");
+  comprobar("La ejecución de proyecto registra por actividad y entrega un solo informe general", op.modo === "actividad" && op.informe === "unico");
   comprobar("Las versiones guardadas antes se leen como pasantía", opcionesRegistro(ejec(definicionBase("pasantia"))).modo === "subperiodo");
 }
 function proyectoConCambio(cambiar: (d: DefinicionFicha) => void): string[] {
@@ -225,9 +251,15 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   const av = avancePorNodo(raiz, new Map(hojas.map((h, i) => [h.id, i === 0 ? 100 : 0])));
   comprobar("El avance de una actividad sube a su objetivo y al general", av.get(hojas[0].id) === 100 && (av.get(raiz.id) ?? 0) > 0 && (av.get(raiz.id) ?? 0) < 100);
   const reglas = { acciones: { min: 0, max: 0 }, resultado: { min: 0, max: 0 }, marcoTeorico: "opcional" as const, avance: true };
-  comprobar("Un registro sin métrica solo pide avance, acciones y resultado", validarRegistroProyecto({ avance: 50, acciones: "Se hizo.", resultado: "Listo.", marcoTeorico: "" }, reglas).length === 0);
-  comprobar("Detecta un registro sin avance", validarRegistroProyecto({ avance: null, acciones: "x", resultado: "y", marcoTeorico: "" }, reglas).some((p) => p.includes("avance")));
-  comprobar("Detecta marco teórico obligatorio vacío", validarRegistroProyecto({ avance: 10, acciones: "x", resultado: "y", marcoTeorico: "" }, { ...reglas, marcoTeorico: "obligatorio" }).length === 1);
+  const fechas = { fechaInicio: "2026-11-02", fechaFin: "2026-11-06" };
+  comprobar("Un registro sin métrica solo pide fechas, avance, acciones y resultado", validarRegistroProyecto({ avance: 50, acciones: "Se hizo.", resultado: "Listo.", marcoTeorico: "", ...fechas }, reglas).length === 0);
+  comprobar("Detecta un registro sin fechas", validarRegistroProyecto({ avance: 50, acciones: "x", resultado: "y", marcoTeorico: "" }, reglas).some((p) => p.includes("fechas")));
+  comprobar("Detecta fechas invertidas", validarRegistroProyecto({ avance: 50, acciones: "x", resultado: "y", marcoTeorico: "", fechaInicio: "2026-11-06", fechaFin: "2026-11-02" }, reglas).some((p) => p.includes("anterior")));
+  const ev = { adjuntas: 1, min: 1, max: 5 };
+  comprobar("El avance se habilita con fechas, lo que se hizo, el resultado y las evidencias", faltaParaAvance({ acciones: "x", resultado: "y", ...fechas }, ev).length === 0);
+  comprobar("Sin evidencias ni resultado, el avance espera", faltaParaAvance({ acciones: "x", resultado: "", ...fechas }, { ...ev, adjuntas: 0 }).join() === "lo que se obtuvo,las evidencias");
+  comprobar("Detecta un registro sin avance", validarRegistroProyecto({ avance: null, acciones: "x", resultado: "y", marcoTeorico: "", ...fechas }, reglas).some((p) => p.includes("avance")));
+  comprobar("Detecta marco teórico obligatorio vacío", validarRegistroProyecto({ avance: 10, acciones: "x", resultado: "y", marcoTeorico: "", ...fechas }, { ...reglas, marcoTeorico: "obligatorio" }).length === 1);
 }
 
 // 9. Informe del período (P5): individual y general
@@ -290,8 +322,8 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   comprobar("Una actividad con 3 de 4 subactividades terminadas va al 75 %", av.get("a1") === 75);
   comprobar("El objetivo general promedia sus objetivos sin ponderar", av.get("og") === Math.round((75 + 0) / 2), String(av.get("og")));
   const reglas = { acciones: { min: 0, max: 0 }, resultado: { min: 0, max: 0 }, marcoTeorico: "no" as const, avance: true };
-  comprobar("Una subactividad no admite porcentajes intermedios", validarRegistroProyecto({ avance: 50, acciones: "x", resultado: "y", marcoTeorico: "" }, reglas, true).length === 1);
-  comprobar("Una subactividad se registra terminada o no", validarRegistroProyecto({ avance: 100, acciones: "x", resultado: "y", marcoTeorico: "" }, reglas, true).length === 0);
+  comprobar("Una subactividad no admite porcentajes intermedios", validarRegistroProyecto({ avance: 50, acciones: "x", resultado: "y", marcoTeorico: "", fechaInicio: "2026-11-02", fechaFin: "2026-11-02" }, reglas, true).length === 1);
+  comprobar("Una subactividad se registra terminada o no", validarRegistroProyecto({ avance: 100, acciones: "x", resultado: "y", marcoTeorico: "", fechaInicio: "2026-11-02", fechaFin: "2026-11-02" }, reglas, true).length === 0);
 }
 
 // 10c. Gantt planificado y real
@@ -345,7 +377,7 @@ detecta("mínimo de objetivos fuera de rango", proyectoConCambio((d) => { d.etap
   comprobar("Detecta un mínimo mayor que el máximo en un recurso", validarDefinicion(mal).some((p) => p.mensaje.includes("mínima es mayor")));
   const pas = definicionBase("pasantia");
   pas.etapas.find(esEtapaPropuesta)!.espacios.push(nuevo("enlace", "x"));
-  comprobar("Los recursos todavía no están disponibles en pasantía", validarDefinicion(pas).some((p) => p.mensaje.includes("todavía no está disponible")));
+  comprobar("Los recursos también se pueden usar en pasantía", validarDefinicion(pas).length === 0, validarDefinicion(pas).map((p) => p.mensaje).join(" | "));
 
   const lista = { ...nuevo("lista", "l"), elemento: "lista" as const };
   comprobar("Una lista obligatoria con menos de su mínimo no está completa", !recursoCompleto(lista, JSON.stringify(["a", "b"])) && recursoCompleto(lista, JSON.stringify(["a", "b", "c"])));
@@ -374,8 +406,10 @@ const protocoloDe = (d: DefinicionFicha) => d.etapas.find(esEtapaProtocolo)!;
   comprobar("La ficha de investigación con protocolo, plan y ejecución es válida", problemas.length === 0, problemas.map((p) => p.mensaje).join(" | "));
   comprobar("La ficha de investigación completa tiene la forma esperada", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
   const prot = protocoloDe(d);
-  comprobar("El protocolo trae las partes del contexto (15 espacios, con matriz, bibliografía y anexos)",
-    prot.espacios.length === 15 && ["tabla", "lista", "archivo"].every((el) => prot.espacios.some((e) => e.elemento === el)));
+  comprobar("El protocolo trae las partes de UNICAES (13 espacios: apartados académicos, matriz, esquema y anexos)",
+    prot.espacios.length === 13 && ["apartado", "tabla", "lista", "archivo"].every((el) => prot.espacios.some((e) => e.elemento === el)));
+  comprobar("Las partes del protocolo son apartados de los tipos de la guía de UNICAES",
+    prot.espacios.filter((e) => e.elemento === "apartado").map((e) => e.parametros.tipo).join() === "generalidades,problematica,justificacion,objetivos,hipotesis,variables,fundamentacion,metodologia,referencias");
   comprobar("El protocolo precarga la problemática, la justificación y los objetivos",
     prot.espacios.filter((e) => e.precargarDe).map((e) => e.precargarDe).join() === "problema,justificacion,objetivos");
   comprobar("El dictamen del protocolo es a 5 días hábiles", prot.revision.diasRevision === 5 && prot.revision.diasHabiles);
@@ -383,7 +417,7 @@ const protocoloDe = (d: DefinicionFicha) => d.etapas.find(esEtapaProtocolo)!;
   comprobar("El plan de investigación pide el documento solicitado; el de proyecto no", documentoSolicitado(plan) === "obligatorio" && documentoSolicitado(planNuevo("p")) === "no");
   comprobar("El plan de investigación no lleva presupuesto; el de proyecto sí", !plan.presupuesto.activo && planNuevo("p").presupuesto.activo);
   const op = opcionesRegistro(ejec(d));
-  comprobar("La ejecución de investigación tiene marco teórico opcional", op.marcoTeorico === "opcional" && op.modo === "actividad");
+  comprobar("La ejecución de investigación no pide marco teórico en el registro (notas 13-nov-2026)", op.marcoTeorico === "no" && op.modo === "actividad" && op.informe === "unico");
   comprobar("La ejecución de investigación termina con la presentación de los resultados",
     ejec(d).hitos.some((h) => h.id === "presentacion-resultados" && h.hasta === ejec(d).periodos * ejec(d).duracionPeriodo));
   comprobar("La ejecución de proyecto no cambia (sin hitos y sin marco teórico)",
@@ -431,8 +465,9 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
     vacio.length > 0 && !vacio.some((p) => ["hipotesis", "matriz_hipotesis", "anexos_protocolo"].includes(p.espacioId)), vacio.map((p) => p.espacioId).join(","));
   const completo: Record<string, string> = {};
   for (const e of prot.espacios) {
-    if (e.elemento === "texto") completo[e.id] = "Texto de prueba.";
+    if (e.elemento === "texto") completo[e.id] = relleno(Number(e.parametros.minPalabras) || 5);
     if (e.elemento === "lista") completo[e.id] = JSON.stringify(["Uno", "Dos", "Tres"]);
+    if (e.elemento === "apartado" && e.obligatorio) completo[e.id] = apartadoCompleto(e);
   }
   comprobar("Un protocolo con sus partes obligatorias está completo", problemasProtocolo(prot, completo).length === 0, problemasProtocolo(prot, completo).map((p) => p.mensaje).join(" | "));
   comprobar("Una tabla opcional mal llenada sí cuenta como pendiente",
@@ -497,26 +532,39 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   comprobar("La ficha de investigación con informe final es válida", problemas.length === 0, problemas.map((p) => p.mensaje).join(" | "));
   comprobar("La ficha con informe final conserva su forma", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
   const inf = d.etapas.find(esEtapaInformeFinal)!;
-  comprobar("El informe final trae los 17 capítulos del contexto, con bibliografía y anexos", inf.espacios.length === 17 && inf.espacios.some((e) => e.elemento === "lista") && inf.espacios.some((e) => e.elemento === "archivo"));
-  comprobar("El marco teórico se precarga de las actividades", inf.espacios.find((e) => e.id === "if_marco")?.precargarDe === PRECARGA_MARCO_REGISTROS);
+  comprobar("El informe final trae 13 capítulos (la metodología en uno solo), con bibliografía y anexos",
+    inf.espacios.length === 13 && inf.espacios.some((e) => e.id === "if_bibliografia") && inf.espacios.some((e) => e.elemento === "archivo"));
+  comprobar("Los capítulos del informe final son apartados académicos de los tipos del informe",
+    inf.espacios.filter((e) => e.elemento === "apartado").map((e) => e.parametros.tipo).join() ===
+      "introduccion,generalidades,problematica,justificacion,objetivos,marco_teorico,metodologia_realizada,resultados,comprobacion_hipotesis,discusion,conclusiones,referencias");
+  comprobar("El marco teórico se precarga de la fundamentación del protocolo", inf.espacios.find((e) => e.id === "if_marco")?.precargarDe === "fundamentacion");
   comprobar("Revisión por capítulo y ratificación por defecto", inf.revision.porCapitulo && inf.revision.ratificacion);
   const mal = (cambiar: (x: DefinicionFicha) => void) => { const x = conInforme(); cambiar(x); return validarDefinicion(x).map((p) => p.mensaje); };
   detecta("informe final antes de la ejecución", mal((x) => { const i = x.etapas.pop()!; x.etapas.splice(1, 0, i); }), "debe ser la última etapa");
   detecta("informe final en proyecto", proyectoConCambio((x) => { x.etapas.push(informeFinalNuevo("if")); }), "solo para investigación");
   detecta("precarga desde un capítulo que no existe", mal((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios[0].precargarDe = "nada"; }), "ya no está en la propuesta ni en el protocolo");
   detecta("marco de las actividades en el protocolo", investigacionConCambio((x) => { x.etapas.find(esEtapaProtocolo)!.espacios[0].precargarDe = PRECARGA_MARCO_REGISTROS; }), "solo se precarga en el informe final");
-  detecta("una lista precargada desde un texto", mal((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios.find((e) => e.elemento === "lista")!.precargarDe = "introduccion"; }), "una lista solo se precarga desde otra lista");
+  detecta("una lista precargada desde un texto", mal((x) => {
+    x.etapas.find(esEtapaInformeFinal)!.espacios.push({ ...x.etapas.find(esEtapaInformeFinal)!.espacios[0], id: "if_lista", elemento: "lista", parametros: parametrosPorDefecto("lista"), precargarDe: "introduccion" });
+  }), "una lista solo se precarga desde otra lista");
   detecta("un capítulo con el id de un espacio del protocolo", mal((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios[0].id = "introduccion"; }), "ya se usa en el protocolo");
   comprobar("Agregar el informe final aparece como cambio", compararDefiniciones(investigacionCompleta(), conInforme()).some((c) => c.startsWith("Se agregó el informe final")));
 
   // Precarga y estados
   const fuentes = [...propuesta(d).espacios, ...protocoloDe(d).espacios];
-  const datos = { descripcionProblema: "P", justificacion: "J", objetivoGeneral: "OG", objetivosEspecificos: [], respuestas: { introduccion: "Intro del protocolo", bibliografia: JSON.stringify(["A", "B", "C"]) } };
-  const cap = (id: string) => inf.espacios.find((e) => e.id === id)!;
-  comprobar("Un capítulo se precarga con la respuesta del protocolo", precargaCapitulo(cap("if_introduccion"), fuentes, datos, "") === "Intro del protocolo");
-  comprobar("La bibliografía se copia como lista", precargaCapitulo(cap("if_bibliografia"), fuentes, datos, "") === JSON.stringify(["A", "B", "C"]));
+  const datos = { descripcionProblema: "P", justificacion: "J", objetivoGeneral: "OG", objetivosEspecificos: [], respuestas: { introduccion: "Intro del protocolo", bibliografia: guardarComoTexto({ partes: { lista: "A\nB\nC" }, autoevaluacion: [] }) } };
+  // El marco de las actividades sigue disponible para otras fichas (if_marco_reg, solo para la prueba).
+  const capMarcoReg = { ...inf.espacios.find((e) => e.id === "if_marco")!, id: "if_marco_reg", precargarDe: PRECARGA_MARCO_REGISTROS };
+  const cap = (id: string) => (id === "if_marco_reg" ? capMarcoReg : inf.espacios.find((e) => e.id === id)!);
+  const leido = (id: string, precarga: string) => leerApartado(tipoApartado(cap(id))!, precarga).partes;
+  comprobar("Un capítulo se precarga con la respuesta del protocolo (en su primer subapartado)",
+    leido("if_introduccion", precargaCapitulo(cap("if_introduccion"), fuentes, datos, "")).presentacion === "Intro del protocolo");
+  comprobar("La bibliografía se copia de las referencias del protocolo", leido("if_bibliografia", precargaCapitulo(cap("if_bibliografia"), fuentes, datos, "")).lista === "A\nB\nC");
   const marco = textoMarcoRegistros([{ codigo: "1.1.1.1", titulo: "Encuesta", marco: "Texto A" }, { codigo: "1.2.1.1", titulo: "Sin marco", marco: " " }]);
-  comprobar("El marco de las actividades lleva su código y omite las vacías", marco === "1.1.1.1 Encuesta\nTexto A" && precargaCapitulo(cap("if_marco"), fuentes, datos, marco) === marco);
+  comprobar("El marco de las actividades lleva su código y omite las vacías", marco === "1.1.1.1 Encuesta\nTexto A" && leido("if_marco_reg", precargaCapitulo(cap("if_marco_reg"), fuentes, datos, marco)).desarrollo === marco);
+  comprobar("Sin marco en las actividades, el capítulo no se precarga", precargaCapitulo(cap("if_marco_reg"), fuentes, datos, "") === "");
+  const conFund = { ...datos, respuestas: { ...datos.respuestas, fundamentacion: guardarComoTexto({ partes: { desarrollo: "Según Pérez (2020)..." }, autoevaluacion: [] }) } };
+  comprobar("El marco teórico parte del desarrollo de la fundamentación del protocolo", leido("if_marco", precargaCapitulo(cap("if_marco"), fuentes, conFund, "")).desarrollo === "Según Pérez (2020)...");
   comprobar("Solo se edita en redacción y con el capítulo en borrador u observado",
     capituloEditable("redactando", { ...CAPITULO_NUEVO }) && capituloEditable("redactando", { ...CAPITULO_NUEVO, estado: "observado" })
     && !capituloEditable("redactando", { ...CAPITULO_NUEVO, estado: "enviado" }) && !capituloEditable("entregado", { ...CAPITULO_NUEVO }));
@@ -524,10 +572,170 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   const cap1 = { ...CAPITULO_NUEVO, editando: { usuarioId: 2, nombre: "Otro", desde: "2026-11-12T09:59:00Z" } };
   comprobar("Avisa si otro integrante editó hace menos de 2 minutos", editandoOtro(cap1, 1, ahora)?.nombre === "Otro" && editandoOtro(cap1, 2, ahora) === null
     && editandoOtro({ ...cap1, editando: { ...cap1.editando, desde: "2026-11-12T09:50:00Z" } }, 1, ahora) === null);
-  const contenidos = Object.fromEntries(inf.espacios.map((e) => [e.id, e.elemento === "lista" ? JSON.stringify(["a", "b", "c"]) : e.elemento === "texto" ? "Texto." : ""]));
+  const contenidos = Object.fromEntries(inf.espacios.map((e) => [e.id, e.elemento === "apartado" ? apartadoCompleto(e) : ""]));
   const estados = Object.fromEntries(inf.espacios.map((e) => [e.id, { ...CAPITULO_NUEVO, estado: "aprobado" as const }]));
   comprobar("Con todo aprobado no quedan pendientes (los opcionales vacíos no cuentan)", capitulosPendientes(inf, { ...estados, if_anexos: CAPITULO_NUEVO }, { ...contenidos, if_anexos: "" }).length === 0);
   comprobar("Un capítulo sin aprobar queda pendiente", capitulosPendientes(inf, { ...estados, if_conclusiones: CAPITULO_NUEVO }, contenidos).map((e) => e.id).join() === "if_conclusiones");
+}
+
+
+// 17. Apartados académicos (redacción académica guiada, 13-nov-2026)
+{
+  const op = { citasMinimas: 0, revisarPersona: true, tiempo: "no" as const };
+  const c = (partes: Record<string, string>): ContenidoApartado => ({ partes, autoevaluacion: [] });
+  const ids = (r: { id: string }[]) => r.map((x) => x.id);
+  const T = TIPOS_APARTADO;
+
+  comprobar("Hay un tipo por cada parte de la guía de UNICAES y del informe final",
+    ["generalidades", "problematica", "justificacion", "objetivos", "hipotesis", "variables", "fundamentacion", "metodologia", "referencias", "marco_teorico", "resultados", "discusion", "conclusiones"].every((k) => k in T));
+  comprobar("Todo tipo tiene propósito, subapartados, autoevaluación, errores frecuentes y ejemplo",
+    Object.values(T).every((t) => t.proposito && t.partes.length && t.autoevaluacion.length && t.errores.length && t.ejemplo));
+  comprobar("Los subapartados de un tipo no repiten su id", Object.values(T).every((t) => new Set(t.partes.map((p) => p.id)).size === t.partes.length));
+  comprobar("Un texto plano (respuesta anterior o precarga) queda en el primer subapartado",
+    leerApartado(T.problematica, "Texto anterior").partes.situacion === "Texto anterior");
+  comprobar("Un apartado guardado se lee igual", JSON.stringify(leerApartado(T.hipotesis, guardarComoTexto(c({ hi: "A", ho: "B" })))) === JSON.stringify(c({ hi: "A", ho: "B" })));
+  comprobar("Una tabla sin filas con texto cuenta como vacía", parteVacia(T.variables.partes[0], "[]") && parteVacia(T.variables.partes[0], JSON.stringify([["", "", "", ""]])));
+
+  // Extensión y avance
+  const vacio = revisarApartado(T.problematica, c({}), op);
+  comprobar("Cada subapartado vacío es un pendiente que bloquea", vacio.filter((r) => r.nivel === "falta").length === 4);
+  const corto = revisarApartado(T.problematica, c({ situacion: relleno(10) }), op);
+  comprobar("Un subapartado bajo el mínimo bloquea", corto.some((r) => r.id === "min-situacion" && r.nivel === "falta"));
+  comprobar("Un subapartado sobre el máximo solo avisa", revisarApartado(T.hipotesis, c({ hi: relleno(90), ho: "No existe relación entre las variables del estudio en la población." }), op).some((r) => r.id === "max-hi" && r.nivel === "aviso"));
+  comprobar("Las oraciones de más de 45 palabras avisan", ids(revisarApartado(T.justificacion, c({ viabilidad: relleno(50) }), op)).includes("largas-viabilidad"));
+  comprobar("El avance cuenta los subapartados completos", JSON.stringify(avanceApartado(T.hipotesis, c({ hi: relleno(12) }))) === JSON.stringify({ completas: 1, total: 2 }));
+  comprobar("Un subapartado opcional vacío no es pendiente", !ids(revisarApartado(T.conclusiones, c({ conclusiones: relleno(130) }), op)).includes("vacio-recomendaciones"));
+
+  // Redacción
+  comprobar("Detecta la primera persona", revisarApartado(T.justificacion, c({ conveniencia: "Nosotros creemos que nuestro estudio sirve." }), op).some((r) => r.id === "persona" && r.mensaje.includes("nosotros")));
+  comprobar("En tercera persona no avisa", revisarApartado(T.justificacion, c({ conveniencia: "El estudio permitirá orientar a los docentes." }), op).some((r) => r.id === "persona-ok"));
+  comprobar("El protocolo avisa si está en pasado",
+    ids(revisarApartado(T.metodologia, c({ procedimiento: "Se aplicó la encuesta y se analizaron los datos." }), { ...op, tiempo: "futuro" })).includes("tiempo"));
+  comprobar("El informe final avisa si está en futuro",
+    ids(revisarApartado(T.metodologia_realizada, c({ procedimiento: "Se aplicará la encuesta y se analizarán los datos." }), { ...op, tiempo: "pasado" })).includes("tiempo"));
+  comprobar("El tiempo correcto no avisa",
+    !ids(revisarApartado(T.metodologia, c({ procedimiento: "Se aplicará la encuesta y se analizarán los datos." }), { ...op, tiempo: "futuro" })).includes("tiempo"));
+
+  // Citas APA y referencias
+  const citas = citasEnTexto("Según Chen et al. (2021) y Hernández-Sampieri (2018), además (Pérez, 2020; López y Ruiz, 2019).");
+  comprobar("Reconoce citas narrativas, entre paréntesis, con et al., compuestas y múltiples",
+    citas.map((x) => `${x.autor} ${x.anio}`).sort().join("|") === "Chen 2021|Hernández-Sampieri 2018|López 2019|Pérez 2020", citas.map((x) => x.autor).join(","));
+  comprobar("Avisa si faltan citas", revisarApartado(T.problematica, c({ estado_arte: "Sin citas." }), { ...op, citasMinimas: 2 }).some((r) => r.id === "citas"));
+  comprobar("Con las citas suficientes confirma",
+    revisarApartado(T.problematica, c({ estado_arte: "Según Pérez (2020) y (López, 2019)." }), { ...op, citasMinimas: 2 }).some((r) => r.id === "citas-ok"));
+  comprobar("Avisa de las citas que no están en las referencias",
+    revisarApartado(T.problematica, c({ estado_arte: "Según Pérez (2020) y (López, 2019)." }), op, { referencias: ["Pérez, J. (2020). Libro. Editorial."] })
+      .find((r) => r.id === "citas-referencias")?.mensaje.includes("López") === true);
+  const refs = revisarReferencias(["Pérez, J. (2020). Libro. Editorial.", "Álvarez, M. (2010). Viejo. Editorial.", "texto suelto", "Pérez, J. (2020). Libro. Editorial."], 2026);
+  comprobar("Revisa la forma APA, el orden alfabético, los duplicados y la antigüedad de las referencias",
+    ["apa-formato", "apa-orden", "apa-duplicadas", "apa-antiguas"].every((k) => ids(refs).includes(k)), ids(refs).join());
+  comprobar("Unas referencias bien hechas no avisan",
+    ids(revisarReferencias(["Álvarez, M. (2022). Título. Editorial.", "Hernández-Sampieri, R., y Mendoza, C. P. (2018). Metodología de la investigación. McGraw-Hill."], 2026)).join() === "apa-ok");
+
+  // Revisiones propias de cada tipo
+  comprobar("La pregunta de investigación va entre ¿?", ids(revisarApartado(T.problematica, c({ pregunta: "Qué relación existe entre A y B" }), op)).includes("pregunta-signos"));
+  const obj = revisarApartado(T.objetivos, c({ general: "Analizar la relación entre el uso de la IA y el desempeño académico", especificos: "Conocer los hábitos\nLa encuesta" }), op);
+  comprobar("Objetivos: verbos en infinitivo, medibles y de 3 a 5 específicos", ["obj-infinitivo", "obj-medibles", "obj-cantidad"].every((k) => ids(obj).includes(k)), ids(obj).join());
+  comprobar("Unos objetivos bien redactados se confirman",
+    ids(revisarApartado(T.objetivos, c({ general: "Analizar la relación entre el uso de la IA y el desempeño académico", especificos: "Identificar A\nDeterminar B\nComparar C" }), op)).includes("obj-ok"));
+  comprobar("La hipótesis nula debe negar la de investigación", ids(revisarApartado(T.hipotesis, c({ hi: "A", ho: "Existe relación entre A y B en la población" }), op)).includes("ho-negacion"));
+  comprobar("Las conclusiones piden una por objetivo específico",
+    ids(revisarApartado(T.conclusiones, c({ conclusiones: "Una sola conclusión." }), op, { objetivos: ["A", "B", "C"] })).includes("conclusiones-objetivos"));
+
+  // Configuración desde la ficha
+  const esp = (parametros: Record<string, unknown>) => ({ parametros: parametrosPorDefecto("apartado", parametros as never) });
+  comprobar("La extensión de la ficha escala los mínimos", tipoApartado(esp({ tipo: "problematica", extension: 200 }))!.partes[0].min === 240);
+  comprobar("Las citas de la ficha reemplazan las del tipo (-1 = las del tipo)",
+    tipoApartado(esp({ tipo: "problematica", citasMinimas: 5 }))!.citasMinimas === 5 && tipoApartado(esp({ tipo: "problematica" }))!.citasMinimas === 2);
+  comprobar("El tiempo verbal sigue la etapa: futuro en el protocolo y pasado en el informe",
+    opcionesDeEspacio(esp({ tipo: "metodologia" }), "protocolo").tiempo === "futuro" && opcionesDeEspacio(esp({ tipo: "metodologia" }), "informe_final").tiempo === "pasado"
+    && opcionesDeEspacio(esp({ tipo: "metodologia", tiempo: "no" }), "protocolo").tiempo === "no");
+
+  // Protocolo: pendientes y precargas
+  const prot = protocoloNuevo("protocolo");
+  const ap = (id: string) => prot.espacios.find((e) => e.id === id)!;
+  comprobar("Un apartado opcional vacío no deja pendientes", !problemasProtocolo(prot, {}).some((p) => p.espacioId === "hipotesis"));
+  comprobar("Un apartado a medias deja pendientes con el subapartado que falta",
+    problemasProtocolo(prot, { problematica: guardarComoTexto(c({ situacion: relleno(130) })) }).some((p) => p.espacioId === "problematica" && p.mensaje.includes("Estado del arte")));
+  comprobar("Los avisos (citas, persona) no bloquean el envío",
+    !problemasProtocolo(prot, { problematica: apartadoCompleto(ap("problematica")) }).some((p) => p.espacioId === "problematica"));
+  const base = definicionBase("investigacion");
+  const fuentesProp = base.etapas.find(esEtapaPropuesta)!.espacios;
+  const datos = {
+    descripcionProblema: "El problema.", justificacion: "La justificación.", objetivoGeneral: "Analizar X.",
+    objetivosEspecificos: [{ titulo: "Identificar A", descripcion: "Con una encuesta" }, { titulo: "Medir B" }], respuestas: {},
+  };
+  const objetivos = leerApartado(T.objetivos, precargaEspacio(ap("objetivos_protocolo"), fuentesProp, datos));
+  comprobar("Los objetivos se precargan en el general y los específicos", objetivos.partes.general === "Analizar X." && objetivos.partes.especificos === "Identificar A\nMedir B");
+  comprobar("La problemática se precarga en la situación problemática",
+    leerApartado(T.problematica, precargaEspacio(ap("problematica"), fuentesProp, datos)).partes.situacion === "El problema.");
+  const inf = informeFinalNuevo("if");
+  const fuentes = [...fuentesProp, ...prot.espacios];
+  const respuestas = {
+    metodologia: guardarComoTexto(c({ tipo: "Enfoque cuantitativo.", poblacion: "Sesenta estudiantes." })),
+    bibliografia: guardarComoTexto(c({ lista: "Autor, A. (2020). Libro. Editorial.\nOtro, B. (2021). Artículo. Revista." })),
+  };
+  const cap = (id: string) => inf.espacios.find((e) => e.id === id)!;
+  const textoDe = { ...cap("if_introduccion"), id: "x_tipo", elemento: "texto" as const, parametros: parametrosPorDefecto("texto"), precargarDe: "metodologia#tipo" };
+  comprobar("Un texto toma un subapartado de la metodología", precargaEspacio(textoDe, fuentes, { ...datos, respuestas }) === "Enfoque cuantitativo.");
+  const listaDe = { ...textoDe, id: "x_lista", elemento: "lista" as const, parametros: parametrosPorDefecto("lista"), precargarDe: "bibliografia#lista" };
+  comprobar("Una lista toma las referencias del protocolo",
+    precargaEspacio(listaDe, fuentes, { ...datos, respuestas }) === JSON.stringify(["Autor, A. (2020). Libro. Editorial.", "Otro, B. (2021). Artículo. Revista."]));
+  comprobar("La metodología realizada se precarga con los subapartados de la metodología del protocolo",
+    leerApartado(T.metodologia_realizada, precargaEspacio(cap("if_metodologia"), fuentes, { ...datos, respuestas })).partes.poblacion === "Sesenta estudiantes.");
+
+  // Informe final: tiempo pasado, conclusiones por objetivo, vacíos y exportación con subtítulos
+  const pend = (id: string, valor: string) => problemasInformeFinal({ ...inf, espacios: [cap(id)] }, { [id]: valor });
+  comprobar("En el informe final, un capítulo completo no tiene pendientes aunque tenga avisos", pend("if_conclusiones", apartadoCompleto(cap("if_conclusiones"))).length === 0);
+  comprobar("Un capítulo con un subapartado bajo el mínimo es pendiente", pend("if_resultados", guardarComoTexto(c({ resultados: "Pocos datos." }))).length === 1);
+  comprobar("El informe final revisa el tiempo pasado", opcionesDeEspacio(cap("if_metodologia"), "informe_final").tiempo === "pasado");
+  comprobar("Un apartado con todos sus subapartados vacíos cuenta como vacío",
+    contenidoVacio(cap("if_hipotesis"), guardarComoTexto(c({ prueba: " " }))) && !contenidoVacio(cap("if_hipotesis"), guardarComoTexto(c({ prueba: "Se rechazó Ho." }))));
+  const doc = apartadosInformeFinal(inf, {
+    if_metodologia: guardarComoTexto(c({ tipo: "Enfoque cuantitativo.", poblacion: "Sesenta estudiantes." })),
+    if_bibliografia: guardarComoTexto(c({ lista: "Zeta, A. (2020). Libro. Editorial.\nAlfa, B. (2021). Artículo. Revista." })),
+  }).apartados;
+  const met = doc.find((a) => a.titulo === "Metodología de la investigación")!;
+  comprobar("La exportación numera los subapartados (7.1, 7.2) y omite los vacíos",
+    met.bloques.filter((b) => b.tipo === "subtitulo").map((b) => (b as { texto: string }).texto).join("|") === "7.1 Tipo de investigación|7.2 Población y muestra", JSON.stringify(met.bloques));
+  const bib = doc.find((a) => a.titulo === "Bibliografía")!;
+  comprobar("Las referencias se exportan sin número, en orden alfabético y con sangría francesa",
+    bib.numero === null && bib.bloques.length === 1 && bib.bloques[0].tipo === "lista" && bib.bloques[0].referencias === true && bib.bloques[0].items[0].startsWith("Alfa"));
+  comprobar("Un capítulo obligatorio vacío se exporta como pendiente", doc.find((a) => a.titulo === "Resultados obtenidos")?.bloques[0].tipo === "pendiente");
+
+  // Validación de la ficha
+  const conInforme2 = (cambiar: (d: DefinicionFicha) => void) => { const x = investigacionCompleta(); x.etapas.push(informeFinalNuevo("informe_final")); cambiar(x); return validarDefinicion(x).map((p) => p.mensaje); };
+  detecta("un tipo de apartado que no existe", investigacionConCambio((d) => { protocoloDe(d).espacios.find((e) => e.elemento === "apartado")!.parametros.tipo = "nada"; }), "opción que no existe");
+  detecta("un apartado en la propuesta", investigacionConCambio((d) => {
+    propuesta(d).espacios.push({ ...protocoloDe(d).espacios.find((e) => e.elemento === "apartado")!, id: "ap_prop", precargarDe: undefined });
+  }), "no se puede usar en la propuesta");
+  detecta("precarga desde un subapartado que no existe", conInforme2((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios.find((e) => e.id === "if_resultados")!.precargarDe = "metodologia#nada"; }), "subapartado");
+  detecta("una lista precargada desde un subapartado de texto", conInforme2((x) => {
+    const espacios = x.etapas.find(esEtapaInformeFinal)!.espacios;
+    espacios.push({ ...espacios[0], id: "if_lista", elemento: "lista", parametros: parametrosPorDefecto("lista"), precargarDe: "metodologia#tipo" });
+  }), "subapartado de lista");
+  comprobar("El marco de las actividades se puede precargar en un apartado del informe final", !conInforme2(() => {}).some((m) => m.includes("marco")));
+  comprobar("La ficha de investigación con apartados es válida", validarDefinicion(investigacionCompleta()).length === 0);
+  {
+    const antes = investigacionCompleta();
+    protocoloDe(antes).espacios = protocoloDe(antes).espacios.map((e) => (e.elemento === "apartado" ? { ...e, elemento: "texto" as const, parametros: parametrosPorDefecto("texto") } : e));
+    const cambios = compararDefiniciones(antes, investigacionCompleta());
+    comprobar("Al cambiar un texto por un apartado, el cambio se resume en una línea por espacio",
+      cambios.some((c) => c.includes('"Objetivos": pasó de Bloque de texto a Apartado académico')) && !cambios.some((c) => c.includes("tipo de apartado")), cambios.slice(0, 3).join(" | "));
+  }
+}
+
+// 16. Catálogo ordenado (revisión del 13-nov-2026)
+{
+  const grupos = new Set<string>(GRUPOS_CATALOGO.map((g) => g.grupo));
+  comprobar("Cada elemento del catálogo pertenece a una sección", Object.values(CATALOGO).every((e) => grupos.has(e.grupo)));
+  comprobar("Ninguna sección del catálogo queda vacía", GRUPOS_CATALOGO.every((g) => Object.values(CATALOGO).some((e) => e.grupo === g.grupo)));
+  const usados = new Set<string>();
+  const fichasUsadas = [...(["pasantia", "proyecto", "investigacion"] as Modalidad[]).map((m) => definicionBase(m)), investigacionCompleta(), proyectoCompleto()];
+  for (const d of fichasUsadas) for (const e of d.etapas) if ("espacios" in e) e.espacios.forEach((x) => usados.add(x.elemento));
+  informeFinalNuevo("if").espacios.forEach((x) => usados.add(x.elemento));
+  comprobar("El catálogo tiene todos los elementos que usan las fichas de las tres modalidades", [...usados].every((u) => u in CATALOGO), [...usados].filter((u) => !(u in CATALOGO)).join(", "));
+  comprobar("Todo elemento tiene formulario en al menos un asistente", Object.values(CATALOGO).every((e) => e.formularioEn.length > 0));
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

@@ -11,6 +11,8 @@ import type { DatosPlan } from "@/app/actions/planTrabajo";
 import { esRecurso } from "@/lib/fichas/elementosRecurso";
 import TextoEspacioForm from "./TextoEspacioForm";
 import RecursoEspacioForm from "./RecursoEspacioForm";
+import ApartadoAcademicoForm from "./ApartadoAcademicoForm";
+import { contextoDeRevision } from "@/lib/fichas/apartadosAcademicos";
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" });
 
@@ -31,6 +33,8 @@ export default function ProtocoloEquipo({ datos, plan, paso, base }: { datos: Da
   const pendientesDe = (id: string) => problemas.filter((p) => p.espacioId === id).length + (precargas[id] ? 1 : 0);
   const miFirma = ratificacion.firmas.find((f) => f.usuarioId === plan.miId);
   const nav = { pasoSiguiente: Math.min(actual + 1, total), pasoAnterior: actual > 1 ? actual - 1 : null, hrefPaso };
+  // Referencias y objetivos del mismo protocolo, para cruzar las citas y revisar las conclusiones.
+  const contexto = contextoDeRevision(etapa.espacios, { ...precargas, ...respuestas });
 
   function ratificar() {
     setMensaje(null);
@@ -93,6 +97,11 @@ export default function ProtocoloEquipo({ datos, plan, paso, base }: { datos: Da
               obligatorio={e.obligatorio} minPalabras={Number(e.parametros.minPalabras) || 0} maxPalabras={Number(e.parametros.maxPalabras) || 0}
               initialData={respuestas[e.id] ?? precargas[e.id] ?? ""} isLocked={!editable} isReadOnly={!esLider}
               aviso={precargas[e.id] ? "Este texto se precargó con lo que escribieron en la propuesta aprobada. Ajústalo si hace falta y guárdalo." : undefined} />
+          )}
+          {e.elemento === "apartado" && (
+            <ApartadoAcademicoForm key={e.id} {...nav} propuestaId={plan.propuesta.id} espacio={e} etapa="protocolo" contexto={contexto}
+              initialData={respuestas[e.id] ?? precargas[e.id] ?? ""} isLocked={!editable} isReadOnly={!esLider}
+              aviso={precargas[e.id] ? "Este apartado se precargó con lo que escribieron en la propuesta aprobada. Distribúyelo en sus subapartados, complétalo y guárdalo." : undefined} />
           )}
           {esRecurso(e.elemento) && (
             <RecursoEspacioForm key={e.id} {...nav} propuestaId={plan.propuesta.id} espacio={{ ...e, elemento: e.elemento }} initialData={respuestas[e.id]}

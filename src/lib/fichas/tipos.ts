@@ -25,7 +25,8 @@ export type ClaveElemento =
   | "archivo"
   | "enlace"
   | "lista"
-  | "tabla";
+  | "tabla"
+  | "apartado";
 
 export type ValorParametro = number | boolean | string | string[];
 

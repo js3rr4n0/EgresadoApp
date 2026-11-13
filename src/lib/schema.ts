@@ -1032,6 +1032,9 @@ export const registrosPlan = pgTable(
     acciones: text("acciones"),
     resultado: text("resultado"),
     marcoTeorico: text("marco_teorico"),
+    // Fechas reales en que se ejecutó la actividad (notas del 13-nov-2026). Script: scripts/fichas/crear_registros_plan.ts
+    fechaInicio: date("fecha_inicio"),
+    fechaFin: date("fecha_fin"),
     estado: varchar("estado", { length: 20 }).notNull().default("borrador"), // borrador | enviado | observado | aprobado
     comentarioAsesor: text("comentario_asesor"),
     enviadoEn: timestamp("enviado_en", { withTimezone: true }),

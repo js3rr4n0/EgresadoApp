@@ -10,7 +10,7 @@ import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
 import { esEtapaEjecucion, opcionesRegistro } from "@/lib/fichas/tipos";
-import { actividadesDelPeriodo, aplanar, responsables, validarRegistroProyecto, type ReglasRegistroProyecto } from "@/lib/fichas/planTrabajo";
+import { actividadesDelPeriodo, aplanar, faltaParaAvance, fechaValida, responsables, validarRegistroProyecto, type ReglasRegistroProyecto } from "@/lib/fichas/planTrabajo";
 import { aISOLocal, fechaLocalDesdeISO, sumarDiasISO } from "@/lib/periodosPasantia";
 import { getPlanTrabajo, type DatosPlan } from "./planTrabajo";
 import { armarInformePeriodo } from "@/lib/fichas/informePeriodo";
@@ -25,6 +25,9 @@ export interface RegistroPlan {
   acciones: string;
   resultado: string;
   marcoTeorico: string;
+  /** Fechas reales en que se ejecutó (AAAA-MM-DD); null si todavía no se indican. */
+  fechaInicio: string | null;
+  fechaFin: string | null;
   estado: string;
   comentarioAsesor: string | null;
   enviadoEn: string | null;
@@ -119,6 +122,7 @@ export async function getEjecucionProyecto(propuestaId: number): Promise<Resulta
       registros: filas.map((f) => ({
         id: f.id, nodoId: f.nodoId, periodo: f.periodo, egresadoId: f.egresadoId, avance: f.avance,
         acciones: f.acciones ?? "", resultado: f.resultado ?? "", marcoTeorico: f.marcoTeorico ?? "",
+        fechaInicio: f.fechaInicio ?? null, fechaFin: f.fechaFin ?? null,
         estado: f.estado, comentarioAsesor: f.comentarioAsesor, enviadoEn: f.enviadoEn?.toISOString() ?? null,
         evidencias: resumen
           .filter((e) => e.registroId === f.id)
@@ -132,7 +136,7 @@ export async function guardarRegistroPlan(
   propuestaId: number,
   nodoId: string,
   periodo: number,
-  datos: { avance: number | null; acciones: string; resultado: string; marcoTeorico: string },
+  datos: { avance: number | null; acciones: string; resultado: string; marcoTeorico: string; fechaInicio: string | null; fechaFin: string | null },
   enviar: boolean
 ): Promise<Resultado> {
   try {
@@ -156,7 +160,12 @@ export async function guardarRegistroPlan(
       acciones: datos.acciones.trim().slice(0, 20000),
       resultado: datos.resultado.trim().slice(0, 20000),
       marcoTeorico: reglas.marcoTeorico === "no" ? "" : datos.marcoTeorico.trim().slice(0, 20000),
+      fechaInicio: fechaValida(datos.fechaInicio) ? datos.fechaInicio : null,
+      fechaFin: fechaValida(datos.fechaFin) ? datos.fechaFin : null,
     };
+    if (limpio.fechaFin && limpio.fechaFin > aISOLocal(new Date())) return { success: false, error: "La fecha final de la actividad no puede ser posterior a hoy." };
+    // El avance va al final (notas del 13-nov-2026): sin fechas, lo que se hizo, el resultado y las evidencias, no se guarda.
+    if (limpio.avance !== null && faltaParaAvance(limpio, { adjuntas: previo?.evidencias.length ?? 0, ...evidencias }).length > 0) limpio.avance = null;
     if (limpio.avance !== null && (limpio.avance < 0 || limpio.avance > 100)) return { success: false, error: "El avance va de 0 a 100 %." };
     if (nodo.nivel === 5 && limpio.avance !== null && limpio.avance !== 0 && limpio.avance !== 100) return { success: false, error: "Una subactividad se registra como terminada o no terminada." };
     if (enviar) {

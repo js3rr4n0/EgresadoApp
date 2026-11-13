@@ -22,6 +22,7 @@ import {
 } from "@/lib/fichas/elementosRecurso";
 import { leerFuenteImagen, leerOrigenImagen, validarOrigenImagen } from "@/lib/fuenteImagen";
 import { MAX_CARACTERES_LEYENDA } from "@/lib/reglasRegistroActividad";
+import { guardarComoTexto, leerTabla, tipoApartado, type ContenidoApartado } from "@/lib/fichas/apartadosAcademicos";
 
 const palabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 
@@ -214,4 +215,48 @@ export async function quitarArchivoEspacio(propuestaId: number, espacioId: strin
     console.error("Error quitarArchivoEspacio:", error);
     return { success: false, error: "No se pudo quitar el archivo." };
   }
+}
+
+// ─────────────── Apartado académico (redacción académica guiada, 13-nov-2026) ───────────────
+
+/**
+ * Guarda los subapartados y la autoevaluación de un apartado académico. Se guarda aunque esté incompleto (es un
+ * borrador); los mínimos se exigen al ratificar y enviar el protocolo.
+ */
+export async function guardarRespuestaApartado(propuestaId: number, espacioId: string, contenido: ContenidoApartado): Promise<ResultadoEspacio> {
+  try {
+    const ctx = await espacioEditable(propuestaId, espacioId, ["apartado"]);
+    if (!ctx.ok) return { success: false, error: ctx.error };
+    const tipo = tipoApartado(ctx.espacio);
+    if (!tipo) return { success: false, error: "El tipo de este apartado no existe." };
+    const partes: Record<string, string> = {};
+    for (const p of tipo.partes) {
+      const v = contenido?.partes?.[p.id];
+      if (typeof v !== "string") continue;
+      if (p.formato === "tabla") {
+        const filas = leerTabla(v, p.columnas?.length ?? 1).map((f) => f.map((x) => x.trim().slice(0, 2000))).filter((f) => f.some(Boolean));
+        if (filas.length) partes[p.id] = JSON.stringify(filas.slice(0, 50));
+      } else if (p.formato === "seleccion") {
+        if (p.opciones?.some((o) => o.valor === v)) partes[p.id] = v;
+      } else if (v.trim()) partes[p.id] = v.trim().slice(0, 60000);
+    }
+    const autoevaluacion = (Array.isArray(contenido?.autoevaluacion) ? contenido.autoevaluacion : [])
+      .filter((n) => Number.isInteger(n) && n >= 0 && n < tipo.autoevaluacion.length);
+    await guardarTexto(propuestaId, espacioId, ctx.session.userId, guardarComoTexto({ partes, autoevaluacion: [...new Set(autoevaluacion)] }));
+    return { success: true };
+  } catch (error) {
+    console.error("Error guardarRespuestaApartado:", error);
+    return { success: false, error: "No se pudo guardar el apartado." };
+  }
+}
+
+async function guardarTexto(propuestaId: number, espacioId: string, usuarioId: number, contenido: string) {
+  await db
+    .insert(respuestasEspacios)
+    .values({ propuestaId, espacioId, contenido, actualizadoPor: usuarioId, actualizadoEn: new Date() })
+    .onConflictDoUpdate({
+      target: [respuestasEspacios.propuestaId, respuestasEspacios.espacioId],
+      set: { contenido, actualizadoPor: usuarioId, actualizadoEn: new Date() },
+    });
+  refrescar();
 }
