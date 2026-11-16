@@ -4,7 +4,7 @@ import { CATALOGO, elementoEnEtapa } from "./catalogo";
 import { esRecurso } from "./elementosRecurso";
 import { partePrecarga, tipoApartado } from "./apartadosAcademicos";
 import {
-  esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, FORMATO_DEFINICION, PRECARGA_MARCO_REGISTROS,
+  esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, FORMATO_DEFINICION, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, PRECARGAS_EJECUCION,
   type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo,
 } from "./tipos";
 
@@ -64,6 +64,7 @@ function validarPlan(plan: EtapaPlan, def: DefinicionFicha, problemas: ProblemaF
   if (plan.presupuesto.activo && !plan.presupuesto.moneda.trim()) p("falta la moneda del presupuesto.");
   if (def.modalidad === "pasantia") p("la pasantía usa el cronograma dentro de la propuesta; el plan de trabajo es para proyecto e investigación.");
   if (!["no", "opcional", "obligatorio", undefined].includes(plan.documentoSolicitado)) p("el documento solicitado por actividad no es válido.");
+  if (!["no", "opcional", "obligatorio", undefined].includes(plan.productosObjetivo)) p("los productos por objetivo no son válidos.");
 }
 
 /**
@@ -126,12 +127,20 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
       const { minEspecificos, maxEspecificos } = esp.parametros as { minEspecificos: number; maxEspecificos: number };
       if (minEspecificos > maxEspecificos) p("el mínimo de objetivos específicos es mayor que el máximo.");
     }
+    if (esp.elemento === "resultados_objetivos" && !def.etapas.some(esEtapaPlan)) p("los resultados por objetivo salen del plan de trabajo: la ficha necesita uno.");
+    if (esp.elemento === "reporte_modificaciones" && !def.etapas.filter(esEtapaEjecucion).some((x) => x.registro.modificaciones)) {
+      p("el reporte de modificaciones sale de la bitácora: la ejecución debe pedirla.");
+    }
     if (esp.precargarDe !== undefined) {
       // Protocolo: desde la propuesta. Informe final: desde la propuesta, el protocolo o el marco teórico de los registros.
       if (etapa.tipo === "propuesta") p("solo los espacios del protocolo y del informe final se precargan.");
-      else if (esp.precargarDe === PRECARGA_MARCO_REGISTROS) {
-        if (etapa.tipo !== "informe_final") p("el marco teórico de las actividades solo se precarga en el informe final.");
-        else if (esp.elemento !== "texto" && esp.elemento !== "apartado") p("el marco teórico de las actividades solo se precarga en un bloque de texto o un apartado académico.");
+      else if (PRECARGAS_EJECUCION.includes(esp.precargarDe)) {
+        const que = esp.precargarDe === PRECARGA_MARCO_REGISTROS ? "el marco teórico de las actividades" : "las conclusiones de los objetivos";
+        if (etapa.tipo !== "informe_final") p(`${que} solo se precarga en el informe final.`);
+        else if (esp.elemento !== "texto" && esp.elemento !== "apartado") p(`${que} solo se precarga en un bloque de texto o un apartado académico.`);
+        else if (esp.precargarDe === PRECARGA_CONCLUSIONES_OBJETIVOS && (def.etapas.find(esEtapaPlan)?.productosObjetivo ?? "no") === "no") {
+          p("las conclusiones de los objetivos solo existen si el plan pide productos por objetivo.");
+        }
       } else if (esp.elemento !== "texto" && esp.elemento !== "lista" && esp.elemento !== "apartado") p("solo un texto, una lista o un apartado académico se pueden precargar.");
       else {
         // "id#parte": un subapartado de un apartado académico (por ejemplo, "bibliografia#lista").
@@ -308,6 +317,7 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
       const m = e.minimos, pr = e.presupuesto, eq = e.equipo, ap = e.aprobacion;
       return (
         opcional(e.documentoSolicitado, ["no", "opcional", "obligatorio"]) &&
+        opcional(e.productosObjetivo, ["no", "opcional", "obligatorio"]) &&
         ["no", "opcional", "obligatorio"].includes(e.subactividades as string) &&
         obj(m) && num(m.objetivosPorIntegrante) && num(m.macroPorObjetivo) && num(m.actividadesPorMacro) &&
         obj(pr) && typeof pr.activo === "boolean" && (pr.desglose === "monto" || pr.desglose === "recursos_gastos") && str(pr.moneda) &&
@@ -327,6 +337,8 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
         opcional(r.modo, ["subperiodo", "actividad"]) && opcional(r.marcoTeorico, ["obligatorio", "opcional", "no"]) &&
         (r.avance === undefined || typeof r.avance === "boolean") &&
         (r.evidencias === undefined || rango(r.evidencias)) &&
+        (r.modificaciones === undefined || typeof r.modificaciones === "boolean") &&
+        (r.adelantar === undefined || typeof r.adelantar === "boolean") &&
         num(e.diasRevision) && num(e.subperiodosAdelantables) && num(e.eliminacionesPorPeriodo) &&
         obj(i) && num(i.paginasMinimas) && typeof i.exigirActividadesAprobadas === "boolean" && opcional(i.modo, ["unico", "individual_y_general"]) &&
         obj(i.comentariosDecanato) && typeof i.comentariosDecanato.activo === "boolean" && num(i.comentariosDecanato.minPalabras) &&

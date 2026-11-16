@@ -95,6 +95,7 @@ function arbolValido(x: unknown, columnas: number): x is NodoPlan {
       o.nivel === nivel &&
       (o.responsable === null || (typeof o.responsable === "number" && Number.isInteger(o.responsable))) &&
       (o.documento === undefined || (typeof o.documento === "string" && o.documento.length <= 300)) &&
+      (o.productos === undefined || (Array.isArray(o.productos) && o.productos.length <= 15 && o.productos.every((p) => typeof p === "string" && p.length <= 200))) &&
       Array.isArray(o.montos) && o.montos.length <= columnas && o.montos.every((m) => typeof m === "number" && Number.isFinite(m) && m >= 0 && m <= 1e9) &&
       Array.isArray(o.hijos) && (nivel < 5 || o.hijos.length === 0) && o.hijos.every((h) => rec(h, nivel + 1))
     );

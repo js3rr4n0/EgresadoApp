@@ -1035,6 +1035,9 @@ export const registrosPlan = pgTable(
     // Fechas reales en que se ejecutó la actividad (notas del 13-nov-2026). Script: scripts/fichas/crear_registros_plan.ts
     fechaInicio: date("fecha_inicio"),
     fechaFin: date("fecha_fin"),
+    // Bitácora (notas del 13-nov-2026): cambio o acontecimiento opcional. Script: scripts/fichas/crear_entregas_objetivo.ts
+    modificacionTipo: varchar("modificacion_tipo", { length: 20 }),
+    modificacion: text("modificacion"),
     estado: varchar("estado", { length: 20 }).notNull().default("borrador"), // borrador | enviado | observado | aprobado
     comentarioAsesor: text("comentario_asesor"),
     enviadoEn: timestamp("enviado_en", { withTimezone: true }),
@@ -1088,6 +1091,62 @@ export const evidenciasPlan = pgTable(
   (table) => [
     index("evidencias_plan_registro_idx").on(table.registroId),
     check("evidencias_plan_tipo_check", sql`${table.tipo} IN ('imagen', 'documento', 'enlace')`),
+  ]
+);
+
+// Productos por objetivo específico (notas del 13-nov-2026): al terminar las actividades de un objetivo, el egresado
+// entrega los productos prometidos en el plan con la conclusión del objetivo; el asesor revisa todo junto.
+// Una fila por propuesta y objetivo (nodo de nivel 2). Script: scripts/fichas/crear_entregas_objetivo.ts
+export const entregasObjetivo = pgTable(
+  "entregas_objetivo",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    nodoId: varchar("nodo_id", { length: 64 }).notNull(),
+    egresadoId: integer("egresado_id")
+      .notNull()
+      .references(() => usuarios.id),
+    conclusion: text("conclusion"),
+    modificacionTipo: varchar("modificacion_tipo", { length: 20 }),
+    modificacion: text("modificacion"),
+    estado: varchar("estado", { length: 20 }).notNull().default("borrador"), // borrador | enviado | observado | aprobado
+    /** Período de la ejecución en que se envió por última vez (aparece en su informe). */
+    periodo: smallint("periodo"),
+    comentarioAsesor: text("comentario_asesor"),
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }),
+    revisadoPor: integer("revisado_por").references(() => usuarios.id),
+    revisadoEn: timestamp("revisado_en", { withTimezone: true }),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("entregas_objetivo_unique").on(table.propuestaId, table.nodoId),
+    check("entregas_objetivo_estado_check", sql`${table.estado} IN ('borrador', 'enviado', 'observado', 'aprobado')`),
+  ]
+);
+
+// Archivos de una entrega de objetivo: como las evidencias de actividad, pero cada uno dice a qué producto prometido
+// corresponde (índice en la lista del objetivo en el plan).
+export const productosObjetivo = pgTable(
+  "productos_objetivo",
+  {
+    id: serial("id").primaryKey(),
+    entregaId: integer("entrega_id")
+      .notNull()
+      .references(() => entregasObjetivo.id, { onDelete: "cascade" }),
+    producto: smallint("producto").notNull(),
+    tipo: varchar("tipo", { length: 10 }).notNull(), // 'imagen' | 'documento' | 'enlace'
+    url: text("url").notNull(),
+    nombre: varchar("nombre", { length: 255 }),
+    leyenda: varchar("leyenda", { length: 255 }).notNull(),
+    origen: varchar("origen", { length: 10 }),
+    fuente: jsonb("fuente"),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("productos_objetivo_entrega_idx").on(table.entregaId),
+    check("productos_objetivo_tipo_check", sql`${table.tipo} IN ('imagen', 'documento', 'enlace')`),
   ]
 );
 

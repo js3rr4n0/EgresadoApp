@@ -74,6 +74,8 @@ export const CAMPOS_ELEMENTO: Record<ClaveElemento, CampoElemento[]> = {
   lista: [{ nombre: "Elementos de la lista", tipo: "lista", obligatorio: true }],
   apartado: [{ nombre: "Subapartados según el tipo (texto, pregunta, selección, lista o tabla)", tipo: "texto largo", obligatorio: true }],
   tabla: [{ nombre: "Filas (una celda de texto por columna)", tipo: "lista", obligatorio: true }],
+  resultados_objetivos: [],
+  reporte_modificaciones: [],
 };
 
 /** Apartados del informe final como los arma hoy el sistema (src/lib/informeFinal.ts). */

@@ -27,7 +27,7 @@ export interface AnexoDocumento {
   tipo: "imagen" | "documento" | "enlace";
   url: string;
   nombre: string | null;
-  /** Actividad de la que viene la evidencia (null: anexo agregado en el capítulo de anexos). */
+  /** De dónde viene: "actividad 1.1.1.1", "producto del objetivo 1.1" o null (capítulo de anexos). */
   actividad: string | null;
   nota: string | null;
 }
@@ -80,12 +80,27 @@ const parrafosDe = (t: string) => t.split(/\n\s*\n|\n/).map((p) => p.trim()).fil
 const esBibliografia = (titulo: string) => /bibliograf/i.test(titulo);
 
 /** Apartados del documento a partir de los capítulos de la ficha y su contenido vigente. */
-export function apartadosInformeFinal(etapa: EtapaInformeFinal, contenidos: Record<string, string | null | undefined>): { apartados: ApartadoDocumento[]; anexosCapitulo: ArchivoEspacio[] } {
+export function apartadosInformeFinal(
+  etapa: EtapaInformeFinal,
+  contenidos: Record<string, string | null | undefined>,
+  /** Capítulos que genera el sistema (resultados por objetivo, reporte de modificaciones): sus bloques según el número. */
+  generar: (e: EtapaInformeFinal["espacios"][number], numero: number | null) => BloqueDocumento[] = () => []
+): { apartados: ApartadoDocumento[]; anexosCapitulo: ArchivoEspacio[] } {
   const apartados: ApartadoDocumento[] = [];
   let anexosCapitulo: ArchivoEspacio[] = [];
   let n = 0;
   for (const e of etapa.espacios) {
     const valor = contenidos[e.id] ?? "";
+    if (e.elemento === "resultados_objetivos") {
+      const numero = ++n;
+      apartados.push({ numero, titulo: e.titulo, bloques: generar(e, numero) });
+      continue;
+    }
+    // El reporte de modificaciones va sin número, como la bibliografía: es un anexo del informe.
+    if (e.elemento === "reporte_modificaciones") {
+      apartados.push({ numero: null, titulo: e.titulo, bloques: generar(e, null) });
+      continue;
+    }
     // Los archivos de un capítulo de anexos se suman a los anexos del documento.
     if (e.elemento === "archivo") {
       anexosCapitulo = [...anexosCapitulo, ...(leerItems("archivo", valor) as ArchivoEspacio[])];

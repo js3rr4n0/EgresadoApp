@@ -26,7 +26,9 @@ export type ClaveElemento =
   | "enlace"
   | "lista"
   | "tabla"
-  | "apartado";
+  | "apartado"
+  | "resultados_objetivos"
+  | "reporte_modificaciones";
 
 export type ValorParametro = number | boolean | string | string[];
 
@@ -126,6 +128,13 @@ export interface EtapaEjecucion {
     avance?: boolean;
     /** Evidencias por actividad (imágenes, documentos o enlaces) en el modo "actividad". 0 = sin mínimo. */
     evidencias?: { min: number; max: number };
+    /**
+     * Bitácora o reporte de modificaciones (notas del 13-nov-2026): en cada actividad y objetivo, un texto opcional
+     * para cambios de tiempo, recursos o alcance; se anexa a los informes. Falta = false.
+     */
+    modificaciones?: boolean;
+    /** Actividades menos atadas a su período (notas del 13-nov-2026): se pueden adelantar al período abierto. Falta = false. */
+    adelantar?: boolean;
   };
   /** Días recomendados para que el asesor revise un subperíodo enviado. */
   diasRevision: number;
@@ -158,6 +167,8 @@ export function opcionesRegistro(et: EtapaEjecucion) {
     marcoTeorico: et.registro.marcoTeorico ?? "obligatorio",
     avance: et.registro.avance ?? false,
     evidencias: et.registro.evidencias ?? { min: 0, max: (et.registro.modo ?? "subperiodo") === "actividad" ? 5 : 0 },
+    modificaciones: et.registro.modificaciones ?? false,
+    adelantar: et.registro.adelantar ?? false,
     informe: et.informe.modo ?? "unico",
   } as const;
 }
@@ -201,6 +212,11 @@ export interface EtapaPlan {
    * el informe del período lo muestra en "Resultados por actividad" (investigación).
    */
   documentoSolicitado?: "no" | "opcional" | "obligatorio";
+  /**
+   * Opcional (falta = "no"). Cada objetivo específico declara sus productos esperados; al terminar sus actividades el
+   * egresado los entrega con la conclusión del objetivo y el asesor los revisa juntos (notas del 13-nov-2026).
+   */
+  productosObjetivo?: "no" | "opcional" | "obligatorio";
 }
 
 /**
@@ -226,6 +242,10 @@ export interface EtapaInformeFinal {
 
 /** Fuente de precarga especial del informe final: el marco teórico registrado en las actividades de la ejecución. */
 export const PRECARGA_MARCO_REGISTROS = "registros:marco_teorico";
+/** Fuente de precarga del informe final: las conclusiones aprobadas de cada objetivo específico (productos por objetivo). */
+export const PRECARGA_CONCLUSIONES_OBJETIVOS = "entregas:conclusiones";
+/** Fuentes de precarga que vienen de la ejecución (solo en el informe final, en un texto o un apartado). */
+export const PRECARGAS_EJECUCION = [PRECARGA_MARCO_REGISTROS, PRECARGA_CONCLUSIONES_OBJETIVOS];
 
 export type Etapa = EtapaPropuesta | EtapaProtocolo | EtapaPlan | EtapaEjecucion | EtapaInformeFinal;
 
@@ -249,6 +269,7 @@ export type EtapaConEspacios = EtapaPropuesta | EtapaProtocolo | EtapaInformeFin
 export const tieneEspacios = (e: Etapa): e is EtapaConEspacios => e.tipo === "propuesta" || e.tipo === "protocolo" || e.tipo === "informe_final";
 /** Valor efectivo de "documento solicitado" de un plan (las versiones anteriores no lo tienen). */
 export const documentoSolicitado = (p: EtapaPlan) => p.documentoSolicitado ?? "no";
+export const productosObjetivo = (p: EtapaPlan) => p.productosObjetivo ?? "no";
 export const esEtapaEjecucion = (e: Etapa): e is EtapaEjecucion => e.tipo === "ejecucion";
 
 /** Niveles del plan, con su numeración de ejemplo. */

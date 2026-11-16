@@ -10,26 +10,28 @@
 import crypto from "crypto";
 import { db } from "@/lib/db";
 import {
-  carreras, detallesProyecto, evidenciasPlan, facultades, informesFinalesFicha, notificaciones, propuestas, ratificacionesInformeFinal, registrosPlan, respuestasEspacios,
+  carreras, detallesProyecto, entregasObjetivo, evidenciasPlan, productosObjetivo as productosTabla, facultades, informesFinalesFicha, notificaciones, propuestas, ratificacionesInformeFinal, registrosPlan, respuestasEspacios,
   usuarios, versionesCapitulo,
 } from "@/lib/schema";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta, espaciosPropuesta } from "@/lib/fichas/fichaDePropuesta";
-import { esEtapaInformeFinal, esEtapaProtocolo, type Espacio, type EtapaInformeFinal } from "@/lib/fichas/tipos";
+import { esEtapaInformeFinal, esEtapaProtocolo, productosObjetivo, type Espacio, type EtapaInformeFinal } from "@/lib/fichas/tipos";
 import { aplanar, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import { columnasTabla, enlaceValido, limitesRecurso, TIPOS_ARCHIVO, type ArchivoEspacio } from "@/lib/fichas/elementosRecurso";
 import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
 import { guardarComoTexto, leerApartado, leerTabla, parteVacia, tipoApartado } from "@/lib/fichas/apartadosAcademicos";
 import {
-  CAPITULO_NUEVO, capituloEditable, capitulosPendientes, editandoOtro, leerCapitulos, precargaCapitulo, problemasInformeFinal,
-  textoMarcoRegistros, type EstadoDeCapitulo, type EstadoInformeFinal,
+  CAPITULO_NUEVO, capituloEditable, capituloGenerado, capitulosPendientes, editandoOtro, leerCapitulos, precargaCapitulo, problemasInformeFinal,
+  textoConclusionesObjetivos, textoMarcoRegistros, type EstadoDeCapitulo, type EstadoInformeFinal,
 } from "@/lib/fichas/informeFinalFicha";
 import { getPlanTrabajo, type DatosPlan } from "./planTrabajo";
 import { notificarEquipo } from "@/lib/notificarEquipo";
 import { AUTORIDADES_ACADEMICAS } from "@/lib/informeFinal";
+import { resultadosPorObjetivo } from "@/lib/fichas/resultadosObjetivos";
+import { bloquesBitacora, entradasBitacora } from "@/lib/fichas/bitacora";
 import { notaImagen } from "@/lib/fuenteImagen";
-import { apartadosInformeFinal, portadaInformeFinal, type AnexoDocumento, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
+import { apartadosInformeFinal, portadaInformeFinal, type AnexoDocumento, type BloqueDocumento, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
 
 const MAX_TEXTO = 200_000;
 const ESTADOS_PROPUESTA = ["en_ejecucion", "finalizada"];
@@ -66,6 +68,8 @@ export interface DatosInformeFinal {
   entregadoEn: string | null;
   /** Fecha límite de revisión del asesor para la entrega final (ISO), si se entregó. */
   fechaLimite: string | null;
+  /** Vista previa de los capítulos que genera el sistema (resultados por objetivo, reporte de modificaciones), por espacio. */
+  generados: Record<string, BloqueDocumento[]>;
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string };
@@ -153,7 +157,21 @@ async function precargas(propuestaId: number, ctx: Contexto): Promise<Record<str
     aplanar(ctx.plan.plan.arbol as NodoPlan).filter((n) => marcoPorNodo.has(n.id)).map((n) => ({ codigo: n.codigo, titulo: n.titulo, marco: marcoPorNodo.get(n.id)! }))
   );
   const datos = { ...det, respuestas: Object.fromEntries(resp.map((r) => [r.id, r.c ?? ""])) };
-  return Object.fromEntries(sin.map((e) => [e.id, precargaCapitulo(e, fuentes, datos, marco)]).filter(([, t]) => t));
+  const entregas = await db.select({ nodoId: entregasObjetivo.nodoId, estado: entregasObjetivo.estado, conclusion: entregasObjetivo.conclusion })
+    .from(entregasObjetivo).where(eq(entregasObjetivo.propuestaId, propuestaId));
+  const conclusiones = textoConclusionesObjetivos((ctx.plan.plan.arbol as NodoPlan).hijos, entregas);
+  return Object.fromEntries(sin.map((e) => [e.id, precargaCapitulo(e, fuentes, datos, marco, conclusiones)]).filter(([, t]) => t));
+}
+
+/**
+ * Productos por objetivo (notas del 13-nov-2026): objetivos específicos cuyos productos todavía no aprobó el asesor.
+ * Mientras haya alguno no se ratifica ni se entrega el informe final. Vacío si la ficha no pide productos.
+ */
+async function objetivosSinProductos(propuestaId: number, ctx: Contexto): Promise<string[]> {
+  if (productosObjetivo(ctx.plan.etapa) === "no") return [];
+  const aprobadas = await db.select({ nodoId: entregasObjetivo.nodoId }).from(entregasObjetivo)
+    .where(and(eq(entregasObjetivo.propuestaId, propuestaId), eq(entregasObjetivo.estado, "aprobado")));
+  return (ctx.plan.plan.arbol as NodoPlan).hijos.filter((o) => !aprobadas.some((a) => a.nodoId === o.id)).map((o) => `Productos del objetivo ${o.codigo}`);
 }
 
 export async function getInformeFinal(propuestaId: number): Promise<Resultado<{ datos: DatosInformeFinal }>> {
@@ -185,19 +203,21 @@ export async function getInformeFinal(propuestaId: number): Promise<Resultado<{ 
         };
       }),
       problemas: problemasInformeFinal(ctx.etapa, contenidos),
-      pendientesAprobacion: capitulosPendientes(ctx.etapa, ctx.estados, contenidos).map((e) => e.titulo),
+      pendientesAprobacion: [...capitulosPendientes(ctx.etapa, ctx.estados, contenidos).map((e) => e.titulo), ...(await objetivosSinProductos(propuestaId, ctx))],
       ratificacion: { requerida, firmas, completa: !requerida || firmas.every((f) => f.vigente) },
       huellaActual: h,
       huellaFinal: ctx.fila.huellaFinal,
       comentarioFinal: ctx.fila.comentarioFinal,
       entregadoEn: ctx.fila.entregadoEn?.toISOString() ?? null,
       fechaLimite: estado === "entregado" && ctx.fila.entregadoEn ? fechaLimiteDictamen(ctx.fila.entregadoEn, ctx.etapa).toISOString() : null,
+      generados: await capitulosGenerados(propuestaId, ctx),
     },
   };
 }
 
 /** Limpia el contenido según el elemento del capítulo (texto o JSON). */
 function limpiar(e: Espacio, contenido: string): { ok: true; valor: string } | { ok: false; error: string } {
+  if (capituloGenerado(e)) return { ok: false, error: "Este capítulo lo genera el sistema con los registros y los productos de la ejecución." };
   if (e.elemento === "apartado") {
     // Apartado académico: solo los subapartados del tipo, con su formato; la autoevaluación por índice.
     const tipo = tipoApartado(e);
@@ -374,6 +394,7 @@ export async function enviarCapitulo(propuestaId: number, espacioId: string): Pr
   const e = ctx.etapa.espacios.find((x) => x.id === espacioId);
   if (!e || !enEquipo(ctx)) return { success: false, error: "No autorizado" };
   if (!ctx.etapa.revision.porCapitulo) return { success: false, error: "En esta ficha se envía el documento completo." };
+  if (capituloGenerado(e)) return { success: false, error: "Este capítulo lo genera el sistema: no se envía aparte." };
   const est = estadoDe(ctx, espacioId);
   if (!capituloEditable(ctx.fila.estado, est)) return { success: false, error: "Este capítulo ya está en revisión o aprobado." };
   const u = ctx.ultimas.get(espacioId);
@@ -435,6 +456,8 @@ export async function ratificarInformeFinal(propuestaId: number): Promise<Result
   const { contenidos, huella: h } = vigentes(ctx);
   const pendientes = capitulosPendientes(ctx.etapa, ctx.estados, contenidos);
   if (pendientes.length > 0) return { success: false, error: `Antes, el asesor debe aprobar todos los capítulos. Faltan: ${pendientes.map((e) => e.titulo).join(", ")}.` };
+  const sinProductos = await objetivosSinProductos(propuestaId, ctx);
+  if (sinProductos.length > 0) return { success: false, error: `Antes, el asesor debe aprobar los productos de cada objetivo. Faltan: ${sinProductos.join(", ")}.` };
   await db.insert(ratificacionesInformeFinal).values({ propuestaId, usuarioId: ctx.plan.miId, huellaFirmada: h, momento: new Date() })
     .onConflictDoUpdate({ target: [ratificacionesInformeFinal.propuestaId, ratificacionesInformeFinal.usuarioId], set: { huellaFirmada: h, momento: new Date() } });
   refrescar(propuestaId);
@@ -482,6 +505,45 @@ export async function revisarInformeFinal(propuestaId: number, decision: "aproba
  * Documento completo para imprimir o descargar en Word, con el contenido vigente de cada capítulo (después de la
  * entrega, es exactamente la versión congelada) y las evidencias de las actividades como anexos numerados.
  */
+/**
+ * Datos de la ejecución para el capítulo de resultados por objetivo: registros, evidencias, entregas y archivos de los
+ * productos. Sin "conArchivos" no se leen las direcciones (data: URL pesadas): basta para la vista previa en pantalla.
+ */
+async function datosResultados(propuestaId: number, ctx: Contexto, conArchivos: boolean) {
+  const arbol = ctx.plan.plan.arbol as NodoPlan;
+  const regs = await db.select({ id: registrosPlan.id, nodoId: registrosPlan.nodoId, periodo: registrosPlan.periodo, estado: registrosPlan.estado, avance: registrosPlan.avance,
+    resultado: registrosPlan.resultado, fechaInicio: registrosPlan.fechaInicio, fechaFin: registrosPlan.fechaFin,
+    modificacionTipo: registrosPlan.modificacionTipo, modificacion: registrosPlan.modificacion }).from(registrosPlan).where(eq(registrosPlan.propuestaId, propuestaId));
+  const validos = regs.filter((x) => x.estado === "enviado" || x.estado === "aprobado");
+  const colEvid = { id: evidenciasPlan.id, registroId: evidenciasPlan.registroId, tipo: evidenciasPlan.tipo, leyenda: evidenciasPlan.leyenda, nombre: evidenciasPlan.nombre,
+    origen: evidenciasPlan.origen, fuente: evidenciasPlan.fuente, url: conArchivos ? evidenciasPlan.url : sql<string>`''` };
+  const evid = validos.length ? await db.select(colEvid).from(evidenciasPlan).where(inArray(evidenciasPlan.registroId, validos.map((x) => x.id))).orderBy(evidenciasPlan.id) : [];
+  const reg = new Map(validos.map((x) => [x.id, x]));
+  const entregas = await db.select({ id: entregasObjetivo.id, nodoId: entregasObjetivo.nodoId, estado: entregasObjetivo.estado, periodo: entregasObjetivo.periodo,
+    modificacionTipo: entregasObjetivo.modificacionTipo, modificacion: entregasObjetivo.modificacion }).from(entregasObjetivo).where(eq(entregasObjetivo.propuestaId, propuestaId));
+  const colProd = { entregaId: productosTabla.entregaId, producto: productosTabla.producto, tipo: productosTabla.tipo, leyenda: productosTabla.leyenda, nombre: productosTabla.nombre,
+    origen: productosTabla.origen, fuente: productosTabla.fuente, url: conArchivos ? productosTabla.url : sql<string>`''` };
+  const prods = entregas.length ? await db.select(colProd).from(productosTabla).where(inArray(productosTabla.entregaId, entregas.map((e) => e.id))).orderBy(productosTabla.id) : [];
+  const nota = (tipo: string, origen: string | null, fuente: unknown) => (tipo === "imagen" ? notaImagen(origen, fuente).map((x) => x.texto).join("") || null : null);
+  const tipoArchivo = (t: string) => t as "imagen" | "documento" | "enlace";
+  return {
+    arbol,
+    registros: regs,
+    evidencias: evid.map((e) => ({ nodoId: reg.get(e.registroId)!.nodoId, periodo: reg.get(e.registroId)!.periodo, tipo: tipoArchivo(e.tipo), leyenda: e.leyenda, nombre: e.nombre, url: e.url, nota: nota(e.tipo, e.origen, e.fuente) })),
+    entregas,
+    productos: prods.map((p) => ({ objetivoId: entregas.find((e) => e.id === p.entregaId)!.nodoId, producto: p.producto, tipo: tipoArchivo(p.tipo), leyenda: p.leyenda, nombre: p.nombre, url: p.url, nota: nota(p.tipo, p.origen, p.fuente) })),
+  };
+}
+
+/** Vista previa de los capítulos que genera el sistema, por espacio (sin leer los archivos). */
+async function capitulosGenerados(propuestaId: number, ctx: Contexto): Promise<Record<string, BloqueDocumento[]>> {
+  const espacios = ctx.etapa.espacios.filter(capituloGenerado);
+  if (espacios.length === 0) return {};
+  const datos = await datosResultados(propuestaId, ctx, false);
+  return Object.fromEntries(espacios.map((e) => [e.id,
+    e.elemento === "reporte_modificaciones" ? bloquesBitacora(entradasBitacora(datos)) : resultadosPorObjetivo({ ...datos, numero: null }).bloques]));
+}
+
 export async function getDocumentoInformeFinal(propuestaId: number): Promise<Resultado<{ documento: DocumentoInformeFinal }>> {
   const r = await contexto(propuestaId);
   if (!r.success) return r;
@@ -500,21 +562,18 @@ export async function getDocumentoInformeFinal(propuestaId: number): Promise<Res
     asesor: asesor?.nombre ?? null,
     fecha: (ctx.fila.entregadoEn ?? new Date()).toISOString(),
   });
-  const { apartados, anexosCapitulo } = apartadosInformeFinal(ctx.etapa, contenidos);
+  // Resultados por objetivo: el capítulo que genera el sistema y los anexos de productos y evidencias, en el orden del
+  // plan (objetivo → productos → actividades). Sin ese capítulo en la ficha, los anexos salen en el mismo orden.
+  const datosRes = await datosResultados(propuestaId, ctx, true);
+  let generados = resultadosPorObjetivo({ ...datosRes, numero: null });
+  const { apartados, anexosCapitulo } = apartadosInformeFinal(ctx.etapa, contenidos, (e, numero) => {
+    if (e.elemento === "reporte_modificaciones") return bloquesBitacora(entradasBitacora(datosRes));
+    generados = resultadosPorObjetivo({ ...datosRes, numero });
+    return generados.bloques;
+  });
 
-  // Evidencias de las actividades enviadas o aprobadas, en el orden del plan.
-  const codigos = new Map(aplanar(ctx.plan.plan.arbol as NodoPlan).map((n, i) => [n.id, { codigo: n.codigo, orden: i }]));
-  const regs = await db.select({ id: registrosPlan.id, nodo: registrosPlan.nodoId, estado: registrosPlan.estado }).from(registrosPlan).where(eq(registrosPlan.propuestaId, propuestaId));
-  const validos = regs.filter((x) => x.estado === "enviado" || x.estado === "aprobado");
-  const evid = validos.length ? await db.select().from(evidenciasPlan).where(inArray(evidenciasPlan.registroId, validos.map((x) => x.id))) : [];
-  const nodoDe = new Map(validos.map((x) => [x.id, x.nodo]));
-  evid.sort((a, b) => (codigos.get(nodoDe.get(a.registroId)!)?.orden ?? 0) - (codigos.get(nodoDe.get(b.registroId)!)?.orden ?? 0) || a.id - b.id);
   const anexos: AnexoDocumento[] = [
-    ...evid.map((e) => ({
-      etiqueta: "", descripcion: e.leyenda, tipo: e.tipo as AnexoDocumento["tipo"], url: e.url, nombre: e.nombre,
-      actividad: codigos.get(nodoDe.get(e.registroId)!)?.codigo ?? null,
-      nota: e.tipo === "imagen" ? notaImagen(e.origen, e.fuente).map((s) => s.texto).join("") || null : null,
-    })),
+    ...generados.anexos,
     ...anexosCapitulo.map((a) => ({ etiqueta: "", descripcion: a.nombre, tipo: "documento" as const, url: a.url, nombre: a.nombre, actividad: null, nota: null })),
   ].map((a, i) => ({ ...a, etiqueta: `Anexo ${i + 1}` }));
 

@@ -13,7 +13,8 @@ import {
   type CapituloDatos, type DatosInformeFinal, type VersionResumen,
 } from "@/app/actions/informeFinalFicha";
 import { columnasTabla, esRecurso, leerItems, limitesRecurso, reglasRecurso, TIPOS_ARCHIVO, type ArchivoEspacio, type EnlaceEspacio } from "@/lib/fichas/elementosRecurso";
-import { ETIQUETA_ESTADO_CAPITULO } from "@/lib/fichas/informeFinalFicha";
+import { capituloGenerado, ETIQUETA_ESTADO_CAPITULO } from "@/lib/fichas/informeFinalFicha";
+import type { BloqueDocumento } from "@/lib/fichas/documentoInformeFinal";
 import { contextoDeRevision, leerApartado, textoApartado, tipoApartado, type ContextoRevision } from "@/lib/fichas/apartadosAcademicos";
 import type { Espacio } from "@/lib/fichas/tipos";
 import { CapituloApartado } from "./ApartadoAcademicoForm";
@@ -109,7 +110,9 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
                   <span className="min-w-0 flex-1">
                     {c.espacio.titulo}
                     <span className="flex flex-wrap gap-1 mt-0.5">
-                      <span className={`text-[10px] font-bold rounded px-1.5 py-0.5 ${COLOR[c.estado.estado]}`}>{ETIQUETA_ESTADO_CAPITULO[c.estado.estado]}</span>
+                      {capituloGenerado(c.espacio)
+                        ? <span className="text-[10px] font-bold rounded px-1.5 py-0.5 bg-sky-50 text-sky-800">Se genera solo</span>
+                        : <span className={`text-[10px] font-bold rounded px-1.5 py-0.5 ${COLOR[c.estado.estado]}`}>{ETIQUETA_ESTADO_CAPITULO[c.estado.estado]}</span>}
                       {!c.espacio.obligatorio && <span className="text-[10px] text-muted">opcional</span>}
                       {c.editando && <span className="text-[10px] text-blue-700">✎ {c.editando.nombre.split(" ")[0]}</span>}
                     </span>
@@ -121,10 +124,13 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
         </nav>
 
         <div className="min-w-0 space-y-3">
-          <EditorCapitulo key={`${cap.espacio.id}-${cap.ultima?.numero ?? 0}-${cap.estado.estado}`} propuestaId={plan.propuesta.id} cap={cap}
+          {capituloGenerado(cap.espacio) ? (
+            <CapituloGenerado titulo={cap.espacio.titulo} descripcion={cap.espacio.descripcion} bloques={datos.generados[cap.espacio.id] ?? []} bitacora={cap.espacio.elemento === "reporte_modificaciones"}
+              siguiente={actual < datos.capitulos.length ? `${base}&cap=${actual + 1}` : null} />
+          ) : <EditorCapitulo key={`${cap.espacio.id}-${cap.ultima?.numero ?? 0}-${cap.estado.estado}`} propuestaId={plan.propuesta.id} cap={cap}
             siguiente={actual < datos.capitulos.length ? `${base}&cap=${actual + 1}` : null}
             porCapitulo={etapa.revision.porCapitulo} enEquipo={enEquipo}
-            contexto={contextoDeRevision(datos.capitulos.map((c) => c.espacio), Object.fromEntries(datos.capitulos.map((c) => [c.espacio.id, c.ultima?.contenido ?? c.precarga ?? ""])))} />
+            contexto={contextoDeRevision(datos.capitulos.map((c) => c.espacio), Object.fromEntries(datos.capitulos.map((c) => [c.espacio.id, c.ultima?.contenido ?? c.precarga ?? ""])))} />}
 
           {esAsesor && cap.estado.estado === "enviado" && (
             <section className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-3">
@@ -145,7 +151,7 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
       <section className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-3">
         <h2 className="font-bold text-card-dark">Entrega de la versión final</h2>
         <p className="text-xs text-muted">
-          Cuando el asesor aprueba todos los capítulos, {datos.ratificacion.requerida ? "cada integrante ratifica la versión completa y" : ""} el líder la entrega.
+          Cuando el asesor aprueba todos los capítulos{datos.pendientesAprobacion.some((x) => x.startsWith("Productos del objetivo")) || plan.etapa.productosObjetivo && plan.etapa.productosObjetivo !== "no" ? " y los productos de cada objetivo" : ""}, {datos.ratificacion.requerida ? "cada integrante ratifica la versión completa y" : ""} el líder la entrega.
           La versión entregada queda congelada con su huella: lo que se imprime y presenta es exactamente lo aprobado.
         </p>
         {!etapa.revision.porCapitulo && enEquipo && estado === "redactando" && (
@@ -153,9 +159,9 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
             className="px-4 py-2 rounded-lg text-sm font-bold bg-brand-red hover:bg-brand-red-hover text-white disabled:opacity-50">Enviar documento completo al asesor</button>
         )}
         {datos.pendientesAprobacion.length > 0 ? (
-          <p className="text-sm text-amber-800">Capítulos por aprobar: {datos.pendientesAprobacion.join(" · ")}</p>
+          <p className="text-sm text-amber-800">Falta aprobar: {datos.pendientesAprobacion.join(" · ")}</p>
         ) : (
-          <p className="text-sm text-emerald-700 font-semibold">Todos los capítulos están aprobados.</p>
+          <p className="text-sm text-emerald-700 font-semibold">Todo está aprobado.</p>
         )}
         {datos.ratificacion.requerida && (
           <ul className="grid sm:grid-cols-3 gap-2">
@@ -194,6 +200,36 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * Capítulo que genera el sistema (resultados por objetivo, notas del 13-nov-2026): se muestra tal como saldrá en el
+ * documento, sin editor ni revisión aparte. Se actualiza solo con los registros y los productos de la ejecución.
+ */
+function CapituloGenerado({ titulo, descripcion, bloques, siguiente, bitacora }: { titulo: string; descripcion: string; bloques: BloqueDocumento[]; siguiente: string | null; bitacora?: boolean }) {
+  return (
+    <section className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-3">
+      <div>
+        <h2 className="font-bold text-card-dark">{titulo}</h2>
+        {descripcion && <p className="text-xs text-muted">{descripcion}</p>}
+      </div>
+      <p className="text-xs text-sky-900 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2">
+        {bitacora
+          ? "Este anexo lo arma el sistema con la bitácora de la ejecución: los cambios y acontecimientos que se reportaron al enviar las actividades y los objetivos. No se redacta ni se envía aparte; va sin número, al final del documento."
+          : "Este capítulo lo arma el sistema con lo registrado en la ejecución: los productos de cada objetivo y, por macroactividad, las fechas, el resultado y las evidencias de cada actividad. No se redacta ni se envía aparte: el asesor ya revisó cada actividad y cada objetivo. En el documento, los productos y las evidencias van como anexos numerados."}
+      </p>
+      <div className="text-sm text-gray-800 space-y-2 border border-gray-200 rounded-lg p-4 bg-gray-50/50">
+        {bloques.length === 0 && <p className="text-muted">Todavía no hay registros enviados en la ejecución.</p>}
+        {bloques.map((b, i) =>
+          b.tipo === "subtitulo" ? <h3 key={i} className="font-bold pt-2">{b.texto}</h3>
+          : b.tipo === "parrafos" ? b.parrafos.map((p, k) => <p key={`${i}-${k}`}>{p}</p>)
+          : b.tipo === "lista" ? <ul key={i} className="list-disc pl-6 space-y-1">{b.items.map((t, k) => <li key={k}>{t}</li>)}</ul>
+          : null
+        )}
+      </div>
+      {siguiente && <div className="flex justify-end"><Link href={siguiente} className="text-sm font-bold text-brand-red hover:underline">Capítulo siguiente →</Link></div>}
+    </section>
   );
 }
 

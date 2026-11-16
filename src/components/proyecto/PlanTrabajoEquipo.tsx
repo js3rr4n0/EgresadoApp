@@ -6,8 +6,8 @@
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enviarPlanTrabajo, guardarPlanTrabajo, revisarPlanTrabajo, type DatosPlan } from "@/app/actions/planTrabajo";
-import { documentoSolicitado } from "@/lib/fichas/tipos";
-import { aplanar, cargaPorIds, numerar, planIndividual, responsables, totalesNodo, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
+import { documentoSolicitado, productosObjetivo } from "@/lib/fichas/tipos";
+import { aplanar, cargaPorIds, numerar, planIndividual, productosDe, responsables, totalesNodo, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
 
 const NIVEL = ["", "Objetivo general", "Objetivo específico", "Macroactividad", "Actividad", "Subactividad"];
 const HIJO = ["", "objetivo", "macroactividad", "actividad", "subactividad", ""];
@@ -64,6 +64,7 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
   const visibles = columnas.map((c, i) => ({ ...c, i })).filter((c) => !porSub || c.periodo === periodo);
   const nivelResp = etapa.equipo.responsable === "objetivo" ? 2 : 4;
   const pideDocumento = documentoSolicitado(etapa);
+  const pideProductos = productosObjetivo(etapa);
   const prot = datos.protocolo;
   const queSeEnvia = prot ? "el protocolo y el plan" : "el plan";
   const maxNivel = etapa.subactividades === "no" ? 4 : 5;
@@ -227,6 +228,16 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
                           className="w-full h-8 border border-gray-200 rounded-md px-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25" />
                       ) : (
                         <span>{n.titulo || <em className="text-gray-400">{NIVEL[n.nivel]} sin título</em>}</span>
+                      )}
+                      {n.nivel === 2 && pideProductos !== "no" && (
+                        editable ? (
+                          <textarea aria-label={`Productos esperados de ${n.codigo}`} value={(n.productos ?? []).join("\n")} rows={Math.max(2, (n.productos ?? []).length)} maxLength={1500}
+                            placeholder={`Productos esperados del objetivo, uno por línea${pideProductos === "opcional" ? " (opcional)" : ""}. Ejemplo: Estudio de tiempos`}
+                            onChange={(e) => cambiar(actualizar(arbol, n.id, (x) => ({ ...x, productos: e.target.value.split("\n").slice(0, 15) })))}
+                            className="mt-1 w-full border border-dashed border-sky-300 rounded-md px-2 py-1 text-[11px] font-normal bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25 resize-y" />
+                        ) : productosDe(n).length > 0 ? (
+                          <span className="block text-[11px] font-normal text-sky-900 mt-0.5">📦 Productos esperados: {productosDe(n).join(" · ")}</span>
+                        ) : null
                       )}
                       {n.nivel === 4 && pideDocumento !== "no" && (
                         editable ? (

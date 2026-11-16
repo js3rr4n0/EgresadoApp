@@ -4,13 +4,15 @@
 // plan individual (avance, acciones, resultado y marco teórico opcional) con las reglas de la ficha. El asesor revisa
 // cada registro y ve quién hizo qué. No toca la ejecución de pasantía (registrosActividad.ts), que sigue igual.
 import { db } from "@/lib/db";
-import { cartasAceptacion, evidenciasPlan, informesPlan, notificaciones, registrosPlan } from "@/lib/schema";
+import { cartasAceptacion, entregasObjetivo, evidenciasPlan, informesPlan, notificaciones, productosObjetivo as productosObjetivoTabla, registrosPlan } from "@/lib/schema";
+import type { EntregaObjetivo } from "@/lib/fichas/entregasObjetivo";
+import { limpiarModificacion } from "@/lib/fichas/bitacora";
 import { getSession } from "@/lib/session";
 import { and, asc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
-import { esEtapaEjecucion, opcionesRegistro } from "@/lib/fichas/tipos";
-import { actividadesDelPeriodo, aplanar, faltaParaAvance, fechaValida, responsables, validarRegistroProyecto, type ReglasRegistroProyecto } from "@/lib/fichas/planTrabajo";
+import { esEtapaEjecucion, opcionesRegistro, productosObjetivo } from "@/lib/fichas/tipos";
+import { actividadesDelPeriodo, adelantable, aplanar, faltaParaAvance, fechaValida, responsables, validarRegistroProyecto, type ReglasRegistroProyecto } from "@/lib/fichas/planTrabajo";
 import { aISOLocal, fechaLocalDesdeISO, sumarDiasISO } from "@/lib/periodosPasantia";
 import { getPlanTrabajo, type DatosPlan } from "./planTrabajo";
 import { armarInformePeriodo } from "@/lib/fichas/informePeriodo";
@@ -28,6 +30,9 @@ export interface RegistroPlan {
   /** Fechas reales en que se ejecutó (AAAA-MM-DD); null si todavía no se indican. */
   fechaInicio: string | null;
   fechaFin: string | null;
+  /** Bitácora: cambio o acontecimiento reportado (null si no hubo). */
+  modificacionTipo: string | null;
+  modificacion: string | null;
   estado: string;
   comentarioAsesor: string | null;
   enviadoEn: string | null;
@@ -57,11 +62,49 @@ export interface DatosEjecucion {
   informes: { periodo: number; egresadoId: number | null; estado: string; comentarioAsesor: string | null }[];
   /** La ficha exige que las actividades estén aprobadas antes de entregar el informe. */
   exigirAprobadas: boolean;
+  /** Productos por objetivo específico (notas del 13-nov-2026): "no" si la ficha no los pide. */
+  productos: "no" | "opcional" | "obligatorio";
+  entregas: EntregaObjetivo[];
+  /** La ficha pide la bitácora o reporte de modificaciones (notas del 13-nov-2026). */
+  modificaciones: boolean;
+  /** Se pueden adelantar actividades de períodos siguientes al período abierto (notas del 13-nov-2026). */
+  adelantar: boolean;
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string; problemas?: string[] };
 
 const hoyISO = () => aISOLocal(new Date());
+
+/**
+ * La actividad se puede registrar en el período: está en él (planificada, arrastrada o ya con registro) o, si la ficha lo
+ * permite, se adelanta desde un período siguiente al período abierto. También la usan las evidencias.
+ */
+export async function registrable(datos: DatosEjecucion, nodoId: string, periodo: number): Promise<boolean> {
+  const { plan, reglas, registros, periodoActual } = datos;
+  if (actividadesDelPeriodo(plan.plan.arbol, periodo, plan.columnas, reglas.avance ? registros : null).some((n) => n.id === nodoId)) return true;
+  return datos.adelantar && periodo === periodoActual && adelantable(plan.plan.arbol, nodoId, periodoActual, plan.columnas, registros);
+}
+
+/** Entregas de productos por objetivo, con sus archivos sin el contenido (solo los enlaces traen su dirección). */
+async function leerEntregas(propuestaId: number): Promise<EntregaObjetivo[]> {
+  const filas = await db.select().from(entregasObjetivo).where(eq(entregasObjetivo.propuestaId, propuestaId));
+  if (filas.length === 0) return [];
+  const archivos = await db
+    .select({ id: productosObjetivoTabla.id, entregaId: productosObjetivoTabla.entregaId, producto: productosObjetivoTabla.producto, tipo: productosObjetivoTabla.tipo, nombre: productosObjetivoTabla.nombre, leyenda: productosObjetivoTabla.leyenda })
+    .from(productosObjetivoTabla)
+    .where(inArray(productosObjetivoTabla.entregaId, filas.map((f) => f.id)))
+    .orderBy(asc(productosObjetivoTabla.id));
+  const enlaces = await db
+    .select({ id: productosObjetivoTabla.id, url: productosObjetivoTabla.url })
+    .from(productosObjetivoTabla)
+    .where(and(inArray(productosObjetivoTabla.entregaId, filas.map((f) => f.id)), eq(productosObjetivoTabla.tipo, "enlace")));
+  const url = new Map(enlaces.map((e) => [e.id, e.url]));
+  return filas.map((f) => ({
+    id: f.id, nodoId: f.nodoId, egresadoId: f.egresadoId, conclusion: f.conclusion ?? "", modificacionTipo: f.modificacionTipo ?? null, modificacion: f.modificacion ?? null, estado: f.estado as EntregaObjetivo["estado"], periodo: f.periodo,
+    comentarioAsesor: f.comentarioAsesor, enviadoEn: f.enviadoEn?.toISOString() ?? null,
+    archivos: archivos.filter((a) => a.entregaId === f.id).map((a) => ({ id: a.id, producto: a.producto, tipo: a.tipo as "imagen" | "documento" | "enlace", nombre: a.nombre, leyenda: a.leyenda, enlace: url.get(a.id) ?? null })),
+  }));
+}
 
 export async function getEjecucionProyecto(propuestaId: number): Promise<Resultado<{ datos: DatosEjecucion }>> {
   const res = await getPlanTrabajo(propuestaId);
@@ -107,6 +150,7 @@ export async function getEjecucionProyecto(propuestaId: number): Promise<Resulta
     : [];
   const resumen = [...evs.map((e) => ({ ...e, enlace: e.url })), ...archivos.map((e) => ({ ...e, enlace: null }))].sort((a, b) => a.id - b.id);
   const informes = await db.select().from(informesPlan).where(eq(informesPlan.propuestaId, propuestaId));
+  const entregas = await leerEntregas(propuestaId);
   return {
     success: true,
     datos: {
@@ -119,10 +163,14 @@ export async function getEjecucionProyecto(propuestaId: number): Promise<Resulta
       periodoActual,
       informes: informes.map((i) => ({ periodo: i.periodo, egresadoId: i.egresadoId, estado: i.estado, comentarioAsesor: i.comentarioAsesor })),
       exigirAprobadas: ejec.informe.exigirActividadesAprobadas,
+      productos: productosObjetivo(plan.etapa),
+      modificaciones: op.modo === "actividad" && op.modificaciones,
+      adelantar: op.modo === "actividad" && op.adelantar,
+      entregas,
       registros: filas.map((f) => ({
         id: f.id, nodoId: f.nodoId, periodo: f.periodo, egresadoId: f.egresadoId, avance: f.avance,
         acciones: f.acciones ?? "", resultado: f.resultado ?? "", marcoTeorico: f.marcoTeorico ?? "",
-        fechaInicio: f.fechaInicio ?? null, fechaFin: f.fechaFin ?? null,
+        fechaInicio: f.fechaInicio ?? null, fechaFin: f.fechaFin ?? null, modificacionTipo: f.modificacionTipo ?? null, modificacion: f.modificacion ?? null,
         estado: f.estado, comentarioAsesor: f.comentarioAsesor, enviadoEn: f.enviadoEn?.toISOString() ?? null,
         evidencias: resumen
           .filter((e) => e.registroId === f.id)
@@ -136,7 +184,7 @@ export async function guardarRegistroPlan(
   propuestaId: number,
   nodoId: string,
   periodo: number,
-  datos: { avance: number | null; acciones: string; resultado: string; marcoTeorico: string; fechaInicio: string | null; fechaFin: string | null },
+  datos: { avance: number | null; acciones: string; resultado: string; marcoTeorico: string; fechaInicio: string | null; fechaFin: string | null; modificacionTipo?: string | null; modificacion?: string | null },
   enviar: boolean
 ): Promise<Resultado> {
   try {
@@ -147,7 +195,7 @@ export async function guardarRegistroPlan(
     if (!Number.isInteger(periodo) || periodo < 1 || periodo > periodoActual) return { success: false, error: "Ese período todavía no está abierto." };
 
     const nodo = aplanar(plan.plan.arbol).find((n) => n.id === nodoId);
-    if (!nodo || !actividadesDelPeriodo(plan.plan.arbol, periodo, plan.columnas, reglas.avance ? registros : null).some((n) => n.id === nodoId)) {
+    if (!nodo || !registrable(res.datos, nodoId, periodo)) {
       return { success: false, error: "Esa actividad no está planificada en este período." };
     }
     if (responsables(plan.plan.arbol).get(nodoId) !== plan.miId) return { success: false, error: "Esta actividad está a cargo de otro integrante." };
@@ -162,6 +210,7 @@ export async function guardarRegistroPlan(
       marcoTeorico: reglas.marcoTeorico === "no" ? "" : datos.marcoTeorico.trim().slice(0, 20000),
       fechaInicio: fechaValida(datos.fechaInicio) ? datos.fechaInicio : null,
       fechaFin: fechaValida(datos.fechaFin) ? datos.fechaFin : null,
+      ...(res.datos.modificaciones ? limpiarModificacion(datos.modificacionTipo, datos.modificacion) : { modificacionTipo: null, modificacion: null }),
     };
     if (limpio.fechaFin && limpio.fechaFin > aISOLocal(new Date())) return { success: false, error: "La fecha final de la actividad no puede ser posterior a hoy." };
     // El avance va al final (notas del 13-nov-2026): sin fechas, lo que se hizo, el resultado y las evidencias, no se guarda.

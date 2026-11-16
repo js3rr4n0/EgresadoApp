@@ -7,10 +7,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { guardarRegistroPlan, revisarRegistroPlan, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
-import { actividadesDelPeriodo, aplanar, arrastradasAlPeriodo, faltaParaAvance, responsables, validarRegistroProyecto } from "@/lib/fichas/planTrabajo";
+import { actividadesDelPeriodo, aplanar, arrastradasAlPeriodo, faltaParaAvance, periodosPlanificados, responsables, validarRegistroProyecto } from "@/lib/fichas/planTrabajo";
 import TextoRedaccion from "@/app/egresado/reportes/actividad/[actividadId]/TextoRedaccion";
 import { rutaEnPlan, enlaceActividad, ESTADO_ACTIVIDAD } from "./EjecucionProyecto";
 import EvidenciasActividad from "./EvidenciasActividad";
+import ModificacionCampo from "./ModificacionCampo";
 import type { EvidenciaCompleta } from "@/app/actions/evidenciasPlan";
 import { textosModalidad } from "@/lib/fichas/textosModalidad";
 
@@ -57,6 +58,9 @@ export default function RegistroActividadProyecto({
   const vieneDe = conArrastre ? arrastradasAlPeriodo(arbol, periodo, plan.columnas, conArrastre).get(nodoId) : undefined;
   const delPeriodo = actividadesDelPeriodo(arbol, periodo, plan.columnas, conArrastre).filter((a) => resp.get(a.id) === resp.get(nodoId));
   const posicion = delPeriodo.findIndex((a) => a.id === nodoId);
+  // Adelantada (notas del 13-nov-2026): planificada solo en períodos posteriores y registrada en este.
+  const planes = periodosPlanificados(nodo, plan.columnas);
+  const esAdelantada = planes.length > 0 && planes[0] > periodo;
   const siguiente = delPeriodo[posicion + 1] ?? null;
   const cols = plan.columnas.map((c, i) => (c.periodo === periodo ? i : -1)).filter((i) => i >= 0);
   const montoPeriodo = cols.reduce((s, i) => s + (nodo.montos[i] ?? 0), 0);
@@ -67,6 +71,8 @@ export default function RegistroActividadProyecto({
   const [marco, setMarco] = useState(registro?.marcoTeorico ?? "");
   const [fechaInicio, setFechaInicio] = useState(registro?.fechaInicio ?? "");
   const [fechaFin, setFechaFin] = useState(registro?.fechaFin ?? "");
+  const [modTipo, setModTipo] = useState<string | null>(registro?.modificacionTipo ?? null);
+  const [modTexto, setModTexto] = useState(registro?.modificacion ?? "");
   const [comentario, setComentario] = useState("");
   const [saving, setSaving] = useState<"borrador" | "siguiente" | "enviar" | "revisar" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +82,7 @@ export default function RegistroActividadProyecto({
   const limiteEvidencias = datos.evidencias;
   // El avance se indica al final (notas del 13-nov-2026): primero las fechas, lo que se hizo, el resultado y las evidencias.
   const faltaAvance = faltaParaAvance({ acciones, resultado, fechaInicio, fechaFin }, { adjuntas: evidencias.length, ...limiteEvidencias });
-  const valores = { avance: avance === "" || faltaAvance.length > 0 ? null : Number(avance), acciones, resultado, marcoTeorico: marco, fechaInicio: fechaInicio || null, fechaFin: fechaFin || null };
+  const valores = { avance: avance === "" || faltaAvance.length > 0 ? null : Number(avance), acciones, resultado, marcoTeorico: marco, fechaInicio: fechaInicio || null, fechaFin: fechaFin || null, modificacionTipo: modTipo, modificacion: modTexto };
   const hoy = new Date().toLocaleDateString("en-CA");
   const t = textosModalidad(plan.propuesta.tipo);
   // Documento que el egresado comprometió en el plan como prueba de la actividad (investigación, I3). Una
@@ -130,7 +136,7 @@ export default function RegistroActividadProyecto({
         <div>
           <h1 className="text-xl font-extrabold text-slate-900">{esAsesor ? "Revisión de actividad" : "Registro de actividad"}</h1>
           <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
-            Actividad {posicion + 1} de {delPeriodo.length} del Período {periodo}{responsable ? ` a cargo de ${responsable.nombre}` : ""}
+            {posicion >= 0 ? `Actividad ${posicion + 1} de ${delPeriodo.length} del Período ${periodo}` : `Actividad adelantada al Período ${periodo}`}{responsable ? ` a cargo de ${responsable.nombre}` : ""}
           </p>
         </div>
         <Link href={volver} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-unicaes hover:bg-unicaes-hover text-white font-extrabold text-xs transition-colors shadow-2xs w-fit">
@@ -141,6 +147,12 @@ export default function RegistroActividadProyecto({
       {!esAsesor && !propia && (
         <div className="p-4 rounded-xl border bg-slate-100 border-slate-300 text-slate-600 text-xs font-bold">
           Esta actividad está a cargo de {responsable?.nombre ?? "otro integrante"}. Puede consultarla, pero solo su responsable la registra.
+        </div>
+      )}
+      {esAdelantada && (
+        <div className="p-4 rounded-xl border bg-sky-50 border-sky-200 text-sky-900 text-xs font-bold">
+          Esta actividad estaba planificada para el período {planes.join(", ")} y se está adelantando: se registra en el período {periodo}.
+          Si llega al 100 %, ya no aparecerá en el período planificado.
         </div>
       )}
       {vieneDe && (
@@ -272,6 +284,10 @@ export default function RegistroActividadProyecto({
           )}
           <EvidenciasActividad propuestaId={plan.propuesta.id} nodoId={nodoId} periodo={periodo} evidencias={evidencias} limite={limiteEvidencias} editable={editable} />
         </div>
+      )}
+
+      {datos.modificaciones && (
+        <ModificacionCampo idBase="actividad" tipo={modTipo} texto={modTexto} onTipo={setModTipo} onTexto={setModTexto} editable={editable} de="la actividad" />
       )}
 
       {reglas.avance && nodo.nivel === 5 && (

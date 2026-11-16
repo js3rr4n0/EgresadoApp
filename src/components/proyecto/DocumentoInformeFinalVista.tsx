@@ -88,7 +88,7 @@ export default function DocumentoInformeFinalVista({ doc, volver, word }: { doc:
             <h2 className="text-center font-bold mb-4">ANEXOS</h2>
             {doc.anexos.map((x) => (
               <figure key={x.etiqueta} className="my-6" style={{ breakInside: "avoid" }}>
-                <p className="font-bold">{x.etiqueta}. {x.descripcion}{x.actividad ? ` (actividad ${x.actividad})` : ""}</p>
+                <p className="font-bold">{x.etiqueta}. {x.descripcion}{x.actividad ? ` (${x.actividad})` : ""}</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 {x.tipo === "imagen" && <img src={x.url} alt={x.descripcion} className="max-h-80 mx-auto my-2 border border-gray-300" />}
                 {x.tipo === "documento" && <p className="text-sm">Documento adjunto: {x.nombre ?? x.descripcion}</p>}

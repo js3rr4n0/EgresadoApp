@@ -11,6 +11,7 @@ export default function GanttProyecto({
   periodoActual,
   hastaNivel = 4,
   impreso = false,
+  conProductos,
 }: {
   filas: FilaGantt[];
   periodos: number;
@@ -19,6 +20,8 @@ export default function GanttProyecto({
   hastaNivel?: number;
   /** Versión para el documento: bordes simples, sin colores de fondo intensos. */
   impreso?: boolean;
+  /** Objetivos con sus productos aprobados (notas del 13-nov-2026): llevan un ✓. */
+  conProductos?: Set<string>;
 }) {
   const visibles = filas.filter((f) => f.nivel <= hastaNivel);
   const borde = impreso ? "border border-gray-300" : "border border-slate-200";
@@ -38,7 +41,7 @@ export default function GanttProyecto({
           {visibles.map((f) => (
             <tr key={f.id} className={f.nivel <= 2 ? "font-bold" : ""}>
               <td className={`px-2 py-0.5 font-mono ${borde}`}>{f.codigo}</td>
-              <td className={`px-2 py-0.5 ${borde}`} style={{ paddingLeft: `${(f.nivel - 1) * 0.75 + 0.5}rem` }}>{f.titulo || "Sin título"}</td>
+              <td className={`px-2 py-0.5 ${borde}`} style={{ paddingLeft: `${(f.nivel - 1) * 0.75 + 0.5}rem` }}>{f.titulo || "Sin título"}{conProductos?.has(f.id) && <span className="ml-1.5 text-emerald-700 font-bold" title="Productos del objetivo aprobados">✓ productos</span>}</td>
               {f.celdas.map((c, i) => {
                 const real = c.avance !== null && (c.planificado || c.arrastre || c.avance > 0);
                 return (

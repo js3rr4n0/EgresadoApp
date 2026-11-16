@@ -190,6 +190,24 @@ export default function EditorEjecucion({
                           onChange={(v) => reemplazar(et.id, { registro: { ...et.registro, avance: v } })} />
                       </div>
                     </div>
+                    {op.modo === "actividad" && (
+                      <div>
+                        <span className={etiquetaCompacta}>Reporte de modificaciones</span>
+                        <div className="h-9 flex items-center">
+                          <Interruptor etiqueta="Bitácora: cada actividad y objetivo puede reportar cambios de tiempo, recursos o alcance; se anexa a los informes" activo={op.modificaciones} deshabilitado={!editable}
+                            onChange={(v) => reemplazar(et.id, { registro: { ...et.registro, modificaciones: v } })} />
+                        </div>
+                      </div>
+                    )}
+                    {op.modo === "actividad" && (
+                      <div>
+                        <span className={etiquetaCompacta}>Adelantar actividades</span>
+                        <div className="h-9 flex items-center">
+                          <Interruptor etiqueta="Una actividad de un período siguiente se puede registrar ya en el período abierto" activo={op.adelantar} deshabilitado={!editable}
+                            onChange={(v) => reemplazar(et.id, { registro: { ...et.registro, adelantar: v } })} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {equipo && op.modo === "actividad" && (
                     <p className="text-[11px] text-gray-500 mb-2">Cada integrante registra las actividades de su plan individual; el asesor ve quién hizo qué.</p>

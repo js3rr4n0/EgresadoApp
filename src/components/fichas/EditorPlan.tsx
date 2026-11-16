@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, NIVELES_PLAN, type DefinicionFicha, type EtapaPlan } from "@/lib/fichas/tipos";
+import { documentoSolicitado, productosObjetivo, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, NIVELES_PLAN, type DefinicionFicha, type EtapaPlan } from "@/lib/fichas/tipos";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
 import { planNuevo } from "@/lib/fichas/plantillas";
 import { aplanar, cargaPorIntegrante, planEjemplo, planIndividual, totalesNodo } from "@/lib/fichas/planTrabajo";
@@ -159,6 +159,15 @@ export default function EditorPlan({
                     opciones={[{ valor: "no", texto: "No se pide" }, { valor: "opcional", texto: "Opcional" }, { valor: "obligatorio", texto: "Obligatorio" }]} />
                   <p className="text-[11px] text-gray-500 mt-1">
                     Cada actividad declara qué documento entregará como prueba; el informe del período lo muestra en «Resultados por actividad».
+                  </p>
+                </div>
+                <div>
+                  <span id="plan-prod" className={etiquetaCompacta}>Productos esperados por objetivo específico</span>
+                  <Opciones id="plan-prod" valor={productosObjetivo(plan)} editable={editable} onChange={(v) => set({ productosObjetivo: v })}
+                    opciones={[{ valor: "no", texto: "No se piden" }, { valor: "opcional", texto: "Opcionales" }, { valor: "obligatorio", texto: "Obligatorios" }]} />
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Cada objetivo declara sus productos (por ejemplo, «Estudio de tiempos»). Cuando sus actividades llegan al 100 %, el egresado los entrega con la
+                    conclusión del objetivo y el asesor los revisa juntos. La conclusión pasa al informe final.
                   </p>
                 </div>
                 {equipo && maxPropuesta !== null && necesarios > maxPropuesta && (

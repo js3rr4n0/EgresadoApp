@@ -1,6 +1,6 @@
 // Plan de trabajo jerárquico: sumas por nivel, plan individual y carga por integrante. Módulo puro.
 // Lo usa la vista de ejemplo del constructor y lo usará el editor del plan del egresado (entrega P3).
-import { documentoSolicitado, type EtapaPlan } from "./tipos";
+import { documentoSolicitado, productosObjetivo, type EtapaPlan } from "./tipos";
 
 export interface NodoPlan {
   /** Identificador estable: los registros de la ejecución (P4) apuntarán a él. */
@@ -20,7 +20,15 @@ export interface NodoPlan {
    * prueba. Se le recuerda al subir sus evidencias y aparece en "Resultados por actividad" (investigación).
    */
   documento?: string;
+  /**
+   * Solo objetivos específicos (nivel 2), si la ficha pide productos por objetivo: los productos que se entregarán al
+   * terminar sus actividades, junto con la conclusión del objetivo (notas del 13-nov-2026). Ver productosDe().
+   */
+  productos?: string[];
 }
+
+/** Productos esperados de un objetivo, sin líneas vacías. */
+export const productosDe = (n: Pick<NodoPlan, "productos">) => (n.productos ?? []).map((p) => p.trim()).filter(Boolean);
 
 /** Monto por columna de un nodo: el suyo si es hoja, o la suma de sus hijos (consecuencia lógica). */
 export function totalesNodo(n: NodoPlan, columnas: number): number[] {
@@ -100,6 +108,7 @@ export function planEjemplo(plan: EtapaPlan, integrantes: number, columnas: numb
       nivel: 2,
       titulo: `Objetivo específico ${o + 1}`,
       responsable: porObjetivo ? Math.floor(o / plan.minimos.objetivosPorIntegrante) + 1 : null,
+      ...(productosObjetivo(plan) !== "no" ? { productos: [`Producto esperado del objetivo ${o + 1}`] } : {}),
       montos: [],
       hijos: Array.from({ length: macro }, (_, m) => {
         const codM = `${codO}.${m + 1}`;
@@ -184,6 +193,9 @@ export function validarPlanEquipo(raiz: NodoPlan, plan: EtapaPlan, integrantes: 
     if (n.nivel === 4 && documentoSolicitado(plan) === "obligatorio" && !n.documento?.trim()) {
       p(n, `${n.codigo}: indica el documento que entregarás como prueba de la actividad.`);
     }
+    if (n.nivel === 2 && productosObjetivo(plan) === "obligatorio" && productosDe(n).length === 0) {
+      p(n, `${n.codigo}: indica al menos un producto esperado del objetivo.`);
+    }
     if (n.hijos.length === 0 && n.nivel >= 4) {
       const montos = Array.from({ length: columnas }, (_, i) => n.montos[i] ?? 0);
       if (montos.some((m) => m < 0)) p(n, `${n.codigo}: hay montos negativos.`);
@@ -226,7 +238,7 @@ export function cambioNoPermitido(anterior: NodoPlan, nuevo: NodoPlan, integrant
   const plano = (r: NodoPlan) => new Map(aplanar(r).map((n) => [n.id, n]));
   const a = plano(anterior);
   const n = plano(nuevo);
-  const firma = (x: NodoPlan) => JSON.stringify({ t: x.titulo, r: x.responsable, m: x.montos, d: x.documento ?? "", h: x.hijos.map((h) => h.id) });
+  const firma = (x: NodoPlan) => JSON.stringify({ t: x.titulo, r: x.responsable, m: x.montos, d: x.documento ?? "", p: productosDe(x), h: x.hijos.map((h) => h.id) });
   for (const [id, viejo] of a) {
     const actual = n.get(id);
     const eraSuyo = respA.get(id) === integrante;
@@ -273,6 +285,25 @@ export interface AvanceRegistrado {
 const planificadaEn = (n: NodoPlan, columnas: { periodo: number }[]) =>
   [...new Set(columnas.map((c, i) => ((n.montos[i] ?? 0) > 0 ? c.periodo : 0)).filter((p) => p > 0))];
 
+/** Períodos en que la actividad está planificada (con monto o marca), en orden. */
+export const periodosPlanificados = (n: NodoPlan, columnas: { periodo: number }[]) => planificadaEn(n, columnas).sort((a, b) => a - b);
+
+/** Último avance enviado de una actividad antes del período indicado (0 si no hay). */
+const avanceAntesDe = (nodoId: string, periodo: number, registros: AvanceRegistrado[]) =>
+  registros.filter((r) => r.nodoId === nodoId && r.periodo < periodo && r.estado !== "borrador" && r.avance !== null).sort((a, b) => b.periodo - a.periodo)[0]?.avance ?? 0;
+
+/**
+ * Actividades menos atadas a su período (notas del 13-nov-2026): si la ficha lo permite, una actividad planificada
+ * solo en períodos posteriores se puede adelantar y registrar en el período abierto, mientras no esté terminada.
+ */
+export function adelantable(raiz: NodoPlan, nodoId: string, periodoActual: number, columnas: { periodo: number }[], registros: AvanceRegistrado[]): boolean {
+  const n = aplanar(raiz).find((x) => x.id === nodoId);
+  if (!n || n.hijos.length > 0 || n.nivel < 4) return false;
+  const planes = periodosPlanificados(n, columnas);
+  if (planes.length === 0 || planes[0] <= periodoActual) return false;
+  return avanceAntesDe(nodoId, periodoActual + 1, registros) < 100;
+}
+
 /**
  * Actividades que no estaban planificadas en el período, pero que vienen de uno anterior sin llegar al 100 %:
  * el resto pasa a este período (por ejemplo, 70 % en el período 1 → sigue en el 2). Devuelve, por actividad, el
@@ -303,7 +334,8 @@ export function arrastradasAlPeriodo(
 /**
  * Actividades (hojas de nivel 4 o 5) del período: las planificadas en él (con monto o marca en alguna de sus columnas)
  * y, si se pasan los registros (la ficha pide avance), las que vienen incompletas de un período anterior. Los registros
- * solo se pasan para períodos ya abiertos: en uno futuro todavía no se sabe qué quedará pendiente.
+ * solo se pasan para períodos ya abiertos: en uno futuro todavía no se sabe qué quedará pendiente. Con registros, además,
+ * entra la que ya tiene registro en el período (por ejemplo, una adelantada) y sale la planificada que se terminó antes.
  */
 export function actividadesDelPeriodo(
   raiz: NodoPlan,
@@ -313,9 +345,15 @@ export function actividadesDelPeriodo(
 ): NodoPlan[] {
   const cols = columnas.map((c, i) => (c.periodo === periodo ? i : -1)).filter((i) => i >= 0);
   const arrastradas = registros ? arrastradasAlPeriodo(raiz, periodo, columnas, registros) : new Map();
-  return aplanar(raiz).filter(
-    (n) => n.hijos.length === 0 && n.nivel >= 4 && (cols.some((i) => (n.montos[i] ?? 0) > 0) || arrastradas.has(n.id))
-  );
+  return aplanar(raiz).filter((n) => {
+    if (n.hijos.length > 0 || n.nivel < 4) return false;
+    const conRegistro = !!registros?.some((r) => r.nodoId === n.id && r.periodo === periodo);
+    if (conRegistro) return true;
+    const planificada = cols.some((i) => (n.montos[i] ?? 0) > 0);
+    // Terminada antes (por ejemplo, adelantada): ya no hay nada que registrar en el período planificado.
+    if (planificada && registros && avanceAntesDe(n.id, periodo, registros) >= 100) return false;
+    return planificada || arrastradas.has(n.id);
+  });
 }
 
 /**

@@ -2,8 +2,11 @@
 // Es el documento final de la investigación (la tesis): todo el equipo redacta, cada guardado es una versión nueva,
 // el asesor revisa por capítulo (o el documento completo) y al final todos ratifican la versión que se entrega.
 import { precargaEspacio, problemasProtocolo, type DatosPropuestaPrecarga } from "./protocolo";
-import { PRECARGA_MARCO_REGISTROS, type Espacio, type EtapaInformeFinal } from "./tipos";
+import { PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, type Espacio, type EtapaInformeFinal } from "./tipos";
 import { guardarComoTexto, leerApartado, parteVacia, tipoApartado } from "./apartadosAcademicos";
+
+/** Capítulo que genera el sistema (resultados por objetivo): no se redacta, no se envía ni se aprueba aparte. */
+export const capituloGenerado = (e: Pick<Espacio, "elemento">) => e.elemento === "resultados_objetivos" || e.elemento === "reporte_modificaciones";
 
 /** Un capítulo sin contenido: texto vacío, lista vacía o apartado académico con todos sus subapartados vacíos. */
 export function contenidoVacio(e: Espacio, contenido: string | null | undefined): boolean {
@@ -64,20 +67,23 @@ export function textoMarcoRegistros(registros: { codigo: string; titulo: string;
 
 /**
  * Contenido inicial de un capítulo que todavía no tiene versiones: de la propuesta, del protocolo (sus respuestas están
- * en datos.respuestas) o del marco teórico de los registros. Las listas se copian tal cual (JSON).
+ * en datos.respuestas), del marco teórico de los registros o de las conclusiones aprobadas de los objetivos. Las listas
+ * se copian tal cual (JSON).
  */
 export function precargaCapitulo(
   e: Espacio,
   fuentes: Espacio[],
   datos: DatosPropuestaPrecarga,
-  marcoRegistros: string
+  marcoRegistros: string,
+  conclusionesObjetivos = ""
 ): string {
   if (!e.precargarDe) return "";
-  if (e.precargarDe === PRECARGA_MARCO_REGISTROS) {
-    if (e.elemento === "texto") return marcoRegistros;
-    // Apartado académico: el marco de las actividades queda en su primer subapartado.
-    const tipo = e.elemento === "apartado" && marcoRegistros.trim() ? tipoApartado(e) : undefined;
-    return tipo ? guardarComoTexto(leerApartado(tipo, marcoRegistros)) : "";
+  if (e.precargarDe === PRECARGA_MARCO_REGISTROS || e.precargarDe === PRECARGA_CONCLUSIONES_OBJETIVOS) {
+    const texto = e.precargarDe === PRECARGA_MARCO_REGISTROS ? marcoRegistros : conclusionesObjetivos;
+    if (e.elemento === "texto") return texto;
+    // Apartado académico: el texto de la ejecución queda en su primer subapartado.
+    const tipo = e.elemento === "apartado" && texto.trim() ? tipoApartado(e) : undefined;
+    return tipo ? guardarComoTexto(leerApartado(tipo, texto)) : "";
   }
   return precargaEspacio(e, fuentes, datos);
 }
@@ -90,6 +96,7 @@ export function problemasInformeFinal(etapa: EtapaInformeFinal, contenidos: Reco
 /** Capítulos que faltan aprobar para poder ratificar y entregar (los opcionales vacíos no cuentan). */
 export function capitulosPendientes(etapa: EtapaInformeFinal, estados: Record<string, EstadoDeCapitulo>, contenidos: Record<string, string | null | undefined>) {
   return etapa.espacios.filter((e) => {
+    if (capituloGenerado(e)) return false;
     const vacio = contenidoVacio(e, contenidos[e.id]);
     if (!e.obligatorio && vacio) return false;
     return (estados[e.id]?.estado ?? "borrador") !== "aprobado";
@@ -102,3 +109,11 @@ export const ETIQUETA_ESTADO_CAPITULO: Record<EstadoCapitulo, string> = {
   observado: "Con observaciones",
   aprobado: "Aprobado",
 };
+
+/** Conclusiones aprobadas de los objetivos, una por párrafo y en el orden del plan (precarga del capítulo de conclusiones). */
+export function textoConclusionesObjetivos(objetivos: { id: string }[], entregas: { nodoId: string; estado: string; conclusion: string | null }[]): string {
+  return objetivos
+    .map((o) => entregas.find((e) => e.nodoId === o.id && e.estado === "aprobado")?.conclusion?.trim() ?? "")
+    .filter(Boolean)
+    .join("\n\n");
+}

@@ -5,7 +5,7 @@ import { ACTORES, CATALOGO, DOCUMENTOS_ESTUDIANTE } from "@/lib/fichas/catalogo"
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import { reglasRecurso } from "@/lib/fichas/elementosRecurso";
 import { tipoApartado } from "@/lib/fichas/apartadosAcademicos";
-import { PRECARGA_MARCO_REGISTROS, diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
+import { PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
 
 /** Reglas de un espacio en frases cortas, como las leería el egresado. */
 function reglas(e: Espacio, equipo: boolean): string[] {
@@ -52,6 +52,13 @@ function reglas(e: Espacio, equipo: boolean): string[] {
         "Con guía, autoevaluación y revisión de redacción (tercera persona, tiempo verbal, oraciones largas).",
       ];
     }
+    case "reporte_modificaciones":
+      return ["Lo genera el sistema con la bitácora de la ejecución: va sin número, como anexo, y no se revisa aparte."];
+    case "resultados_objetivos":
+      return [
+        "Lo genera el sistema: no se redacta ni se revisa aparte.",
+        "Por objetivo: productos entregados y, por macroactividad, cada actividad con sus fechas, su resultado y sus evidencias (como anexos).",
+      ];
   }
 }
 
@@ -95,6 +102,8 @@ export function PasosEgresado({ definicion, etapa }: { definicion: DefinicionFic
   const fuentesPrecarga = definicion.etapas.flatMap((e) => (e.tipo === "propuesta" || e.tipo === "protocolo" ? e.espacios : []));
   const precarga = espacio?.precargarDe === PRECARGA_MARCO_REGISTROS
     ? { titulo: "marco teórico de las actividades" }
+    : espacio?.precargarDe === PRECARGA_CONCLUSIONES_OBJETIVOS
+    ? { titulo: "conclusiones aprobadas de los objetivos" }
     : espacio?.precargarDe ? fuentesPrecarga.find((e) => e.id === espacio.precargarDe) : undefined;
 
   return (

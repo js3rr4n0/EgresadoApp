@@ -30,13 +30,23 @@ export default function EvidenciasActividad({
   evidencias,
   limite,
   editable,
+  subir,
+  quitar: quitarPropio,
+  idBase = "evidencia",
+  nombre = "Evidencia",
 }: {
   propuestaId: number;
   nodoId: string;
   periodo: number;
-  evidencias: EvidenciaCompleta[];
+  evidencias: Pick<EvidenciaCompleta, "id" | "tipo" | "url" | "nombre" | "leyenda" | "origen" | "fuente">[];
   limite: { min: number; max: number };
   editable: boolean;
+  /** Otro destino para los archivos (por ejemplo, los productos de un objetivo). Por defecto, la actividad. */
+  subir?: (fd: FormData) => Promise<{ success: true } | { success: false; error: string }>;
+  quitar?: (id: number) => Promise<{ success: true } | { success: false; error: string }>;
+  /** Prefijo de los id de los campos, para tener varias instancias en una página. */
+  idBase?: string;
+  nombre?: string;
 }) {
   const router = useRouter();
   const [tipo, setTipo] = useState<Tipo>("imagen");
@@ -74,7 +84,7 @@ export default function EvidenciasActividad({
       fd.set("origen", origen.origen ?? "");
       fd.set("fuente", JSON.stringify(origen.fuente));
     }
-    const res = await subirEvidenciaPlan(propuestaId, nodoId, periodo, fd);
+    const res = subir ? await subir(fd) : await subirEvidenciaPlan(propuestaId, nodoId, periodo, fd);
     setOcupado(false);
     if (!res.success) return setError(res.error);
     limpiar();
@@ -82,10 +92,10 @@ export default function EvidenciasActividad({
   }
 
   async function quitar(id: number) {
-    if (!window.confirm("¿Quitar esta evidencia de la actividad?")) return;
+    if (!window.confirm(`¿Quitar ${nombre === "Evidencia" ? "esta evidencia de la actividad" : "este archivo"}?`)) return;
     setError(null);
     setOcupado(true);
-    const res = await eliminarEvidenciaPlan(propuestaId, id);
+    const res = quitarPropio ? await quitarPropio(id) : await eliminarEvidenciaPlan(propuestaId, id);
     setOcupado(false);
     if (!res.success) return setError(res.error);
     router.refresh();
@@ -94,7 +104,7 @@ export default function EvidenciasActividad({
   return (
     <div className="space-y-4">
       {evidencias.length === 0 ? (
-        <p className="text-xs text-slate-500 font-semibold">Todavía no hay evidencias adjuntas.</p>
+        <p className="text-xs text-slate-500 font-semibold">{nombre === "Evidencia" ? "Todavía no hay evidencias adjuntas." : "Todavía no hay archivos adjuntos."}</p>
       ) : (
         <ul className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {evidencias.map((e, i) => {
@@ -103,7 +113,7 @@ export default function EvidenciasActividad({
               <li key={e.id} className="border border-slate-200 rounded-xl p-3 space-y-2 bg-slate-50">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-wide text-slate-500">
-                    Evidencia {i + 1} · {TIPOS.find((t) => t.id === e.tipo)?.label}
+                    {nombre} {i + 1} · {TIPOS.find((t) => t.id === e.tipo)?.label}
                   </span>
                   {editable && (
                     <button type="button" disabled={ocupado} onClick={() => quitar(e.id)} className="text-[11px] font-bold text-red-600 hover:underline disabled:opacity-50">
@@ -141,7 +151,7 @@ export default function EvidenciasActividad({
 
       {editable && !lleno && (
         <div className="border border-dashed border-slate-300 rounded-xl p-4 space-y-3">
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Tipo de evidencia">
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Tipo de ${nombre.toLowerCase()}`}>
             {TIPOS.map((t) => (
               <button key={t.id} type="button" role="radio" aria-checked={tipo === t.id}
                 onClick={() => { setTipo(t.id); setArchivo(null); setInputKey((k) => k + 1); }}
@@ -153,37 +163,37 @@ export default function EvidenciasActividad({
           <p className="text-[11px] text-slate-500 font-semibold">{TIPOS.find((t) => t.id === tipo)?.ayuda}</p>
           {tipo === "enlace" ? (
             <div className="space-y-1">
-              <label htmlFor="evidencia-url" className={etiqueta}>Dirección del enlace</label>
-              <input id="evidencia-url" type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" className={campo} />
+              <label htmlFor={`${idBase}-url`} className={etiqueta}>Dirección del enlace</label>
+              <input id={`${idBase}-url`} type="url" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" className={campo} />
             </div>
           ) : (
             <div className="space-y-1">
-              <label htmlFor="evidencia-archivo" className={etiqueta}>{tipo === "imagen" ? "Imagen" : "Documento"}</label>
-              <input key={inputKey} id="evidencia-archivo" type="file" accept={tipo === "imagen" ? "image/png,image/jpeg" : "application/pdf"}
+              <label htmlFor={`${idBase}-archivo`} className={etiqueta}>{tipo === "imagen" ? "Imagen" : "Documento"}</label>
+              <input key={inputKey} id={`${idBase}-archivo`} type="file" accept={tipo === "imagen" ? "image/png,image/jpeg" : "application/pdf"}
                 onChange={(e) => setArchivo(e.target.files?.[0] ?? null)} className="block text-xs font-semibold text-slate-700" />
             </div>
           )}
           <div className="space-y-1">
-            <label htmlFor="evidencia-leyenda" className={etiqueta}>{tipo === "imagen" ? "Pie de imagen (obligatorio)" : "Descripción (obligatoria)"}</label>
-            <input id="evidencia-leyenda" type="text" value={leyenda} maxLength={MAX_CARACTERES_LEYENDA} onChange={(e) => setLeyenda(e.target.value)}
+            <label htmlFor={`${idBase}-leyenda`} className={etiqueta}>{tipo === "imagen" ? "Pie de imagen (obligatorio)" : "Descripción (obligatoria)"}</label>
+            <input id={`${idBase}-leyenda`} type="text" value={leyenda} maxLength={MAX_CARACTERES_LEYENDA} onChange={(e) => setLeyenda(e.target.value)}
               placeholder="Descripción breve de lo que demuestra" className={campo} />
             <p className="text-[10px] text-slate-400 font-semibold text-right">{leyenda.length}/{MAX_CARACTERES_LEYENDA} caracteres</p>
           </div>
           {tipo === "imagen" && (
             <>
-              <OrigenImagenCampos idBase="evidencia" valor={origen} onChange={setOrigen} />
+              <OrigenImagenCampos idBase={idBase} valor={origen} onChange={setOrigen} />
               <p className="text-[10px] text-slate-500 font-semibold">{AVISO_ORIGEN_IMAGEN}</p>
             </>
           )}
           <div className="flex justify-end">
             <button type="button" disabled={!listo || ocupado} onClick={adjuntar}
               className="px-5 py-2 rounded-lg bg-unicaes hover:bg-unicaes-hover text-white text-xs font-extrabold transition-colors disabled:opacity-50">
-              {ocupado ? "Adjuntando..." : "Adjuntar evidencia"}
+              {ocupado ? "Adjuntando..." : nombre === "Evidencia" ? "Adjuntar evidencia" : "Adjuntar"}
             </button>
           </div>
         </div>
       )}
-      {editable && lleno && <p className="text-[11px] text-slate-500 font-semibold">Alcanzó el máximo de {limite.max} evidencia(s) para esta actividad.</p>}
+      {editable && lleno && <p className="text-[11px] text-slate-500 font-semibold">Alcanzó el máximo de {limite.max} archivo(s).</p>}
     </div>
   );
 }

@@ -2,7 +2,7 @@
 // una versión nueva para que se vea qué cambia respecto de la anterior. Módulo puro.
 import { CATALOGO } from "./catalogo";
 import {
-  documentoSolicitado, esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, rangoPalabras,
+  documentoSolicitado, productosObjetivo, esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, rangoPalabras,
   type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type ValorParametro,
 } from "./tipos";
 
@@ -19,6 +19,8 @@ const CAMPOS_EJECUCION: [string, (e: EtapaEjecucion) => ValorParametro | null][]
   ["Registro", (e) => (opcionesRegistro(e).modo === "actividad" ? "por actividad del plan" : "por subperíodo")],
   ["Marco teórico", (e) => opcionesRegistro(e).marcoTeorico],
   ["Avance por actividad", (e) => opcionesRegistro(e).avance],
+  ["Reporte de modificaciones (bitácora)", (e) => opcionesRegistro(e).modificaciones],
+  ["Adelantar actividades de períodos siguientes", (e) => opcionesRegistro(e).adelantar],
   ["Evidencias por actividad", (e) => {
     if (opcionesRegistro(e).modo !== "actividad") return null;
     const { min, max } = opcionesRegistro(e).evidencias;
@@ -48,6 +50,7 @@ const CAMPOS_PLAN: [string, (p: EtapaPlan) => ValorParametro][] = [
   ["Validación del supervisor", (p) => p.aprobacion.validaSupervisor],
   ["Días de revisión del asesor", (p) => p.aprobacion.diasRevision],
   ["Documento solicitado por actividad", (p) => documentoSolicitado(p)],
+  ["Productos esperados por objetivo específico", (p) => productosObjetivo(p)],
 ];
 
 const CAMPOS_INFORME_FINAL: [string, (p: EtapaInformeFinal) => ValorParametro][] = [

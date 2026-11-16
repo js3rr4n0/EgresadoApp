@@ -28,12 +28,21 @@
 // Notas del 13-nov-2026: --version-ejecucion crea el borrador de una versión de INV-ING-001 cuya ejecución ya no pide
 // marco teórico en el registro, entrega un solo informe general y precarga el marco del informe final de la
 // fundamentación del protocolo (se habilita en el constructor).
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual | --version-apartados | --version-ejecucion] [--solo | --apartados]
+// Productos por objetivo (16-nov-2026): --version-productos crea el borrador de una versión cuyo plan pide productos por
+// objetivo y cuyo informe final precarga las conclusiones de los objetivos; --productos-plan agrega productos de prueba a
+// los objetivos del plan (aprobado o no) de la propuesta, sin tocar los que ya tienen.
+// Resultados por objetivo (16-nov-2026): --version-resultados crea el borrador de una versión cuyo capítulo "Resultados
+// obtenidos" del informe final lo genera el sistema.
+// Bitácora (16-nov-2026): --version-bitacora crea el borrador de una versión cuya ejecución pide el reporte de
+// modificaciones y cuyo informe final lo anexa.
+// Adelantar (16-nov-2026): --version-adelantar crea el borrador de una versión que permite adelantar actividades de
+// períodos siguientes; --actividad-futura agrega al plan una actividad de prueba planificada en el último período.
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual | --version-apartados | --version-ejecucion | --version-productos | --productos-plan | --version-resultados | --version-bitacora | --version-adelantar | --actividad-futura] [--solo | --apartados]
 import crypto from "crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import { cartasAceptacion, detallesProyecto, fichas, ratificacionesPropuesta, fichasVersiones, historialEstados, informesFinalesFicha, versionesCapitulo, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
-import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaProtocolo, type DefinicionFicha, type Espacio } from "../../src/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaProtocolo, PRECARGA_CONCLUSIONES_OBJETIVOS, type DefinicionFicha, type Espacio } from "../../src/lib/fichas/tipos";
 import { guardarComoTexto, tipoApartado } from "../../src/lib/fichas/apartadosAcademicos";
 import { informeFinalNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
 import { validarDefinicion } from "../../src/lib/fichas/validar";
@@ -199,6 +208,131 @@ async function versionEjecucion() {
     notas: "Ejecución por productos: registro sin marco teórico, con fechas, y un solo informe general.",
   }).returning({ id: fichasVersiones.id, numero: fichasVersiones.numero });
   console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
+}
+
+/** Productos por objetivo (16-nov-2026): borrador con el plan que los pide y las conclusiones precargadas en el informe. */
+async function versionProductos() {
+  const [ficha] = await db.select({ id: fichas.id }).from(fichas).where(eq(fichas.codigo, "INV-ING-001-SIST"));
+  if (!ficha) throw new Error("No existe la ficha INV-ING-001-SIST.");
+  const versiones = await db.select().from(fichasVersiones).where(eq(fichasVersiones.fichaId, ficha.id)).orderBy(sql`${fichasVersiones.numero} DESC`);
+  const borrador = versiones.find((v) => v.estado === "borrador");
+  if (borrador) return console.log(`Ya existe el borrador v${borrador.numero} (id ${borrador.id}); habilítalo o descártalo desde el constructor.`);
+  const base = versiones.find((v) => v.estado === "habilitada");
+  if (!base) throw new Error("La ficha no tiene versiones habilitadas.");
+  const def = structuredClone(base.definicion) as DefinicionFicha;
+  const plan = def.etapas.find(esEtapaPlan);
+  if (!plan) throw new Error("La versión habilitada no tiene plan de trabajo.");
+  plan.productosObjetivo = "obligatorio";
+  const conc = def.etapas.find(esEtapaInformeFinal)?.espacios.find((e) => e.id === "if_conclusiones");
+  if (conc) {
+    conc.precargarDe = PRECARGA_CONCLUSIONES_OBJETIVOS;
+    conc.descripcion = "Parte de las conclusiones aprobadas de cada objetivo específico";
+  }
+  const problemas = validarDefinicion(def);
+  if (problemas.length) throw new Error(`La definición nueva no es válida: ${problemas.map((p) => p.mensaje).join(" | ")}`);
+  const [v] = await db.insert(fichasVersiones).values({
+    fichaId: ficha.id, numero: versiones[0].numero + 1, estado: "borrador", definicion: def, basadaEnId: base.id,
+    notas: "Productos por objetivo específico, con su conclusión, que pasa al informe final.",
+  }).returning({ id: fichasVersiones.id, numero: fichasVersiones.numero });
+  console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
+}
+
+/** Resultados por objetivo (16-nov-2026): borrador cuyo capítulo de resultados del informe final se genera solo. */
+async function versionResultados() {
+  const [ficha] = await db.select({ id: fichas.id }).from(fichas).where(eq(fichas.codigo, "INV-ING-001-SIST"));
+  if (!ficha) throw new Error("No existe la ficha INV-ING-001-SIST.");
+  const versiones = await db.select().from(fichasVersiones).where(eq(fichasVersiones.fichaId, ficha.id)).orderBy(sql`${fichasVersiones.numero} DESC`);
+  const borrador = versiones.find((v) => v.estado === "borrador");
+  if (borrador) return console.log(`Ya existe el borrador v${borrador.numero} (id ${borrador.id}); habilítalo o descártalo desde el constructor.`);
+  const base = versiones.find((v) => v.estado === "habilitada");
+  if (!base) throw new Error("La ficha no tiene versiones habilitadas.");
+  const def = structuredClone(base.definicion) as DefinicionFicha;
+  const inf = def.etapas.find(esEtapaInformeFinal);
+  if (!inf) throw new Error("La versión habilitada no tiene informe final.");
+  const nuevo = informeFinalNuevo(inf.id).espacios.find((e) => e.id === "if_resultados")!;
+  const i = inf.espacios.findIndex((e) => e.id === "if_resultados");
+  if (i >= 0) inf.espacios[i] = nuevo;
+  else inf.espacios.push(nuevo);
+  const problemas = validarDefinicion(def);
+  if (problemas.length) throw new Error(`La definición nueva no es válida: ${problemas.map((p) => p.mensaje).join(" | ")}`);
+  const [v] = await db.insert(fichasVersiones).values({
+    fichaId: ficha.id, numero: versiones[0].numero + 1, estado: "borrador", definicion: def, basadaEnId: base.id,
+    notas: "Resultados del informe final generados por objetivo, con productos y evidencias como anexos.",
+  }).returning({ id: fichasVersiones.id, numero: fichasVersiones.numero });
+  console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
+}
+
+/** Bitácora (16-nov-2026): borrador cuya ejecución pide el reporte de modificaciones y cuyo informe final lo anexa. */
+async function versionBitacora() {
+  const [ficha] = await db.select({ id: fichas.id }).from(fichas).where(eq(fichas.codigo, "INV-ING-001-SIST"));
+  if (!ficha) throw new Error("No existe la ficha INV-ING-001-SIST.");
+  const versiones = await db.select().from(fichasVersiones).where(eq(fichasVersiones.fichaId, ficha.id)).orderBy(sql`${fichasVersiones.numero} DESC`);
+  const borrador = versiones.find((v) => v.estado === "borrador");
+  if (borrador) return console.log(`Ya existe el borrador v${borrador.numero} (id ${borrador.id}); habilítalo o descártalo desde el constructor.`);
+  const base = versiones.find((v) => v.estado === "habilitada");
+  if (!base) throw new Error("La ficha no tiene versiones habilitadas.");
+  const def = structuredClone(base.definicion) as DefinicionFicha;
+  for (const et of def.etapas.filter(esEtapaEjecucion)) et.registro.modificaciones = true;
+  const inf = def.etapas.find(esEtapaInformeFinal);
+  if (inf && !inf.espacios.some((e) => e.id === "if_modificaciones")) {
+    const nuevo = informeFinalNuevo(inf.id).espacios.find((e) => e.id === "if_modificaciones")!;
+    const anexos = inf.espacios.findIndex((e) => e.id === "if_anexos");
+    inf.espacios.splice(anexos >= 0 ? anexos : inf.espacios.length, 0, nuevo);
+  }
+  const problemas = validarDefinicion(def);
+  if (problemas.length) throw new Error(`La definición nueva no es válida: ${problemas.map((p) => p.mensaje).join(" | ")}`);
+  const [v] = await db.insert(fichasVersiones).values({
+    fichaId: ficha.id, numero: versiones[0].numero + 1, estado: "borrador", definicion: def, basadaEnId: base.id,
+    notas: "Bitácora o reporte de modificaciones en la ejecución, anexado a los informes.",
+  }).returning({ id: fichasVersiones.id, numero: fichasVersiones.numero });
+  console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
+}
+
+/** Adelantar (16-nov-2026): borrador cuya ejecución permite adelantar actividades de períodos siguientes. */
+async function versionAdelantar() {
+  const [ficha] = await db.select({ id: fichas.id }).from(fichas).where(eq(fichas.codigo, "INV-ING-001-SIST"));
+  if (!ficha) throw new Error("No existe la ficha INV-ING-001-SIST.");
+  const versiones = await db.select().from(fichasVersiones).where(eq(fichasVersiones.fichaId, ficha.id)).orderBy(sql`${fichasVersiones.numero} DESC`);
+  const borrador = versiones.find((v) => v.estado === "borrador");
+  if (borrador) return console.log(`Ya existe el borrador v${borrador.numero} (id ${borrador.id}); habilítalo o descártalo desde el constructor.`);
+  const base = versiones.find((v) => v.estado === "habilitada");
+  if (!base) throw new Error("La ficha no tiene versiones habilitadas.");
+  const def = structuredClone(base.definicion) as DefinicionFicha;
+  for (const et of def.etapas.filter(esEtapaEjecucion)) et.registro.adelantar = true;
+  const problemas = validarDefinicion(def);
+  if (problemas.length) throw new Error(`La definición nueva no es válida: ${problemas.map((p) => p.mensaje).join(" | ")}`);
+  const [v] = await db.insert(fichasVersiones).values({
+    fichaId: ficha.id, numero: versiones[0].numero + 1, estado: "borrador", definicion: def, basadaEnId: base.id,
+    notas: "Se pueden adelantar actividades de períodos siguientes al período abierto.",
+  }).returning({ id: fichasVersiones.id, numero: fichasVersiones.numero });
+  console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
+}
+
+/** Adelantar (16-nov-2026): una actividad de prueba en la última macroactividad, planificada en la última columna. */
+async function actividadFutura() {
+  const { prop } = await propuestaDelLider();
+  const [plan] = await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, prop.id));
+  if (!plan) throw new Error("La propuesta no tiene plan de trabajo.");
+  const raiz = plan.arbol as NodoPlan;
+  const macro = raiz.hijos.at(-1)?.hijos.at(-1);
+  if (!macro) throw new Error("El plan no tiene macroactividades.");
+  if (macro.hijos.some((a) => a.titulo === "Actividad futura de prueba")) return console.log("La actividad futura ya existe.");
+  const montos = Array.from({ length: plan.columnas }, (_, c) => (c === plan.columnas - 1 ? 1 : 0));
+  macro.hijos.push({ id: crypto.randomUUID(), codigo: "", nivel: 4, titulo: "Actividad futura de prueba", responsable: null, montos, hijos: [], documento: "Informe de la actividad (PDF)" });
+  await db.update(planesTrabajo).set({ arbol: numerar(raiz), actualizadoEn: new Date() }).where(eq(planesTrabajo.id, plan.id));
+  console.log(`Actividad futura agregada en ${macro.codigo} del plan de la propuesta ${prop.id} (última columna).`);
+}
+
+/** Productos de prueba en los objetivos del plan de la propuesta (también si ya está aprobado). */
+async function productosPlan() {
+  const { prop } = await propuestaDelLider();
+  const [plan] = await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, prop.id));
+  if (!plan) throw new Error("La propuesta no tiene plan de trabajo.");
+  const raiz = plan.arbol as NodoPlan;
+  const ejemplos = [["Instrumento de encuesta validado", "Base de datos de respuestas"], ["Informe de análisis estadístico"], ["Documento de relación entre variables"], ["Propuesta de recomendaciones"]];
+  raiz.hijos.forEach((o, i) => { if (!o.productos?.some((p) => p.trim())) o.productos = ejemplos[i % ejemplos.length]; });
+  await db.update(planesTrabajo).set({ arbol: raiz, actualizadoEn: new Date() }).where(eq(planesTrabajo.id, plan.id));
+  console.log(`Productos de prueba en los ${raiz.hijos.length} objetivos del plan de la propuesta ${prop.id}.`);
 }
 
 /** Atajo de prueba (I3): llena las partes del protocolo que faltan (texto y listas obligatorias). */
@@ -371,6 +505,12 @@ async function run() {
   else if (process.argv.includes("--individual")) await sembrarIndividual();
   else if (process.argv.includes("--version-apartados")) await versionApartados();
   else if (process.argv.includes("--version-ejecucion")) await versionEjecucion();
+  else if (process.argv.includes("--version-productos")) await versionProductos();
+  else if (process.argv.includes("--productos-plan")) await productosPlan();
+  else if (process.argv.includes("--version-resultados")) await versionResultados();
+  else if (process.argv.includes("--version-bitacora")) await versionBitacora();
+  else if (process.argv.includes("--version-adelantar")) await versionAdelantar();
+  else if (process.argv.includes("--actividad-futura")) await actividadFutura();
   else await sembrar();
 }
 

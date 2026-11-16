@@ -12,9 +12,12 @@ import { notaImagen } from "@/lib/fuenteImagen";
 import { leyendaDocumento } from "@/lib/reglasRegistroActividad";
 import BotonImprimir from "./BotonImprimir";
 import GanttProyecto from "./GanttProyecto";
-import { aplanar, ganttPlan, planIndividual, type NodoPlan } from "@/lib/fichas/planTrabajo";
+import { aplanar, ganttPlan, planIndividual, productosDe, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import { documentoSolicitado } from "@/lib/fichas/tipos";
 import { textosModalidad } from "@/lib/fichas/textosModalidad";
+import { getArchivosEntrega } from "@/app/actions/entregasObjetivo";
+import { quienesEntregan } from "@/lib/fichas/entregasObjetivo";
+import { entradasBitacora, textoEntrada } from "@/lib/fichas/bitacora";
 
 const dinero = (v: number) => (v ? `$${v.toLocaleString("es-SV")}` : "");
 const fecha = (iso: string | null) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString("es-SV", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—");
@@ -49,6 +52,14 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
   // actividad" muestra la macroactividad y el documento solicitado de cada una, como en el contexto del 12-nov-2026.
   const conPresupuesto = plan.etapa.presupuesto.activo;
   const conDocumento = documentoSolicitado(plan.etapa) !== "no";
+  // Productos por objetivo enviados en el período (notas del 13-nov-2026); en el informe individual, los del integrante.
+  const entregasPeriodo = res.datos.entregas.filter((e) => e.periodo === periodo && (e.estado === "enviado" || e.estado === "aprobado")
+    && (integrante === null || quienesEntregan(plan.plan.arbol, e.nodoId).includes(integrante)));
+  // Bitácora del período (notas del 13-nov-2026); en el informe individual, lo del integrante.
+  const resp = responsables(plan.plan.arbol);
+  const bitacora = entradasBitacora({ arbol: plan.plan.arbol, registros, entregas: res.datos.entregas, periodo })
+    .filter((e) => integrante === null || (e.origen === "objetivo" ? quienesEntregan(plan.plan.arbol, aplanar(plan.plan.arbol).find((n) => n.codigo === e.codigo)?.id ?? "").includes(integrante) : resp.get(aplanar(plan.plan.arbol).find((n) => n.codigo === e.codigo)?.id ?? "") === integrante));
+  const archivosEntregas = entregasPeriodo.length ? await getArchivosEntrega(propuestaId, entregasPeriodo.map((e) => e.id)) : [];
   const padres = new Map<string, NodoPlan>();
   for (const n of aplanar(plan.plan.arbol)) for (const h of n.hijos) padres.set(h.id, n);
   const actividadDe = (id: string) => {
@@ -238,6 +249,53 @@ export default async function InformePeriodoProyecto({ propuestaId, periodo, de,
             </div>
           )}
         </section>
+        {res.datos.productos !== "no" && (
+          <section className="space-y-3">
+            <h2 className="font-bold uppercase text-xs tracking-wide pt-4">7. Productos entregados por objetivo</h2>
+            {entregasPeriodo.length === 0 ? (
+              <p className="text-gray-500">En este período no se entregaron productos de objetivos específicos.</p>
+            ) : (
+              entregasPeriodo.map((e, k) => {
+                const o = plan.plan.arbol.hijos.find((x) => x.id === e.nodoId);
+                const productos = o ? productosDe(o) : [];
+                return (
+                  <div key={e.id} className="space-y-1.5" style={{ pageBreakInside: "avoid" }}>
+                    <p><strong>7.{k + 1} Objetivo {o?.codigo} {o?.titulo}</strong>{e.estado === "aprobado" ? " (aprobado por el asesor)" : " (en revisión)"}</p>
+                    <ol className="list-decimal pl-6 space-y-1">
+                      {productos.map((nombreProducto, i) => (
+                        <li key={i}>
+                          {nombreProducto}:{" "}
+                          {archivosEntregas.filter((a) => a.entregaId === e.id && a.producto === i).map((a) => (
+                            <span key={a.id} className="block pl-2">
+                              {a.tipo === "imagen" && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={a.url} alt={a.leyenda} className="max-h-56 max-w-full object-contain border border-gray-200 my-1" />
+                              )}
+                              {leyendaDocumento(a.leyenda)}
+                              {a.tipo === "documento" && <span className="text-gray-600"> (documento adjunto: {a.nombre ?? "PDF"})</span>}
+                              {a.tipo === "enlace" && <> — <a href={a.url} target="_blank" rel="noopener noreferrer" className="underline break-all">{a.url}</a></>}
+                            </span>
+                          ))}
+                        </li>
+                      ))}
+                    </ol>
+                    <p><strong>Conclusión del objetivo.</strong> <span className="whitespace-pre-wrap">{e.conclusion}</span></p>
+                  </div>
+                );
+              })
+            )}
+          </section>
+        )}
+        {res.datos.modificaciones && (
+          <section className="space-y-2">
+            <h2 className="font-bold uppercase text-xs tracking-wide pt-4">{res.datos.productos !== "no" ? 8 : 7}. Reporte de modificaciones</h2>
+            {bitacora.length === 0 ? (
+              <p className="text-gray-500">En este período no se reportaron modificaciones a lo planificado.</p>
+            ) : (
+              <ol className="list-decimal pl-6 space-y-1">{bitacora.map((e, i) => <li key={i}>{textoEntrada(e)}</li>)}</ol>
+            )}
+          </section>
+        )}
       </article>
     </div>
   );

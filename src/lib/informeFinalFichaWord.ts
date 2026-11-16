@@ -62,7 +62,7 @@ export async function generarInformeFinalFichaWord(doc: DocumentoInformeFinal): 
   if (doc.anexos.length > 0) {
     contenido.push(apartadoFinal("Anexos"));
     doc.anexos.forEach((x, i) => {
-      contenido.push(tituloAnexo(`${x.etiqueta}. ${x.descripcion}${x.actividad ? ` (actividad ${x.actividad})` : ""}`, i > 0));
+      contenido.push(tituloAnexo(`${x.etiqueta}. ${x.descripcion}${x.actividad ? ` (${x.actividad})` : ""}`, i > 0));
       if (x.tipo === "imagen") {
         const img = decodificarImagen(x.url);
         if (img) {

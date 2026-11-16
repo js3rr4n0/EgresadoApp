@@ -8,8 +8,10 @@ import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enviarInformeGeneral, enviarInformeIndividual, revisarInformeGeneral, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
-import { actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, ganttPlan, planIndividual, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
+import { actividadesDelPeriodo, adelantable, arrastradasAlPeriodo, avancePorNodo, ganttPlan, planIndividual, productosDe, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import GanttProyecto from "./GanttProyecto";
+import { avanceObjetivo, ESTADO_ENTREGA, quienesEntregan } from "@/lib/fichas/entregasObjetivo";
+import { entradasBitacora, etiquetaModificacion, TIPOS_MODIFICACION } from "@/lib/fichas/bitacora";
 import { textosModalidad } from "@/lib/fichas/textosModalidad";
 
 export const ESTADO_ACTIVIDAD: Record<string, { label: string; badge: string; accion: string }> = {
@@ -43,6 +45,110 @@ export function rutaEnPlan(raiz: NodoPlan, id: string): NodoPlan[] {
     return null;
   };
   return (rec(raiz, []) ?? []).slice(1);
+}
+
+/** Enlace a la entrega de productos de un objetivo específico, según el rol. */
+export function enlaceObjetivo(datos: DatosEjecucion, nodoId: string) {
+  const id = datos.plan.propuesta.id;
+  return datos.plan.rol === "asesor"
+    ? `/asesor/ejecucion/${id}/objetivo?nodo=${encodeURIComponent(nodoId)}`
+    : `/egresado/ejecucion/objetivo?id=${id}&nodo=${encodeURIComponent(nodoId)}`;
+}
+
+/**
+ * Productos por objetivo específico (notas del 13-nov-2026): una tarjeta por objetivo con su avance y el estado de la
+ * entrega. Se entrega cuando todas sus actividades llegan al 100 %; el asesor revisa productos y conclusión juntos.
+ */
+function ProductosPorObjetivo({ datos }: { datos: DatosEjecucion }) {
+  const { plan, registros, entregas } = datos;
+  const esAsesor = plan.rol === "asesor";
+  const nombre = (id: number) => plan.equipo.find((i) => i.id === id)?.nombre ?? "";
+  const objetivos = plan.plan.arbol.hijos;
+  const aprobados = entregas.filter((e) => e.estado === "aprobado").length;
+  return (
+    <div className={`${tarjeta} p-5 space-y-3`}>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-extrabold text-slate-900">Productos por objetivo</h2>
+          <p className="text-[11px] text-slate-500 font-semibold mt-0.5 max-w-2xl">
+            Cuando todas las actividades de un objetivo llegan al 100 %, quien lo tiene a cargo entrega los productos prometidos en el plan y la conclusión del objetivo.
+            {esAsesor ? " Revise que estén los productos prometidos y que la conclusión responda al objetivo." : " No hay fecha fija: se entregan cuando el objetivo se completa."}
+          </p>
+        </div>
+        <Pastilla clase="bg-slate-50 text-slate-700 border-slate-300">{aprobados} de {objetivos.length} objetivos aprobados</Pastilla>
+      </div>
+      <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {objetivos.map((o) => {
+          const entrega = entregas.find((e) => e.nodoId === o.id);
+          const av = avanceObjetivo(o, registros);
+          const estado = entrega?.estado ?? (av.completo ? "pendiente" : "bloqueada");
+          const info = ESTADO_ENTREGA[estado];
+          const productos = productosDe(o);
+          const propia = quienesEntregan(plan.plan.arbol, o.id).includes(plan.miId);
+          const accion = esAsesor
+            ? (estado === "enviado" ? "Revisar" : "Ver")
+            : propia && av.completo && ["pendiente", "borrador", "observado"].includes(estado)
+              ? (estado === "observado" ? "Corregir" : estado === "borrador" ? "Continuar" : "Entregar")
+              : "Ver";
+          return (
+            <li key={o.id} className={`rounded-xl border px-4 py-3 space-y-2 ${estado === "enviado" && esAsesor ? "border-blue-300 bg-blue-50/30" : "border-slate-200 bg-slate-50"}`}>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-xs font-extrabold text-slate-800"><span className="font-mono text-unicaes">{o.codigo}</span> {o.titulo}</p>
+                <Pastilla clase={info.badge}>{info.label}</Pastilla>
+              </div>
+              <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden" aria-label={`Actividades al 100 % de ${o.codigo}`}>
+                <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${av.actividades ? Math.round((av.alCien / av.actividades) * 100) : 0}%` }} />
+              </div>
+              <p className="text-[10px] text-slate-500 font-semibold">
+                {av.alCien} de {av.actividades} actividades al 100 %{plan.equipo.length > 1 ? ` · ${quienesEntregan(plan.plan.arbol, o.id).map(nombre).join(", ")}` : ""}
+              </p>
+              {productos.length > 0 && <p className="text-[11px] text-sky-900 font-semibold">📦 {productos.join(" · ")}</p>}
+              <div className="flex justify-end">
+                <Link href={enlaceObjetivo(datos, o.id)} className={`text-[11px] font-extrabold ${accion === "Ver" ? "text-slate-600" : "text-unicaes"} hover:underline`}>{accion}</Link>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Bitácora o reporte de modificaciones (notas del 13-nov-2026): los cambios y acontecimientos que el equipo reportó en
+ * sus actividades y objetivos, en orden y con su índice. Todos la ven: tiempo, recursos y alcance son lo que se gerencia.
+ */
+function Bitacora({ datos }: { datos: DatosEjecucion }) {
+  const entradas = entradasBitacora({ arbol: datos.plan.plan.arbol, registros: datos.registros, entregas: datos.entregas });
+  const conteo = TIPOS_MODIFICACION.map((t) => ({ t, n: entradas.filter((e) => e.tipo === t.valor).length })).filter((x) => x.n > 0);
+  return (
+    <div className={`${tarjeta} p-5 space-y-3`}>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-extrabold text-slate-900">Reporte de modificaciones (bitácora)</h2>
+          <p className="text-[11px] text-slate-500 font-semibold mt-0.5 max-w-2xl">
+            Cambios frente a lo planificado que se reportaron al enviar las actividades y los objetivos: tiempo, recursos y costos, alcance u otros acontecimientos.
+            Se anexa a los informes del período y al informe final.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {conteo.length === 0 ? <Pastilla clase="bg-slate-50 text-slate-600 border-slate-300">Sin modificaciones</Pastilla>
+            : conteo.map((x) => <Pastilla key={x.t.valor} clase="bg-amber-50 text-amber-900 border-amber-200">{x.t.etiqueta}: {x.n}</Pastilla>)}
+        </div>
+      </div>
+      {entradas.length > 0 && (
+        <ol className="divide-y divide-slate-100 border border-slate-200 rounded-xl text-xs">
+          {entradas.map((e, i) => (
+            <li key={i} className="px-3 py-2 flex flex-col sm:flex-row gap-1 sm:gap-3">
+              <span className="text-[10px] font-bold text-slate-400 w-16 shrink-0">Período {e.periodo}</span>
+              <span className="font-mono text-[11px] text-unicaes w-20 shrink-0">{e.codigo}</span>
+              <span className="flex-1 text-slate-700"><strong className="text-slate-800">{etiquetaModificacion(e.tipo)}.</strong> {e.texto}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
 }
 
 /** Enlace a la página de registro de una actividad, según el rol. */
@@ -164,13 +270,19 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
     const propia = resp.get(x.a.id) === plan.miId;
     const accion = esAsesor ? (estado === "enviado" ? "Revisar" : "Ver") : propia ? info.accion : "Ver";
     const bloqueada = !esAsesor && x.periodo > periodoActual;
+    // Notas del 13-nov-2026: una actividad de un período siguiente se puede adelantar al período abierto.
+    const adelantada = bloqueada && registros.some((y) => y.nodoId === x.a.id && y.periodo === periodoActual);
+    const terminadaAntes = bloqueada && !adelantada && registros.some((y) => y.nodoId === x.a.id && y.periodo <= periodoActual && y.estado !== "borrador" && y.avance === 100);
+    const puedeAdelantar = bloqueada && propia && datos.adelantar && !adelantada && adelantable(arbol, x.a.id, periodoActual, plan.columnas, registros);
     const vieneDe = arrastre.get(x.periodo)?.get(x.a.id);
     return (
       <li key={`${x.a.id}-${x.periodo}`} className="p-4 flex flex-col md:flex-row md:items-center gap-3">
         <div className="flex-1 min-w-0 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[11px] font-mono font-bold text-slate-500">{x.a.codigo}</span>
-            <Pastilla clase={bloqueada ? "bg-slate-50 text-slate-400 border-slate-200" : info.badge}>{bloqueada ? "Bloqueada" : info.label}</Pastilla>
+            <Pastilla clase={adelantada || terminadaAntes ? "bg-sky-50 text-sky-800 border-sky-200" : bloqueada ? "bg-slate-50 text-slate-400 border-slate-200" : info.badge}>
+              {adelantada ? "Adelantada" : terminadaAntes ? "Terminada" : puedeAdelantar ? "Período siguiente" : bloqueada ? "Bloqueada" : info.label}
+            </Pastilla>
             <span className="text-[10px] font-bold text-slate-400">Período {x.periodo}</span>
             {vieneDe && (
               <span className="px-2 py-0.5 rounded-md text-[10px] font-bold border bg-amber-50 text-amber-900 border-amber-200" title="No se completó en su período: el resto se ejecuta en este.">
@@ -195,7 +307,19 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
         </div>
         <div className="flex items-center gap-3 shrink-0">
           {r?.enviadoEn && <span className="text-[10px] text-slate-400 font-semibold">Enviada: {new Date(r.enviadoEn).toLocaleDateString("es-SV", { day: "numeric", month: "short", year: "numeric" })}</span>}
-          {bloqueada ? (
+          {puedeAdelantar ? (
+            <span className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400 font-semibold hidden sm:inline">Planificada desde el {fechaCorta(periodos[x.periodo - 1]?.desde ?? null)}</span>
+              <Link href={enlaceActividad(datos, x.a.id, periodoActual)} title="Registrarla ya, en el período actual"
+                className="px-4 py-2 rounded-lg text-xs font-bold border border-unicaes text-unicaes hover:bg-red-50 transition-colors">
+                Adelantar
+              </Link>
+            </span>
+          ) : adelantada ? (
+            <span className="text-[11px] text-sky-800 font-semibold">Adelantada al período {periodoActual}</span>
+          ) : terminadaAntes ? (
+            <span className="text-[11px] text-emerald-700 font-semibold">Terminada por adelantado</span>
+          ) : bloqueada ? (
             <span className="text-[11px] text-slate-400 font-semibold">Se habilita el {fechaCorta(periodos[x.periodo - 1]?.desde ?? null)}</span>
           ) : propia || ["enviado", "observado", "aprobado"].includes(estado) ? (
             <Link href={enlaceActividad(datos, x.a.id, x.periodo)}
@@ -304,6 +428,9 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
         </details>
       </div>
 
+      {datos.productos !== "no" && <ProductosPorObjetivo datos={datos} />}
+      {datos.modificaciones && <Bitacora datos={datos} />}
+
       {/* Cronograma planificado y real (Gantt) */}
       <div className={`${tarjeta} p-5 space-y-3`}>
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
@@ -334,7 +461,8 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
             ))}
           </div>
         )}
-        <GanttProyecto filas={gantt} periodos={periodos.length} periodoActual={periodoActual} hastaNivel={conSub ? 5 : 4} />
+        <GanttProyecto filas={gantt} periodos={periodos.length} periodoActual={periodoActual} hastaNivel={conSub ? 5 : 4}
+          conProductos={new Set(datos.entregas.filter((e) => e.estado === "aprobado").map((e) => e.nodoId))} />
       </div>
 
       {/* Actividades */}

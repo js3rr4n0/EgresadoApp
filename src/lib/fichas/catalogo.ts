@@ -300,6 +300,32 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
       { clave: "autoevaluacion", etiqueta: "Mostrar la autoevaluación al egresado (el asesor ve lo que marcó)", tipo: "booleano", porDefecto: true },
     ],
   },
+  // Notas del 13-nov-2026: los resultados del informe final se generan solos, ordenados por objetivo.
+  resultados_objetivos: {
+    clave: "resultados_objetivos",
+    nombre: "Resultados por objetivo",
+    grupo: "Apartados académicos",
+    descripcion: "Capítulo del informe final que genera el sistema: objetivo general, cada objetivo específico con sus productos y cada macroactividad con sus actividades (fechas, resultado y evidencias), con el índice del plan. Las evidencias y los productos pasan a los anexos en ese orden. El equipo no lo redacta ni el asesor lo revisa aparte: ya revisó cada actividad y cada objetivo.",
+    formularioEn: ["investigacion"],
+    repetible: false,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["informe_final"],
+    parametros: [],
+  },
+  // Notas del 13-nov-2026: la bitácora de la ejecución como anexo del informe final.
+  reporte_modificaciones: {
+    clave: "reporte_modificaciones",
+    nombre: "Reporte de modificaciones",
+    grupo: "Apartados académicos",
+    descripcion: "Anexo del informe final que genera el sistema con la bitácora de la ejecución: los cambios de tiempo, recursos y costos o alcance, y otros acontecimientos que el equipo reportó en sus actividades y objetivos, en orden y con el índice del plan. Necesita que la ejecución pida la bitácora.",
+    formularioEn: ["proyecto", "investigacion"],
+    repetible: false,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["informe_final"],
+    parametros: [],
+  },
 };
 
 /** El elemento puede usarse en esa etapa (propuesta o protocolo). */

@@ -10,9 +10,9 @@ import path from "path";
 import { definicionBase, VALORES_FASE1_COPIADOS as V } from "../../src/lib/fichas/fichasBase";
 import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/validar";
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
-import { diasSubperiodos, documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaInformeFinal, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, PRECARGA_MARCO_REGISTROS, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
+import { diasSubperiodos, documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaInformeFinal, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, productosObjetivo, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
 import { ejecucionNueva, informeFinalNuevo, planNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
-import { CATALOGO, GRUPOS_CATALOGO, parametrosPorDefecto } from "../../src/lib/fichas/catalogo";
+import { CATALOGO, elementoEnEtapa, GRUPOS_CATALOGO, parametrosPorDefecto } from "../../src/lib/fichas/catalogo";
 import { leerItems, problemasRecurso, recursoCompleto } from "../../src/lib/fichas/elementosRecurso";
 import { fechaLimiteDictamen, precargaEspacio, problemasProtocolo, sumarDias, textoPrecarga } from "../../src/lib/fichas/protocolo";
 import {
@@ -20,10 +20,13 @@ import {
   TIPOS_APARTADO, type ContenidoApartado,
 } from "../../src/lib/fichas/apartadosAcademicos";
 import type { Espacio } from "../../src/lib/fichas/tipos";
-import { CAPITULO_NUEVO, capituloEditable, capitulosPendientes, contenidoVacio, editandoOtro, precargaCapitulo, problemasInformeFinal, textoMarcoRegistros } from "../../src/lib/fichas/informeFinalFicha";
+import { CAPITULO_NUEVO, capituloEditable, capitulosPendientes, contenidoVacio, editandoOtro, capituloGenerado, precargaCapitulo, problemasInformeFinal, textoConclusionesObjetivos, textoMarcoRegistros } from "../../src/lib/fichas/informeFinalFicha";
+import { avanceObjetivo, problemasEntrega, quienesEntregan, revisarConclusionObjetivo } from "../../src/lib/fichas/entregasObjetivo";
+import { resultadosPorObjetivo } from "../../src/lib/fichas/resultadosObjetivos";
+import { bloquesBitacora, entradasBitacora, limpiarModificacion, textoEntrada } from "../../src/lib/fichas/bitacora";
 import { apartadosInformeFinal } from "../../src/lib/fichas/documentoInformeFinal";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
-import { ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, faltaParaAvance, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { adelantable, periodosPlanificados, ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, faltaParaAvance, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, productosDe, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
 let fallas = 0;
 function comprobar(descripcion: string, ok: boolean, detalle = "") {
@@ -532,11 +535,11 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   comprobar("La ficha de investigación con informe final es válida", problemas.length === 0, problemas.map((p) => p.mensaje).join(" | "));
   comprobar("La ficha con informe final conserva su forma", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
   const inf = d.etapas.find(esEtapaInformeFinal)!;
-  comprobar("El informe final trae 13 capítulos (la metodología en uno solo), con bibliografía y anexos",
-    inf.espacios.length === 13 && inf.espacios.some((e) => e.id === "if_bibliografia") && inf.espacios.some((e) => e.elemento === "archivo"));
-  comprobar("Los capítulos del informe final son apartados académicos de los tipos del informe",
+  comprobar("El informe final trae 14 capítulos (la metodología en uno solo), con bibliografía, reporte de modificaciones y anexos",
+    inf.espacios.length === 14 && inf.espacios.some((e) => e.id === "if_bibliografia") && inf.espacios.some((e) => e.elemento === "archivo"));
+  comprobar("Los capítulos del informe final son apartados académicos de los tipos del informe (los resultados se generan)",
     inf.espacios.filter((e) => e.elemento === "apartado").map((e) => e.parametros.tipo).join() ===
-      "introduccion,generalidades,problematica,justificacion,objetivos,marco_teorico,metodologia_realizada,resultados,comprobacion_hipotesis,discusion,conclusiones,referencias");
+      "introduccion,generalidades,problematica,justificacion,objetivos,marco_teorico,metodologia_realizada,comprobacion_hipotesis,discusion,conclusiones,referencias");
   comprobar("El marco teórico se precarga de la fundamentación del protocolo", inf.espacios.find((e) => e.id === "if_marco")?.precargarDe === "fundamentacion");
   comprobar("Revisión por capítulo y ratificación por defecto", inf.revision.porCapitulo && inf.revision.ratificacion);
   const mal = (cambiar: (x: DefinicionFicha) => void) => { const x = conInforme(); cambiar(x); return validarDefinicion(x).map((p) => p.mensaje); };
@@ -687,7 +690,7 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   // Informe final: tiempo pasado, conclusiones por objetivo, vacíos y exportación con subtítulos
   const pend = (id: string, valor: string) => problemasInformeFinal({ ...inf, espacios: [cap(id)] }, { [id]: valor });
   comprobar("En el informe final, un capítulo completo no tiene pendientes aunque tenga avisos", pend("if_conclusiones", apartadoCompleto(cap("if_conclusiones"))).length === 0);
-  comprobar("Un capítulo con un subapartado bajo el mínimo es pendiente", pend("if_resultados", guardarComoTexto(c({ resultados: "Pocos datos." }))).length === 1);
+  comprobar("Un capítulo con un subapartado bajo el mínimo es pendiente", pend("if_hallazgos", guardarComoTexto(c({ hallazgos: "Pocos datos." }))).length === 1);
   comprobar("El informe final revisa el tiempo pasado", opcionesDeEspacio(cap("if_metodologia"), "informe_final").tiempo === "pasado");
   comprobar("Un apartado con todos sus subapartados vacíos cuenta como vacío",
     contenidoVacio(cap("if_hipotesis"), guardarComoTexto(c({ prueba: " " }))) && !contenidoVacio(cap("if_hipotesis"), guardarComoTexto(c({ prueba: "Se rechazó Ho." }))));
@@ -701,7 +704,7 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   const bib = doc.find((a) => a.titulo === "Bibliografía")!;
   comprobar("Las referencias se exportan sin número, en orden alfabético y con sangría francesa",
     bib.numero === null && bib.bloques.length === 1 && bib.bloques[0].tipo === "lista" && bib.bloques[0].referencias === true && bib.bloques[0].items[0].startsWith("Alfa"));
-  comprobar("Un capítulo obligatorio vacío se exporta como pendiente", doc.find((a) => a.titulo === "Resultados obtenidos")?.bloques[0].tipo === "pendiente");
+  comprobar("Un capítulo obligatorio vacío se exporta como pendiente", doc.find((a) => a.titulo === "Presentación de los hallazgos principales")?.bloques[0].tipo === "pendiente");
 
   // Validación de la ficha
   const conInforme2 = (cambiar: (d: DefinicionFicha) => void) => { const x = investigacionCompleta(); x.etapas.push(informeFinalNuevo("informe_final")); cambiar(x); return validarDefinicion(x).map((p) => p.mensaje); };
@@ -709,7 +712,7 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   detecta("un apartado en la propuesta", investigacionConCambio((d) => {
     propuesta(d).espacios.push({ ...protocoloDe(d).espacios.find((e) => e.elemento === "apartado")!, id: "ap_prop", precargarDe: undefined });
   }), "no se puede usar en la propuesta");
-  detecta("precarga desde un subapartado que no existe", conInforme2((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios.find((e) => e.id === "if_resultados")!.precargarDe = "metodologia#nada"; }), "subapartado");
+  detecta("precarga desde un subapartado que no existe", conInforme2((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios.find((e) => e.id === "if_hallazgos")!.precargarDe = "metodologia#nada"; }), "subapartado");
   detecta("una lista precargada desde un subapartado de texto", conInforme2((x) => {
     const espacios = x.etapas.find(esEtapaInformeFinal)!.espacios;
     espacios.push({ ...espacios[0], id: "if_lista", elemento: "lista", parametros: parametrosPorDefecto("lista"), precargarDe: "metodologia#tipo" });
@@ -736,6 +739,190 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   informeFinalNuevo("if").espacios.forEach((x) => usados.add(x.elemento));
   comprobar("El catálogo tiene todos los elementos que usan las fichas de las tres modalidades", [...usados].every((u) => u in CATALOGO), [...usados].filter((u) => !(u in CATALOGO)).join(", "));
   comprobar("Todo elemento tiene formulario en al menos un asistente", Object.values(CATALOGO).every((e) => e.formularioEn.length > 0));
+}
+
+// 18. Productos por objetivo específico (notas del 13-nov-2026)
+{
+  const plan = planNuevo("plan", "investigacion");
+  comprobar("Las plantillas de plan piden productos por objetivo", plan.productosObjetivo === "obligatorio" && planNuevo("p").productosObjetivo === "obligatorio");
+  comprobar("Las versiones guardadas antes no piden productos", productosObjetivo({ ...plan, productosObjetivo: undefined }) === "no");
+  const raiz = numerar(planEjemplo(plan, 1, 10));
+  comprobar("El plan de ejemplo trae un producto por objetivo", raiz.hijos.every((o) => productosDe(o).length === 1));
+  const sinProductos: NodoPlan = { ...raiz, hijos: raiz.hijos.map((o, i) => (i === 0 ? { ...o, productos: [" ", ""] } : o)) };
+  comprobar("Un objetivo sin productos no deja enviar el plan", validarPlanEquipo(sinProductos, plan, [1], 10).some((p) => p.mensaje.includes("producto esperado")));
+  comprobar("Con productos opcionales no se exige ninguno", !validarPlanEquipo(sinProductos, { ...plan, productosObjetivo: "opcional" }, [1], 10).some((p) => p.mensaje.includes("producto esperado")));
+  const equipo: NodoPlan = { ...raiz, hijos: raiz.hijos.map((o, i) => ({ ...o, responsable: i < 2 ? 11 : 12 })) };
+  const cambiado: NodoPlan = { ...equipo, hijos: equipo.hijos.map((o, i) => (i === 2 ? { ...o, productos: ["Otro producto"] } : o)) };
+  comprobar("Un integrante no cambia los productos de un objetivo ajeno", cambioNoPermitido(equipo, cambiado, 11) !== null && cambioNoPermitido(equipo, cambiado, 12) === null);
+
+  // Habilitación y quién entrega
+  const o1 = raiz.hijos[0];
+  const hojas = aplanar(o1).filter((n) => n.hijos.length === 0 && n.nivel >= 4);
+  const reg = (nodoId: string, avance: number, estado = "enviado", periodo = 1) => ({ nodoId, periodo, avance, estado });
+  comprobar("Sin registros el objetivo no se habilita", !avanceObjetivo(o1, []).completo && avanceObjetivo(o1, []).actividades === hojas.length);
+  comprobar("Con una actividad al 70 % el objetivo no se habilita", !avanceObjetivo(o1, hojas.map((h, i) => reg(h.id, i === 0 ? 70 : 100))).completo);
+  comprobar("Un borrador al 100 % no cuenta", !avanceObjetivo(o1, hojas.map((h, i) => reg(h.id, 100, i === 0 ? "borrador" : "enviado"))).completo);
+  comprobar("Con todas al 100 % enviadas, el objetivo se habilita", avanceObjetivo(o1, hojas.map((h) => reg(h.id, 100))).completo);
+  comprobar("Cuenta el último período: 100 % y luego 80 % no habilita", !avanceObjetivo(o1, [...hojas.map((h) => reg(h.id, 100)), reg(hojas[0].id, 80, "enviado", 2)]).completo);
+  comprobar("Entrega el responsable del objetivo", quienesEntregan(equipo, equipo.hijos[0].id).join() === "11");
+  const act = (id: string, r: number): NodoPlan => ({ id, codigo: id, nivel: 4, titulo: id, responsable: r, montos: [1], hijos: [] });
+  const porActividad: NodoPlan = { id: "og", codigo: "1", nivel: 1, titulo: "OG", responsable: null, montos: [], hijos: [
+    { id: "oe", codigo: "1.1", nivel: 2, titulo: "OE", responsable: null, montos: [], hijos: [{ id: "m", codigo: "1.1.1", nivel: 3, titulo: "M", responsable: null, montos: [], hijos: [act("a1", 21), act("a2", 22)] }] }] };
+  comprobar("Con responsable por actividad, entrega cualquiera con actividades en el objetivo", quienesEntregan(porActividad, "oe").sort().join() === "21,22");
+
+  // Lo que falta para enviar y la conclusión
+  const conclusion = "Se diagnosticó el estado de las operaciones del taller con el estudio de tiempos y el análisis de flujo; se identificaron las esperas como la principal causa de los retrasos en la producción.";
+  const falta = problemasEntrega({ completo: true, productos: ["Estudio de tiempos", "Análisis de flujo"], archivos: [{ producto: 0 }], conclusion });
+  comprobar("Pide cada producto prometido que falta", falta.length === 1 && falta[0].includes("Análisis de flujo"), falta.join(" | "));
+  comprobar("Pide la conclusión", problemasEntrega({ completo: true, productos: [], archivos: [], conclusion: "" }).some((p) => p.includes("Conclusión")));
+  comprobar("Bloquea si las actividades no llegan al 100 %", problemasEntrega({ completo: false, productos: [], archivos: [], conclusion }).some((p) => p.includes("100 %")));
+  comprobar("Una entrega completa no tiene pendientes", problemasEntrega({ completo: true, productos: ["A"], archivos: [{ producto: 0 }], conclusion }).length === 0);
+  const rev = revisarConclusionObjetivo("Nosotros haremos el análisis. Se aplicará la encuesta y se analizarán los datos del taller con cuidado durante el próximo mes de trabajo.");
+  comprobar("La conclusión avisa de primera persona y futuro", rev.some((r) => r.id === "persona" && r.nivel === "aviso") && rev.some((r) => r.id === "tiempo"), rev.map((r) => r.id).join());
+
+  // Informe final
+  const ids = raiz.hijos.map((o) => ({ id: o.id }));
+  const texto = textoConclusionesObjetivos(ids, [
+    { nodoId: ids[1].id, estado: "aprobado", conclusion: "Segunda." },
+    { nodoId: ids[0].id, estado: "aprobado", conclusion: "Primera." },
+    { nodoId: ids[2]?.id ?? "x", estado: "enviado", conclusion: "Sin aprobar." },
+  ]);
+  comprobar("Las conclusiones aprobadas van en el orden del plan, una por párrafo", texto === "Primera.\n\nSegunda.", JSON.stringify(texto));
+  const inf = informeFinalNuevo("if");
+  const capConc = inf.espacios.find((e) => e.id === "if_conclusiones")!;
+  comprobar("El capítulo de conclusiones se precarga de las conclusiones de los objetivos", capConc.precargarDe === PRECARGA_CONCLUSIONES_OBJETIVOS);
+  const pre = leerApartado(tipoApartado(capConc)!, precargaCapitulo(capConc, [], { descripcionProblema: "", justificacion: "", objetivoGeneral: "", objetivosEspecificos: [], respuestas: {} }, "", texto)).partes;
+  comprobar("Las conclusiones quedan en su subapartado", pre.conclusiones === texto);
+  const d = investigacionCompleta();
+  d.etapas.push(informeFinalNuevo("if"));
+  comprobar("La ficha de investigación con productos e informe final es válida", validarDefinicion(d).length === 0, validarDefinicion(d).map((p) => p.mensaje).join(" | "));
+  const sinProd = structuredClone(d);
+  sinProd.etapas.find(esEtapaPlan)!.productosObjetivo = "no";
+  comprobar("Precargar conclusiones sin productos por objetivo es un error", validarDefinicion(sinProd).some((p) => p.mensaje.includes("conclusiones de los objetivos")));
+  const nueva = structuredClone(d);
+  nueva.etapas.find(esEtapaPlan)!.productosObjetivo = "opcional";
+  comprobar("Cambiar los productos por objetivo aparece como cambio", compararDefiniciones(d, nueva).some((c) => c.includes("productos esperados por objetivo")));
+}
+
+// 19. Resultados por objetivo generados en el informe final (notas del 13-nov-2026)
+{
+  const hoja = (id: string, codigo: string): NodoPlan => ({ id, codigo, nivel: 4, titulo: `Actividad ${codigo}`, responsable: null, montos: [1], hijos: [] });
+  const arbol: NodoPlan = { id: "og", codigo: "1", nivel: 1, titulo: "Analizar el rendimiento.", responsable: null, montos: [], hijos: [
+    { id: "o1", codigo: "1.1", nivel: 2, titulo: "Caracterizar hábitos", responsable: null, montos: [], productos: ["Instrumento", "Base de datos"], hijos: [
+      { id: "m1", codigo: "1.1.1", nivel: 3, titulo: "Encuesta", responsable: null, montos: [], hijos: [hoja("a1", "1.1.1.1"), hoja("a2", "1.1.1.2")] }] },
+    { id: "o2", codigo: "1.2", nivel: 2, titulo: "Medir rendimiento", responsable: null, montos: [], productos: ["Informe"], hijos: [
+      { id: "m2", codigo: "1.2.1", nivel: 3, titulo: "Notas", responsable: null, montos: [], hijos: [hoja("a3", "1.2.1.1")] }] },
+  ] };
+  const archivo = (leyenda: string) => ({ tipo: "enlace" as const, leyenda, nombre: null, url: "https://x.test", nota: null });
+  const r = resultadosPorObjetivo({
+    arbol,
+    registros: [
+      { nodoId: "a1", periodo: 1, estado: "aprobado", avance: 100, resultado: "Se aplicó la encuesta.", fechaInicio: "2026-10-20", fechaFin: "2026-11-06" },
+      { nodoId: "a2", periodo: 1, estado: "enviado", avance: 100, resultado: "Se tabuló." },
+      { nodoId: "a3", periodo: 2, estado: "borrador", avance: 50, resultado: "Borrador." },
+    ],
+    evidencias: [{ ...archivo("Fotos de la encuesta"), nodoId: "a1", periodo: 1 }, { ...archivo("Borrador"), nodoId: "a3", periodo: 2 }],
+    entregas: [{ nodoId: "o1", estado: "aprobado" }],
+    productos: [{ ...archivo("Instrumento validado"), objetivoId: "o1", producto: 0 }, { ...archivo("Respuestas"), objetivoId: "o1", producto: 1 }],
+    numero: 5,
+  });
+  const subs = r.bloques.filter((b) => b.tipo === "subtitulo").map((b) => (b as { texto: string }).texto);
+  comprobar("Los resultados van por objetivo, numerados como subapartados del capítulo", subs.join("|") === "5.1 Objetivo general|5.2 Objetivo específico 1.1: Caracterizar hábitos|5.3 Objetivo específico 1.2: Medir rendimiento", subs.join("|"));
+  comprobar("Los anexos siguen el orden objetivo → productos → evidencias de sus actividades",
+    r.anexos.map((a) => `${a.etiqueta}:${a.descripcion}:${a.actividad}`).join("|") === "Anexo 1:Instrumento validado:producto del objetivo 1.1|Anexo 2:Respuestas:producto del objetivo 1.1|Anexo 3:Fotos de la encuesta:actividad 1.1.1.1",
+    r.anexos.map((a) => a.descripcion).join("|"));
+  const texto = JSON.stringify(r.bloques);
+  comprobar("Cada actividad lleva sus fechas, su resultado y sus anexos", texto.includes("1.1.1.1 Actividad 1.1.1.1 (del 20/10/2026 al 06/11/2026): Se aplicó la encuesta. Evidencias: Anexo 3."));
+  comprobar("Los productos citan sus anexos", texto.includes("Instrumento: Instrumento validado (Anexo 1)."));
+  comprobar("Un borrador no aparece en los resultados", !texto.includes("Borrador") && texto.includes("1.2.1.1 Actividad 1.2.1.1: sin registro enviado."));
+  comprobar("Un objetivo sin entrega dice que sus productos están pendientes", texto.includes("Productos pendientes de entrega.") && texto.includes("Informe: pendiente de entrega."));
+  comprobar("El objetivo general resume el avance y los objetivos aprobados", texto.includes("Objetivos específicos con sus productos aprobados: 1 de 2."));
+
+  const inf = informeFinalNuevo("if");
+  const gen = inf.espacios.find((e) => e.id === "if_resultados")!;
+  comprobar("El capítulo de resultados de la plantilla se genera solo", gen.elemento === "resultados_objetivos" && capituloGenerado(gen));
+  comprobar("Un capítulo generado nunca queda pendiente de aprobación", !capitulosPendientes(inf, {}, {}).some((e) => e.id === "if_resultados"));
+  const { apartados } = apartadosInformeFinal(inf, {}, (_e, n) => [{ tipo: "subtitulo", texto: `${n}.1 Objetivo general` }]);
+  const ap = apartados.find((a) => a.titulo === "Resultados obtenidos")!;
+  comprobar("El documento numera el capítulo generado como los demás", ap.numero !== null && (ap.bloques[0] as { texto: string }).texto === `${ap.numero}.1 Objetivo general`);
+  comprobar("Los resultados por objetivo solo van en el informe final", elementoEnEtapa("resultados_objetivos", "informe_final") && !elementoEnEtapa("resultados_objetivos", "protocolo"));
+  const sinPlan = investigacionCompleta();
+  sinPlan.etapas.push(informeFinalNuevo("if"));
+  sinPlan.etapas = sinPlan.etapas.filter((e) => e.tipo !== "plan");
+  comprobar("Sin plan de trabajo, los resultados por objetivo son un error", validarDefinicion(sinPlan).some((p) => p.mensaje.includes("resultados por objetivo")));
+}
+
+// 20. Bitácora o reporte de modificaciones (notas del 13-nov-2026)
+{
+  comprobar("Las plantillas de ejecución piden la bitácora; las versiones guardadas antes no",
+    opcionesRegistro(ejecucionNueva("e", "investigacion", 1, true)).modificaciones && opcionesRegistro(ejecucionNueva("e", "proyecto", 1, true)).modificaciones
+    && !opcionesRegistro({ ...ejecucionNueva("e", "proyecto", 1, true), registro: { ...ejecucionNueva("e", "proyecto", 1, true).registro, modificaciones: undefined } }).modificaciones);
+  comprobar("Sin texto no hay modificación", limpiarModificacion("tiempo", "  ").modificacion === null && limpiarModificacion("tiempo", "  ").modificacionTipo === null);
+  comprobar("Con texto y sin tipo, la modificación es «otro»", limpiarModificacion(null, "Se rompió la máquina.").modificacionTipo === "otro");
+  comprobar("Un tipo desconocido se guarda como «otro»", limpiarModificacion("inventado", "x").modificacionTipo === "otro");
+  const arbol: NodoPlan = { id: "og", codigo: "1", nivel: 1, titulo: "OG", responsable: null, montos: [], hijos: [
+    { id: "o1", codigo: "1.1", nivel: 2, titulo: "Diagnosticar", responsable: null, montos: [], hijos: [
+      { id: "m1", codigo: "1.1.1", nivel: 3, titulo: "M", responsable: null, montos: [], hijos: [
+        { id: "a1", codigo: "1.1.1.1", nivel: 4, titulo: "Pintar puertas", responsable: null, montos: [1], hijos: [] },
+        { id: "a2", codigo: "1.1.1.2", nivel: 4, titulo: "Comprar pintura", responsable: null, montos: [1], hijos: [] }] }] }] };
+  const entradas = entradasBitacora({
+    arbol,
+    registros: [
+      { nodoId: "a2", periodo: 1, estado: "enviado", modificacionTipo: "recursos", modificacion: "Subió el precio de la pintura." },
+      { nodoId: "a1", periodo: 1, estado: "aprobado", modificacionTipo: "alcance", modificacion: "Se pintaron 4 puertas en lugar de 2." },
+      { nodoId: "a1", periodo: 2, estado: "borrador", modificacionTipo: "tiempo", modificacion: "Borrador." },
+      { nodoId: "a2", periodo: 2, estado: "enviado", modificacionTipo: null, modificacion: null },
+    ],
+    entregas: [{ nodoId: "o1", periodo: 2, estado: "enviado", modificacionTipo: "tiempo", modificacion: "El objetivo se cerró dos semanas tarde." }],
+  });
+  comprobar("La bitácora va por período y en el orden del plan, sin borradores ni registros sin cambios",
+    entradas.map((e) => `${e.periodo}:${e.codigo}:${e.tipo}`).join("|") === "1:1.1.1.1:alcance|1:1.1.1.2:recursos|2:1.1:tiempo", entradas.map((e) => e.codigo).join());
+  comprobar("La entrada del objetivo se nombra como objetivo", textoEntrada(entradas[2]) === "Período 2 · Objetivo 1.1 Diagnosticar (Tiempo): El objetivo se cerró dos semanas tarde.", textoEntrada(entradas[2]));
+  comprobar("La bitácora de un período solo trae ese período", entradasBitacora({ arbol, registros: [], entregas: [{ nodoId: "o1", periodo: 2, estado: "enviado", modificacionTipo: "tiempo", modificacion: "x" }], periodo: 1 }).length === 0);
+  const bloques = bloquesBitacora(entradas);
+  comprobar("El reporte resume por tipo y lista cada entrada", bloques.length === 2 && JSON.stringify(bloques[0]).includes("tiempo: 1; recursos y costos: 1; alcance: 1") && bloques[1].tipo === "lista");
+  comprobar("Sin modificaciones, el reporte lo dice", JSON.stringify(bloquesBitacora([])).includes("no se reportaron modificaciones"));
+
+  const inf = informeFinalNuevo("if");
+  const rep = inf.espacios.find((e) => e.id === "if_modificaciones")!;
+  comprobar("El informe final trae el reporte de modificaciones generado", rep.elemento === "reporte_modificaciones" && capituloGenerado(rep));
+  const { apartados } = apartadosInformeFinal(inf, {}, (e) => (e.elemento === "reporte_modificaciones" ? bloquesBitacora(entradas) : []));
+  const ap = apartados.find((a) => a.titulo === "Reporte de modificaciones")!;
+  comprobar("El reporte de modificaciones va sin número, como anexo", ap.numero === null && ap.bloques.length === 2);
+  const d = investigacionCompleta();
+  d.etapas.push(informeFinalNuevo("if"));
+  comprobar("La ficha de investigación con bitácora y reporte es válida", validarDefinicion(d).length === 0, validarDefinicion(d).map((p) => p.mensaje).join(" | "));
+  const sinBitacora = structuredClone(d);
+  for (const e of sinBitacora.etapas) if (e.tipo === "ejecucion") e.registro.modificaciones = false;
+  comprobar("El reporte sin bitácora en la ejecución es un error", validarDefinicion(sinBitacora).some((p) => p.mensaje.includes("reporte de modificaciones")));
+  comprobar("Apagar la bitácora aparece como cambio", compararDefiniciones(d, sinBitacora).some((c) => c.toLowerCase().includes("reporte de modificaciones (bitácora)")));
+}
+
+// 21. Actividades menos atadas a su período (notas del 13-nov-2026)
+{
+  comprobar("Las plantillas de ejecución permiten adelantar; las versiones guardadas antes no",
+    opcionesRegistro(ejecucionNueva("e", "investigacion", 1, true)).adelantar
+    && !opcionesRegistro({ ...ejecucionNueva("e", "proyecto", 1, true), registro: { ...ejecucionNueva("e", "proyecto", 1, true).registro, adelantar: undefined } }).adelantar);
+  // Columnas: un período por columna (1..4). a1 en P1, a2 en P3, a3 en P2 y P4.
+  const columnas = [1, 2, 3, 4].map((periodo) => ({ periodo }));
+  const act = (id: string, montos: number[]): NodoPlan => ({ id, codigo: id, nivel: 4, titulo: id, responsable: null, montos, hijos: [] });
+  const raiz: NodoPlan = { id: "og", codigo: "1", nivel: 1, titulo: "OG", responsable: null, montos: [], hijos: [
+    { id: "o", codigo: "1.1", nivel: 2, titulo: "O", responsable: null, montos: [], hijos: [
+      { id: "m", codigo: "1.1.1", nivel: 3, titulo: "M", responsable: null, montos: [], hijos: [act("a1", [1, 0, 0, 0]), act("a2", [0, 0, 1, 0]), act("a3", [0, 1, 0, 1])] }] }] };
+  const ids = (p: number, regs: { nodoId: string; periodo: number; avance: number | null; estado?: string }[] | null, solo?: string) => actividadesDelPeriodo(raiz, p, columnas, regs).map((n) => n.id).filter((x) => !solo || x === solo).join();
+  comprobar("Se puede adelantar una actividad planificada solo en períodos siguientes", adelantable(raiz, "a2", 1, columnas, []) && !adelantable(raiz, "a1", 1, columnas, []));
+  comprobar("No se adelanta una que ya está planificada en el período o antes", !adelantable(raiz, "a3", 2, columnas, []) && !adelantable(raiz, "a1", 2, columnas, []));
+  comprobar("No se adelanta una actividad terminada", !adelantable(raiz, "a2", 2, columnas, [{ nodoId: "a2", periodo: 1, avance: 100, estado: "enviado" }]));
+  comprobar("Una adelantada con registro aparece en el período en que se registra", ids(1, [{ nodoId: "a2", periodo: 1, avance: 40, estado: "borrador" }]) === "a1,a2");
+  comprobar("Terminada por adelantado, ya no aparece en su período planificado", ids(3, [{ nodoId: "a2", periodo: 1, avance: 100, estado: "enviado" }], "a2") === "");
+  comprobar("Adelantada sin terminar, sigue en su período planificado", ids(3, [{ nodoId: "a2", periodo: 1, avance: 60, estado: "enviado" }], "a2") === "a2");
+  comprobar("Planificada en dos períodos y terminada en el primero, no vuelve en el segundo", ids(4, [{ nodoId: "a3", periodo: 2, avance: 100, estado: "aprobado" }], "a3") === "");
+  comprobar("Un borrador al 100 % no cuenta como terminada", ids(3, [{ nodoId: "a2", periodo: 1, avance: 100, estado: "borrador" }], "a2") === "a2");
+  comprobar("Los períodos planificados se leen en orden", periodosPlanificados(act("x", [0, 1, 0, 1]), columnas).join() === "2,4");
+  const d = investigacionCompleta();
+  const sin = structuredClone(d);
+  for (const e of sin.etapas) if (e.tipo === "ejecucion") e.registro.adelantar = false;
+  comprobar("Apagar el adelanto aparece como cambio", compararDefiniciones(d, sin).some((c) => c.toLowerCase().includes("adelantar actividades")));
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

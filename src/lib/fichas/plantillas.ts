@@ -3,13 +3,15 @@
 // incluyen plan ni ejecución de proyecto: estas plantillas son el punto de partida al agregarlas en una ficha nueva.
 // Los valores de proyecto salen del documento "Ejemplo para plantilla proyecto" (5-nov-2026).
 import { parametrosPorDefecto } from "./catalogo";
-import { type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
+import { PRECARGA_CONCLUSIONES_OBJETIVOS, type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
 
 /** Plan de trabajo jerárquico con los valores recomendados para proyecto (e investigación, que usa el mismo formato). */
 export function planNuevo(id: string, modalidad: Modalidad = "proyecto"): EtapaPlan {
   return {
     // Investigación: cada actividad declara el documento que se entrega como prueba (contexto del 12-nov-2026).
     ...(modalidad === "investigacion" ? { documentoSolicitado: "obligatorio" as const } : {}),
+    // Cada objetivo específico declara sus productos esperados (notas del 13-nov-2026).
+    productosObjetivo: "obligatorio",
     tipo: "plan",
     id,
     nombre: "Plan de trabajo",
@@ -69,6 +71,8 @@ export function ejecucionNueva(id: string, modalidad: Modalidad, n: number, prim
       marcoTeorico: "no",
       avance: true,
       evidencias: { min: 1, max: 5 },
+      modificaciones: true,
+      adelantar: true,
     },
     informe: {
       paginasMinimas: 0,
@@ -142,11 +146,14 @@ export function informeFinalNuevo(id: string): EtapaInformeFinal {
       apartado("if_marco", "marco_teorico", "Marco teórico o referencial", "Parte de la fundamentación teórica del protocolo", { precargarDe: "fundamentacion" }),
       // Los cinco subapartados de la metodología del protocolo, ahora en pasado (con los cambios respecto de lo planificado).
       apartado("if_metodologia", "metodologia_realizada", "Metodología de la investigación", "Parte de la metodología del protocolo: lo que se realizó", { precargarDe: "metodologia" }),
-      apartado("if_resultados", "resultados", "Resultados obtenidos", "Presentación de los resultados del estudio, por objetivo"),
+      // Notas del 13-nov-2026: los resultados se generan solos, por objetivo, con sus productos y evidencias.
+      espacioProtocolo("if_resultados", "resultados_objetivos", "Resultados obtenidos", "Se genera con los productos de cada objetivo y los registros de sus actividades"),
       apartado("if_hipotesis", "comprobacion_hipotesis", "Comprobación de hipótesis", "Si procede según el tipo de investigación", { obligatorio: false }),
       apartado("if_hallazgos", "discusion", "Presentación de los hallazgos principales", "Hallazgos más relevantes y su interpretación"),
-      apartado("if_conclusiones", "conclusiones", "Conclusiones y recomendaciones", "Una conclusión por objetivo específico"),
+      apartado("if_conclusiones", "conclusiones", "Conclusiones y recomendaciones", "Parte de las conclusiones aprobadas de cada objetivo específico", { precargarDe: PRECARGA_CONCLUSIONES_OBJETIVOS }),
       apartado("if_bibliografia", "referencias", "Bibliografía", "Referencias en APA 7 y en orden alfabético", { precargarDe: "bibliografia" }),
+      // Notas del 13-nov-2026: la bitácora de la ejecución, como anexo que genera el sistema.
+      espacioProtocolo("if_modificaciones", "reporte_modificaciones", "Reporte de modificaciones", "Se genera con los cambios reportados en las actividades y los objetivos"),
       espacioProtocolo("if_anexos", "archivo", "Anexos", "Instrumentos y documentos complementarios (las evidencias de las actividades se agregan solas)", {
         obligatorio: false,
         parametros: parametrosPorDefecto("archivo", { tipos: ["pdf", "word", "excel"], minimo: 0, maximo: 10 }),

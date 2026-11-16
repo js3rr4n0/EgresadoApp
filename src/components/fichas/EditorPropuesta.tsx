@@ -5,7 +5,7 @@ import { tipoApartado } from "@/lib/fichas/apartadosAcademicos";
 import { CATALOGO, elementoEnEtapa, GRUPOS_CATALOGO, parametrosPorDefecto, type DefinicionParametro, type EtapaDeEspacios } from "@/lib/fichas/catalogo";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
-import { esEtapaPropuesta, esEtapaProtocolo, PRECARGA_MARCO_REGISTROS, type ClaveElemento, type DefinicionFicha, type Espacio, type EtapaConEspacios, type ValorParametro } from "@/lib/fichas/tipos";
+import { esEtapaPropuesta, esEtapaProtocolo, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, PRECARGAS_EJECUCION, type ClaveElemento, type DefinicionFicha, type Espacio, type EtapaConEspacios, type ValorParametro } from "@/lib/fichas/tipos";
 import { Proximamente } from "./comunes";
 import { nuevoId } from "./ids";
 
@@ -293,7 +293,7 @@ export default function EditorPropuesta({
                 {!esPropuesta && (espacio.elemento === "texto" || espacio.elemento === "lista" || espacio.elemento === "apartado") && (() => {
                   const opciones = fuentesPara(espacio.elemento);
                   const marco = tipoEtapa === "informe_final" && (espacio.elemento === "texto" || espacio.elemento === "apartado");
-                  const conocida = opciones.some((o) => o.valor === espacio.precargarDe) || (marco && espacio.precargarDe === PRECARGA_MARCO_REGISTROS);
+                  const conocida = opciones.some((o) => o.valor === espacio.precargarDe) || (marco && PRECARGAS_EJECUCION.includes(espacio.precargarDe ?? ""));
                   return (
                     <Tarjeta titulo={esProtocolo ? "Precarga desde la propuesta" : "Precarga"}>
                       <label htmlFor="esp-precarga" className="block text-xs text-gray-600 mb-1">Se precarga con</label>
@@ -301,6 +301,7 @@ export default function EditorPropuesta({
                         onChange={(e) => actualizar({ precargarDe: e.target.value || undefined })}>
                         <option value="">Nada: el egresado lo escribe desde cero</option>
                         {marco && <option value={PRECARGA_MARCO_REGISTROS}>Ejecución · marco teórico registrado en las actividades</option>}
+                        {marco && <option value={PRECARGA_CONCLUSIONES_OBJETIVOS}>Ejecución · conclusiones aprobadas de los objetivos</option>}
                         {opciones.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
                         {espacio.precargarDe && !conocida && <option value={espacio.precargarDe}>(espacio que ya no existe)</option>}
                       </select>
