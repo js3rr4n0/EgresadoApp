@@ -42,16 +42,21 @@
 // propuesta y convierte la fundamentación en párrafos citados.
 // Plantilla nueva del protocolo (19-nov-2026): --version-protocolo-nuevo crea el borrador de una versión con el protocolo
 // en el orden de la reunión (consideraciones éticas, recursos y presupuesto, sin esquema del informe).
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual | --version-apartados | --version-ejecucion | --version-productos | --productos-plan | --version-resultados | --version-bitacora | --version-adelantar | --actividad-futura | --fuentes-prueba | --version-protocolo-nuevo] [--solo | --apartados | --citas] [--solo | --apartados]
+// Cronograma de investigación (19-nov-2026): --version-cronograma crea el borrador de una versión cuyo plan es el
+// cronograma de investigación (elementos por objetivo, bloque de preparación del informe y presupuesto).
+// --cronograma-prueba (E3) completa el plan de la propuesta con esa estructura (cada elemento obligatorio planificado,
+// la metodología de cada objetivo con una cita del registro) y lo deja aprobado, para probar la ejecución por elementos.
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual | --version-apartados | --version-ejecucion | --version-productos | --productos-plan | --version-resultados | --version-bitacora | --version-adelantar | --actividad-futura | --fuentes-prueba | --version-protocolo-nuevo | --version-cronograma | --cronograma-prueba] [--solo | --apartados | --citas] [--solo | --apartados]
 import crypto from "crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import { cartasAceptacion, detallesProyecto, fichas, fuentesTrabajo, ratificacionesPropuesta, fichasVersiones, historialEstados, informesFinalesFicha, versionesCapitulo, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
-import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaProtocolo, PRECARGA_CONCLUSIONES_OBJETIVOS, type DefinicionFicha, type Espacio } from "../../src/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaProtocolo, PRECARGA_CONCLUSIONES_OBJETIVOS, type DefinicionFicha, type Espacio, type EtapaPlan } from "../../src/lib/fichas/tipos";
 import { guardarComoTexto, tipoApartado } from "../../src/lib/fichas/apartadosAcademicos";
-import { informeFinalNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
+import { informeFinalNuevo, planNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
 import { validarDefinicion } from "../../src/lib/fichas/validar";
-import { numerar, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { normalizarArbol, numerar, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { arbolConCitas } from "../../src/lib/fichas/metodologiaPlan";
 import { conCitas, guardarParrafos, leerParrafos } from "../../src/lib/fichas/fuentes";
 import { datosCitaVacios, leerDatosCita } from "../../src/lib/citaApa";
 import { exigirBaseDesarrollo } from "./guardia";
@@ -382,6 +387,64 @@ async function versionProtocoloNuevo() {
   console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
 }
 
+/**
+ * Cronograma de investigación (19-nov-2026): borrador cuyo plan usa la estructura de investigación, sobre la última
+ * versión habilitada. Sin productos por objetivo, las conclusiones finales ya no se precargan de las preliminares.
+ */
+async function versionCronograma() {
+  const [ficha] = await db.select({ id: fichas.id }).from(fichas).where(eq(fichas.codigo, "INV-ING-001-SIST"));
+  if (!ficha) throw new Error("No existe la ficha INV-ING-001-SIST.");
+  const versiones = await db.select().from(fichasVersiones).where(eq(fichasVersiones.fichaId, ficha.id)).orderBy(sql`${fichasVersiones.numero} DESC`);
+  const borrador = versiones.find((v) => v.estado === "borrador");
+  if (borrador) return console.log(`Ya existe el borrador v${borrador.numero} (id ${borrador.id}); habilítalo o descártalo desde el constructor.`);
+  const base = versiones.find((v) => v.estado === "habilitada");
+  if (!base) throw new Error("La ficha no tiene versiones habilitadas.");
+  const def = structuredClone(base.definicion) as DefinicionFicha;
+  const i = def.etapas.findIndex(esEtapaPlan);
+  if (i < 0) throw new Error("La versión habilitada no tiene plan de trabajo.");
+  const actual = def.etapas[i] as EtapaPlan;
+  def.etapas[i] = { ...planNuevo(actual.id, "investigacion"), nombre: actual.nombre, minimos: actual.minimos, granularidad: actual.granularidad, aprobacion: actual.aprobacion };
+  for (const e of def.etapas.find(esEtapaInformeFinal)?.espacios ?? []) {
+    if (e.precargarDe === PRECARGA_CONCLUSIONES_OBJETIVOS) delete e.precargarDe;
+    if (e.elemento === "resultados_objetivos") Object.assign(e, { titulo: "Desarrollo de la investigación por objetivo", descripcion: "Se genera por objetivo con la metodología, el desarrollo, los resultados, las conclusiones preliminares y la discusión registrados en la ejecución" });
+  }
+  const problemas = validarDefinicion(def);
+  if (problemas.length) throw new Error(`La definición nueva no es válida: ${problemas.map((p) => p.mensaje).join(" | ")}`);
+  const [v] = await db.insert(fichasVersiones).values({
+    fichaId: ficha.id, numero: versiones[0].numero + 1, estado: "borrador", definicion: def, basadaEnId: base.id,
+    notas: "Cronograma de investigación: elementos del proceso por objetivo, preparación del informe final y presupuesto.",
+  }).returning({ id: fichasVersiones.id, numero: fichasVersiones.numero });
+  console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
+}
+
+/** Atajo de prueba (E3): plan con la estructura de investigación, planificado y aprobado. */
+async function cronogramaPrueba() {
+  const { prop } = await propuestaDelLider();
+  const [v] = await db.select({ def: fichasVersiones.definicion }).from(fichasVersiones).where(eq(fichasVersiones.id, prop.fichaVersionId!));
+  const etapa = (v.def as DefinicionFicha).etapas.find(esEtapaPlan);
+  if (!etapa || etapa.estructura !== "investigacion") throw new Error("La ficha de la propuesta no usa el cronograma de investigación.");
+  const [plan] = await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, prop.id));
+  if (!plan) throw new Error("La propuesta todavía no abrió su plan de trabajo.");
+  const [fuente] = await db.select({ id: fuentesTrabajo.id }).from(fuentesTrabajo).where(eq(fuentesTrabajo.propuestaId, prop.id)).limit(1);
+  const raiz = normalizarArbol(plan.arbol as NodoPlan, etapa);
+  // Cada objetivo ocupa un tramo de columnas; sus elementos van uno tras otro y la discusión queda sin planificar.
+  const columnas = plan.columnas;
+  const marca = (c: number) => Array.from({ length: columnas }, (_, i) => (i === Math.min(c, columnas - 1) ? 25 : 0));
+  raiz.hijos.forEach((o, k) => {
+    if (!o.titulo.trim()) o.titulo = `Objetivo de prueba ${k + 1}`;
+    o.hijos.forEach((e, j) => {
+      if (e.opcional || e.hijos.length) return;
+      if (!e.montos.some((m) => m > 0)) e.montos = marca(o.cierre ? columnas - 2 + j : k * 4 + j);
+      if (e.componente === "metodologia" && !e.metodologia && fuente) {
+        e.metodologia = { parrafos: [{ texto: `Procedimiento del objetivo «${o.titulo}»: se aplicará un cuestionario a la muestra seleccionada`, fuentes: [fuente.id] }], propia: false, fundamentacion: [] };
+      }
+    });
+  });
+  const mapa = new Map((await db.select().from(fuentesTrabajo).where(eq(fuentesTrabajo.propuestaId, prop.id))).flatMap((f) => { const d = leerDatosCita(f.datos); return d ? [[f.id, d] as const] : []; }));
+  await db.update(planesTrabajo).set({ arbol: arbolConCitas(numerar(raiz), mapa), estado: "aprobado", version: plan.version + 1, comentarioAsesor: "Aprobado (atajo de prueba).", revisadoEn: new Date(), actualizadoEn: new Date() }).where(eq(planesTrabajo.id, plan.id));
+  console.log(`Plan de la propuesta ${prop.id}: cronograma de investigación de prueba, aprobado (${raiz.hijos.length} bloques).`);
+}
+
 /** Productos de prueba en los objetivos del plan de la propuesta (también si ya está aprobado). */
 async function productosPlan() {
   const { prop } = await propuestaDelLider();
@@ -572,6 +635,8 @@ async function run() {
   else if (process.argv.includes("--actividad-futura")) await actividadFutura();
   else if (process.argv.includes("--fuentes-prueba")) await fuentesPrueba();
   else if (process.argv.includes("--version-protocolo-nuevo")) await versionProtocoloNuevo();
+  else if (process.argv.includes("--version-cronograma")) await versionCronograma();
+  else if (process.argv.includes("--cronograma-prueba")) await cronogramaPrueba();
   else await sembrar();
 }
 

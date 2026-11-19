@@ -1,7 +1,7 @@
 // Productos por objetivo específico (notas del 13-nov-2026). Módulo puro: cuándo se habilita la entrega de un objetivo,
 // quién la entrega, qué le falta y la revisión de redacción de su conclusión. Lo usan la ejecución (egresado y asesor),
 // los informes y verificar_fichas.
-import { aplanar, productosDe, responsables, type AvanceRegistrado, type NodoPlan } from "./planTrabajo";
+import { aplanar, esHojaPlan, productosDe, responsables, type AvanceRegistrado, type NodoPlan } from "./planTrabajo";
 import { revisarApartado, type Revision, type TipoApartado } from "./apartadosAcademicos";
 
 export type EstadoEntrega = "borrador" | "enviado" | "observado" | "aprobado";
@@ -37,7 +37,7 @@ export interface EntregaObjetivo {
  * enviado al 100 %. Se habilita cuando lo están todas (una actividad con subactividades, cuando todas están terminadas).
  */
 export function avanceObjetivo(objetivo: NodoPlan, registros: AvanceRegistrado[]) {
-  const hojas = aplanar(objetivo).filter((n) => n.hijos.length === 0 && n.nivel >= 4);
+  const hojas = aplanar(objetivo).filter(esHojaPlan);
   const ultimo = (id: string) =>
     registros
       .filter((r) => r.nodoId === id && r.estado !== "borrador" && r.avance !== null)
@@ -106,7 +106,7 @@ export function problemasEntrega(args: {
 export const productosPrometidos = productosDe;
 
 /** Objetivos específicos del plan (nivel 2), en orden. */
-export const objetivosDelPlan = (arbol: NodoPlan) => arbol.hijos.filter((n) => n.nivel === 2);
+export const objetivosDelPlan = (arbol: NodoPlan) => arbol.hijos.filter((n) => n.nivel === 2 && !n.cierre);
 
 /** Etiquetas del estado de la entrega; "bloqueada" y "pendiente" son las que todavía no tienen fila. */
 export const ESTADO_ENTREGA: Record<string, { label: string; badge: string }> = {

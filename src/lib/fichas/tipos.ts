@@ -244,6 +244,65 @@ export interface EtapaPlan {
    * egresado los entrega con la conclusión del objetivo y el asesor los revisa juntos (notas del 13-nov-2026).
    */
   productosObjetivo?: "no" | "opcional" | "obligatorio";
+  /**
+   * Tipo de cronograma (notas del 19-nov-2026). Falta = "actividades" (cronograma de proyecto: macroactividades y
+   * actividades). "investigacion": cada objetivo específico se organiza por los elementos de su proceso metodológico.
+   */
+  estructura?: "actividades" | "investigacion";
+  /** Solo investigación: nombre y obligatoriedad de los elementos de cada objetivo. Falta = COMPONENTES_INVESTIGACION. */
+  componentes?: ConfigComponente[];
+  /** Solo investigación: bloque final para preparar el informe final y las conclusiones finales. */
+  cierre?: { activo: boolean; titulo: string };
+  /**
+   * Solo investigación (entrega E2): el elemento "Metodología" de cada objetivo describe el procedimiento con párrafos
+   * citados del registro de fuentes; una metodología propia lleva su fundamentación. Falta = no se pide.
+   */
+  metodologiaObjetivo?: boolean;
+}
+
+/** Elementos del proceso de investigación (nivel 3 del cronograma de investigación). */
+export type ClaveComponente = "metodologia" | "desarrollo" | "resultados" | "conclusiones" | "discusion" | "redaccion_informe" | "conclusiones_finales";
+
+export interface ConfigComponente {
+  clave: ClaveComponente;
+  nombre: string;
+  /** Un elemento opcional (la discusión) puede quedar sin planificar y solo cuenta en el avance si se usa. */
+  obligatorio: boolean;
+}
+
+/** Elementos de cada objetivo específico, al mismo nivel y en este orden. */
+export const COMPONENTES_INVESTIGACION: ConfigComponente[] = [
+  { clave: "metodologia", nombre: "Metodología", obligatorio: true },
+  { clave: "desarrollo", nombre: "Desarrollo", obligatorio: true },
+  { clave: "resultados", nombre: "Resultados", obligatorio: true },
+  { clave: "conclusiones", nombre: "Conclusiones preliminares", obligatorio: true },
+  { clave: "discusion", nombre: "Elementos de discusión", obligatorio: false },
+];
+
+/** Elementos del bloque final de preparación del informe. */
+export const COMPONENTES_CIERRE: ConfigComponente[] = [
+  { clave: "redaccion_informe", nombre: "Redacción del informe final", obligatorio: true },
+  { clave: "conclusiones_finales", nombre: "Conclusiones finales", obligatorio: true },
+];
+
+export const CIERRE_POR_DEFECTO = { activo: true, titulo: "Preparación del informe final y conclusiones finales" };
+
+/** Tipo de cronograma efectivo de un plan (las versiones anteriores no lo tienen). */
+export const estructuraPlan = (p: Pick<EtapaPlan, "estructura">) => p.estructura ?? "actividades";
+export const esCronogramaInvestigacion = (p: Pick<EtapaPlan, "estructura">) => estructuraPlan(p) === "investigacion";
+
+/** Elementos de cada objetivo según la ficha: los de siempre, en su orden, con el nombre y la obligatoriedad configurados. */
+export function componentesDe(p: Pick<EtapaPlan, "componentes">): ConfigComponente[] {
+  return COMPONENTES_INVESTIGACION.map((d) => {
+    const c = (p.componentes ?? []).find((x) => x.clave === d.clave);
+    return { clave: d.clave, nombre: c?.nombre?.trim() || d.nombre, obligatorio: c ? !!c.obligatorio : d.obligatorio };
+  });
+}
+
+/** Bloque de preparación del informe final: solo en el cronograma de investigación. */
+export function cierreDe(p: Pick<EtapaPlan, "estructura" | "cierre">): { activo: boolean; titulo: string } {
+  if (!esCronogramaInvestigacion(p)) return { activo: false, titulo: "" };
+  return { activo: p.cierre?.activo ?? CIERRE_POR_DEFECTO.activo, titulo: p.cierre?.titulo?.trim() || CIERRE_POR_DEFECTO.titulo };
 }
 
 /**
@@ -306,6 +365,14 @@ export const NIVELES_PLAN = [
   { nivel: 3, nombre: "Macroactividad", codigo: "1.1.1" },
   { nivel: 4, nombre: "Actividad", codigo: "1.1.1.1" },
   { nivel: 5, nombre: "Subactividad", codigo: "1.1.1.1.1" },
+] as const;
+
+/** Niveles del cronograma de investigación (notas del 19-nov-2026). */
+export const NIVELES_PLAN_INVESTIGACION = [
+  { nivel: 1, nombre: "Objetivo general", codigo: "1" },
+  { nivel: 2, nombre: "Objetivo específico", codigo: "1.1" },
+  { nivel: 3, nombre: "Elemento del proceso (metodología, desarrollo, resultados…)", codigo: "1.1.1" },
+  { nivel: 4, nombre: "Subactividad", codigo: "1.1.1.1" },
 ] as const;
 
 /** Días de cada subperíodo de un período: partes iguales y el residuo en el último (30 / 4 → [7, 7, 7, 9]). */

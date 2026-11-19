@@ -3,7 +3,7 @@
 import { CATALOGO } from "./catalogo";
 import { partesConfiguradas } from "./apartadosAcademicos";
 import {
-  documentoSolicitado, productosObjetivo, esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, rangoPalabras,
+  cierreDe, componentesDe, documentoSolicitado, esCronogramaInvestigacion, productosObjetivo, esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, rangoPalabras,
   type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type ValorParametro,
 } from "./tipos";
 
@@ -39,6 +39,10 @@ const CAMPOS_EJECUCION: [string, (e: EtapaEjecucion) => ValorParametro | null][]
 ];
 
 const CAMPOS_PLAN: [string, (p: EtapaPlan) => ValorParametro][] = [
+  ["Tipo de cronograma", (p) => (esCronogramaInvestigacion(p) ? "de investigación" : "de proyecto")],
+  ["Elementos de cada objetivo", (p) => (esCronogramaInvestigacion(p) ? componentesDe(p).map((c) => `${c.nombre}${c.obligatorio ? "" : " (opcional)"}`) : "—")],
+  ["Preparación del informe final", (p) => (cierreDe(p).activo ? cierreDe(p).titulo : "no")],
+  ["Metodología de cada objetivo con referencias", (p) => !!p.metodologiaObjetivo],
   ["Subactividades", (p) => p.subactividades],
   ["Objetivos específicos por integrante", (p) => p.minimos.objetivosPorIntegrante],
   ["Macroactividades por objetivo", (p) => p.minimos.macroPorObjetivo],

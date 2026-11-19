@@ -13,6 +13,8 @@ import { esEtapaInformeFinal, esEtapaProtocolo } from "@/lib/fichas/tipos";
 import { leerApartado, guardarComoTexto, tipoApartado } from "@/lib/fichas/apartadosAcademicos";
 import { conCitas, guardarParrafos, leerFuente, leerParrafos, type Fuente } from "@/lib/fichas/fuentes";
 import { leerDatosCita, type DatosCitaApa } from "@/lib/citaApa";
+import { arbolConCitas } from "@/lib/fichas/metodologiaPlan";
+import type { NodoPlan } from "@/lib/fichas/planTrabajo";
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string; problemas?: string[] };
 
@@ -53,8 +55,14 @@ export async function recalcularCitas(propuestaId: number) {
     ...(ficha.definicion.etapas.find(esEtapaInformeFinal)?.espacios ?? []),
   ].filter((e) => e.elemento === "apartado");
   const conCitado = espacios.filter((e) => tipoApartado(e)?.partes.some((p) => p.formato === "citado"));
-  if (conCitado.length === 0) return;
   const mapa = new Map<number, DatosCitaApa>((await fuentesDePropuesta(propuestaId)).map((f) => [f.id, f.datos]));
+  // Metodología de cada objetivo en el plan (cronograma de investigación, E2).
+  const [plan] = await db.select({ id: planesTrabajo.id, arbol: planesTrabajo.arbol }).from(planesTrabajo).where(eq(planesTrabajo.propuestaId, propuestaId));
+  if (plan) {
+    const nuevo = arbolConCitas(plan.arbol as NodoPlan, mapa);
+    if (JSON.stringify(nuevo) !== JSON.stringify(plan.arbol)) await db.update(planesTrabajo).set({ arbol: nuevo, actualizadoEn: new Date() }).where(eq(planesTrabajo.id, plan.id));
+  }
+  if (conCitado.length === 0) return;
   const filas = await db.select().from(respuestasEspacios).where(eq(respuestasEspacios.propuestaId, propuestaId));
   for (const e of conCitado) {
     const fila = filas.find((f) => f.espacioId === e.id);

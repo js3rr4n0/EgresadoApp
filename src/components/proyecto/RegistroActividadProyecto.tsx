@@ -14,6 +14,9 @@ import EvidenciasActividad from "./EvidenciasActividad";
 import ModificacionCampo from "./ModificacionCampo";
 import type { EvidenciaCompleta } from "@/app/actions/evidenciasPlan";
 import { textosModalidad } from "@/lib/fichas/textosModalidad";
+import { elementoDe, TEXTOS_ELEMENTO } from "@/lib/fichas/elementosEjecucion";
+import { leerMetodologia, textoMetodologia } from "@/lib/fichas/metodologiaPlan";
+import { revisarConclusionObjetivo } from "@/lib/fichas/entregasObjetivo";
 
 const ESTADO_BANNER: Record<string, { className: string; title: string }> = {
   enviado: { className: "bg-blue-50 border-blue-200 text-blue-900", title: "Esta actividad fue enviada y está en revisión por su asesor designado." },
@@ -89,8 +92,14 @@ export default function RegistroActividadProyecto({
   // subactividad usa el de su actividad.
   const actividadDelNodo = nodo.nivel === 5 ? aplanar(plan.plan.arbol).find((x) => x.hijos.some((h) => h.id === nodo.id)) : nodo;
   const documentoEsperado = actividadDelNodo?.documento?.trim() || null;
+  // Cronograma de investigación (E3): el registro se adapta al elemento del proceso (metodología, desarrollo…).
+  const elemento = elementoDe(arbol, nodoId);
+  const textos = elemento?.componente ? TEXTOS_ELEMENTO[elemento.componente] : null;
+  const metodologiaPlan = elemento?.componente === "metodologia" ? leerMetodologia(elemento) : null;
+  const revisionConclusion = textos?.conclusion && resultado.trim() ? revisarConclusionObjetivo(resultado) : [];
   const pendientes = [
     ...validarRegistroProyecto(valores, reglas, nodo.nivel === 5),
+    ...revisionConclusion.filter((r) => r.nivel === "falta").map((r) => r.mensaje),
     ...(limiteEvidencias.max > 0 && evidencias.length < limiteEvidencias.min ? [`Adjunte al menos ${limiteEvidencias.min} evidencia(s).`] : []),
   ];
   const volver = esAsesor ? `/asesor/ejecucion/${plan.propuesta.id}` : "/egresado/ejecucion";
@@ -228,26 +237,51 @@ export default function RegistroActividadProyecto({
         </div>
       </div>
 
+      {metodologiaPlan && metodologiaPlan.parrafos.some((x) => x.texto.trim()) && (
+        <div className={tarjeta}>
+          <div className="border-b border-slate-100 pb-2">
+            <h2 className={tituloTarjeta}>Metodología planificada</h2>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+              La que el asesor aprobó en el plan de trabajo. Si se aplicó con cambios, repórtelo abajo como «Ajuste a la metodología», con su justificación.
+            </p>
+          </div>
+          <div className="text-xs text-slate-700 space-y-2 leading-relaxed whitespace-pre-wrap">{textoMetodologia(metodologiaPlan.parrafos)}</div>
+          {metodologiaPlan.propia && (
+            <div className="text-xs text-slate-600 space-y-1 border-t border-slate-100 pt-2">
+              <span className="block text-[10px] font-extrabold uppercase text-slate-400">Fundamentación de la metodología propia</span>
+              <p className="whitespace-pre-wrap">{textoMetodologia(metodologiaPlan.fundamentacion)}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className={tarjeta}>
         <div className="border-b border-slate-100 pb-2">
-          <h2 className={tituloTarjeta}>¿Qué se hizo?</h2>
+          <h2 className={tituloTarjeta}>{textos?.acciones.titulo ?? "¿Qué se hizo?"}</h2>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-            Describa las acciones realizadas en la actividad, en tiempo pasado ({textoRango(reglas.acciones)}).
+            {textos ? textos.acciones.ayuda : "Describa las acciones realizadas en la actividad, en tiempo pasado."} ({textoRango(reglas.acciones)})
           </p>
         </div>
         <TextoRedaccion id="acciones" valor={acciones} onChange={setAcciones} deshabilitado={!editable} filas={8}
-          placeholder="Se realizaron las siguientes acciones..." {...rango(reglas.acciones)} />
+          placeholder={textos?.acciones.placeholder ?? "Se realizaron las siguientes acciones..."} {...rango(reglas.acciones)} />
       </div>
 
       <div className={tarjeta}>
         <div className="border-b border-slate-100 pb-2">
-          <h2 className={tituloTarjeta}>Resultado obtenido</h2>
+          <h2 className={tituloTarjeta}>{textos?.resultado.titulo ?? "Resultado obtenido"}</h2>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
-            Describa qué se obtuvo y cómo contribuye a la macroactividad y al objetivo ({textoRango(reglas.resultado)}).
+            {textos ? textos.resultado.ayuda : "Describa qué se obtuvo y cómo contribuye a la macroactividad y al objetivo."} ({textoRango(reglas.resultado)})
           </p>
         </div>
-        <TextoRedaccion id="resultado" valor={resultado} onChange={setResultado} deshabilitado={!editable} filas={4}
-          placeholder="El resultado obtenido fue..., que contribuye directamente a..." {...rango(reglas.resultado)} />
+        <TextoRedaccion id="resultado" valor={resultado} onChange={setResultado} deshabilitado={!editable} filas={textos?.conclusion ? 6 : 4}
+          placeholder={textos?.resultado.placeholder ?? "El resultado obtenido fue..., que contribuye directamente a..."} {...rango(reglas.resultado)} />
+        {revisionConclusion.length > 0 && (
+          <ul className="space-y-1 text-[11px] font-semibold">
+            {revisionConclusion.map((r) => (
+              <li key={r.id} className={r.nivel === "falta" ? "text-red-700" : r.nivel === "aviso" ? "text-amber-800" : "text-emerald-700"}>{r.mensaje}</li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {reglas.marcoTeorico !== "no" && (
@@ -365,7 +399,10 @@ export default function RegistroActividadProyecto({
         <div className={tarjeta}>
           <div className="border-b border-slate-100 pb-2">
             <h2 className={tituloTarjeta}>Revisión del asesor</h2>
-            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">Apruebe la actividad o solicite correcciones al integrante responsable.</p>
+            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+              {textos ? `Valide «${elemento!.titulo}»${nodo.id !== elemento!.id ? ` (subactividad ${nodo.codigo})` : ""} o solicite correcciones. El elemento queda validado cuando su último registro llega al 100 % y usted lo aprueba.` : "Apruebe la actividad o solicite correcciones al integrante responsable."}
+              {registro?.modificacion ? " Al aprobar, también acepta el cambio reportado en la bitácora." : ""}
+            </p>
           </div>
           <textarea rows={3} value={comentario} onChange={(e) => setComentario(e.target.value)} aria-label="Observaciones para el integrante"
             placeholder="Observaciones para el integrante (obligatorias si solicita correcciones)"
@@ -377,7 +414,7 @@ export default function RegistroActividadProyecto({
             </button>
             <button type="button" disabled={saving !== null} onClick={() => revisar("aprobar")}
               className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md disabled:opacity-50">
-              Aprobar actividad
+              {textos ? (registro?.avance === 100 ? "Validar elemento" : "Aprobar avance") : "Aprobar actividad"}
             </button>
           </div>
         </div>

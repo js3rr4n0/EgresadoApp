@@ -14,6 +14,7 @@ import RecursoEspacioForm from "./RecursoEspacioForm";
 import ApartadoAcademicoForm from "./ApartadoAcademicoForm";
 import { contextoDeRevision } from "@/lib/fichas/apartadosAcademicos";
 import { fuentesCitadas, referenciasOrdenadas } from "@/lib/fichas/fuentes";
+import { fuentesCitadasPlan } from "@/lib/fichas/metodologiaPlan";
 import { ProveedorFuentes } from "./FuentesCitas";
 import RecursosPresupuestoForm from "./RecursosPresupuestoForm";
 
@@ -42,7 +43,8 @@ export default function ProtocoloEquipo({ datos, plan, paso, base }: { datos: Da
   const registroFuentes = {
     propuestaId: plan.propuesta.id,
     fuentes: datos.fuentes,
-    citadas: fuentesCitadas(etapa.espacios, { ...precargas, ...respuestas }),
+    // También cuentan las citas de la metodología de cada objetivo en el plan (cronograma de investigación, E2).
+    citadas: [...new Set([...fuentesCitadas(etapa.espacios, { ...precargas, ...respuestas }), ...fuentesCitadasPlan(plan.plan.arbol)])],
     editable: editable && esLider,
   };
 

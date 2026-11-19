@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { documentoSolicitado, productosObjetivo, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, NIVELES_PLAN, type DefinicionFicha, type EtapaPlan } from "@/lib/fichas/tipos";
+import {
+  cierreDe, CIERRE_POR_DEFECTO, COMPONENTES_INVESTIGACION, componentesDe, documentoSolicitado, esCronogramaInvestigacion, productosObjetivo, esEtapaEjecucion, esEtapaPlan,
+  esEtapaPropuesta, esEtapaProtocolo, NIVELES_PLAN, NIVELES_PLAN_INVESTIGACION, type DefinicionFicha, type EtapaPlan,
+} from "@/lib/fichas/tipos";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
 import { planNuevo } from "@/lib/fichas/plantillas";
 import { aplanar, cargaPorIntegrante, planEjemplo, planIndividual, totalesNodo } from "@/lib/fichas/planTrabajo";
@@ -102,6 +105,7 @@ export default function EditorPlan({
   const objetivos = definicion.etapas.find(esEtapaPropuesta)?.espacios.find((e) => e.elemento === "objetivos");
   const maxPropuesta = objetivos ? Number(objetivos.parametros.maxEspecificos) : null;
   const necesarios = plan.minimos.objetivosPorIntegrante * definicion.participantes.max;
+  const investigacion = esCronogramaInvestigacion(plan);
 
   return (
     <div className="space-y-4">
@@ -127,11 +131,65 @@ export default function EditorPlan({
             </ul>
           )}
 
-          <EncabezadoSeccion titulo="Estructura" descripcion="Cómo se arma el plan: niveles, mínimos y presupuesto." />
+          <EncabezadoSeccion titulo="Estructura" descripcion="Cómo se arma el plan: tipo de cronograma, niveles, mínimos y presupuesto." />
+          <Tarjeta titulo="Tipo de cronograma">
+            <div className="space-y-2">
+              <Opciones id="plan-estructura" valor={investigacion ? "investigacion" : "actividades"} editable={editable && definicion.modalidad === "investigacion"}
+                onChange={(v) => set(v === "investigacion"
+                  ? { estructura: "investigacion", componentes: plan.componentes ?? COMPONENTES_INVESTIGACION.map((c) => ({ ...c })), cierre: plan.cierre ?? { ...CIERRE_POR_DEFECTO }, metodologiaObjetivo: plan.metodologiaObjetivo ?? true, productosObjetivo: "no", documentoSolicitado: "no", equipo: { ...plan.equipo, responsable: "objetivo" } }
+                  : { estructura: "actividades", metodologiaObjetivo: undefined })}
+                opciones={[{ valor: "actividades", texto: "Cronograma de proyecto" }, { valor: "investigacion", texto: "Cronograma de investigación" }]} />
+              <p className="text-[11px] text-gray-500">
+                {investigacion
+                  ? "Cada objetivo específico se organiza por el proceso metodológico con el que se cumple: sus elementos van al mismo nivel y cada uno puede tener subactividades. Los productos y documentos no van en el cronograma: las evidencias se suben en los registros."
+                  : "Objetivo específico → macroactividades → actividades → subactividades, con productos y documentos esperados."}
+                {definicion.modalidad !== "investigacion" && " El cronograma de investigación es solo para la modalidad de investigación."}
+                {" "}El cronograma de pasantía va dentro de la propuesta.
+              </p>
+            </div>
+          </Tarjeta>
+          {investigacion && (
+            <div className="grid lg:grid-cols-2 gap-3">
+              <Tarjeta titulo="Elementos de cada objetivo">
+                <p className="text-[11px] text-gray-500 mb-2">Se crean solos al agregar un objetivo y no se pueden quitar. Un elemento opcional puede quedar sin planificar y solo cuenta en el avance si se usa.</p>
+                <ul className="space-y-1.5">
+                  {componentesDe(plan).map((c, i) => (
+                    <li key={c.clave} className="flex items-center gap-2">
+                      <span className="font-mono text-[11px] text-gray-400 w-12 shrink-0">1.1.{i + 1}</span>
+                      <label htmlFor={`plan-comp-${c.clave}`} className="sr-only">Nombre del elemento {i + 1}</label>
+                      <input id={`plan-comp-${c.clave}`} className={`${campoCompacto} flex-1 min-w-0`} maxLength={80} disabled={!editable} value={c.nombre}
+                        onChange={(e) => set({ componentes: componentesDe(plan).map((x) => (x.clave === c.clave ? { ...x, nombre: e.target.value } : x)) })} />
+                      <Interruptor etiqueta={`${c.nombre} es obligatorio`} activo={c.obligatorio} deshabilitado={!editable}
+                        onChange={(v) => set({ componentes: componentesDe(plan).map((x) => (x.clave === c.clave ? { ...x, obligatorio: v } : x)) })} />
+                      <span className="text-[11px] text-gray-500 w-16">{c.obligatorio ? "Obligatorio" : "Opcional"}</span>
+                    </li>
+                  ))}
+                </ul>
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <Fila texto="Metodología de cada objetivo con referencias"
+                    ayuda="En el plan, el elemento «Metodología» de cada objetivo describe el procedimiento con párrafos citados del registro de fuentes; una metodología propia se fundamenta. El asesor la revisa con el plan.">
+                    <Interruptor etiqueta="Metodología de cada objetivo con referencias" activo={!!plan.metodologiaObjetivo} deshabilitado={!editable} onChange={(v) => set({ metodologiaObjetivo: v })} />
+                  </Fila>
+                </div>
+              </Tarjeta>
+              <Tarjeta titulo="Preparación del informe final" extra={<Interruptor etiqueta="Bloque de preparación del informe final" activo={cierreDe(plan).activo} deshabilitado={!editable} onChange={(v) => set({ cierre: { ...cierreDe(plan), activo: v } })} />}>
+                <p className="text-[11px] text-gray-500 mb-2">
+                  Bloque final del cronograma, después del último objetivo, para redactar el informe final y las conclusiones finales (distintas de las conclusiones preliminares de cada objetivo).
+                </p>
+                {cierreDe(plan).activo && (
+                  <div>
+                    <label htmlFor="plan-cierre" className={etiquetaCompacta}>Nombre del bloque</label>
+                    <input id="plan-cierre" className={`${campoCompacto} w-full`} maxLength={120} disabled={!editable} value={plan.cierre?.titulo ?? CIERRE_POR_DEFECTO.titulo}
+                      onChange={(e) => set({ cierre: { activo: true, titulo: e.target.value } })} />
+                  </div>
+                )}
+              </Tarjeta>
+            </div>
+          )}
           <div className="grid lg:grid-cols-2 gap-3">
             <Tarjeta titulo="Niveles y mínimos">
               <ol className="space-y-1 mb-3">
-                {NIVELES_PLAN.map((n) => (
+                {(investigacion ? NIVELES_PLAN_INVESTIGACION : NIVELES_PLAN).map((n) => (
                   <li key={n.nivel} className="flex items-center gap-2 text-sm">
                     <span className="font-mono text-[11px] text-gray-400 w-20 shrink-0">{n.codigo}</span>
                     <span style={{ paddingLeft: `${(n.nivel - 1) * 0.75}rem` }} className={n.nivel === 5 && plan.subactividades === "no" ? "text-gray-300 line-through" : "text-gray-800"}>{n.nombre}</span>
@@ -140,19 +198,25 @@ export default function EditorPlan({
                 ))}
               </ol>
               <div className="space-y-3">
-                <div>
-                  <span id="plan-sub" className={etiquetaCompacta}>Subactividades</span>
-                  <Opciones id="plan-sub" valor={plan.subactividades} editable={editable} onChange={(v) => set({ subactividades: v })}
-                    opciones={[{ valor: "no", texto: "No se usan" }, { valor: "opcional", texto: "Opcionales" }, { valor: "obligatorio", texto: "Obligatorias" }]} />
-                </div>
+                {!investigacion && (
+                  <div>
+                    <span id="plan-sub" className={etiquetaCompacta}>Subactividades</span>
+                    <Opciones id="plan-sub" valor={plan.subactividades} editable={editable} onChange={(v) => set({ subactividades: v })}
+                      opciones={[{ valor: "no", texto: "No se usan" }, { valor: "opcional", texto: "Opcionales" }, { valor: "obligatorio", texto: "Obligatorias" }]} />
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-3">
                   <Numero id="plan-obj" etiqueta={equipo ? "Objetivos por integrante" : "Objetivos específicos"} valor={plan.minimos.objetivosPorIntegrante} max={10} editable={editable}
                     onChange={(v) => set({ minimos: { ...plan.minimos, objetivosPorIntegrante: v } })} sufijo="mín." />
+                  {!investigacion && <>
                   <Numero id="plan-mac" etiqueta="Macro por objetivo" valor={plan.minimos.macroPorObjetivo} max={10} editable={editable}
                     onChange={(v) => set({ minimos: { ...plan.minimos, macroPorObjetivo: v } })} sufijo="mín." />
                   <Numero id="plan-act" etiqueta="Actividades por macro" valor={plan.minimos.actividadesPorMacro} max={20} editable={editable}
                     onChange={(v) => set({ minimos: { ...plan.minimos, actividadesPorMacro: v } })} sufijo="mín." />
+                  </>}
                 </div>
+                {investigacion && <p className="text-[11px] text-gray-500">Las subactividades de cada elemento son opcionales; si un elemento no tiene, se planifica él mismo.</p>}
+                {!investigacion && <>
                 <div>
                   <span id="plan-doc" className={etiquetaCompacta}>Documento solicitado por actividad</span>
                   <Opciones id="plan-doc" valor={documentoSolicitado(plan)} editable={editable} onChange={(v) => set({ documentoSolicitado: v })}
@@ -170,6 +234,7 @@ export default function EditorPlan({
                     conclusión del objetivo y el asesor los revisa juntos. La conclusión pasa al informe final.
                   </p>
                 </div>
+                </>}
                 {equipo && maxPropuesta !== null && necesarios > maxPropuesta && (
                   <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
                     Con {definicion.participantes.max} integrantes el plan pide al menos {necesarios} objetivos específicos, pero la propuesta permite hasta {maxPropuesta}.
@@ -224,7 +289,7 @@ export default function EditorPlan({
                 <div className="space-y-3">
                   <div>
                     <span id="plan-res" className={etiquetaCompacta}>El responsable se asigna por</span>
-                    <Opciones id="plan-res" valor={plan.equipo.responsable} editable={editable} onChange={(v) => set({ equipo: { ...plan.equipo, responsable: v } })}
+                    <Opciones id="plan-res" valor={plan.equipo.responsable} editable={editable && !investigacion} onChange={(v) => set({ equipo: { ...plan.equipo, responsable: v } })}
                       opciones={[{ valor: "objetivo", texto: "Objetivo específico" }, { valor: "actividad", texto: "Actividad" }]} />
                     <p className="text-[11px] text-gray-500 mt-1">
                       {plan.equipo.responsable === "objetivo" ? "Todo lo que cuelga de un objetivo es del mismo integrante." : "Dentro de un objetivo puede haber actividades de distintos integrantes."}
@@ -286,7 +351,7 @@ export function EjemploPlan({ definicion, plan }: { definicion: DefinicionFicha;
   const filas = mostrado ? aplanar(mostrado) : [];
   const visibles = porSub ? Array.from({ length: ejecucion.subperiodos }, (_, s) => (periodo - 1) * ejecucion.subperiodos + s) : Array.from({ length: columnas }, (_, c) => c);
   const carga = cargaPorIntegrante(raiz, integrantes, columnas);
-  const conSubs = plan.subactividades !== "no";
+  const conSubs = plan.subactividades !== "no" && !esCronogramaInvestigacion(plan);
   const sangria = ["", "pl-3", "pl-6", "pl-9", "pl-12"];
 
   return (
@@ -337,13 +402,13 @@ export function EjemploPlan({ definicion, plan }: { definicion: DefinicionFicha;
               const total = totales.reduce((a, b) => a + b, 0);
               const hoja = n.hijos.length === 0;
               return (
-                <tr key={n.codigo} className={n.nivel === 1 ? "bg-gray-100 font-bold" : n.nivel === 2 ? "bg-sky-50/60 font-bold" : n.nivel === 3 ? "font-bold text-gray-700" : "text-gray-600"}>
+                <tr key={n.codigo} className={n.nivel === 1 ? "bg-gray-100 font-bold" : n.cierre ? "bg-amber-50/70 font-bold" : n.nivel === 2 ? "bg-sky-50/60 font-bold" : n.nivel === 3 ? "font-bold text-gray-700" : "text-gray-600"}>
                   <td className="px-2 py-1 font-mono text-gray-500">{n.codigo}</td>
                   <td className={`px-2 py-1 ${sangria[n.nivel - 1]}`}>{n.titulo}</td>
                   {integrantes > 1 && <td className="px-2 py-1 text-gray-500">{n.responsable ? `Integrante ${n.responsable}` : ""}</td>}
                   {visibles.map((c) => (
                     <td key={c} className="px-2 py-1 text-right tabular-nums">
-                      {plan.presupuesto.activo ? moneda(totales[c], plan.presupuesto.moneda) : hoja && c % 2 === 0 ? <span className="inline-block w-full h-2.5 bg-brand-red/70 rounded-sm" aria-label="Se ejecuta" /> : ""}
+                      {plan.presupuesto.activo ? moneda(totales[c], plan.presupuesto.moneda) : (esCronogramaInvestigacion(plan) ? totales[c] > 0 : hoja && c % 2 === 0) ? <span className="inline-block w-full h-2.5 bg-brand-red/70 rounded-sm" aria-label="Se ejecuta" /> : ""}
                     </td>
                   ))}
                   {plan.presupuesto.activo && <td className="px-2 py-1 text-right tabular-nums font-bold">{moneda(total, plan.presupuesto.moneda)}</td>}

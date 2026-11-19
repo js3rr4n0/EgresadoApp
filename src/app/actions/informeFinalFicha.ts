@@ -16,7 +16,8 @@ import {
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta, espaciosPropuesta } from "@/lib/fichas/fichaDePropuesta";
-import { esEtapaInformeFinal, esEtapaProtocolo, productosObjetivo, type Espacio, type EtapaInformeFinal } from "@/lib/fichas/tipos";
+import { esCronogramaInvestigacion, esEtapaInformeFinal, esEtapaProtocolo, productosObjetivo, type Espacio, type EtapaInformeFinal } from "@/lib/fichas/tipos";
+import { hojasElemento, procesoPorObjetivo } from "@/lib/fichas/elementosEjecucion";
 import { aplanar, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import { columnasTabla, enlaceValido, limitesRecurso, TIPOS_ARCHIVO, type ArchivoEspacio } from "@/lib/fichas/elementosRecurso";
 import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
@@ -72,6 +73,8 @@ export interface DatosInformeFinal {
   fechaLimite: string | null;
   /** Vista previa de los capítulos que genera el sistema (resultados por objetivo, reporte de modificaciones), por espacio. */
   generados: Record<string, BloqueDocumento[]>;
+  /** Cronograma de investigación (E4): conclusiones preliminares de consulta, por espacio de conclusiones finales. */
+  consulta: Record<string, { titulo: string; texto: string }[]>;
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string };
@@ -169,6 +172,38 @@ async function precargas(propuestaId: number, ctx: Contexto): Promise<Record<str
  * Productos por objetivo (notas del 13-nov-2026): objetivos específicos cuyos productos todavía no aprobó el asesor.
  * Mientras haya alguno no se ratifica ni se entrega el informe final. Vacío si la ficha no pide productos.
  */
+/**
+ * Cronograma de investigación (E4): antes de entregar el informe final, cada objetivo (y el bloque de preparación del
+ * informe) tiene validados por el asesor todos sus elementos que cuentan.
+ */
+async function objetivosSinValidar(propuestaId: number, ctx: Contexto): Promise<string[]> {
+  if (!esCronogramaInvestigacion(ctx.plan.etapa)) return [];
+  const regs = await db.select({ nodoId: registrosPlan.nodoId, periodo: registrosPlan.periodo, avance: registrosPlan.avance, estado: registrosPlan.estado })
+    .from(registrosPlan).where(eq(registrosPlan.propuestaId, propuestaId));
+  return procesoPorObjetivo(ctx.plan.plan.arbol as NodoPlan, regs).filter((p) => !p.cerrado)
+    .map((p) => (p.nodo.cierre ? `Validación de «${p.nodo.titulo}»` : `Validación de los elementos del objetivo ${p.nodo.codigo}`));
+}
+
+/**
+ * Conclusiones preliminares de cada objetivo y el registro de conclusiones finales del bloque de cierre, para consultarlas
+ * al redactar el capítulo de conclusiones finales (no se precargan: son distintas). Por espacio de tipo "conclusiones".
+ */
+async function consultaConclusiones(propuestaId: number, ctx: Contexto): Promise<Record<string, { titulo: string; texto: string }[]>> {
+  if (!esCronogramaInvestigacion(ctx.plan.etapa)) return {};
+  const espacios = ctx.etapa.espacios.filter((e) => e.elemento === "apartado" && tipoApartado(e)?.clave === "conclusiones");
+  if (espacios.length === 0) return {};
+  const regs = (await db.select({ nodoId: registrosPlan.nodoId, periodo: registrosPlan.periodo, estado: registrosPlan.estado, resultado: registrosPlan.resultado })
+    .from(registrosPlan).where(eq(registrosPlan.propuestaId, propuestaId))).filter((r) => r.estado === "enviado" || r.estado === "aprobado");
+  const texto = (n: NodoPlan) => hojasElemento(n).map((h) => regs.filter((r) => r.nodoId === h.id).sort((a, b) => b.periodo - a.periodo)[0]?.resultado?.trim() ?? "").filter(Boolean).join("\n\n");
+  const items: { titulo: string; texto: string }[] = [];
+  for (const o of (ctx.plan.plan.arbol as NodoPlan).hijos) {
+    const e = o.hijos.find((x) => x.componente === (o.cierre ? "conclusiones_finales" : "conclusiones"));
+    if (!e) continue;
+    items.push({ titulo: o.cierre ? `${e.titulo} (registro del bloque «${o.titulo}»)` : `Objetivo ${o.codigo}: ${o.titulo}`, texto: texto(e) });
+  }
+  return Object.fromEntries(espacios.map((e) => [e.id, items]));
+}
+
 async function objetivosSinProductos(propuestaId: number, ctx: Contexto): Promise<string[]> {
   if (productosObjetivo(ctx.plan.etapa) === "no") return [];
   const aprobadas = await db.select({ nodoId: entregasObjetivo.nodoId }).from(entregasObjetivo)
@@ -205,7 +240,7 @@ export async function getInformeFinal(propuestaId: number): Promise<Resultado<{ 
         };
       }),
       problemas: problemasInformeFinal(ctx.etapa, contenidos),
-      pendientesAprobacion: [...capitulosPendientes(ctx.etapa, ctx.estados, contenidos).map((e) => e.titulo), ...(await objetivosSinProductos(propuestaId, ctx))],
+      pendientesAprobacion: [...capitulosPendientes(ctx.etapa, ctx.estados, contenidos).map((e) => e.titulo), ...(await objetivosSinProductos(propuestaId, ctx)), ...(await objetivosSinValidar(propuestaId, ctx))],
       ratificacion: { requerida, firmas, completa: !requerida || firmas.every((f) => f.vigente) },
       huellaActual: h,
       huellaFinal: ctx.fila.huellaFinal,
@@ -213,6 +248,7 @@ export async function getInformeFinal(propuestaId: number): Promise<Resultado<{ 
       entregadoEn: ctx.fila.entregadoEn?.toISOString() ?? null,
       fechaLimite: estado === "entregado" && ctx.fila.entregadoEn ? fechaLimiteDictamen(ctx.fila.entregadoEn, ctx.etapa).toISOString() : null,
       generados: await capitulosGenerados(propuestaId, ctx),
+      consulta: await consultaConclusiones(propuestaId, ctx),
     },
   };
 }
@@ -514,7 +550,7 @@ export async function revisarInformeFinal(propuestaId: number, decision: "aproba
 async function datosResultados(propuestaId: number, ctx: Contexto, conArchivos: boolean) {
   const arbol = ctx.plan.plan.arbol as NodoPlan;
   const regs = await db.select({ id: registrosPlan.id, nodoId: registrosPlan.nodoId, periodo: registrosPlan.periodo, estado: registrosPlan.estado, avance: registrosPlan.avance,
-    resultado: registrosPlan.resultado, fechaInicio: registrosPlan.fechaInicio, fechaFin: registrosPlan.fechaFin,
+    resultado: registrosPlan.resultado, acciones: registrosPlan.acciones, fechaInicio: registrosPlan.fechaInicio, fechaFin: registrosPlan.fechaFin,
     modificacionTipo: registrosPlan.modificacionTipo, modificacion: registrosPlan.modificacion }).from(registrosPlan).where(eq(registrosPlan.propuestaId, propuestaId));
   const validos = regs.filter((x) => x.estado === "enviado" || x.estado === "aprobado");
   const colEvid = { id: evidenciasPlan.id, registroId: evidenciasPlan.registroId, tipo: evidenciasPlan.tipo, leyenda: evidenciasPlan.leyenda, nombre: evidenciasPlan.nombre,

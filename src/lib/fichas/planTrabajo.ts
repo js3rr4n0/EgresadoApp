@@ -1,6 +1,11 @@
 // Plan de trabajo jerárquico: sumas por nivel, plan individual y carga por integrante. Módulo puro.
 // Lo usa la vista de ejemplo del constructor y lo usará el editor del plan del egresado (entrega P3).
-import { documentoSolicitado, productosObjetivo, type EtapaPlan } from "./tipos";
+import {
+  cierreDe, COMPONENTES_CIERRE, componentesDe, documentoSolicitado, esCronogramaInvestigacion, productosObjetivo,
+  type ClaveComponente, type ConfigComponente, type EtapaPlan,
+} from "./tipos";
+import type { ParrafoCitado } from "./fuentes";
+import { leerMetodologia, pideMetodologia, problemasMetodologia } from "./metodologiaPlan";
 
 export interface NodoPlan {
   /** Identificador estable: los registros de la ejecución (P4) apuntarán a él. */
@@ -25,6 +30,73 @@ export interface NodoPlan {
    * terminar sus actividades, junto con la conclusión del objetivo (notas del 13-nov-2026). Ver productosDe().
    */
   productos?: string[];
+  /**
+   * Cronograma de investigación (notas del 19-nov-2026): elemento del proceso al que corresponde el nodo de nivel 3
+   * (metodología, desarrollo, resultados…). Lo crea el sistema; no se borra ni se renombra.
+   */
+  componente?: ClaveComponente;
+  /** Cronograma de investigación: el nodo de nivel 2 es el bloque de preparación del informe final, no un objetivo. */
+  cierre?: boolean;
+  /**
+   * Cronograma de investigación (E3): elemento opcional (la discusión). Solo cuenta en el avance si se usa: tiene algo
+   * planificado o algún avance registrado. Lo pone normalizarArbol según la ficha.
+   */
+  opcional?: boolean;
+  /** Solo el elemento "Metodología" de un objetivo (entrega E2): el procedimiento con sus citas. Ver metodologiaPlan.ts. */
+  metodologia?: { parrafos: ParrafoCitado[]; propia: boolean; fundamentacion: ParrafoCitado[] };
+}
+
+/**
+ * Hoja del plan, es decir, lo que se planifica y se registra: una actividad o subactividad sin hijos o, en el cronograma
+ * de investigación, un elemento del proceso sin subactividades.
+ */
+export const esHojaPlan = (n: Pick<NodoPlan, "hijos" | "nivel" | "componente">) => n.hijos.length === 0 && (n.nivel >= 4 || !!n.componente);
+
+/** Objetivos específicos del plan (sin el bloque de preparación del informe final). */
+export const objetivosEspecificos = (raiz: NodoPlan) => raiz.hijos.filter((h) => h.nivel === 2 && !h.cierre);
+
+/**
+ * Cronograma de investigación: deja cada objetivo con sus elementos del proceso, en el orden y con el nombre de la ficha,
+ * y el bloque de preparación del informe al final si la ficha lo pide. Conserva las subactividades y lo planificado de
+ * los elementos que ya existían. En un cronograma de proyecto devuelve el árbol tal cual.
+ */
+export function normalizarArbol(raiz: NodoPlan, plan: EtapaPlan): NodoPlan {
+  if (!esCronogramaInvestigacion(plan)) return raiz;
+  const elementos = (padre: NodoPlan, config: ConfigComponente[]): NodoPlan[] =>
+    config.map((c) => {
+      const previo = padre.hijos.find((h) => h.componente === c.clave);
+      const hijos = (previo?.hijos ?? []).map((s) => ({ ...s, nivel: 4 as const, componente: undefined, hijos: [] }));
+      return {
+        id: previo?.id ?? `${padre.id}-${c.clave}`,
+        codigo: "",
+        nivel: 3,
+        titulo: c.nombre,
+        responsable: previo?.responsable ?? null,
+        montos: hijos.length ? [] : (previo?.montos ?? []),
+        hijos,
+        componente: c.clave,
+        ...(c.obligatorio ? {} : { opcional: true }),
+        ...(c.clave === "metodologia" && previo?.metodologia ? { metodologia: previo.metodologia } : {}),
+      };
+    });
+  const objetivos = raiz.hijos
+    .filter((h) => !h.cierre)
+    // Sin productos ni documentos: en investigación las evidencias van en los registros.
+    .map((o) => ({ ...o, productos: undefined, documento: undefined, hijos: elementos(o, componentesDe(plan)) }));
+  const cierre = cierreDe(plan);
+  const previo = raiz.hijos.find((h) => h.cierre);
+  const bloque: NodoPlan = {
+    id: previo?.id ?? "cierre",
+    codigo: "",
+    nivel: 2,
+    titulo: cierre.titulo,
+    responsable: null,
+    montos: [],
+    hijos: [],
+    cierre: true,
+  };
+  bloque.hijos = elementos(previo ?? bloque, COMPONENTES_CIERRE);
+  return numerar({ ...raiz, hijos: cierre.activo ? [...objetivos, bloque] : objetivos });
 }
 
 /** Productos esperados de un objetivo, sin líneas vacías. */
@@ -47,6 +119,8 @@ function conHerencia(n: NodoPlan, heredado: number | null): NodoPlan {
 /** Plan individual: las ramas del integrante, con sus niveles superiores para no perder la consecuencia lógica. */
 export function planIndividual(raiz: NodoPlan, integrante: number): NodoPlan | null {
   const filtrar = (n: NodoPlan): NodoPlan | null => {
+    // El bloque de preparación del informe final es de todo el equipo.
+    if (n.cierre) return n;
     if (n.hijos.length === 0) return n.responsable === integrante ? n : null;
     const hijos = n.hijos.map(filtrar).filter((h): h is NodoPlan => h !== null);
     return hijos.length > 0 ? { ...n, hijos } : null;
@@ -69,7 +143,7 @@ export function cargaPorIntegrante(raiz: NodoPlan, integrantes: number, columnas
     const propio = planIndividual(raiz, i);
     const c: CargaIntegrante = { integrante: i, objetivos: 0, macroactividades: 0, actividades: 0, monto: 0 };
     const recorrer = (n: NodoPlan) => {
-      if (n.nivel === 2) c.objetivos++;
+      if (n.nivel === 2 && !n.cierre) c.objetivos++;
       if (n.nivel === 3) c.macroactividades++;
       if (n.nivel === 4) c.actividades++;
       n.hijos.forEach(recorrer);
@@ -92,6 +166,7 @@ export function aplanar(n: NodoPlan): NodoPlan[] {
  * actividades entre los integrantes según el nivel del responsable. Los montos son deterministas.
  */
 export function planEjemplo(plan: EtapaPlan, integrantes: number, columnas: number): NodoPlan {
+  if (esCronogramaInvestigacion(plan)) return ejemploInvestigacion(plan, integrantes, columnas);
   const porObjetivo = plan.equipo.responsable === "objetivo";
   const totalObjetivos = plan.minimos.objetivosPorIntegrante * (porObjetivo ? integrantes : 1);
   const macro = Math.min(plan.minimos.macroPorObjetivo, 2);
@@ -143,6 +218,64 @@ export function planEjemplo(plan: EtapaPlan, integrantes: number, columnas: numb
   return { id: "1", codigo: "1", nivel: 1, titulo: "Objetivo general", responsable: null, montos: [], hijos: objetivos };
 }
 
+/**
+ * Cronograma de investigación de ejemplo: cada objetivo con sus elementos del proceso, uno tras otro en el tiempo (el
+ * desarrollo con dos subactividades y la discusión sin planificar) y el bloque de preparación del informe al final.
+ */
+function ejemploInvestigacion(plan: EtapaPlan, integrantes: number, columnas: number): NodoPlan {
+  const total = plan.minimos.objetivosPorIntegrante * integrantes;
+  const objetivos: NodoPlan[] = Array.from({ length: total }, (_, o) => ({
+    id: `o${o + 1}`,
+    codigo: "",
+    nivel: 2,
+    titulo: `Objetivo específico ${o + 1}`,
+    responsable: Math.floor(o / plan.minimos.objetivosPorIntegrante) + 1,
+    montos: [],
+    hijos: [],
+  }));
+  const base = normalizarArbol({ id: "og", codigo: "1", nivel: 1, titulo: "Objetivo general", responsable: null, montos: [], hijos: objetivos }, plan);
+  const ultima = Math.max(columnas - 1, 0);
+  // El tramo de cada objetivo deja libre el último sexto del cronograma para preparar el informe.
+  const tramo = Math.max(1, Math.floor((columnas * 5) / 6));
+  let k = 0;
+  const marcar = (inicio: number, largo: number) => {
+    k++;
+    const m = Array<number>(columnas).fill(0);
+    for (let c = inicio; c < Math.min(inicio + largo, columnas); c++) m[c] = plan.presupuesto.activo ? (((k * 37 + c * 53) % 6) + 1) * 25 : 1;
+    return m;
+  };
+  const conMontos = (n: NodoPlan, o: number): NodoPlan => {
+    if (n.cierre) {
+      const ini = Math.min(tramo, ultima);
+      return { ...n, hijos: n.hijos.map((e, j) => ({ ...e, montos: marcar(Math.min(ini + j, ultima), columnas - ini) })) };
+    }
+    if (n.nivel !== 2) return n;
+    const obligatorios = n.hijos.filter((e) => e.componente !== "discusion");
+    const paso = Math.max(1, Math.floor(tramo / (obligatorios.length + total - 1)));
+    return {
+      ...n,
+      hijos: n.hijos.map((e) => {
+        const j = obligatorios.indexOf(e);
+        if (j < 0) return e;
+        const inicio = Math.min((o + j) * paso, ultima);
+        if (e.componente === "desarrollo") {
+          return {
+            ...e,
+            montos: [],
+            hijos: [1, 2].map((s) => ({ id: `${e.id}-${s}`, codigo: "", nivel: 4 as const, titulo: `Subactividad ${s}`, responsable: null, montos: marcar(Math.min(inicio + s - 1, ultima), 1), hijos: [] })),
+          };
+        }
+        // Metodología de ejemplo con una cita (entrega E2).
+        const metodologia = e.componente === "metodologia" && plan.metodologiaObjetivo
+          ? { metodologia: { parrafos: [{ texto: `Procedimiento del objetivo ${o + 1}: técnicas, instrumentos y participantes.`, fuentes: [1], cita: "Hernández-Sampieri y Mendoza, 2018" }], propia: false, fundamentacion: [] } }
+          : {};
+        return { ...e, ...metodologia, montos: marcar(inicio, paso) };
+      }),
+    };
+  };
+  return numerar({ ...base, hijos: base.hijos.map((h, o) => conMontos(h, o)) });
+}
+
 // ─────────────── Plan real del equipo (entrega P3) ───────────────
 
 /** Recalcula la numeración (1, 1.1, 1.1.1…) según la posición de cada nodo. */
@@ -184,8 +317,29 @@ export function validarPlanEquipo(raiz: NodoPlan, plan: EtapaPlan, integrantes: 
   const equipo = integrantes.length > 1;
   const resp = responsables(raiz);
 
+  const investigacion = esCronogramaInvestigacion(plan);
+  const opcionales = new Set(investigacion ? componentesDe(plan).filter((c) => !c.obligatorio).map((c) => c.clave) : []);
   const recorrer = (n: NodoPlan) => {
-    if (!n.titulo.trim()) p(n, `${n.codigo}: falta el título de la ${NOMBRE_NIVEL[n.nivel]}.`);
+    if (!n.titulo.trim()) p(n, `${n.codigo}: falta el título de la ${investigacion && n.nivel === 4 ? "subactividad" : NOMBRE_NIVEL[n.nivel]}.`);
+    if (investigacion) {
+      // Cronograma de investigación: los elementos del proceso los pone el sistema; cada uno obligatorio se planifica
+      // (él o sus subactividades) y el opcional puede quedar sin planificar.
+      if (n.nivel === 2 && !n.cierre && n.hijos.filter((h) => h.componente).length !== componentesDe(plan).length) p(n, `${n.codigo}: faltan elementos del proceso del objetivo.`);
+      if (n.componente && !opcionales.has(n.componente) && !totalesNodo(n, columnas).some((m) => m > 0)) {
+        p(n, `${n.codigo}: planifica «${n.titulo}» en al menos un ${plan.granularidad === "subperiodo" ? "subperíodo" : "período"}.`);
+      }
+      if (esHojaPlan(n)) {
+        const montos = Array.from({ length: columnas }, (_, i) => n.montos[i] ?? 0);
+        if (montos.some((m) => m < 0)) p(n, `${n.codigo}: hay montos negativos.`);
+        if (n.nivel === 4 && !montos.some((m) => m > 0)) p(n, `${n.codigo}: marca al menos un ${plan.granularidad === "subperiodo" ? "subperíodo" : "período"} en que se ejecuta.`);
+      }
+      if (n.nivel > 4) p(n, `${n.codigo}: el cronograma de investigación llega hasta las subactividades.`);
+      if (equipo && n.nivel === 2 && !n.cierre && resp.get(n.id) == null) p(n, `${n.codigo}: falta el integrante responsable.`);
+      if (n.componente === "metodologia" && pideMetodologia(plan)) problemasMetodologia(n.codigo, leerMetodologia(n)).forEach((m) => p(n, m));
+      if (equipo && resp.get(n.id) != null && !integrantes.includes(resp.get(n.id)!)) p(n, `${n.codigo}: el responsable ya no es parte del equipo.`);
+      n.hijos.forEach(recorrer);
+      return;
+    }
     if (n.nivel === 2 && n.hijos.length < plan.minimos.macroPorObjetivo) p(n, `${n.codigo}: necesita al menos ${plan.minimos.macroPorObjetivo} macroactividad(es).`);
     if (n.nivel === 3 && n.hijos.length < plan.minimos.actividadesPorMacro) p(n, `${n.codigo}: necesita al menos ${plan.minimos.actividadesPorMacro} actividad(es).`);
     if (n.nivel === 4 && plan.subactividades === "obligatorio" && n.hijos.length === 0) p(n, `${n.codigo}: la ficha pide subactividades.`);
@@ -208,13 +362,14 @@ export function validarPlanEquipo(raiz: NodoPlan, plan: EtapaPlan, integrantes: 
     if (equipo && resp.get(n.id) != null && !integrantes.includes(resp.get(n.id)!)) p(n, `${n.codigo}: el responsable ya no es parte del equipo.`);
     n.hijos.forEach(recorrer);
   };
-  if (raiz.hijos.length === 0) p(null, "El plan no tiene objetivos específicos.");
+  if (objetivosEspecificos(raiz).length === 0) p(null, "El plan no tiene objetivos específicos.");
+  if (investigacion && cierreDe(plan).activo && !raiz.hijos.some((h) => h.cierre)) p(null, `Falta el bloque «${cierreDe(plan).titulo}».`);
   recorrer(raiz);
 
   // Mínimo de objetivos por integrante (en equipo, contados por responsable).
   for (const id of integrantes) {
     const propio = equipo ? planIndividual(raiz, id) : raiz;
-    const objetivos = propio ? propio.hijos.length : 0;
+    const objetivos = propio ? objetivosEspecificos(propio).length : 0;
     if (equipo && plan.equipo.responsable === "objetivo" && objetivos < plan.minimos.objetivosPorIntegrante) {
       p(null, `Cada integrante debe tener al menos ${plan.minimos.objetivosPorIntegrante} objetivos específicos; uno de ellos tiene ${objetivos}.`);
       break;
@@ -238,7 +393,7 @@ export function cambioNoPermitido(anterior: NodoPlan, nuevo: NodoPlan, integrant
   const plano = (r: NodoPlan) => new Map(aplanar(r).map((n) => [n.id, n]));
   const a = plano(anterior);
   const n = plano(nuevo);
-  const firma = (x: NodoPlan) => JSON.stringify({ t: x.titulo, r: x.responsable, m: x.montos, d: x.documento ?? "", p: productosDe(x), h: x.hijos.map((h) => h.id) });
+  const firma = (x: NodoPlan) => JSON.stringify({ t: x.titulo, r: x.responsable, m: x.montos, d: x.documento ?? "", p: productosDe(x), me: x.metodologia ?? null, h: x.hijos.map((h) => h.id) });
   for (const [id, viejo] of a) {
     const actual = n.get(id);
     const eraSuyo = respA.get(id) === integrante;
@@ -262,7 +417,7 @@ export function cargaPorIds(raiz: NodoPlan, ids: number[], columnas: number): Ca
     const c: CargaIntegrante = { integrante: id, objetivos: 0, macroactividades: 0, actividades: 0, monto: 0 };
     if (!propio) return c;
     for (const x of aplanar(propio)) {
-      if (x.nivel === 2) c.objetivos++;
+      if (x.nivel === 2 && !x.cierre) c.objetivos++;
       if (x.nivel === 3) c.macroactividades++;
       if (x.nivel === 4) c.actividades++;
     }
@@ -298,7 +453,7 @@ const avanceAntesDe = (nodoId: string, periodo: number, registros: AvanceRegistr
  */
 export function adelantable(raiz: NodoPlan, nodoId: string, periodoActual: number, columnas: { periodo: number }[], registros: AvanceRegistrado[]): boolean {
   const n = aplanar(raiz).find((x) => x.id === nodoId);
-  if (!n || n.hijos.length > 0 || n.nivel < 4) return false;
+  if (!n || !esHojaPlan(n)) return false;
   const planes = periodosPlanificados(n, columnas);
   if (planes.length === 0 || planes[0] <= periodoActual) return false;
   return avanceAntesDe(nodoId, periodoActual + 1, registros) < 100;
@@ -317,7 +472,7 @@ export function arrastradasAlPeriodo(
 ): Map<string, { desde: number; avance: number }> {
   const m = new Map<string, { desde: number; avance: number }>();
   for (const n of aplanar(raiz)) {
-    if (n.hijos.length > 0 || n.nivel < 4) continue;
+    if (!esHojaPlan(n)) continue;
     const planes = planificadaEn(n, columnas);
     if (planes.includes(periodo)) continue;
     const anteriores = planes.filter((p) => p < periodo);
@@ -346,7 +501,7 @@ export function actividadesDelPeriodo(
   const cols = columnas.map((c, i) => (c.periodo === periodo ? i : -1)).filter((i) => i >= 0);
   const arrastradas = registros ? arrastradasAlPeriodo(raiz, periodo, columnas, registros) : new Map();
   return aplanar(raiz).filter((n) => {
-    if (n.hijos.length > 0 || n.nivel < 4) return false;
+    if (!esHojaPlan(n)) return false;
     const conRegistro = !!registros?.some((r) => r.nodoId === n.id && r.periodo === periodo);
     if (conRegistro) return true;
     const planificada = cols.some((i) => (n.montos[i] ?? 0) > 0);
@@ -363,8 +518,13 @@ export function actividadesDelPeriodo(
  */
 export function avancePorNodo(raiz: NodoPlan, avanceHoja: Map<string, number>): Map<string, number> {
   const m = new Map<string, number>();
+  // Cronograma de investigación (E3): un elemento opcional sin usar (sin nada planificado ni avance) no cuenta, así
+  // con los 4 elementos obligatorios cada uno vale 25 % del objetivo y, si se usa la discusión, 20 %.
+  const usado = (n: NodoPlan): boolean => n.montos.some((x) => x > 0) || avanceHoja.has(n.id) || n.hijos.some(usado);
   const rec = (n: NodoPlan): number => {
-    const v = n.hijos.length === 0 ? (avanceHoja.get(n.id) ?? 0) : n.hijos.map(rec).reduce((a, b) => a + b, 0) / n.hijos.length;
+    const cuentan = n.hijos.filter((h) => !h.opcional || usado(h));
+    n.hijos.filter((h) => !cuentan.includes(h)).forEach(rec);
+    const v = n.hijos.length === 0 ? (avanceHoja.get(n.id) ?? 0) : cuentan.length === 0 ? 0 : cuentan.map(rec).reduce((a, b) => a + b, 0) / cuentan.length;
     m.set(n.id, Math.round(v));
     return v;
   };

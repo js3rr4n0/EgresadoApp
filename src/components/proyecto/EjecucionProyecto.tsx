@@ -5,7 +5,7 @@
 // estado y apartados, y tarjetas de los informes del período. Cada actividad se registra en su propia página
 // (RegistroActividadProyecto). Reglas: etapa de ejecución de la ficha; el servidor valida todo otra vez.
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { enviarInformeGeneral, enviarInformeIndividual, revisarInformeGeneral, type DatosEjecucion } from "@/app/actions/ejecucionProyecto";
 import { actividadesDelPeriodo, adelantable, arrastradasAlPeriodo, avancePorNodo, ganttPlan, planIndividual, productosDe, responsables, type NodoPlan } from "@/lib/fichas/planTrabajo";
@@ -13,6 +13,8 @@ import GanttProyecto from "./GanttProyecto";
 import { avanceObjetivo, ESTADO_ENTREGA, quienesEntregan } from "@/lib/fichas/entregasObjetivo";
 import { entradasBitacora, etiquetaModificacion, TIPOS_MODIFICACION } from "@/lib/fichas/bitacora";
 import { textosModalidad } from "@/lib/fichas/textosModalidad";
+import { avancesEnviados, ESTADO_ELEMENTO, estadoElemento, procesoPorObjetivo, type EstadoElemento } from "@/lib/fichas/elementosEjecucion";
+import { esCronogramaInvestigacion } from "@/lib/fichas/tipos";
 
 export const ESTADO_ACTIVIDAD: Record<string, { label: string; badge: string; accion: string }> = {
   pendiente: { label: "Sin registrar", badge: "bg-slate-100 text-slate-600 border-slate-300", accion: "Registrar" },
@@ -115,11 +117,97 @@ function ProductosPorObjetivo({ datos }: { datos: DatosEjecucion }) {
 }
 
 /**
+ * Cronograma de investigación (notas del 19-nov-2026, E3): el proceso de cada objetivo por sus elementos (metodología,
+ * desarrollo, resultados, conclusiones preliminares, discusión) y el bloque de preparación del informe final. Cada
+ * elemento queda validado cuando su último registro llega al 100 % y el asesor lo aprueba; el objetivo se cierra cuando
+ * lo están todos los que cuentan (la discusión, solo si se usó).
+ */
+function ProcesoPorObjetivo({ datos }: { datos: DatosEjecucion }) {
+  const { plan, registros, periodoActual } = datos;
+  const esAsesor = plan.rol === "asesor";
+  const procesos = procesoPorObjetivo(plan.plan.arbol, registros);
+  const objetivos = procesos.filter((p) => !p.nodo.cierre);
+  const cerrados = objetivos.filter((p) => p.cerrado).length;
+  // Período en que se abre el registro de una hoja: el de su último registro o el primero planificado. Si todavía no
+  // llega (y no se puede adelantar), no hay enlace.
+  const periodoDe = (n: NodoPlan): { periodo: number; abierto: boolean } => {
+    const r = registros.filter((x) => x.nodoId === n.id).sort((a, b) => b.periodo - a.periodo)[0];
+    if (r) return { periodo: r.periodo, abierto: true };
+    const planes = plan.columnas.map((c, i) => ((n.montos[i] ?? 0) > 0 ? c.periodo : 0)).filter((x) => x > 0);
+    const primero = planes.length ? Math.min(...planes) : periodoActual;
+    if (primero <= periodoActual) return { periodo: primero, abierto: true };
+    return { periodo: datos.adelantar ? periodoActual : primero, abierto: datos.adelantar };
+  };
+  const Fila = ({ n, estado, avance, cuenta, sub }: { n: NodoPlan; estado: EstadoElemento; avance: number; cuenta: boolean; sub?: boolean }) => (
+    <li className={`flex flex-wrap items-center gap-2 py-1.5 ${sub ? "pl-6" : ""}`}>
+      <span className="font-mono text-[11px] text-unicaes w-16 shrink-0">{n.codigo}</span>
+      <span className={`flex-1 min-w-[10rem] text-xs ${sub ? "text-slate-600" : "font-bold text-slate-800"}`}>
+        {n.titulo || "Sin título"}
+        {!cuenta && <span className="ml-1.5 text-[10px] font-semibold text-slate-400">(opcional; no se usó, no cuenta)</span>}
+      </span>
+      <span className="text-[11px] font-bold text-slate-500 tabular-nums w-10 text-right">{avance}%</span>
+      <Pastilla clase={ESTADO_ELEMENTO[estado].badge}>{ESTADO_ELEMENTO[estado].label}</Pastilla>
+      {n.hijos.length === 0 && (periodoDe(n).abierto ? (
+        <Link href={enlaceActividad(datos, n.id, periodoDe(n).periodo)} className="text-[11px] font-extrabold text-unicaes hover:underline w-16 text-right">
+          {esAsesor
+            ? (registros.some((r) => r.nodoId === n.id && r.estado === "enviado") ? "Revisar" : "Ver")
+            : (["sin_iniciar", "en_curso", "observado"].includes(estado) ? "Registrar" : "Ver")}
+        </Link>
+      ) : (
+        <span className="text-[11px] font-bold text-slate-400 w-16 text-right">Período {periodoDe(n).periodo}</span>
+      ))}
+    </li>
+  );
+  return (
+    <div className={`${tarjeta} p-5 space-y-3`}>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-extrabold text-slate-900">Proceso por objetivo</h2>
+          <p className="text-[11px] text-slate-500 font-semibold mt-0.5 max-w-2xl">
+            Cada objetivo se cumple por los elementos de su proceso metodológico. Cada elemento pesa lo mismo en el avance del objetivo
+            (con los 4 obligatorios, 25 % cada uno; la discusión solo cuenta si se usa) y queda validado cuando llega al 100 % y el asesor lo aprueba.
+            {esAsesor ? " Valide la metodología aplicada y cada elemento al concluirlo." : ""}
+          </p>
+        </div>
+        <Pastilla clase="bg-slate-50 text-slate-700 border-slate-300">{cerrados} de {objetivos.length} objetivos validados</Pastilla>
+      </div>
+      <ul className="space-y-3">
+        {procesos.map((p) => (
+          <li key={p.nodo.id} className={`rounded-xl border px-4 py-3 space-y-2 ${p.nodo.cierre ? "border-amber-200 bg-amber-50/40" : "border-slate-200 bg-slate-50"}`}>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <p className="text-xs font-extrabold text-slate-800"><span className="font-mono text-unicaes">{p.nodo.codigo}</span> {p.nodo.titulo}</p>
+              <Pastilla clase={p.cerrado ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-white text-slate-600 border-slate-300"}>
+                {p.cerrado ? (p.nodo.cierre ? "Concluido" : "Objetivo validado") : `${p.avance}% de avance`}
+              </Pastilla>
+            </div>
+            <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden" aria-label={`Avance de ${p.nodo.codigo}`}>
+              <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${p.avance}%` }} />
+            </div>
+            <ul className="divide-y divide-slate-200/70">
+              {p.elementos.map((e) => (
+                <Fragment key={e.nodo.id}>
+                  <Fila n={e.nodo} estado={e.estado} avance={e.avance} cuenta={e.cuenta} />
+                  {e.nodo.hijos.map((s) => (
+                    <Fila key={s.id} n={s} estado={estadoElemento(s, registros)} avance={avancePorNodo(s, avancesEnviados(registros)).get(s.id) ?? 0} cuenta sub />
+                  ))}
+                </Fragment>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
  * Bitácora o reporte de modificaciones (notas del 13-nov-2026): los cambios y acontecimientos que el equipo reportó en
  * sus actividades y objetivos, en orden y con su índice. Todos la ven: tiempo, recursos y alcance son lo que se gerencia.
  */
 function Bitacora({ datos }: { datos: DatosEjecucion }) {
   const entradas = entradasBitacora({ arbol: datos.plan.plan.arbol, registros: datos.registros, entregas: datos.entregas });
+  // Investigación (notas del 19-nov-2026): los cambios en el camino los acepta el asesor al aprobar el registro que los reporta.
+  const investigacion = esCronogramaInvestigacion(datos.plan.etapa);
   const conteo = TIPOS_MODIFICACION.map((t) => ({ t, n: entradas.filter((e) => e.tipo === t.valor).length })).filter((x) => x.n > 0);
   return (
     <div className={`${tarjeta} p-5 space-y-3`}>
@@ -127,7 +215,9 @@ function Bitacora({ datos }: { datos: DatosEjecucion }) {
         <div>
           <h2 className="text-sm font-extrabold text-slate-900">Reporte de modificaciones (bitácora)</h2>
           <p className="text-[11px] text-slate-500 font-semibold mt-0.5 max-w-2xl">
-            Cambios frente a lo planificado que se reportaron al enviar las actividades y los objetivos: tiempo, recursos y costos, alcance u otros acontecimientos.
+            {investigacion
+              ? "En una investigación es normal encontrar un impasse o un supuesto que no se había analizado: cada cambio se documenta y justifica aquí, y lo acepta el asesor al aprobar el registro que lo reporta. "
+              : "Cambios frente a lo planificado que se reportaron al enviar las actividades y los objetivos: tiempo, recursos y costos, alcance u otros acontecimientos."}
             Se anexa a los informes del período y al informe final.
           </p>
         </div>
@@ -143,6 +233,11 @@ function Bitacora({ datos }: { datos: DatosEjecucion }) {
               <span className="text-[10px] font-bold text-slate-400 w-16 shrink-0">Período {e.periodo}</span>
               <span className="font-mono text-[11px] text-unicaes w-20 shrink-0">{e.codigo}</span>
               <span className="flex-1 text-slate-700"><strong className="text-slate-800">{etiquetaModificacion(e.tipo)}.</strong> {e.texto}</span>
+              {investigacion && (
+                <Pastilla clase={e.estado === "aprobado" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : e.estado === "observado" ? "bg-amber-50 text-amber-900 border-amber-300" : "bg-blue-50 text-blue-800 border-blue-200"}>
+                  {e.estado === "aprobado" ? "Aceptada por el asesor" : e.estado === "observado" ? "Observada" : "Por aceptar"}
+                </Pastilla>
+              )}
             </li>
           ))}
         </ol>
@@ -429,6 +524,7 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
       </div>
 
       {datos.productos !== "no" && <ProductosPorObjetivo datos={datos} />}
+      {esCronogramaInvestigacion(plan.etapa) && <ProcesoPorObjetivo datos={datos} />}
       {datos.modificaciones && <Bitacora datos={datos} />}
 
       {/* Cronograma planificado y real (Gantt) */}

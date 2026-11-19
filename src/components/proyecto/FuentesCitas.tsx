@@ -74,7 +74,7 @@ function Referencia({ datos }: { datos: DatosCitaApa }) {
  * Párrafos citados: cada párrafo con su texto y sus fuentes; la cita (Apellido, año) se agrega sola al final.
  * Se guarda como JSON; el servidor recalcula la cita con el registro.
  */
-export function ParrafosCitados({ parte: p, valor, onChange, disabled }: { parte: ParteApartado; valor: string; onChange: (v: string) => void; disabled: boolean }) {
+export function ParrafosCitados({ parte: p, valor, onChange, disabled, placeholder }: { parte: ParteApartado; valor: string; onChange: (v: string) => void; disabled: boolean; placeholder?: string }) {
   const router = useRouter();
   const registro = useFuentes();
   const [nuevas, setNuevas] = useState<Fuente[]>([]);
@@ -116,7 +116,7 @@ export function ParrafosCitados({ parte: p, valor, onChange, disabled }: { parte
                 )}
               </div>
               <textarea aria-label={`${p.titulo}, párrafo ${i + 1}`} rows={4} value={x.texto} disabled={disabled} onChange={(e) => cambiar(i, { texto: e.target.value })}
-                placeholder="Lo que plantean los autores sobre el tema, con sus palabras y su interpretación." className={campo} />
+                placeholder={placeholder ?? "Lo que plantean los autores sobre el tema, con sus palabras y su interpretación."} className={campo} />
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs font-bold text-gray-600">Fuentes:</span>
                 {x.fuentes.map((id) => (

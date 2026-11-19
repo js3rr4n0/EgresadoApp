@@ -4,6 +4,7 @@ import { CATALOGO, elementoEnEtapa } from "./catalogo";
 import { esRecurso } from "./elementosRecurso";
 import { partePrecarga, partesConfiguradas, tipoApartado, TIPOS_APARTADO } from "./apartadosAcademicos";
 import {
+  cierreDe, componentesDe, documentoSolicitado, esCronogramaInvestigacion, productosObjetivo,
   esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, FORMATO_DEFINICION, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, PRECARGAS_EJECUCION,
   type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo,
 } from "./tipos";
@@ -100,6 +101,20 @@ function validarPlan(plan: EtapaPlan, def: DefinicionFicha, problemas: ProblemaF
   if (def.modalidad === "pasantia") p("la pasantía usa el cronograma dentro de la propuesta; el plan de trabajo es para proyecto e investigación.");
   if (!["no", "opcional", "obligatorio", undefined].includes(plan.documentoSolicitado)) p("el documento solicitado por actividad no es válido.");
   if (!["no", "opcional", "obligatorio", undefined].includes(plan.productosObjetivo)) p("los productos por objetivo no son válidos.");
+  // Cronograma de investigación (notas del 19-nov-2026).
+  if (plan.metodologiaObjetivo && !esCronogramaInvestigacion(plan)) p("la metodología de cada objetivo es parte del cronograma de investigación.");
+  if (esCronogramaInvestigacion(plan)) {
+    if (def.modalidad !== "investigacion") p("el cronograma de investigación es solo para la modalidad de investigación.");
+    if (plan.equipo.responsable !== "objetivo") p("en el cronograma de investigación el responsable se asigna por objetivo específico.");
+    if (productosObjetivo(plan) !== "no" || documentoSolicitado(plan) !== "no") p("el cronograma de investigación no lleva productos ni documentos: las evidencias van en los registros.");
+    const comps = componentesDe(plan);
+    if (comps.some((c) => c.nombre.length > 80)) p("el nombre de un elemento del proceso es demasiado largo (máximo 80 caracteres).");
+    if (!comps.some((c) => c.obligatorio)) p("al menos un elemento del proceso debe ser obligatorio.");
+    if (plan.metodologiaObjetivo && !comps.find((c) => c.clave === "metodologia")?.obligatorio) p("la metodología de cada objetivo se pide en el elemento «Metodología»: márcalo como obligatorio.");
+    if (new Set(comps.map((c) => c.nombre.toLowerCase())).size !== comps.length) p("dos elementos del proceso tienen el mismo nombre.");
+    const cierre = cierreDe(plan);
+    if (cierre.activo && cierre.titulo.length > 120) p("el nombre del bloque de preparación del informe es demasiado largo (máximo 120 caracteres).");
+  }
 }
 
 /**
@@ -355,6 +370,11 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
       return (
         opcional(e.documentoSolicitado, ["no", "opcional", "obligatorio"]) &&
         opcional(e.productosObjetivo, ["no", "opcional", "obligatorio"]) &&
+        opcional(e.estructura, ["actividades", "investigacion"]) &&
+        (e.componentes === undefined || (Array.isArray(e.componentes) && e.componentes.length <= 10 &&
+          e.componentes.every((c) => obj(c) && str(c.clave) && str(c.nombre) && typeof c.obligatorio === "boolean"))) &&
+        (e.cierre === undefined || (obj(e.cierre) && typeof e.cierre.activo === "boolean" && str(e.cierre.titulo))) &&
+        (e.metodologiaObjetivo === undefined || typeof e.metodologiaObjetivo === "boolean") &&
         ["no", "opcional", "obligatorio"].includes(e.subactividades as string) &&
         obj(m) && num(m.objetivosPorIntegrante) && num(m.macroPorObjetivo) && num(m.actividadesPorMacro) &&
         obj(pr) && typeof pr.activo === "boolean" && (pr.desglose === "monto" || pr.desglose === "recursos_gastos") && str(pr.moneda) &&

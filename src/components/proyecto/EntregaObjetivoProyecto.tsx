@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { DatosEjecucion } from "@/app/actions/ejecucionProyecto";
 import { eliminarProductoObjetivo, guardarEntregaObjetivo, revisarEntregaObjetivo, subirProductoObjetivo, type ArchivoProductoCompleto } from "@/app/actions/entregasObjetivo";
-import { aplanar, productosDe, responsables } from "@/lib/fichas/planTrabajo";
+import { aplanar, esHojaPlan, productosDe, responsables } from "@/lib/fichas/planTrabajo";
 import { avanceObjetivo, ESTADO_ENTREGA, problemasEntrega, quienesEntregan, revisarConclusionObjetivo, TIPO_CONCLUSION_OBJETIVO } from "@/lib/fichas/entregasObjetivo";
 import TextoRedaccion from "@/app/egresado/reportes/actividad/[actividadId]/TextoRedaccion";
 import EvidenciasActividad from "./EvidenciasActividad";
@@ -50,7 +50,7 @@ export default function EntregaObjetivoProyecto({ datos, objetivoId, archivos }:
 
   // Actividades del objetivo con su último registro (para revisar las evidencias que respaldan los productos).
   const resp = responsables(arbol);
-  const actividades = aplanar(objetivo).filter((n) => n.hijos.length === 0 && n.nivel >= 4).map((a) => {
+  const actividades = aplanar(objetivo).filter(esHojaPlan).map((a) => {
     const r = registros.filter((x) => x.nodoId === a.id && x.estado !== "borrador").sort((x, y) => y.periodo - x.periodo)[0];
     return { a, r };
   });

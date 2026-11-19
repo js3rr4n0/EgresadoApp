@@ -24,7 +24,12 @@ export function bloquesCronograma(arbol: NodoPlan, columnas: { periodo: number }
   });
   return [
     { tipo: "parrafos", parrafos: ["Actividades del plan de trabajo por período de ejecución. ■ indica el período en que se realiza cada actividad."] },
-    { tipo: "tabla", columnas: ["Código", "Objetivo, macroactividad o actividad", ...periodos.map((p) => `P${p}`)], filas },
+    {
+      tipo: "tabla",
+      // Cronograma de investigación (19-nov-2026): los niveles son elementos del proceso y subactividades.
+      columnas: ["Código", nodos.some((n) => n.componente) ? "Objetivo, elemento del proceso o subactividad" : "Objetivo, macroactividad o actividad", ...periodos.map((p) => `P${p}`)],
+      filas,
+    },
   ];
 }
 

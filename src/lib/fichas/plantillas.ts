@@ -3,22 +3,26 @@
 // incluyen plan ni ejecución de proyecto: estas plantillas son el punto de partida al agregarlas en una ficha nueva.
 // Los valores de proyecto salen del documento "Ejemplo para plantilla proyecto" (5-nov-2026).
 import { parametrosPorDefecto } from "./catalogo";
-import { PRECARGA_CONCLUSIONES_OBJETIVOS, type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
+import { CIERRE_POR_DEFECTO, COMPONENTES_INVESTIGACION, type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
 
 /** Plan de trabajo jerárquico con los valores recomendados para proyecto (e investigación, que usa el mismo formato). */
 export function planNuevo(id: string, modalidad: Modalidad = "proyecto"): EtapaPlan {
+  const investigacion = modalidad === "investigacion";
   return {
-    // Investigación: cada actividad declara el documento que se entrega como prueba (contexto del 12-nov-2026).
-    ...(modalidad === "investigacion" ? { documentoSolicitado: "obligatorio" as const } : {}),
-    // Cada objetivo específico declara sus productos esperados (notas del 13-nov-2026).
-    productosObjetivo: "obligatorio",
+    // Proyecto: cada objetivo específico declara sus productos esperados (notas del 13-nov-2026). Investigación
+    // (notas del 19-nov-2026): cronograma por elementos del proceso, sin productos ni documentos en el cronograma (las
+    // evidencias van en los registros) y con un bloque final para preparar el informe.
+    productosObjetivo: investigacion ? "no" : "obligatorio",
+    ...(investigacion
+      ? { documentoSolicitado: "no" as const, estructura: "investigacion" as const, componentes: COMPONENTES_INVESTIGACION.map((c) => ({ ...c })), cierre: { ...CIERRE_POR_DEFECTO }, metodologiaObjetivo: true }
+      : {}),
     tipo: "plan",
     id,
     nombre: "Plan de trabajo",
     subactividades: "opcional",
     minimos: { objetivosPorIntegrante: 3, macroPorObjetivo: 1, actividadesPorMacro: 1 },
-    // Investigación: el plan no lleva presupuesto (respuesta del 12-nov-2026, Q4).
-    presupuesto: { activo: modalidad !== "investigacion", desglose: "monto", moneda: "USD" },
+    // Investigación también lleva presupuesto (notas del 19-nov-2026; corrige la respuesta Q4 del 12-nov).
+    presupuesto: { activo: true, desglose: "monto", moneda: "USD" },
     granularidad: "subperiodo",
     equipo: { responsable: "objetivo", planIndividual: true, panelCarga: true },
     aprobacion: { validaSupervisor: true, diasRevision: 5 },
@@ -152,10 +156,13 @@ export function informeFinalNuevo(id: string): EtapaInformeFinal {
       // Los cinco subapartados de la metodología del protocolo, ahora en pasado (con los cambios respecto de lo planificado).
       apartado("if_metodologia", "metodologia_realizada", "Metodología de la investigación", "Parte de la metodología del protocolo: lo que se realizó", { precargarDe: "metodologia" }),
       // Notas del 13-nov-2026: los resultados se generan solos, por objetivo, con sus productos y evidencias.
-      espacioProtocolo("if_resultados", "resultados_objetivos", "Resultados obtenidos", "Se genera con los productos de cada objetivo y los registros de sus actividades"),
+      // Cronograma de investigación (19-nov-2026, E4): el capítulo va por objetivo y por los elementos de su proceso.
+      espacioProtocolo("if_resultados", "resultados_objetivos", "Desarrollo de la investigación por objetivo", "Se genera por objetivo con la metodología, el desarrollo, los resultados, las conclusiones preliminares y la discusión registrados en la ejecución"),
       apartado("if_hipotesis", "comprobacion_hipotesis", "Comprobación de hipótesis", "Si procede según el tipo de investigación", { obligatorio: false }),
       apartado("if_hallazgos", "discusion", "Presentación de los hallazgos principales", "Hallazgos más relevantes y su interpretación"),
-      apartado("if_conclusiones", "conclusiones", "Conclusiones y recomendaciones", "Parte de las conclusiones aprobadas de cada objetivo específico", { precargarDe: PRECARGA_CONCLUSIONES_OBJETIVOS }),
+      // Cronograma de investigación (notas del 19-nov-2026): las conclusiones finales se redactan aparte; las de cada
+      // objetivo son conclusiones preliminares y ya no se precargan aquí.
+      apartado("if_conclusiones", "conclusiones", "Conclusiones y recomendaciones", "Conclusiones finales de la investigación, distintas de las conclusiones preliminares de cada objetivo"),
       apartado("if_bibliografia", "referencias", "Bibliografía", "Referencias en APA 7 y en orden alfabético", { precargarDe: "bibliografia" }),
       // Notas del 13-nov-2026: la bitácora de la ejecución, como anexo que genera el sistema.
       espacioProtocolo("if_modificaciones", "reporte_modificaciones", "Reporte de modificaciones", "Se genera con los cambios reportados en las actividades y los objetivos"),

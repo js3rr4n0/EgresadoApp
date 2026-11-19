@@ -22,7 +22,7 @@ import {
 import type { Espacio } from "../../src/lib/fichas/tipos";
 import { CAPITULO_NUEVO, capituloEditable, capitulosPendientes, contenidoVacio, editandoOtro, capituloGenerado, precargaCapitulo, problemasInformeFinal, textoConclusionesObjetivos, textoMarcoRegistros } from "../../src/lib/fichas/informeFinalFicha";
 import { avanceObjetivo, problemasEntrega, quienesEntregan, revisarConclusionObjetivo } from "../../src/lib/fichas/entregasObjetivo";
-import { resultadosPorObjetivo } from "../../src/lib/fichas/resultadosObjetivos";
+import { esPlanPorElementos, resultadosPorObjetivo } from "../../src/lib/fichas/resultadosObjetivos";
 import { bloquesCronograma, bloquesRecursos } from "../../src/lib/fichas/documentoProtocolo";
 import { limpiarRecursos, presupuesto, problemasRecursos, reglasRecursos, type Recurso } from "../../src/lib/fichas/recursos";
 import { citaDeFuentes, citaEnTexto, conCitas, fuentesCitadas, guardarParrafos, leerParrafos, parrafoConCita, type ParrafoCitado } from "../../src/lib/fichas/fuentes";
@@ -30,6 +30,11 @@ import { datosCitaVacios, type DatosCitaApa } from "../../src/lib/citaApa";
 import { bloquesBitacora, entradasBitacora, limpiarModificacion, textoEntrada } from "../../src/lib/fichas/bitacora";
 import { apartadosInformeFinal, portadaInformeFinal } from "../../src/lib/fichas/documentoInformeFinal";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
+import { esHojaPlan, normalizarArbol, objetivosEspecificos } from "../../src/lib/fichas/planTrabajo";
+import { elementoDe, estadoElemento, procesoPorObjetivo, TEXTOS_ELEMENTO } from "../../src/lib/fichas/elementosEjecucion";
+import { arbolConCitas, fuentesCitadasPlan, leerMetodologia, metodologiaValida, pideMetodologia, textoMetodologia } from "../../src/lib/fichas/metodologiaPlan";
+import { cierreDe, componentesDe, esCronogramaInvestigacion, estructuraPlan } from "../../src/lib/fichas/tipos";
+import { objetivosDelPlan } from "../../src/lib/fichas/entregasObjetivo";
 import { adelantable, periodosPlanificados, ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, faltaParaAvance, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, productosDe, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
 let fallas = 0;
@@ -425,8 +430,9 @@ const protocoloDe = (d: DefinicionFicha) => d.etapas.find(esEtapaProtocolo)!;
     prot.espacios.filter((e) => e.precargarDe).map((e) => e.precargarDe).join() === "problema,justificacion,objetivos");
   comprobar("El dictamen del protocolo es a 5 días hábiles", prot.revision.diasRevision === 5 && prot.revision.diasHabiles);
   const plan = d.etapas.find(esEtapaPlan)!;
-  comprobar("El plan de investigación pide el documento solicitado; el de proyecto no", documentoSolicitado(plan) === "obligatorio" && documentoSolicitado(planNuevo("p")) === "no");
-  comprobar("El plan de investigación no lleva presupuesto; el de proyecto sí", !plan.presupuesto.activo && planNuevo("p").presupuesto.activo);
+  comprobar("El plan de investigación es un cronograma de investigación, sin documentos ni productos (19-nov-2026)",
+    plan.estructura === "investigacion" && documentoSolicitado(plan) === "no" && productosObjetivo(plan) === "no" && documentoSolicitado(planNuevo("p")) === "no");
+  comprobar("El plan de investigación vuelve a llevar presupuesto, como el de proyecto (19-nov-2026)", plan.presupuesto.activo && planNuevo("p").presupuesto.activo);
   const op = opcionesRegistro(ejec(d));
   comprobar("La ejecución de investigación no pide marco teórico en el registro (notas 13-nov-2026)", op.marcoTeorico === "no" && op.modo === "actividad" && op.informe === "unico");
   comprobar("La ejecución de investigación termina con la presentación de los resultados",
@@ -464,7 +470,7 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   nueva.etapas.find(esEtapaPlan)!.documentoSolicitado = "opcional";
   const cambios = compararDefiniciones(ant, nueva);
   comprobar("Los cambios del protocolo y del documento solicitado aparecen al habilitar",
-    ["Protocolo: Se quitó el espacio \"Anexos\"", "días calendario", "documento solicitado por actividad, obligatorio → opcional"].every((t) => cambios.some((c) => c.includes(t))), cambios.join(" | "));
+    ["Protocolo: Se quitó el espacio \"Anexos\"", "días calendario", "documento solicitado por actividad, no → opcional"].every((t) => cambios.some((c) => c.includes(t))), cambios.join(" | "));
   comprobar("Agregar el protocolo aparece como cambio", compararDefiniciones(definicionBase("investigacion"), ant).some((c) => c.startsWith("Se agregó el protocolo")));
 }
 
@@ -510,7 +516,8 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
     return inv;
   })()).map((p) => p.mensaje), "ya se usa en la propuesta");
 
-  const planInv = planNuevo("plan", "investigacion");
+  // Cronograma de actividades con documento solicitado (versiones de investigación anteriores al 19-nov-2026).
+  const planInv = { ...planNuevo("plan"), documentoSolicitado: "obligatorio" as const };
   const raizDoc = numerar({ id: "og", codigo: "", nivel: 1, titulo: "OG", responsable: 1, montos: [], hijos: [
     { id: "o1", codigo: "", nivel: 2, titulo: "OE", responsable: null, montos: [], hijos: [
       { id: "m1", codigo: "", nivel: 3, titulo: "Macro", responsable: null, montos: [], hijos: [
@@ -752,8 +759,8 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
 
 // 18. Productos por objetivo específico (notas del 13-nov-2026)
 {
-  const plan = planNuevo("plan", "investigacion");
-  comprobar("Las plantillas de plan piden productos por objetivo", plan.productosObjetivo === "obligatorio" && planNuevo("p").productosObjetivo === "obligatorio");
+  const plan = planNuevo("plan");
+  comprobar("La plantilla de proyecto pide productos por objetivo; la de investigación no (19-nov-2026)", plan.productosObjetivo === "obligatorio" && planNuevo("p", "investigacion").productosObjetivo === "no");
   comprobar("Las versiones guardadas antes no piden productos", productosObjetivo({ ...plan, productosObjetivo: undefined }) === "no");
   const raiz = numerar(planEjemplo(plan, 1, 10));
   comprobar("El plan de ejemplo trae un producto por objetivo", raiz.hijos.every((o) => productosDe(o).length === 1));
@@ -798,8 +805,9 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   ]);
   comprobar("Las conclusiones aprobadas van en el orden del plan, una por párrafo", texto === "Primera.\n\nSegunda.", JSON.stringify(texto));
   const inf = informeFinalNuevo("if");
-  const capConc = inf.espacios.find((e) => e.id === "if_conclusiones")!;
-  comprobar("El capítulo de conclusiones se precarga de las conclusiones de los objetivos", capConc.precargarDe === PRECARGA_CONCLUSIONES_OBJETIVOS);
+  comprobar("Las conclusiones finales ya no se precargan de las preliminares (19-nov-2026)", !inf.espacios.find((e) => e.id === "if_conclusiones")!.precargarDe);
+  // La precarga sigue disponible para las fichas que la configuren.
+  const capConc = { ...inf.espacios.find((e) => e.id === "if_conclusiones")!, precargarDe: PRECARGA_CONCLUSIONES_OBJETIVOS };
   const pre = leerApartado(tipoApartado(capConc)!, precargaCapitulo(capConc, [], { descripcionProblema: "", justificacion: "", objetivoGeneral: "", objetivosEspecificos: [], respuestas: {} }, "", texto)).partes;
   comprobar("Las conclusiones quedan en su subapartado", pre.conclusiones === texto);
   const d = investigacionCompleta();
@@ -807,6 +815,7 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   comprobar("La ficha de investigación con productos e informe final es válida", validarDefinicion(d).length === 0, validarDefinicion(d).map((p) => p.mensaje).join(" | "));
   const sinProd = structuredClone(d);
   sinProd.etapas.find(esEtapaPlan)!.productosObjetivo = "no";
+  sinProd.etapas.find(esEtapaInformeFinal)!.espacios.find((e) => e.id === "if_conclusiones")!.precargarDe = PRECARGA_CONCLUSIONES_OBJETIVOS;
   comprobar("Precargar conclusiones sin productos por objetivo es un error", validarDefinicion(sinProd).some((p) => p.mensaje.includes("conclusiones de los objetivos")));
   const nueva = structuredClone(d);
   nueva.etapas.find(esEtapaPlan)!.productosObjetivo = "opcional";
@@ -852,7 +861,7 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   comprobar("El capítulo de resultados de la plantilla se genera solo", gen.elemento === "resultados_objetivos" && capituloGenerado(gen));
   comprobar("Un capítulo generado nunca queda pendiente de aprobación", !capitulosPendientes(inf, {}, {}).some((e) => e.id === "if_resultados"));
   const { apartados } = apartadosInformeFinal(inf, {}, (_e, n) => [{ tipo: "subtitulo", texto: `${n}.1 Objetivo general` }]);
-  const ap = apartados.find((a) => a.titulo === "Resultados obtenidos")!;
+  const ap = apartados.find((a) => a.titulo === "Desarrollo de la investigación por objetivo")!;
   comprobar("El documento numera el capítulo generado como los demás", ap.numero !== null && (ap.bloques[0] as { texto: string }).texto === `${ap.numero}.1 Objetivo general`);
   comprobar("Los resultados por objetivo solo van en el informe final", elementoEnEtapa("resultados_objetivos", "informe_final") && !elementoEnEtapa("resultados_objetivos", "protocolo"));
   const sinPlan = investigacionCompleta();
@@ -1126,6 +1135,233 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   comprobar("La portada del protocolo lleva su nombre", portadaInformeFinal({ titulo: "T", facultad: null, carrera: null, integrantes: [], asesor: null, fecha: "2026-11-19" }, "Protocolo de investigación").portada.grupos[0][0] === "PROTOCOLO DE INVESTIGACIÓN");
   const sinRecursos = apartadosInformeFinal({ espacios: prot.espacios.filter((e) => e.id !== "recursos") }, {}, () => [], { insertar: [{ antesDe: "recursos", titulo: "Cronograma de actividades", bloques: () => cron }] });
   comprobar("Si no está el espacio indicado, el cronograma va al final", sinRecursos.apartados.at(-1)!.titulo === "Cronograma de actividades");
+}
+
+// 26. Cronograma de investigación (notas del 19-nov-2026, entrega E1)
+{
+  // La estructura sin la metodología por objetivo (que se prueba en la sección 27).
+  const plan = { ...planNuevo("plan", "investigacion"), metodologiaObjetivo: false };
+  const columnas = 8;
+  const crudo: NodoPlan = { id: "og", codigo: "1", nivel: 1, titulo: "OG", responsable: 1, montos: [], hijos: [
+    { id: "o1", codigo: "", nivel: 2, titulo: "Objetivo 1", responsable: null, montos: [], hijos: [], productos: ["Algo"] },
+  ] };
+  const n1 = normalizarArbol(crudo, plan);
+  const o1 = n1.hijos[0];
+  comprobar("Cada objetivo recibe sus cinco elementos, al mismo nivel y en orden",
+    o1.hijos.map((h) => `${h.codigo} ${h.titulo}`).join(" | ") === "1.1.1 Metodología | 1.1.2 Desarrollo | 1.1.3 Resultados | 1.1.4 Conclusiones preliminares | 1.1.5 Elementos de discusión"
+      && o1.hijos.every((h) => h.nivel === 3 && h.componente), o1.hijos.map((h) => `${h.codigo} ${h.titulo}`).join(" | "));
+  comprobar("El objetivo ya no lleva productos en el cronograma de investigación", productosDe(o1).length === 0);
+  const cierre = n1.hijos.at(-1)!;
+  comprobar("El cronograma termina con el bloque de preparación del informe", cierre.cierre === true && cierre.codigo === "1.2" && cierre.hijos.map((h) => h.titulo).join() === "Redacción del informe final,Conclusiones finales");
+  comprobar("objetivosEspecificos y objetivosDelPlan no cuentan el bloque de cierre", objetivosEspecificos(n1).length === 1 && objetivosDelPlan(n1).length === 1);
+  comprobar("Un cronograma de proyecto no se toca", normalizarArbol(crudo, planNuevo("p")) === crudo);
+
+  // Conserva lo planificado y las subactividades; descarta lo que no es un elemento; es idempotente.
+  const conDatos = structuredClone(n1);
+  conDatos.hijos[0].hijos[0].montos = [1, 1];
+  conDatos.hijos[0].hijos[1].hijos = [{ id: "s1", codigo: "", nivel: 4, titulo: "Aplicar encuesta", responsable: null, montos: [0, 0, 1], hijos: [] }];
+  conDatos.hijos[0].hijos.push({ id: "x", codigo: "", nivel: 3, titulo: "Macroactividad suelta", responsable: null, montos: [], hijos: [] });
+  conDatos.hijos[0].hijos[0].titulo = "Otro nombre";
+  const n2 = normalizarArbol(conDatos, plan);
+  comprobar("Se conservan lo planificado y las subactividades de cada elemento",
+    n2.hijos[0].hijos[0].montos.join() === "1,1" && n2.hijos[0].hijos[1].hijos[0]?.titulo === "Aplicar encuesta" && n2.hijos[0].hijos[1].hijos[0].codigo === "1.1.2.1");
+  comprobar("Solo quedan los elementos de la ficha, con su nombre", n2.hijos[0].hijos.length === 5 && n2.hijos[0].hijos[0].titulo === "Metodología");
+  comprobar("Normalizar dos veces da lo mismo", JSON.stringify(normalizarArbol(n2, plan)) === JSON.stringify(n2));
+  const sinCierre = normalizarArbol(n2, { ...plan, cierre: { activo: false, titulo: "x" } });
+  comprobar("Sin bloque de cierre en la ficha, el cronograma no lo tiene", !sinCierre.hijos.some((h) => h.cierre));
+  const renombrado = normalizarArbol(n2, { ...plan, componentes: componentesDe(plan).map((c) => (c.clave === "desarrollo" ? { ...c, nombre: "Trabajo de campo" } : c)) });
+  comprobar("El nombre de cada elemento sale de la ficha", renombrado.hijos[0].hijos[1].titulo === "Trabajo de campo");
+
+  // Hojas y reglas
+  comprobar("Un elemento sin subactividades es hoja; con subactividades, no", esHojaPlan(n2.hijos[0].hijos[0]) && !esHojaPlan(n2.hijos[0].hijos[1]) && esHojaPlan(n2.hijos[0].hijos[1].hijos[0]));
+  const reglas = { ...plan, minimos: { ...plan.minimos, objetivosPorIntegrante: 1 } };
+  const vacio = validarPlanEquipo(n1, reglas, [1], columnas).map((p) => p.mensaje);
+  comprobar("Cada elemento obligatorio debe planificarse", ["1.1.1:", "1.1.2:", "1.1.3:", "1.1.4:", "1.2.1:", "1.2.2:"].every((c) => vacio.some((m) => m.startsWith(c) && m.includes("planifica"))), vacio.join(" | "));
+  comprobar("Los elementos de discusión pueden quedar sin planificar", !vacio.some((m) => m.startsWith("1.1.5")));
+  comprobar("No se piden macroactividades ni productos en investigación", !vacio.some((m) => m.includes("macroactividad") || m.includes("producto")));
+  const lleno = structuredClone(n1);
+  for (const n of aplanar(lleno)) if (esHojaPlan(n) && n.componente !== "discusion") n.montos = [1];
+  comprobar("Con los elementos planificados no quedan pendientes", validarPlanEquipo(lleno, reglas, [1], columnas).length === 0, validarPlanEquipo(lleno, reglas, [1], columnas).map((p) => p.mensaje).join(" | "));
+  const conSub = structuredClone(lleno);
+  conSub.hijos[0].hijos[1].hijos = [{ id: "s1", codigo: "1.1.2.1", nivel: 4, titulo: "", responsable: null, montos: [], hijos: [] }];
+  const pend = validarPlanEquipo(conSub, reglas, [1], columnas).map((p) => p.mensaje);
+  comprobar("Una subactividad necesita título y su período", pend.some((m) => m.includes("falta el título de la subactividad")) && pend.some((m) => m.startsWith("1.1.2.1") && m.includes("marca al menos")), pend.join(" | "));
+  comprobar("El cronograma de investigación llega hasta las subactividades",
+    validarPlanEquipo({ ...conSub, hijos: [{ ...conSub.hijos[0], hijos: [{ ...conSub.hijos[0].hijos[0], hijos: [{ id: "s", codigo: "1.1.1.1", nivel: 4, titulo: "S", responsable: null, montos: [1], hijos: [{ id: "ss", codigo: "1.1.1.1.1", nivel: 5, titulo: "SS", responsable: null, montos: [1], hijos: [] }] }] }, ...conSub.hijos[0].hijos.slice(1)] }, conSub.hijos[1]] }, reglas, [1], columnas)
+      .some((m) => m.mensaje.includes("llega hasta las subactividades")));
+  comprobar("Los elementos del período son las hojas planificadas en él", actividadesDelPeriodo(lleno, 1, Array.from({ length: columnas }, () => ({ periodo: 1 }))).length === 6);
+
+  // Ejemplo y equipo
+  const ej = planEjemplo(reglas, 1, columnas);
+  comprobar("El cronograma de ejemplo de investigación cumple sus reglas", validarPlanEquipo(ej, reglas, [1], columnas).length === 0, validarPlanEquipo(ej, reglas, [1], columnas).map((p) => p.mensaje).join(" | "));
+  const ej2 = planEjemplo(plan, 2, 16);
+  comprobar("En equipo, cada integrante tiene sus objetivos y el bloque de cierre es de todos",
+    validarPlanEquipo(ej2, plan, [1, 2], 16).length === 0 && [1, 2].every((i) => planIndividual(ej2, i)!.hijos.filter((h) => !h.cierre).length === 3 && planIndividual(ej2, i)!.hijos.some((h) => h.cierre)),
+    validarPlanEquipo(ej2, plan, [1, 2], 16).map((p) => p.mensaje).join(" | "));
+  comprobar("La carga por integrante no cuenta el bloque de cierre como objetivo", cargaPorIntegrante(ej2, 2, 16).every((c) => c.objetivos === 3));
+  const sinResp = { ...ej2, hijos: ej2.hijos.map((h, i) => (i === 0 ? { ...h, responsable: null } : h)) };
+  comprobar("En equipo, cada objetivo necesita responsable (el bloque de cierre no)", validarPlanEquipo(sinResp, plan, [1, 2], 16).map((p) => p.mensaje).join() === "1.1: falta el integrante responsable.,Cada integrante debe tener al menos 3 objetivos específicos; uno de ellos tiene 2.", validarPlanEquipo(sinResp, plan, [1, 2], 16).map((p) => p.mensaje).join(" | "));
+  const cron = bloquesCronograma(lleno, [{ periodo: 1 }]);
+  comprobar("El cronograma del protocolo muestra los elementos de cada objetivo y el cierre", JSON.stringify(cron).includes("Metodología") && JSON.stringify(cron).includes("Preparación del informe final"));
+
+  // Ficha
+  const d = investigacionCompleta();
+  comprobar("La ficha de investigación con el cronograma nuevo es válida", validarDefinicion(d).length === 0 && esCronogramaInvestigacion(d.etapas.find(esEtapaPlan)!), validarDefinicion(d).map((p) => p.mensaje).join(" | "));
+  comprobar("La ficha con el cronograma nuevo conserva su forma", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
+  comprobar("Las versiones anteriores son cronogramas de proyecto", estructuraPlan({}) === "actividades" && !cierreDe({}).activo);
+  const cambiada = structuredClone(d);
+  const pc = cambiada.etapas.find(esEtapaPlan)!;
+  pc.componentes = componentesDe(pc).map((c) => (c.clave === "discusion" ? { ...c, obligatorio: true } : c));
+  pc.cierre = { activo: false, titulo: "" };
+  const cambios = compararDefiniciones(d, cambiada);
+  comprobar("Los cambios de los elementos y del cierre aparecen al habilitar", cambios.some((c) => c.includes("elementos de cada objetivo")) && cambios.some((c) => c.includes("preparación del informe final, Preparación")), cambios.join(" | "));
+  comprobar("Cambiar el tipo de cronograma aparece al habilitar", compararDefiniciones(d, (() => { const x = structuredClone(d); x.etapas.find(esEtapaPlan)!.estructura = "actividades"; return x; })()).some((c) => c.includes("tipo de cronograma, de investigación → de proyecto")));
+}
+detecta("cronograma de investigación en proyecto", proyectoConCambio((d) => { Object.assign(d.etapas.find(esEtapaPlan)!, { estructura: "investigacion" }); }), "solo para la modalidad de investigación");
+detecta("cronograma de investigación con responsable por actividad", investigacionConCambio((d) => { d.etapas.find(esEtapaPlan)!.equipo.responsable = "actividad"; }), "se asigna por objetivo específico");
+detecta("cronograma de investigación con productos", investigacionConCambio((d) => { d.etapas.find(esEtapaPlan)!.productosObjetivo = "obligatorio"; }), "no lleva productos ni documentos");
+detecta("ningún elemento obligatorio", investigacionConCambio((d) => { const p = d.etapas.find(esEtapaPlan)!; p.componentes = componentesDe(p).map((c) => ({ ...c, obligatorio: false })); }), "al menos un elemento del proceso");
+detecta("dos elementos con el mismo nombre", investigacionConCambio((d) => { const p = d.etapas.find(esEtapaPlan)!; p.componentes = componentesDe(p).map((c) => ({ ...c, nombre: c.clave === "resultados" ? "Desarrollo" : c.nombre })); }), "mismo nombre");
+
+// 27. Metodología de cada objetivo con referencias (cronograma de investigación, entrega E2)
+{
+  const plan = { ...planNuevo("plan", "investigacion"), minimos: { objetivosPorIntegrante: 1, macroPorObjetivo: 1, actividadesPorMacro: 1 } };
+  comprobar("La plantilla de investigación pide la metodología de cada objetivo", pideMetodologia(plan) && !pideMetodologia(planNuevo("p")));
+  const base = normalizarArbol({ id: "og", codigo: "1", nivel: 1, titulo: "OG", responsable: 1, montos: [], hijos: [{ id: "o1", codigo: "", nivel: 2, titulo: "O1", responsable: null, montos: [], hijos: [] }] }, plan);
+  for (const n of aplanar(base)) if (esHojaPlan(n) && n.componente !== "discusion") n.montos = [1];
+  const met = () => aplanar(base).find((n) => n.componente === "metodologia")!;
+  const conMet = (m: NonNullable<NodoPlan["metodologia"]>) => {
+    const a = structuredClone(base);
+    aplanar(a).find((n) => n.componente === "metodologia")!.metodologia = m;
+    return a;
+  };
+  const msj = (a: NodoPlan) => validarPlanEquipo(a, plan, [1], 4).map((p) => p.mensaje);
+  comprobar("Sin metodología, el plan no se envía", msj(base).some((m) => m.startsWith("1.1.1: describe la metodología")), msj(base).join(" | "));
+  const sinCita = conMet({ parrafos: [{ texto: "Se aplicará una encuesta.", fuentes: [] }], propia: false, fundamentacion: [] });
+  comprobar("Sin ninguna cita, tampoco", msj(sinCita).some((m) => m.includes("al menos una cita del registro")));
+  const conCita = conMet({ parrafos: [{ texto: "Se aplicará una encuesta.", fuentes: [7] }, { texto: "Luego se tabulará.", fuentes: [] }], propia: false, fundamentacion: [] });
+  comprobar("Con una cita basta (no se exige en cada párrafo)", msj(conCita).length === 0, msj(conCita).join(" | "));
+  const propia = conMet({ parrafos: [{ texto: "Procedimiento propio.", fuentes: [7] }], propia: true, fundamentacion: [] });
+  comprobar("Una metodología propia pide su fundamentación", msj(propia).some((m) => m.includes("fundamenta la metodología propia")));
+  const propiaSinCita = conMet({ parrafos: [{ texto: "Procedimiento propio.", fuentes: [7] }], propia: true, fundamentacion: [{ texto: "Se basa en estudios previos.", fuentes: [] }] });
+  comprobar("La fundamentación necesita al menos una cita", msj(propiaSinCita).some((m) => m.includes("fundamentación de la metodología propia necesita")));
+  comprobar("Sin la opción en la ficha no se pide metodología", validarPlanEquipo(base, { ...plan, metodologiaObjetivo: false }, [1], 4).length === 0);
+
+  // Citas, fuentes citadas y forma
+  const mapa = new Map([[7, { ...datosCitaVacios(), autores: [{ apellidos: "Hernández-Sampieri", iniciales: "R." }], anio: "2018", titulo: "Metodología" }]]);
+  const citado = arbolConCitas(propiaSinCita, mapa);
+  const mc = leerMetodologia(aplanar(citado).find((n) => n.componente === "metodologia")!);
+  comprobar("El servidor arma la cita de cada párrafo", mc.parrafos[0].cita === "Hernández-Sampieri, 2018" && !mc.fundamentacion[0].cita, JSON.stringify(mc));
+  comprobar("Una fuente que ya no está se quita del párrafo", leerMetodologia(aplanar(arbolConCitas(propiaSinCita, new Map())).find((n) => n.componente === "metodologia")!).parrafos[0].fuentes.length === 0);
+  comprobar("Las fuentes citadas del plan cuentan para el registro", fuentesCitadasPlan(conCita).join() === "7" && fuentesCitadasPlan(base).length === 0);
+  comprobar("La metodología se conserva al normalizar", leerMetodologia(aplanar(normalizarArbol(conCita, plan)).find((n) => n.componente === "metodologia")!).parrafos.length === 2);
+  comprobar("Texto de la metodología con sus citas", textoMetodologia(mc.parrafos) === "Procedimiento propio (Hernández-Sampieri, 2018).");
+  comprobar("Forma válida de la metodología", metodologiaValida(undefined) && metodologiaValida({ parrafos: [], propia: false, fundamentacion: [] })
+    && !metodologiaValida({ parrafos: [{ texto: 1, fuentes: [] }], propia: false, fundamentacion: [] }) && !metodologiaValida({ parrafos: [], propia: "no", fundamentacion: [] }));
+  comprobar("El ejemplo del constructor trae una metodología citada", validarPlanEquipo(planEjemplo(plan, 1, 8), plan, [1], 8).length === 0);
+  comprobar("met() sigue sin metodología en el plan base", leerMetodologia(met()).parrafos.length === 0);
+
+  // Equipo: un integrante no cambia la metodología de un objetivo ajeno
+  const ajeno = structuredClone(conCita);
+  ajeno.hijos[0].responsable = 2;
+  const cambiado = structuredClone(ajeno);
+  aplanar(cambiado).find((n) => n.componente === "metodologia")!.metodologia = { parrafos: [{ texto: "Otra.", fuentes: [7] }], propia: false, fundamentacion: [] };
+  comprobar("Un integrante no cambia la metodología de un objetivo ajeno", cambioNoPermitido(ajeno, cambiado, 3) !== null && cambioNoPermitido(ajeno, cambiado, 2) === null);
+
+  // Ficha
+  comprobar("Cambiar la opción aparece al habilitar", compararDefiniciones(investigacionCompleta(), (() => { const x = investigacionCompleta(); x.etapas.find(esEtapaPlan)!.metodologiaObjetivo = false; return x; })())
+    .some((c) => c.includes("metodología de cada objetivo con referencias")));
+}
+detecta("metodología por objetivo en un cronograma de proyecto", proyectoConCambio((d) => { d.etapas.find(esEtapaPlan)!.metodologiaObjetivo = true; }), "parte del cronograma de investigación");
+detecta("metodología por objetivo con el elemento opcional", investigacionConCambio((d) => { const p = d.etapas.find(esEtapaPlan)!; p.componentes = componentesDe(p).map((c) => (c.clave === "metodologia" ? { ...c, obligatorio: false } : c)); }), "márcalo como obligatorio");
+
+// 28. Ejecución por elementos y avance (cronograma de investigación, entrega E3)
+{
+  const plan = { ...planNuevo("plan", "investigacion"), metodologiaObjetivo: false };
+  const arbol = normalizarArbol({ id: "og", codigo: "1", nivel: 1, titulo: "OG", responsable: 1, montos: [], hijos: [{ id: "o1", codigo: "", nivel: 2, titulo: "O1", responsable: null, montos: [], hijos: [] }] }, plan);
+  const o1 = arbol.hijos[0];
+  const id = (c: string) => o1.hijos.find((h) => h.componente === c)!.id;
+  comprobar("Solo la discusión queda marcada como opcional", o1.hijos.filter((h) => h.opcional).map((h) => h.componente).join() === "discusion");
+  const av = (pares: [string, number][]) => avancePorNodo(arbol, new Map(pares.map(([c, a]) => [id(c), a])));
+  comprobar("Con la metodología terminada, el objetivo va al 25 % (la discusión sin usar no cuenta)", av([["metodologia", 100]]).get("o1") === 25, String(av([["metodologia", 100]]).get("o1")));
+  comprobar("Con la discusión usada, cada elemento vale 20 %", av([["metodologia", 100], ["discusion", 0]]).get("o1") === 20);
+  const planificada = structuredClone(arbol);
+  planificada.hijos[0].hijos.find((h) => h.componente === "discusion")!.montos = [1];
+  comprobar("La discusión planificada también cuenta", avancePorNodo(planificada, new Map([[id("metodologia"), 100]])).get("o1") === 20);
+  comprobar("En un plan de proyecto el promedio no cambia", avancePorNodo(numerar({ id: "r", codigo: "1", nivel: 1, titulo: "R", responsable: null, montos: [], hijos: [
+    { id: "a", codigo: "", nivel: 4, titulo: "A", responsable: null, montos: [], hijos: [] }, { id: "b", codigo: "", nivel: 4, titulo: "B", responsable: null, montos: [], hijos: [] }] }), new Map([["a", 100]])).get("r") === 50);
+
+  // Estados de un elemento
+  const reg = (nodoId: string, avance: number | null, estado: string, periodo = 1) => ({ nodoId, avance, estado, periodo });
+  const met = o1.hijos.find((h) => h.componente === "metodologia")!;
+  comprobar("Sin registros, el elemento está sin iniciar", estadoElemento(met, []) === "sin_iniciar");
+  comprobar("Al 60 % está en curso", estadoElemento(met, [reg(met.id, 60, "enviado")]) === "en_curso");
+  comprobar("Al 100 % enviado, está concluido y por validar", estadoElemento(met, [reg(met.id, 100, "enviado")]) === "por_validar");
+  comprobar("Al 100 % aprobado por el asesor, está validado", estadoElemento(met, [reg(met.id, 60, "aprobado"), reg(met.id, 100, "aprobado", 2)]) === "validado");
+  comprobar("Un registro observado lo marca con observaciones", estadoElemento(met, [reg(met.id, 100, "observado")]) === "observado");
+  const conSubs = structuredClone(arbol);
+  const des = conSubs.hijos[0].hijos.find((h) => h.componente === "desarrollo")!;
+  des.hijos = [{ id: "s1", codigo: "", nivel: 4, titulo: "S1", responsable: null, montos: [1], hijos: [] }, { id: "s2", codigo: "", nivel: 4, titulo: "S2", responsable: null, montos: [1], hijos: [] }];
+  comprobar("Con subactividades, el elemento se valida cuando todas lo están",
+    estadoElemento(des, [reg("s1", 100, "aprobado")]) === "en_curso" && estadoElemento(des, [reg("s1", 100, "aprobado"), reg("s2", 100, "aprobado")]) === "validado");
+  comprobar("La subactividad pertenece a su elemento", elementoDe(conSubs, "s2")?.componente === "desarrollo" && elementoDe(conSubs, des.id)?.id === des.id && elementoDe(conSubs, "o1") === null);
+
+  // Proceso del objetivo
+  const validados = ["metodologia", "desarrollo", "resultados", "conclusiones"].map((c) => reg(id(c), 100, "aprobado"));
+  const proc = procesoPorObjetivo(arbol, validados);
+  comprobar("Con los 4 elementos obligatorios validados, el objetivo queda validado al 100 %", proc[0].cerrado && proc[0].avance === 100, JSON.stringify({ c: proc[0].cerrado, a: proc[0].avance }));
+  comprobar("La discusión sin usar no cuenta para cerrar el objetivo", proc[0].elementos.find((e) => e.nodo.componente === "discusion")!.cuenta === false);
+  const conDiscusion = procesoPorObjetivo(arbol, [...validados, reg(id("discusion"), 50, "enviado")]);
+  comprobar("Si se usa la discusión, también debe validarse", !conDiscusion[0].cerrado && conDiscusion[0].avance === 90);
+  comprobar("Un borrador de la discusión no la hace contar", procesoPorObjetivo(arbol, [...validados, reg(id("discusion"), null, "borrador")])[0].cerrado);
+  comprobar("El bloque de preparación del informe tiene su propio proceso", procesoPorObjetivo(arbol, []).at(-1)!.nodo.cierre === true);
+  comprobar("Las conclusiones (preliminares y finales) se revisan como conclusión", TEXTOS_ELEMENTO.conclusiones.conclusion === true && TEXTOS_ELEMENTO.conclusiones_finales.conclusion === true && !TEXTOS_ELEMENTO.desarrollo.conclusion);
+
+  // Bitácora: tipos de investigación y aceptación del asesor
+  const entradas = entradasBitacora({ arbol, registros: [{ nodoId: met.id, periodo: 1, estado: "aprobado", modificacionTipo: "metodologia", modificacion: "Se cambió la muestra." }, { nodoId: id("desarrollo"), periodo: 1, estado: "enviado", modificacionTipo: "hallazgo", modificacion: "Supuesto nuevo." }], entregas: [] });
+  comprobar("La bitácora registra ajustes a la metodología y hallazgos, con el estado de su aceptación",
+    entradas.map((e) => `${e.tipo}:${e.estado}`).join() === "metodologia:aprobado,hallazgo:enviado", entradas.map((e) => `${e.tipo}:${e.estado}`).join());
+}
+
+// 29. Informe final por objetivo (cronograma de investigación, entrega E4)
+{
+  const plan = { ...planNuevo("plan", "investigacion"), metodologiaObjetivo: true };
+  const arbol = normalizarArbol({ id: "og", codigo: "1", nivel: 1, titulo: "Analizar los hábitos", responsable: 1, montos: [], hijos: [
+    { id: "o1", codigo: "", nivel: 2, titulo: "Caracterizar los hábitos", responsable: null, montos: [], hijos: [] },
+    { id: "o2", codigo: "", nivel: 2, titulo: "Medir el rendimiento", responsable: null, montos: [], hijos: [] }] }, plan);
+  const el = (o: number, c: string) => arbol.hijos[o].hijos.find((h) => h.componente === c)!;
+  el(0, "metodologia").metodologia = { parrafos: [{ texto: "Se aplicará un cuestionario", fuentes: [1], cita: "Pérez, 2020" }], propia: true, fundamentacion: [{ texto: "Se basa en estudios previos", fuentes: [2], cita: "Ruiz, 2019" }] };
+  el(0, "desarrollo").hijos = [
+    { id: "s1", codigo: "1.1.2.1", nivel: 4, titulo: "Aplicar la encuesta", responsable: null, montos: [1], hijos: [] },
+    { id: "s2", codigo: "1.1.2.2", nivel: 4, titulo: "Tabular", responsable: null, montos: [1], hijos: [] }];
+  const r = (nodoId: string, periodo: number, avance: number, estado: string, acciones: string, resultado: string) =>
+    ({ nodoId, periodo, avance, estado, acciones, resultado, fechaInicio: "2026-10-16", fechaFin: "2026-10-30" });
+  const registros = [
+    r(el(0, "metodologia").id, 1, 100, "aprobado", "Se validó el cuestionario", "Instrumento listo"),
+    r("s1", 1, 50, "aprobado", "Se aplicó a 60 estudiantes", "60 respuestas"),
+    r("s1", 2, 100, "aprobado", "Se aplicó a los 60 restantes", "120 respuestas"),
+    r("s2", 2, 100, "enviado", "Se tabularon los datos", "Base de datos"),
+    r(el(0, "resultados").id, 2, 100, "aprobado", "Se analizaron", "El 40 % estudia menos de 5 horas"),
+    r(el(0, "conclusiones").id, 2, 100, "aprobado", "Se integraron", "Se determinó que los hábitos son deficientes"),
+    r(el(1, "metodologia").id, 2, 30, "borrador", "Borrador", "Borrador"),
+  ];
+  const evidencias = [{ nodoId: "s1", periodo: 1, tipo: "enlace" as const, leyenda: "Cuestionario", nombre: null, url: "https://x.y", nota: null }];
+  const { bloques, anexos } = resultadosPorObjetivo({ arbol, registros, evidencias, entregas: [], productos: [], numero: 8 });
+  const texto = JSON.stringify(bloques);
+  const subtitulos = bloques.filter((b) => b.tipo === "subtitulo").map((b) => (b as { texto: string }).texto);
+  comprobar("El capítulo va por objetivo y por las partes de su proceso",
+    subtitulos.slice(0, 7).join(" | ") === "8.1 Objetivo general | 8.2 Objetivo específico 1.1: Caracterizar los hábitos | 8.2.1 Metodología utilizada | 8.2.2 Desarrollo realizado | 8.2.3 Resultados obtenidos | 8.2.4 Conclusiones preliminares | 8.3 Objetivo específico 1.2: Medir el rendimiento", subtitulos.join(" | "));
+  comprobar("La discusión sin usar y el bloque de cierre no entran", !texto.includes("Elementos de discusión") && !texto.includes("Preparación del informe final"));
+  comprobar("La metodología trae lo planificado con sus citas, la fundamentación propia y cómo se aplicó",
+    texto.includes("Se aplicará un cuestionario (Pérez, 2020).") && texto.includes("Fundamentación de la metodología propia: Se basa en estudios previos (Ruiz, 2019).") && texto.includes("Aplicación: Del 16/10/2026 al 30/10/2026: Se validó el cuestionario. Instrumento listo."));
+  comprobar("El desarrollo se cuenta registro por registro, con su subactividad, sus fechas y sus evidencias",
+    texto.includes("1.1.2.1 Aplicar la encuesta. Del 16/10/2026 al 30/10/2026: Se aplicó a 60 estudiantes. 60 respuestas. Evidencias: Anexo 1.") && texto.includes("1.1.2.1 Aplicar la encuesta. Del 16/10/2026 al 30/10/2026: Se aplicó a los 60 restantes. 120 respuestas."));
+  comprobar("Los resultados y las conclusiones preliminares traen lo que se obtuvo", texto.includes("El 40 % estudia menos de 5 horas.") && texto.includes("Se determinó que los hábitos son deficientes."));
+  comprobar("Las evidencias pasan a los anexos con su procedencia", anexos.length === 1 && anexos[0].actividad === "subactividad 1.1.2.1");
+  comprobar("Un borrador no entra y lo que falta queda pendiente", !texto.includes("Borrador") && texto.includes("Pendiente: «Desarrollo» todavía no tiene registros enviados."));
+  comprobar("El objetivo general resume el avance y los objetivos validados", texto.includes("Objetivos específicos validados por el asesor: 0 de 2."));
+  comprobar("Un plan de proyecto sigue con su capítulo de siempre", !esPlanPorElementos(planEjemplo(planNuevo("p"), 1, 4)) && esPlanPorElementos(arbol));
+  comprobar("La plantilla nombra el capítulo por objetivo", informeFinalNuevo("if").espacios.find((e) => e.id === "if_resultados")!.titulo === "Desarrollo de la investigación por objetivo");
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

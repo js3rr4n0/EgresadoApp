@@ -6,7 +6,7 @@ import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import { reglasRecurso } from "@/lib/fichas/elementosRecurso";
 import { tipoApartado } from "@/lib/fichas/apartadosAcademicos";
 import { reglasRecursos } from "@/lib/fichas/recursos";
-import { PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
+import { cierreDe, componentesDe, esCronogramaInvestigacion, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
 
 /** Reglas de un espacio en frases cortas, como las leería el egresado. */
 function reglas(e: Espacio, equipo: boolean): string[] {
@@ -67,6 +67,7 @@ function reglas(e: Espacio, equipo: boolean): string[] {
       return [
         "Lo genera el sistema: no se redacta ni se revisa aparte.",
         "Por objetivo: productos entregados y, por macroactividad, cada actividad con sus fechas, su resultado y sus evidencias (como anexos).",
+        "Con el cronograma de investigación: por objetivo, la metodología utilizada, el desarrollo realizado, los resultados obtenidos, las conclusiones preliminares y la discusión.",
       ];
   }
 }
@@ -262,13 +263,24 @@ export function PlanEgresado({ definicion }: { definicion: DefinicionFicha }) {
   const equipo = definicion.participantes.max > 1;
   if (!plan && !ejecucion) return null;
 
+  const investigacion = plan ? esCronogramaInvestigacion(plan) : false;
   const frasesPlan = plan
     ? [
-        "Se elabora después de aprobada la propuesta, a partir de sus objetivos: objetivo general → objetivos específicos → macroactividades → actividades.",
-        plan.subactividades === "no" ? "No se usan subactividades." : plan.subactividades === "opcional" ? "Las subactividades son opcionales." : "Cada actividad se divide en subactividades.",
-        `${equipo ? "Cada integrante desarrolla" : "Desarrollas"} al menos ${plan.minimos.objetivosPorIntegrante} objetivos específicos, con al menos ${plan.minimos.macroPorObjetivo} macroactividad(es) por objetivo y ${plan.minimos.actividadesPorMacro} actividad(es) por macroactividad.`,
+        ...(investigacion
+          ? [
+              `Cronograma de investigación: se elabora a partir de los objetivos y cada objetivo específico se organiza por su proceso metodológico (${componentesDe(plan).map((c) => `${c.nombre}${c.obligatorio ? "" : ", opcional"}`).join(" · ")}). Cada elemento puede tener subactividades.`,
+              `${equipo ? "Cada integrante desarrolla" : "Desarrollas"} al menos ${plan.minimos.objetivosPorIntegrante} objetivos específicos.`,
+              ...(plan.metodologiaObjetivo ? ["La metodología de cada objetivo se describe en el plan, respaldada con referencias del registro de fuentes; si es una metodología propia, se fundamenta en métodos o investigaciones anteriores. El asesor la revisa con el plan."] : []),
+              ...(cierreDe(plan).activo ? [`El cronograma termina con «${cierreDe(plan).titulo}».`] : []),
+              "Los productos y documentos no van en el cronograma: las evidencias se suben en los registros de la ejecución.",
+            ]
+          : [
+              "Se elabora después de aprobada la propuesta, a partir de sus objetivos: objetivo general → objetivos específicos → macroactividades → actividades.",
+              plan.subactividades === "no" ? "No se usan subactividades." : plan.subactividades === "opcional" ? "Las subactividades son opcionales." : "Cada actividad se divide en subactividades.",
+              `${equipo ? "Cada integrante desarrolla" : "Desarrollas"} al menos ${plan.minimos.objetivosPorIntegrante} objetivos específicos, con al menos ${plan.minimos.macroPorObjetivo} macroactividad(es) por objetivo y ${plan.minimos.actividadesPorMacro} actividad(es) por macroactividad.`,
+            ]),
         ...(plan.presupuesto.activo
-          ? [`El cronograma es también el presupuesto: cada actividad lleva ${plan.presupuesto.desglose === "monto" ? "su monto" : "sus recursos y gastos"} (${plan.presupuesto.moneda}) en ${plan.granularidad === "subperiodo" ? "los subperíodos" : "los períodos"} en que se ejecuta, y el sistema suma cada nivel.`]
+          ? [`El cronograma es también el presupuesto: cada ${investigacion ? "elemento o subactividad" : "actividad"} lleva ${plan.presupuesto.desglose === "monto" ? "su monto" : "sus recursos y gastos"} (${plan.presupuesto.moneda}) en ${plan.granularidad === "subperiodo" ? "los subperíodos" : "los períodos"} en que se ejecuta, y el sistema suma cada nivel.`]
           : []),
         ...(equipo
           ? [

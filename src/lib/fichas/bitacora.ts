@@ -9,6 +9,9 @@ export const TIPOS_MODIFICACION = [
   { valor: "tiempo", etiqueta: "Tiempo", ayuda: "Retraso, reprogramación o adelanto de una actividad." },
   { valor: "recursos", etiqueta: "Recursos y costos", ayuda: "Cambio de precio, de materiales o de personas involucradas." },
   { valor: "alcance", etiqueta: "Alcance", ayuda: "Se hizo más o menos de lo planificado." },
+  // Investigación (notas del 19-nov-2026): los cambios en el camino son hallazgos, no mala planificación; los acepta el asesor.
+  { valor: "metodologia", etiqueta: "Ajuste a la metodología", ayuda: "Se cambió el procedimiento planificado: instrumento, muestra o técnica, y por qué." },
+  { valor: "hallazgo", etiqueta: "Hallazgo o supuesto nuevo", ayuda: "Un impasse o un supuesto que no se había analizado y que apareció durante la investigación." },
   { valor: "otro", etiqueta: "Otro acontecimiento", ayuda: "Un problema o una situación que conviene dejar registrada." },
 ] as const;
 export type TipoModificacion = (typeof TIPOS_MODIFICACION)[number]["valor"];
@@ -31,6 +34,8 @@ export interface EntradaBitacora {
   periodo: number;
   tipo: TipoModificacion;
   texto: string;
+  /** Estado del registro o la entrega que la reporta: "aprobado" = el asesor la aceptó (investigación). */
+  estado: string;
 }
 
 interface ConModificacion {
@@ -57,7 +62,7 @@ export function entradasBitacora(args: { arbol: NodoPlan; registros: ConModifica
     .sort((a, b) => a.x.periodo! - b.x.periodo! || orden.get(a.x.nodoId)!.i - orden.get(b.x.nodoId)!.i || (a.origen === "actividad" ? -1 : 1));
   return entradas.map(({ x, origen }) => {
     const n = orden.get(x.nodoId)!.n;
-    return { codigo: n.codigo, titulo: n.titulo, origen, periodo: x.periodo!, tipo: limpiarModificacion(x.modificacionTipo, x.modificacion).modificacionTipo ?? "otro", texto: x.modificacion!.trim() };
+    return { codigo: n.codigo, titulo: n.titulo, origen, periodo: x.periodo!, tipo: limpiarModificacion(x.modificacionTipo, x.modificacion).modificacionTipo ?? "otro", texto: x.modificacion!.trim(), estado: x.estado };
   });
 }
 

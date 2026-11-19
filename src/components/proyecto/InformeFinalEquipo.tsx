@@ -127,10 +127,27 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
           {capituloGenerado(cap.espacio) ? (
             <CapituloGenerado titulo={cap.espacio.titulo} descripcion={cap.espacio.descripcion} bloques={datos.generados[cap.espacio.id] ?? []} bitacora={cap.espacio.elemento === "reporte_modificaciones"}
               siguiente={actual < datos.capitulos.length ? `${base}&cap=${actual + 1}` : null} />
-          ) : <EditorCapitulo key={`${cap.espacio.id}-${cap.ultima?.numero ?? 0}-${cap.estado.estado}`} propuestaId={plan.propuesta.id} cap={cap}
+          ) : <>
+            {(datos.consulta[cap.espacio.id] ?? []).length > 0 && (
+              <details className="bg-sky-50/50 border border-sky-200 rounded-xl px-4 py-3 text-sm">
+                <summary className="cursor-pointer font-bold text-sky-950">Conclusiones preliminares de cada objetivo (para consultar)</summary>
+                <p className="text-xs text-muted mt-1">
+                  Son las que se registraron al terminar cada objetivo. Las conclusiones finales se redactan aquí, a partir de ellas y de toda la investigación: no se copian.
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {datos.consulta[cap.espacio.id].map((c) => (
+                    <li key={c.titulo} className="bg-white border border-sky-100 rounded-lg px-3 py-2">
+                      <p className="text-xs font-bold text-gray-700">{c.titulo}</p>
+                      <p className="text-sm text-gray-800 whitespace-pre-wrap mt-0.5">{c.texto || <em className="text-gray-400">Todavía sin registro enviado.</em>}</p>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            <EditorCapitulo key={`${cap.espacio.id}-${cap.ultima?.numero ?? 0}-${cap.estado.estado}`} propuestaId={plan.propuesta.id} cap={cap}
             siguiente={actual < datos.capitulos.length ? `${base}&cap=${actual + 1}` : null}
             porCapitulo={etapa.revision.porCapitulo} enEquipo={enEquipo}
-            contexto={contextoDeRevision(datos.capitulos.map((c) => c.espacio), Object.fromEntries(datos.capitulos.map((c) => [c.espacio.id, c.ultima?.contenido ?? c.precarga ?? ""])))} />}
+            contexto={contextoDeRevision(datos.capitulos.map((c) => c.espacio), Object.fromEntries(datos.capitulos.map((c) => [c.espacio.id, c.ultima?.contenido ?? c.precarga ?? ""])))} /></>}
 
           {esAsesor && cap.estado.estado === "enviado" && (
             <section className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-3">
@@ -225,6 +242,7 @@ function CapituloGenerado({ titulo, descripcion, bloques, siguiente, bitacora }:
           b.tipo === "subtitulo" ? <h3 key={i} className="font-bold pt-2">{b.texto}</h3>
           : b.tipo === "parrafos" ? b.parrafos.map((p, k) => <p key={`${i}-${k}`}>{p}</p>)
           : b.tipo === "lista" ? <ul key={i} className="list-disc pl-6 space-y-1">{b.items.map((t, k) => <li key={k}>{t}</li>)}</ul>
+          : b.tipo === "pendiente" ? <p key={i} className="text-amber-800 italic">{b.texto}</p>
           : null
         )}
       </div>

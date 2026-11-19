@@ -17,6 +17,8 @@ import { aISOLocal, fechaLocalDesdeISO, sumarDiasISO } from "@/lib/periodosPasan
 import { getPlanTrabajo, type DatosPlan } from "./planTrabajo";
 import { armarInformePeriodo } from "@/lib/fichas/informePeriodo";
 import { notificarEquipo } from "@/lib/notificarEquipo";
+import { elementoDe, TEXTOS_ELEMENTO } from "@/lib/fichas/elementosEjecucion";
+import { revisarConclusionObjetivo } from "@/lib/fichas/entregasObjetivo";
 
 export interface RegistroPlan {
   id: number;
@@ -221,6 +223,11 @@ export async function guardarRegistroPlan(
       const problemas = validarRegistroProyecto(limpio, reglas, nodo.nivel === 5);
       const adjuntas = previo?.evidencias.length ?? 0;
       if (evidencias.max > 0 && adjuntas < evidencias.min) problemas.push(`Adjunta al menos ${evidencias.min} evidencia(s) de la actividad (imagen, documento o enlace).`);
+      // Cronograma de investigación (E3): las conclusiones (preliminares o finales) se revisan como apartado de informe.
+      const elemento = elementoDe(plan.plan.arbol, nodoId);
+      if (elemento?.componente && TEXTOS_ELEMENTO[elemento.componente].conclusion && limpio.resultado) {
+        for (const r of revisarConclusionObjetivo(limpio.resultado)) if (r.nivel === "falta") problemas.push(r.mensaje);
+      }
       if (problemas.length > 0) return { success: false, error: "El registro todavía no cumple las reglas de la ficha.", problemas };
     }
 

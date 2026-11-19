@@ -3,8 +3,11 @@
 // actividades (fechas, resultado y evidencias), siempre con el índice del plan. Las evidencias y los productos pasan a
 // los anexos en ese mismo orden, y el capítulo los cita ("Anexo 3"). Módulo puro: lo usan el documento (PDF y Word) y
 // la pantalla del informe final.
-import { aplanar, avancePorNodo, productosDe, type NodoPlan } from "./planTrabajo";
+import { aplanar, avancePorNodo, esHojaPlan, productosDe, type NodoPlan } from "./planTrabajo";
 import type { AnexoDocumento, BloqueDocumento } from "./documentoInformeFinal";
+import { avancesEnviados, hojasElemento, procesoPorObjetivo } from "./elementosEjecucion";
+import { leerMetodologia, textoMetodologia } from "./metodologiaPlan";
+import type { ClaveComponente } from "./tipos";
 
 export interface RegistroResultado {
   nodoId: string;
@@ -12,6 +15,8 @@ export interface RegistroResultado {
   estado: string;
   avance: number | null;
   resultado: string | null;
+  /** Lo que se hizo (cronograma de investigación: el desarrollo se cuenta registro por registro). */
+  acciones?: string | null;
   fechaInicio?: string | null;
   fechaFin?: string | null;
 }
@@ -62,6 +67,8 @@ export function resultadosPorObjetivo(args: {
   productos: ProductoResultado[];
   numero: number | null;
 }): { bloques: BloqueDocumento[]; anexos: AnexoDocumento[] } {
+  // Cronograma de investigación (E4): el capítulo va por objetivo y por elementos del proceso.
+  if (esPlanPorElementos(args.arbol)) return desarrolloPorObjetivo(args);
   const { arbol, registros, evidencias, entregas, productos, numero } = args;
   const validos = registros.filter((r) => cuenta(r.estado));
   // Último registro enviado de cada actividad: su avance, su resultado y sus fechas.
@@ -113,7 +120,7 @@ export function resultadosPorObjetivo(args: {
     }
     for (const m of o.hijos) {
       bloques.push({ tipo: "parrafos", parrafos: [`Macroactividad ${m.codigo}: ${sinPunto(m.titulo)} (avance ${avances.get(m.id) ?? 0} %).`] });
-      const hojas = aplanar(m).filter((n) => n.hijos.length === 0 && n.nivel >= 4);
+      const hojas = aplanar(m).filter(esHojaPlan);
       if (hojas.length === 0) continue;
       bloques.push({
         tipo: "lista",
@@ -126,6 +133,96 @@ export function resultadosPorObjetivo(args: {
           return `${a.codigo} ${sinPunto(a.titulo)}${fechas}: ${resultado}.${citas.length ? ` Evidencias: ${citas.join(", ")}.` : ""}`;
         }),
       });
+    }
+  });
+  return { bloques, anexos };
+}
+
+
+// ─────────────── Cronograma de investigación (notas del 19-nov-2026, entrega E4) ───────────────
+
+/** El plan es un cronograma de investigación: sus objetivos se organizan por elementos del proceso. */
+export const esPlanPorElementos = (arbol: NodoPlan) => arbol.hijos.some((o) => o.hijos.some((e) => !!e.componente));
+
+const PARTES_OBJETIVO: { clave: ClaveComponente; titulo: string }[] = [
+  { clave: "metodologia", titulo: "Metodología utilizada" },
+  { clave: "desarrollo", titulo: "Desarrollo realizado" },
+  { clave: "resultados", titulo: "Resultados obtenidos" },
+  { clave: "conclusiones", titulo: "Conclusiones preliminares" },
+  { clave: "discusion", titulo: "Elementos de discusión" },
+];
+
+/**
+ * Capítulo "Desarrollo de la investigación por objetivo": cada objetivo específico con su metodología utilizada (la del
+ * plan, con sus citas, y cómo se aplicó), el desarrollo realizado (registro por registro, con fechas y evidencias), los
+ * resultados obtenidos, las conclusiones preliminares y los elementos de discusión si se usaron. Es el mismo proceso del
+ * cronograma, así que el contenido del informe se va construyendo durante la ejecución. El bloque de preparación del
+ * informe no entra: las conclusiones finales son un capítulo redactado.
+ */
+export function desarrolloPorObjetivo(args: {
+  arbol: NodoPlan;
+  registros: RegistroResultado[];
+  evidencias: EvidenciaResultado[];
+  numero: number | null;
+}): { bloques: BloqueDocumento[]; anexos: AnexoDocumento[] } {
+  const { arbol, registros, evidencias, numero } = args;
+  const validos = registros.filter((r) => cuenta(r.estado)).sort((a, b) => a.periodo - b.periodo);
+  const procesos = procesoPorObjetivo(arbol, validos.map((r) => ({ nodoId: r.nodoId, periodo: r.periodo, avance: r.avance, estado: r.estado })));
+  const anexos: AnexoDocumento[] = [];
+  const anexar = (a: ArchivoResultado, procedencia: string) => {
+    anexos.push({ etiqueta: `Anexo ${anexos.length + 1}`, descripcion: a.leyenda, tipo: a.tipo, url: a.url, nombre: a.nombre, actividad: procedencia, nota: a.nota });
+    return `Anexo ${anexos.length}`;
+  };
+  const sub = (...k: number[]) => (numero ? `${[numero, ...k].join(".")} ` : "");
+  const objetivos = procesos.filter((p) => !p.nodo.cierre);
+  const validados = objetivos.filter((p) => p.cerrado).length;
+  const avanceGeneral = avancePorNodo(arbol, avancesEnviados(validos)).get(arbol.id) ?? 0;
+
+  const bloques: BloqueDocumento[] = [
+    { tipo: "subtitulo", texto: `${sub(1)}Objetivo general` },
+    { tipo: "parrafos", parrafos: [`${sinPunto(arbol.titulo) || "Objetivo general"}.`, `Avance alcanzado: ${avanceGeneral} %. Objetivos específicos validados por el asesor: ${validados} de ${objetivos.length}.`] },
+  ];
+
+  // Registros de una hoja, en orden, con sus fechas, lo que se hizo, lo que se obtuvo y sus evidencias como anexos.
+  const registrosDe = (hoja: NodoPlan, conAcciones: boolean): string[] =>
+    validos.filter((r) => r.nodoId === hoja.id).map((r) => {
+      const fechas = r.fechaInicio && r.fechaFin ? `Del ${fecha(r.fechaInicio)} al ${fecha(r.fechaFin)}: ` : "";
+      const partes = [conAcciones && r.acciones?.trim() ? `${sinPunto(r.acciones)}.` : "", r.resultado?.trim() ? `${sinPunto(r.resultado)}.` : ""].filter(Boolean).join(" ");
+      const citas = evidencias.filter((e) => e.nodoId === hoja.id && e.periodo === r.periodo).map((e) => anexar(e, `${hoja.componente ? "elemento" : "subactividad"} ${hoja.codigo}`));
+      return `${fechas}${partes || "Sin descripción."}${citas.length ? ` Evidencias: ${citas.join(", ")}.` : ""}`;
+    });
+
+  objetivos.forEach((p, k) => {
+    const o = p.nodo;
+    bloques.push({ tipo: "subtitulo", texto: `${sub(k + 2)}Objetivo específico ${o.codigo}: ${sinPunto(o.titulo)}` });
+    bloques.push({ tipo: "parrafos", parrafos: [`Avance: ${p.avance} %. ${p.cerrado ? "Todos sus elementos fueron validados por el asesor." : "Tiene elementos pendientes de validación."}`] });
+    let j = 0;
+    for (const parte of PARTES_OBJETIVO) {
+      const el = p.elementos.find((e) => e.nodo.componente === parte.clave);
+      if (!el || !el.cuenta) continue;
+      const e = el.nodo;
+      bloques.push({ tipo: "subtitulo", texto: `${sub(k + 2, ++j)}${parte.titulo}` });
+      const parrafos: string[] = [];
+      if (parte.clave === "metodologia") {
+        const m = leerMetodologia(e);
+        const plan = textoMetodologia(m.parrafos);
+        if (plan) parrafos.push(...plan.split("\n\n"));
+        if (m.propia && textoMetodologia(m.fundamentacion)) parrafos.push(`Fundamentación de la metodología propia: ${textoMetodologia(m.fundamentacion).replace(/\n\n/g, " ")}`);
+      }
+      const hojas = hojasElemento(e);
+      // Desarrollo: cada registro cuenta lo que se hizo y cómo; en los demás elementos importa lo que se obtuvo.
+      const conAcciones = parte.clave === "desarrollo" || parte.clave === "metodologia";
+      const lineas = hojas.flatMap((h) => registrosDe(h, conAcciones).map((t) => (hojas.length > 1 || h !== e ? `${h.codigo} ${sinPunto(h.titulo)}. ${t}` : t)));
+      if (parte.clave === "metodologia") {
+        if (lineas.length) parrafos.push(`Aplicación: ${lineas.join(" ")}`);
+        bloques.push(parrafos.length ? { tipo: "parrafos", parrafos } : { tipo: "pendiente", texto: "Pendiente: la metodología de este objetivo todavía no se ha descrito." });
+      } else if (lineas.length === 0) {
+        bloques.push({ tipo: "pendiente", texto: `Pendiente: «${e.titulo}» todavía no tiene registros enviados.` });
+      } else if (parte.clave === "desarrollo" || hojas.length > 1) {
+        bloques.push({ tipo: "lista", items: lineas });
+      } else {
+        bloques.push({ tipo: "parrafos", parrafos: lineas });
+      }
     }
   });
   return { bloques, anexos };

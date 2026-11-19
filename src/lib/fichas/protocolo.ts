@@ -42,8 +42,9 @@ export function problemasProtocolo(
       if (!e.obligatorio && tipo.partes.every((x) => parteVacia(x, c.partes[x.id])) && !(contexto.fuentesReferencias?.length && tipo.especiales.includes("referencias"))) continue;
       // Un solo pendiente por apartado, con los subapartados que faltan o no llegan al mínimo.
       const faltan = revisarApartado(tipo, c, opcionesDeEspacio(e, etapa.tipo ?? "protocolo"), contexto).filter((r) => r.nivel === "falta");
-      const nombres = faltan.map((r) => tipo.partes.find((x) => x.id === r.parte)?.titulo ?? r.mensaje);
-      if (faltan.length) p(`"${e.titulo}": ${faltan.length === 1 ? "falta completar" : `faltan ${faltan.length} subapartados:`} ${nombres.join(", ")}.`);
+      // Un subapartado con dos faltas (vacío y sin fuente, por ejemplo) se nombra una sola vez.
+      const nombres = [...new Set(faltan.map((r) => tipo.partes.find((x) => x.id === r.parte)?.titulo ?? r.mensaje))];
+      if (nombres.length) p(`"${e.titulo}": ${nombres.length === 1 ? "falta completar" : `faltan ${nombres.length} subapartados:`} ${nombres.join(", ")}.`);
     } else if (e.elemento === "recursos_presupuesto") {
       for (const m of problemasRecursos(e, leerRecursos(valor))) p(m);
     } else if (esRecurso(e.elemento)) {

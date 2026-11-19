@@ -3,11 +3,15 @@
 // Editor del plan de trabajo del equipo (entrega P3). El líder estructura y asigna responsables; cada integrante
 // completa lo que está a su cargo. Las reglas salen de la etapa "Plan de trabajo" de la ficha. El servidor vuelve a
 // validar todo (actions/planTrabajo.ts); aquí se replica para avisar antes.
-import { useMemo, useState, useTransition } from "react";
+import { Fragment, useMemo, useState, useTransition } from "react";
+import MetodologiaObjetivo from "./MetodologiaObjetivo";
+import { fuentesCitadasPlan } from "@/lib/fichas/metodologiaPlan";
 import { useRouter } from "next/navigation";
 import { enviarPlanTrabajo, guardarPlanTrabajo, revisarPlanTrabajo, type DatosPlan } from "@/app/actions/planTrabajo";
-import { documentoSolicitado, productosObjetivo } from "@/lib/fichas/tipos";
-import { aplanar, cargaPorIds, numerar, planIndividual, productosDe, responsables, totalesNodo, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
+import { componentesDe, documentoSolicitado, esCronogramaInvestigacion, productosObjetivo } from "@/lib/fichas/tipos";
+import {
+  aplanar, cargaPorIds, esHojaPlan, normalizarArbol, numerar, planIndividual, productosDe, responsables, totalesNodo, validarPlanEquipo, type NodoPlan, type ProblemaPlan,
+} from "@/lib/fichas/planTrabajo";
 
 const NIVEL = ["", "Objetivo general", "Objetivo específico", "Macroactividad", "Actividad", "Subactividad"];
 const HIJO = ["", "objetivo", "macroactividad", "actividad", "subactividad", ""];
@@ -52,6 +56,7 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
   const editableEstado = (rol === "lider" || rol === "integrante") && (estado === "redactando" || estado === "observado");
   const resp = useMemo(() => responsables(arbol), [arbol]);
   const problemas = useMemo(() => validarPlanEquipo(arbol, etapa, equipo.map((i) => i.id), columnas.length), [arbol, etapa, equipo, columnas.length]);
+  const citadas = useMemo(() => fuentesCitadasPlan(arbol), [arbol]);
   const carga = useMemo(() => cargaPorIds(arbol, equipo.map((i) => i.id), columnas.length), [arbol, equipo, columnas.length]);
   // Nombre corto: primer nombre y última palabra (en equipos con nombres parecidos, la última los distingue).
   const nombre = (id: number | null | undefined) => {
@@ -68,21 +73,29 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
   const prot = datos.protocolo;
   const queSeEnvia = prot ? "el protocolo y el plan" : "el plan";
   const maxNivel = etapa.subactividades === "no" ? 4 : 5;
+  // Cronograma de investigación (notas del 19-nov-2026): los elementos del proceso y el bloque de preparación del
+  // informe los pone el sistema; solo se agregan objetivos y subactividades de cada elemento.
+  const investigacion = esCronogramaInvestigacion(etapa);
+  const opcionales = new Set(componentesDe(etapa).filter((c) => !c.obligatorio).map((c) => c.clave));
+  const fijo = (n: NodoPlan) => !!n.componente || !!n.cierre;
+  const hijoDe = (n: NodoPlan) => (investigacion ? (n.nivel === 1 ? "objetivo" : n.componente ? "subactividad" : "") : HIJO[n.nivel]);
+  const nombreNivel = (n: NodoPlan) => (investigacion && n.nivel === 4 ? "Subactividad" : NIVEL[n.nivel]);
 
   const mostrado = vista === 0 ? arbol : planIndividual(arbol, vista);
   const filas = mostrado ? aplanar(mostrado) : [];
 
   const puedeEditar = (n: NodoPlan) => editableEstado && vista === 0 && (rol === "lider" || resp.get(n.id) === miId);
-  const puedeAgregar = (n: NodoPlan) => editableEstado && vista === 0 && n.nivel < maxNivel && (rol === "lider" || (n.nivel >= 2 && resp.get(n.id) === miId));
+  const puedeAgregar = (n: NodoPlan) =>
+    editableEstado && vista === 0 && (investigacion ? !!hijoDe(n) : n.nivel < maxNivel) && (rol === "lider" || (n.nivel >= 2 && resp.get(n.id) === miId));
   const puedeQuitar = (n: NodoPlan) => {
-    if (!editableEstado || vista !== 0 || n.nivel === 1) return false;
+    if (!editableEstado || vista !== 0 || n.nivel === 1 || fijo(n)) return false;
     if (rol === "lider") return true;
     const padre = buscarPadre(arbol, n.id);
     return !!padre && resp.get(padre.id) === miId && resp.get(n.id) === miId;
   };
 
   function cambiar(nuevo: NodoPlan) {
-    setArbol(numerar(nuevo));
+    setArbol(numerar(normalizarArbol(nuevo, etapa)));
     setSucio(true);
     setMensaje(null);
   }
@@ -175,6 +188,7 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
       <section className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-3">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div className="text-xs text-muted max-w-xl">
+            {investigacion && "Cada objetivo se organiza por los elementos de su proceso metodológico; cada elemento puede tener subactividades. Las evidencias se suben en los registros de la ejecución. "}
             Cada nivel suma los montos de sus hijos por {porSub ? "subperíodo" : "período"}, hasta el objetivo general.
             {etapa.presupuesto.activo ? ` Montos en ${etapa.presupuesto.moneda}.` : " Marca en qué columnas se ejecuta cada actividad."}
           </div>
@@ -215,19 +229,25 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
             <tbody className="divide-y divide-gray-100">
               {filas.map((n) => {
                 const totales = totalesNodo(n, columnas.length);
-                const hoja = n.hijos.length === 0 && n.nivel >= 4;
+                const hoja = esHojaPlan(n);
                 const editable = puedeEditar(n);
-                const asignable = equipoMultiple && rol === "lider" && editableEstado && vista === 0 && n.nivel === nivelResp;
+                const asignable = equipoMultiple && rol === "lider" && editableEstado && vista === 0 && n.nivel === nivelResp && !n.cierre;
+                // Metodología del objetivo (E2): debajo de su elemento, a todo el ancho de la tabla.
+                const conMetodologia = !!datos.metodologia && n.componente === "metodologia";
                 return (
-                  <tr key={n.id} className={n.nivel === 1 ? "bg-gray-100 font-bold" : n.nivel === 2 ? "bg-sky-50/60 font-bold" : n.nivel === 3 ? "font-bold text-gray-700" : "text-gray-700"}>
+                  <Fragment key={n.id}>
+                  <tr className={n.nivel === 1 ? "bg-gray-100 font-bold" : n.cierre ? "bg-amber-50/70 font-bold" : n.nivel === 2 ? "bg-sky-50/60 font-bold" : n.nivel === 3 ? "font-bold text-gray-700" : "text-gray-700"}>
                     <td className="px-2 py-1 font-mono text-gray-500 align-top pt-2">{n.codigo}</td>
                     <td className="px-2 py-1" style={{ paddingLeft: `${0.5 + (n.nivel - 1) * 0.9}rem` }}>
-                      {editable && n.nivel > 1 ? (
-                        <input aria-label={`Título de ${n.codigo}`} value={n.titulo} placeholder={NIVEL[n.nivel]} maxLength={500}
+                      {editable && n.nivel > 1 && !fijo(n) ? (
+                        <input aria-label={`Título de ${n.codigo}`} value={n.titulo} placeholder={nombreNivel(n)} maxLength={500}
                           onChange={(e) => cambiar(actualizar(arbol, n.id, (x) => ({ ...x, titulo: e.target.value })))}
                           className="w-full h-8 border border-gray-200 rounded-md px-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25" />
                       ) : (
-                        <span>{n.titulo || <em className="text-gray-400">{NIVEL[n.nivel]} sin título</em>}</span>
+                        <span>
+                          {n.titulo || <em className="text-gray-400">{nombreNivel(n)} sin título</em>}
+                          {n.componente && opcionales.has(n.componente) && <span className="ml-1.5 text-[10px] font-normal text-gray-500">(opcional)</span>}
+                        </span>
                       )}
                       {n.nivel === 2 && pideProductos !== "no" && (
                         editable ? (
@@ -280,7 +300,7 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
                     <td className="px-2 py-1 text-right tabular-nums font-bold">{etapa.presupuesto.activo ? dinero(totales.reduce((a, b) => a + b, 0), etapa.presupuesto.moneda) : ""}</td>
                     <td className="px-1 py-1 text-right whitespace-nowrap">
                       {puedeAgregar(n) && (
-                        <button type="button" onClick={() => agregar(n)} className="text-[11px] font-bold text-brand-red hover:underline mr-2">+ {HIJO[n.nivel]}</button>
+                        <button type="button" onClick={() => agregar(n)} className="text-[11px] font-bold text-brand-red hover:underline mr-2">+ {hijoDe(n)}</button>
                       )}
                       {puedeQuitar(n) && (
                         <button type="button" aria-label={`Quitar ${n.codigo}`} onClick={() => { if (n.hijos.length === 0 || window.confirm(`¿Quitar ${n.codigo} y todo lo que contiene?`)) cambiar(quitar(arbol, n.id)); }}
@@ -288,6 +308,17 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
                       )}
                     </td>
                   </tr>
+                  {conMetodologia && (
+                    <tr>
+                      <td />
+                      <td colSpan={(equipoMultiple ? 1 : 0) + visibles.length + 3} className="px-2 pb-2" style={{ paddingLeft: `${0.5 + (n.nivel - 1) * 0.9}rem` }}>
+                        <MetodologiaObjetivo nodo={n} objetivo={buscarPadre(arbol, n.id)?.titulo ?? ""} editable={editable} propuestaId={datos.propuesta.id}
+                          fuentes={datos.metodologia!.fuentes} citadas={citadas} registroEditable={rol === "lider" && editableEstado} protocolo={datos.metodologia!.protocolo}
+                          onChange={(m) => cambiar(actualizar(arbol, n.id, (x) => ({ ...x, metodologia: m })))} />
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -304,7 +335,7 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
             {carga.map((c) => (
               <div key={c.integrante} className="border border-gray-200 rounded-lg px-3 py-2 text-xs text-gray-600">
                 <div className="font-bold text-gray-800 text-sm">{equipo.find((i) => i.id === c.integrante)?.nombre}</div>
-                {c.objetivos} objetivos · {c.macroactividades} macro · {c.actividades} actividades
+                {investigacion ? `${c.objetivos} objetivos · ${c.actividades} subactividades` : `${c.objetivos} objetivos · ${c.macroactividades} macro · ${c.actividades} actividades`}
                 {etapa.presupuesto.activo && <div>Presupuesto: {dinero(c.monto, etapa.presupuesto.moneda) || "—"}</div>}
               </div>
             ))}

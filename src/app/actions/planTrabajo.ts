@@ -14,7 +14,14 @@ import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaProtocolo, t
 import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
 
 const fechaCorta = (d: Date) => d.toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" });
-import { cambioNoPermitido, numerar, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
+import { cambioNoPermitido, normalizarArbol, numerar, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
+import { COMPONENTES_CIERRE, COMPONENTES_INVESTIGACION, type Espacio } from "@/lib/fichas/tipos";
+import { arbolConCitas, metodologiaValida, pideMetodologia } from "@/lib/fichas/metodologiaPlan";
+import { leerApartado, parteVacia, textoParte, tipoApartado } from "@/lib/fichas/apartadosAcademicos";
+import { respuestasEspacios } from "@/lib/schema";
+import type { Fuente } from "@/lib/fichas/fuentes";
+
+const CLAVES_COMPONENTE: unknown[] = [...COMPONENTES_INVESTIGACION, ...COMPONENTES_CIERRE].map((c) => c.clave);
 import { notificarEquipo } from "@/lib/notificarEquipo";
 
 /** Estados de la propuesta en los que ya existe (o puede crearse) el plan de trabajo. */
@@ -42,6 +49,11 @@ export interface DatosPlan {
   protocolo: { nombre: string; diasRevision: number; diasHabiles: boolean; fechaLimite: string | null } | null;
   /** La ficha tiene informe final por capítulos (investigación, I5). */
   informeFinal: boolean;
+  /**
+   * Cronograma de investigación con metodología por objetivo (entrega E2): el registro de fuentes del trabajo, para citar,
+   * y la metodología del protocolo por subapartados, para partir de ella. null si la ficha no la pide.
+   */
+  metodologia: { fuentes: Fuente[]; protocolo: string[] } | null;
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string; problemas?: ProblemaPlan[] };
@@ -66,11 +78,14 @@ async function equipoDe(propuestaId: number, liderId: number): Promise<Integrant
   return [{ ...lider, lider: true }, ...otros.map((o) => ({ ...o, lider: false }))];
 }
 
-/** Árbol inicial: el objetivo general y los objetivos específicos de la propuesta aprobada. */
-async function arbolInicial(propuestaId: number): Promise<NodoPlan> {
+/**
+ * Árbol inicial: el objetivo general y los objetivos específicos de la propuesta aprobada. En el cronograma de
+ * investigación, cada objetivo con sus elementos del proceso y el bloque de preparación del informe al final.
+ */
+async function arbolInicial(propuestaId: number, etapa: EtapaPlan): Promise<NodoPlan> {
   const [det] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
   const especificos = (Array.isArray(det?.objetivosEspecificos) ? det.objetivosEspecificos : []) as { titulo?: string }[];
-  return numerar({
+  return normalizarArbol(numerar({
     id: "og",
     codigo: "1",
     nivel: 1,
@@ -78,7 +93,7 @@ async function arbolInicial(propuestaId: number): Promise<NodoPlan> {
     responsable: null,
     montos: [],
     hijos: especificos.map((o) => ({ id: crypto.randomUUID(), codigo: "", nivel: 2, titulo: o.titulo?.trim() || "", responsable: null, montos: [], hijos: [] })),
-  });
+  }), etapa);
 }
 
 /** Comprueba la forma del árbol recibido del navegador (no las reglas de la ficha). */
@@ -94,6 +109,9 @@ function arbolValido(x: unknown, columnas: number): x is NodoPlan {
       typeof o.titulo === "string" && o.titulo.length <= 500 &&
       o.nivel === nivel &&
       (o.responsable === null || (typeof o.responsable === "number" && Number.isInteger(o.responsable))) &&
+      (o.componente === undefined || CLAVES_COMPONENTE.includes(o.componente)) &&
+      (o.metodologia === undefined || (o.componente === "metodologia" && metodologiaValida(o.metodologia))) &&
+      (o.cierre === undefined || typeof o.cierre === "boolean") &&
       (o.documento === undefined || (typeof o.documento === "string" && o.documento.length <= 300)) &&
       (o.productos === undefined || (Array.isArray(o.productos) && o.productos.length <= 15 && o.productos.every((p) => typeof p === "string" && p.length <= 200))) &&
       Array.isArray(o.montos) && o.montos.length <= columnas && o.montos.every((m) => typeof m === "number" && Number.isFinite(m) && m >= 0 && m <= 1e9) &&
@@ -132,14 +150,14 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
     if (rol !== "lider" && rol !== "integrante") return { success: false, error: "El equipo todavía no ha empezado su plan de trabajo." };
     [fila] = await db
       .insert(planesTrabajo)
-      .values({ propuestaId, fichaVersionId: ficha.version.id, arbol: await arbolInicial(propuestaId), columnas: columnas.length, actualizadoPor: session.userId })
+      .values({ propuestaId, fichaVersionId: ficha.version.id, arbol: await arbolInicial(propuestaId, etapa), columnas: columnas.length, actualizadoPor: session.userId })
       .onConflictDoNothing()
       .returning();
     if (!fila) [fila] = await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, propuestaId));
   }
 
   // Proyecto individual: no hay responsables que asignar; todo el plan es del único integrante (así lo lee la ejecución).
-  const guardado = fila.arbol as NodoPlan;
+  const guardado = normalizarArbol(fila.arbol as NodoPlan, etapa);
   const arbol = equipo.length === 1 && guardado.responsable == null ? { ...guardado, responsable: equipo[0].id } : guardado;
 
   return {
@@ -168,8 +186,26 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
           }
         : null,
       informeFinal,
+      metodologia: pideMetodologia(etapa) ? { fuentes: await fuentesDe(propuestaId), protocolo: await metodologiaDelProtocolo(propuestaId, protocolo?.espacios ?? []) } : null,
     },
   };
+}
+
+async function fuentesDe(propuestaId: number): Promise<Fuente[]> {
+  const { fuentesDePropuesta } = await import("./fuentesTrabajo");
+  return fuentesDePropuesta(propuestaId);
+}
+
+/** Metodología del protocolo, un párrafo por subapartado escrito ("Población y muestra: …"), para partir de ella. */
+async function metodologiaDelProtocolo(propuestaId: number, espacios: Espacio[]): Promise<string[]> {
+  const e = espacios.find((x) => x.elemento === "apartado" && tipoApartado(x)?.clave === "metodologia");
+  const tipo = e ? tipoApartado(e) : null;
+  if (!e || !tipo) return [];
+  const [fila] = await db.select({ contenido: respuestasEspacios.contenido }).from(respuestasEspacios)
+    .where(and(eq(respuestasEspacios.propuestaId, propuestaId), eq(respuestasEspacios.espacioId, e.id)));
+  if (!fila?.contenido) return [];
+  const c = leerApartado(tipo, fila.contenido);
+  return tipo.partes.filter((p) => !parteVacia(p, c.partes[p.id])).map((p) => `${p.titulo}: ${textoParte(tipo, c, p.id).trim()}`);
 }
 
 export async function guardarPlanTrabajo(propuestaId: number, arbol: unknown, version: number): Promise<Resultado<{ version: number }>> {
@@ -182,7 +218,9 @@ export async function guardarPlanTrabajo(propuestaId: number, arbol: unknown, ve
     if (datos.plan.version !== version) return { success: false, error: "Otro integrante guardó cambios mientras editabas. Recarga la página para ver la última versión." };
     if (!arbolValido(arbol, datos.columnas.length)) return { success: false, error: "El plan recibido no tiene una forma válida." };
 
-    const nuevo = numerar(arbol);
+    let nuevo = numerar(normalizarArbol(arbol, datos.etapa));
+    // Metodología por objetivo (E2): las citas las arma el servidor con el registro de fuentes.
+    if (datos.metodologia) nuevo = arbolConCitas(nuevo, new Map(datos.metodologia.fuentes.map((f) => [f.id, f.datos])));
     if (datos.rol === "integrante") {
       const motivo = cambioNoPermitido(datos.plan.arbol, nuevo, datos.miId);
       if (motivo) return { success: false, error: motivo };
