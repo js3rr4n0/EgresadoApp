@@ -30,6 +30,8 @@ import { notificarEquipo } from "@/lib/notificarEquipo";
 import { AUTORIDADES_ACADEMICAS } from "@/lib/informeFinal";
 import { resultadosPorObjetivo } from "@/lib/fichas/resultadosObjetivos";
 import { bloquesBitacora, entradasBitacora } from "@/lib/fichas/bitacora";
+import { referenciasOrdenadas } from "@/lib/fichas/fuentes";
+import { fuentesDePropuesta } from "./fuentesTrabajo";
 import { notaImagen } from "@/lib/fuenteImagen";
 import { apartadosInformeFinal, portadaInformeFinal, type AnexoDocumento, type BloqueDocumento, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
 
@@ -570,7 +572,7 @@ export async function getDocumentoInformeFinal(propuestaId: number): Promise<Res
     if (e.elemento === "reporte_modificaciones") return bloquesBitacora(entradasBitacora(datosRes));
     generados = resultadosPorObjetivo({ ...datosRes, numero });
     return generados.bloques;
-  });
+  }, { referencias: referenciasOrdenadas(await fuentesDePropuesta(propuestaId)).map((x) => x.referencia) });
 
   const anexos: AnexoDocumento[] = [
     ...generados.anexos,

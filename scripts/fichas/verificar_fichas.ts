@@ -8,7 +8,7 @@
 import { readFileSync } from "fs";
 import path from "path";
 import { definicionBase, VALORES_FASE1_COPIADOS as V } from "../../src/lib/fichas/fichasBase";
-import { tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/validar";
+import { problemasPartes, tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/validar";
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
 import { diasSubperiodos, documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaInformeFinal, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, productosObjetivo, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
 import { ejecucionNueva, informeFinalNuevo, planNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
@@ -16,15 +16,19 @@ import { CATALOGO, elementoEnEtapa, GRUPOS_CATALOGO, parametrosPorDefecto } from
 import { leerItems, problemasRecurso, recursoCompleto } from "../../src/lib/fichas/elementosRecurso";
 import { fechaLimiteDictamen, precargaEspacio, problemasProtocolo, sumarDias, textoPrecarga } from "../../src/lib/fichas/protocolo";
 import {
-  avanceApartado, citasEnTexto, guardarComoTexto, leerApartado, opcionesDeEspacio, parteVacia, revisarApartado, revisarReferencias, tipoApartado,
+  avanceApartado, citasEnTexto, configInicial, configMetodologia, ENFOQUES_METODOLOGIA, guardarComoTexto, leerApartado, opcionesDeEspacio, parteVacia, revisarApartado, revisarReferencias, textoParte, tipoApartado,
   TIPOS_APARTADO, type ContenidoApartado,
 } from "../../src/lib/fichas/apartadosAcademicos";
 import type { Espacio } from "../../src/lib/fichas/tipos";
 import { CAPITULO_NUEVO, capituloEditable, capitulosPendientes, contenidoVacio, editandoOtro, capituloGenerado, precargaCapitulo, problemasInformeFinal, textoConclusionesObjetivos, textoMarcoRegistros } from "../../src/lib/fichas/informeFinalFicha";
 import { avanceObjetivo, problemasEntrega, quienesEntregan, revisarConclusionObjetivo } from "../../src/lib/fichas/entregasObjetivo";
 import { resultadosPorObjetivo } from "../../src/lib/fichas/resultadosObjetivos";
+import { bloquesCronograma, bloquesRecursos } from "../../src/lib/fichas/documentoProtocolo";
+import { limpiarRecursos, presupuesto, problemasRecursos, reglasRecursos, type Recurso } from "../../src/lib/fichas/recursos";
+import { citaDeFuentes, citaEnTexto, conCitas, fuentesCitadas, guardarParrafos, leerParrafos, parrafoConCita, type ParrafoCitado } from "../../src/lib/fichas/fuentes";
+import { datosCitaVacios, type DatosCitaApa } from "../../src/lib/citaApa";
 import { bloquesBitacora, entradasBitacora, limpiarModificacion, textoEntrada } from "../../src/lib/fichas/bitacora";
-import { apartadosInformeFinal } from "../../src/lib/fichas/documentoInformeFinal";
+import { apartadosInformeFinal, portadaInformeFinal } from "../../src/lib/fichas/documentoInformeFinal";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
 import { adelantable, periodosPlanificados, ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, faltaParaAvance, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, productosDe, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
@@ -49,7 +53,10 @@ function apartadoCompleto(e: Pick<Espacio, "parametros">): string {
     else if (p.formato === "pregunta") partes[p.id] = `¿${relleno(Math.max(p.min ?? 0, 8)).slice(0, -1)}?`;
     else if (p.formato === "seleccion") partes[p.id] = p.opciones![0].valor;
     else if (p.formato === "tabla") partes[p.id] = JSON.stringify([(p.columnas ?? []).map((c) => `${c} 1`)]);
-    else partes[p.id] = "Uno\nDos\nTres";
+    else if (p.formato === "citado") partes[p.id] = JSON.stringify([{ texto: relleno(Math.max(p.min ?? 0, 5)), fuentes: [1], cita: "Pérez, 2024" }]);
+    else if (p.formato === "referencias") {
+      partes[p.id] = Array.from({ length: Math.max(p.minItems ?? 0, 3) }, (_, k) => `Autor${String.fromCharCode(65 + k)}, A. (2024). Obra ${k + 1}. Editorial.`).join("\n");
+    } else partes[p.id] = "Uno\nDos\nTres";
   }
   return guardarComoTexto({ partes, autoevaluacion: [] });
 }
@@ -409,10 +416,11 @@ const protocoloDe = (d: DefinicionFicha) => d.etapas.find(esEtapaProtocolo)!;
   comprobar("La ficha de investigación con protocolo, plan y ejecución es válida", problemas.length === 0, problemas.map((p) => p.mensaje).join(" | "));
   comprobar("La ficha de investigación completa tiene la forma esperada", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
   const prot = protocoloDe(d);
-  comprobar("El protocolo trae las partes de UNICAES (13 espacios: apartados académicos, matriz, esquema y anexos)",
-    prot.espacios.length === 13 && ["apartado", "tabla", "lista", "archivo"].every((el) => prot.espacios.some((e) => e.elemento === el)));
+  comprobar("El protocolo trae las partes de la reunión (14 espacios: apartados, matriz, recursos y anexos; sin esquema del informe)",
+    prot.espacios.length === 14 && ["apartado", "tabla", "recursos_presupuesto", "archivo"].every((el) => prot.espacios.some((e) => e.elemento === el))
+      && !prot.espacios.some((e) => e.id === "esquema_informe"));
   comprobar("Las partes del protocolo son apartados de los tipos de la guía de UNICAES",
-    prot.espacios.filter((e) => e.elemento === "apartado").map((e) => e.parametros.tipo).join() === "generalidades,problematica,justificacion,objetivos,hipotesis,variables,fundamentacion,metodologia,referencias");
+    prot.espacios.filter((e) => e.elemento === "apartado").map((e) => e.parametros.tipo).join() === "generalidades,problematica,justificacion,objetivos,fundamentacion,hipotesis,variables,metodologia,consideraciones_eticas,referencias");
   comprobar("El protocolo precarga la problemática, la justificación y los objetivos",
     prot.espacios.filter((e) => e.precargarDe).map((e) => e.precargarDe).join() === "problema,justificacion,objetivos");
   comprobar("El dictamen del protocolo es a 5 días hábiles", prot.revision.diasRevision === 5 && prot.revision.diasHabiles);
@@ -471,6 +479,7 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
     if (e.elemento === "texto") completo[e.id] = relleno(Number(e.parametros.minPalabras) || 5);
     if (e.elemento === "lista") completo[e.id] = JSON.stringify(["Uno", "Dos", "Tres"]);
     if (e.elemento === "apartado" && e.obligatorio) completo[e.id] = apartadoCompleto(e);
+    if (e.elemento === "recursos_presupuesto") completo[e.id] = JSON.stringify(["tecnicos", "inmateriales", "operacionales"].map((categoria) => ({ categoria, descripcion: "Recurso", cantidad: 1, costoUnitario: 10 })));
   }
   comprobar("Un protocolo con sus partes obligatorias está completo", problemasProtocolo(prot, completo).length === 0, problemasProtocolo(prot, completo).map((p) => p.mensaje).join(" | "));
   comprobar("Una tabla opcional mal llenada sí cuenta como pendiente",
@@ -638,7 +647,7 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   // Revisiones propias de cada tipo
   comprobar("La pregunta de investigación va entre ¿?", ids(revisarApartado(T.problematica, c({ pregunta: "Qué relación existe entre A y B" }), op)).includes("pregunta-signos"));
   const obj = revisarApartado(T.objetivos, c({ general: "Analizar la relación entre el uso de la IA y el desempeño académico", especificos: "Conocer los hábitos\nLa encuesta" }), op);
-  comprobar("Objetivos: verbos en infinitivo, medibles y de 3 a 5 específicos", ["obj-infinitivo", "obj-medibles", "obj-cantidad"].every((k) => ids(obj).includes(k)), ids(obj).join());
+  comprobar("Objetivos: verbos en infinitivo, medibles y de 3 a 5 específicos", ["obj-infinitivo", "obj-medibles", "items-min-especificos"].every((k) => ids(obj).includes(k)), ids(obj).join());
   comprobar("Unos objetivos bien redactados se confirman",
     ids(revisarApartado(T.objetivos, c({ general: "Analizar la relación entre el uso de la IA y el desempeño académico", especificos: "Identificar A\nDeterminar B\nComparar C" }), op)).includes("obj-ok"));
   comprobar("La hipótesis nula debe negar la de investigación", ids(revisarApartado(T.hipotesis, c({ hi: "A", ho: "Existe relación entre A y B en la población" }), op)).includes("ho-negacion"));
@@ -724,7 +733,7 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
     protocoloDe(antes).espacios = protocoloDe(antes).espacios.map((e) => (e.elemento === "apartado" ? { ...e, elemento: "texto" as const, parametros: parametrosPorDefecto("texto") } : e));
     const cambios = compararDefiniciones(antes, investigacionCompleta());
     comprobar("Al cambiar un texto por un apartado, el cambio se resume en una línea por espacio",
-      cambios.some((c) => c.includes('"Objetivos": pasó de Bloque de texto a Apartado académico')) && !cambios.some((c) => c.includes("tipo de apartado")), cambios.slice(0, 3).join(" | "));
+      cambios.some((c) => c.includes('"Objetivos general y específicos": pasó de Bloque de texto a Apartado académico')) && !cambios.some((c) => c.includes("tipo de apartado")), cambios.slice(0, 3).join(" | "));
   }
 }
 
@@ -923,6 +932,200 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   const sin = structuredClone(d);
   for (const e of sin.etapas) if (e.tipo === "ejecucion") e.registro.adelantar = false;
   comprobar("Apagar el adelanto aparece como cambio", compararDefiniciones(d, sin).some((c) => c.toLowerCase().includes("adelantar actividades")));
+}
+
+// 22. Subapartados configurables en la ficha (ajustes al protocolo, 19-nov-2026)
+{
+  const prot = protocoloNuevo("p");
+  const prob = prot.espacios.find((e) => e.id === "problematica")!;
+  comprobar("Sin configuración, el apartado usa los subapartados del tipo", tipoApartado(prob)!.partes.map((p) => p.id).join() === "situacion,estado_arte,pregunta,importancia");
+  const sinEstado = { ...prob, partes: [{ id: "situacion", activa: true }, { id: "estado_arte", activa: false }, { id: "pregunta", activa: true }, { id: "importancia", activa: true }] };
+  comprobar("Un subapartado desactivado ya no se pide", tipoApartado(sinEstado)!.partes.map((p) => p.id).join() === "situacion,pregunta,importancia");
+  comprobar("Desactivado, tampoco cuenta como pendiente",
+    !problemasProtocolo({ tipo: "protocolo", espacios: [sinEstado] }, { problematica: guardarComoTexto({ partes: { situacion: "x ".repeat(130), pregunta: "¿Qué relación existe entre el uso de la IA y el desempeño de los estudiantes del curso?", importancia: "x ".repeat(70) }, autoevaluacion: [] }) }).length);
+  const just = prot.espacios.find((e) => e.id === "justificacion_protocolo")!;
+  const conTecnica = { ...just, partes: [...configInicial("justificacion"), { id: "x_viabilidad_tecnica", activa: true, titulo: "Viabilidad técnica", ayuda: "Equipos y conocimientos disponibles.", propia: { formato: "texto" as const }, min: 20, max: 100 }] };
+  const tj = tipoApartado(conTecnica)!;
+  const vt = tj.partes.find((p) => p.id === "x_viabilidad_tecnica");
+  comprobar("Un subapartado propio se pide con sus reglas", !!vt && vt.titulo === "Viabilidad técnica" && vt.min === 20 && vt.max === 100 && vt.propia === true);
+  comprobar("Un subapartado propio bajo el mínimo es pendiente",
+    revisarApartado(tj, { partes: { conveniencia: "x ".repeat(70), valor: "x ".repeat(70), viabilidad: "x ".repeat(50), x_viabilidad_tecnica: "Poco." }, autoevaluacion: [] }, { citasMinimas: 0, revisarPersona: false, tiempo: "no" })
+      .some((r) => r.id === "min-x_viabilidad_tecnica" && r.nivel === "falta"));
+  const renombrada = tipoApartado({ ...prob, partes: [{ id: "situacion", activa: true, titulo: "Descripción del problema", min: 50, max: 900, opcional: true }] })!;
+  const sit = renombrada.partes[0];
+  comprobar("Se renombra un subapartado y se cambian sus reglas", sit.titulo === "Descripción del problema" && sit.min === 50 && sit.max === 900 && sit.opcional === true);
+  comprobar("Los subapartados que la ficha no menciona siguen activos al final", renombrada.partes.map((p) => p.id).join() === "situacion,estado_arte,pregunta,importancia");
+  comprobar("El orden de la configuración se respeta",
+    tipoApartado({ ...prob, partes: [{ id: "pregunta", activa: true }, { id: "situacion", activa: true }] })!.partes.map((p) => p.id).slice(0, 2).join() === "pregunta,situacion");
+
+  // Elementos o filas
+  const vars = prot.espacios.find((e) => e.id === "variables")!;
+  const fila = (k: number) => [`V${k}`, "Def", "Op", "Ind"];
+  const cuadro = (n: number) => guardarComoTexto({ partes: { cuadro: JSON.stringify(Array.from({ length: n }, (_, k) => fila(k))) }, autoevaluacion: [] });
+  const rv = (e: Espacio, n: number) => revisarApartado(tipoApartado(e)!, leerApartado(tipoApartado(e)!, cuadro(n)), { citasMinimas: 0, revisarPersona: false, tiempo: "no" });
+  comprobar("El cuadro de variables admite hasta 10 filas por defecto", !rv(vars, 10).some((r) => r.id === "items-max-cuadro") && rv(vars, 11).some((r) => r.id === "items-max-cuadro" && r.nivel === "falta"));
+  const vars5 = { ...vars, partes: [{ id: "cuadro", activa: true, maxItems: 5 }] };
+  comprobar("La ficha cambia el máximo de filas", rv(vars5, 6).some((r) => r.id === "items-max-cuadro"));
+  comprobar("Los objetivos específicos piden de 3 a 5 elementos", (TIPOS_APARTADO.objetivos.partes.find((p) => p.id === "especificos")?.minItems ?? 0) === 3);
+
+  // Validación de la ficha
+  const valida = (e: Espacio) => problemasPartes(e);
+  comprobar("Una configuración correcta no tiene problemas", valida(conTecnica).length === 0 && valida(sinEstado).length === 0, valida(conTecnica).join(" | "));
+  comprobar("Detecta un apartado sin subapartados activos", valida({ ...prob, partes: configInicial("problematica").map((c) => ({ ...c, activa: false })) }).some((m) => m.includes("al menos un subapartado activo")));
+  comprobar("Detecta un subapartado que no existe en el tipo", valida({ ...prob, partes: [{ id: "inventado", activa: true }] }).some((m) => m.includes("no existe")));
+  comprobar("Detecta un subapartado propio sin título o con id no válido", valida({ ...prob, partes: [{ id: "malo", activa: true, propia: { formato: "texto" } }] }).length >= 2);
+  comprobar("Detecta un mínimo mayor que el máximo", valida({ ...prob, partes: [{ id: "situacion", activa: true, min: 500, max: 100 }] }).some((m) => m.includes("mínimo de palabras")));
+  comprobar("Detecta una tabla propia sin columnas", valida({ ...prob, partes: [{ id: "x_t", activa: true, titulo: "T", propia: { formato: "tabla", columnas: [] } }] }).some((m) => m.includes("columnas")));
+  const d = investigacionCompleta();
+  const conCambios = structuredClone(d);
+  const pp = conCambios.etapas.find(esEtapaProtocolo)!.espacios.find((e) => e.id === "problematica")!;
+  pp.partes = sinEstado.partes;
+  comprobar("La ficha con subapartados configurados es válida", validarDefinicion(conCambios).length === 0, validarDefinicion(conCambios).map((p) => p.mensaje).join(" | "));
+  comprobar("La ficha con subapartados conserva su forma", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(conCambios))));
+  const cambios = compararDefiniciones(d, conCambios);
+  comprobar("Desactivar un subapartado aparece como cambio", cambios.some((c) => c.includes("se desactivó «Estado del arte»")), cambios.join(" | "));
+  const conPropio = structuredClone(d);
+  conPropio.etapas.find(esEtapaProtocolo)!.espacios.find((e) => e.id === "justificacion_protocolo")!.partes = conTecnica.partes;
+  comprobar("Agregar un subapartado propio aparece como cambio", compararDefiniciones(d, conPropio).some((c) => c.includes("se agregó el subapartado «Viabilidad técnica»")));
+
+  // Metodología por enfoque
+  const met = prot.espacios.find((e) => e.id === "metodologia")!;
+  const cual = tipoApartado({ ...met, partes: configMetodologia("cualitativa") })!;
+  comprobar("La metodología cualitativa trae participantes y categorías de análisis",
+    cual.partes.some((p) => p.titulo === "Participantes y criterios de selección") && cual.partes.some((p) => p.id === "x_categorias" && p.formato === "tabla"));
+  comprobar("La metodología mixta agrega la integración de los datos", tipoApartado({ ...met, partes: configMetodologia("mixta") })!.partes.some((p) => p.id === "x_integracion"));
+  comprobar("Las tres metodologías son configuraciones válidas", ENFOQUES_METODOLOGIA.every((m) => problemasPartes({ ...met, partes: configMetodologia(m.valor) }).length === 0));
+}
+
+// 23. Fuentes, párrafos citados y referencias (ajustes al protocolo, 19-nov-2026)
+{
+  const fuente = (apellidos: string[], anio: string, titulo = "Obra"): DatosCitaApa => ({
+    ...datosCitaVacios("libro"), autores: apellidos.map((a) => ({ apellidos: a, iniciales: "A." })), anio, titulo, editorial: "Editorial",
+  });
+  comprobar("Cita de un autor", citaEnTexto(fuente(["Pérez"], "2020")) === "Pérez, 2020");
+  comprobar("Cita de dos autores", citaEnTexto(fuente(["Pérez", "Gómez"], "2019")) === "Pérez y Gómez, 2019");
+  comprobar("Cita de tres o más autores", citaEnTexto(fuente(["Hernández-Sampieri", "Fernández", "Baptista"], "2014")) === "Hernández-Sampieri et al., 2014");
+  comprobar("Cita de autor institucional y sin año", citaEnTexto({ ...datosCitaVacios("web"), autorInstitucional: "Organización Mundial de la Salud", anio: "" }) === "Organización Mundial de la Salud, s.f.");
+  const mapa = new Map<number, DatosCitaApa>([[1, fuente(["Ruiz"], "2021")], [2, fuente(["Alas", "Bonilla"], "2018")]]);
+  comprobar("Varias fuentes se citan en orden alfabético", citaDeFuentes([1, 2], mapa) === "Alas y Bonilla, 2018; Ruiz, 2021");
+  comprobar("La cita va al final del párrafo, antes del punto", parrafoConCita({ texto: "El estudio es clave.", fuentes: [1] }, "Ruiz, 2021") === "El estudio es clave (Ruiz, 2021).");
+  comprobar("Un texto anterior se lee como párrafos sin fuente", leerParrafos("Uno.\n\nDos.").map((p) => p.texto + p.fuentes.length).join("|") === "Uno.0|Dos.0");
+  comprobar("Al recalcular, una fuente quitada sale del párrafo y de la cita",
+    JSON.stringify(conCitas([{ texto: "T", fuentes: [1, 9] }], mapa)) === JSON.stringify([{ texto: "T", fuentes: [1], cita: "Ruiz, 2021" }]));
+  comprobar("Las fuentes citadas se reúnen de todos los apartados",
+    fuentesCitadas([{ id: "f", elemento: "apartado" }], { f: guardarComoTexto({ partes: { desarrollo: guardarParrafos([{ texto: "A", fuentes: [2] }, { texto: "B", fuentes: [1, 2] }]) }, autoevaluacion: [] }) }).sort().join() === "1,2");
+
+  // Revisión de la fundamentación
+  const prot = protocoloNuevo("p");
+  const fund = prot.espacios.find((e) => e.id === "fundamentacion")!;
+  const tf = tipoApartado(fund)!;
+  comprobar("La fundamentación se escribe en párrafos citados", tf.partes.find((p) => p.id === "desarrollo")?.formato === "citado");
+  const largo = "Los autores coinciden en que el hábito de estudio influye en el rendimiento académico de los estudiantes universitarios. ".repeat(10);
+  const conPar = (ps: ParrafoCitado[]) => ({ partes: { esquema: "1. Tema", desarrollo: guardarParrafos(ps) }, autoevaluacion: [] });
+  const op = { citasMinimas: 3, revisarPersona: true, tiempo: "no" as const };
+  const sinFuente = revisarApartado(tf, conPar([{ texto: largo, fuentes: [1], cita: "Ruiz, 2021" }, { texto: largo, fuentes: [] }]), op);
+  comprobar("Un párrafo sin fuente bloquea el envío", sinFuente.some((r) => r.id === "sin-fuente-desarrollo" && r.nivel === "falta"));
+  const libre = tipoApartado({ ...fund, partes: [{ id: "esquema", activa: true }, { id: "desarrollo", activa: true, citaPorParrafo: false }] })!;
+  comprobar("La ficha puede no exigir una fuente por párrafo", !revisarApartado(libre, conPar([{ texto: largo, fuentes: [] }]), op).some((r) => r.id === "sin-fuente-desarrollo"));
+  const citados = revisarApartado(tf, conPar([1, 2, 3].map(() => ({ texto: largo, fuentes: [1], cita: "Ruiz, 2021" }))), op);
+  comprobar("Las citas automáticas cuentan para el mínimo de citas", citados.some((r) => r.id === "citas-ok"), citados.map((r) => r.id).join());
+  comprobar("Los párrafos citados se exportan con su cita", textoParte(tf, conPar([{ texto: "A.", fuentes: [1], cita: "Ruiz, 2021" }, { texto: "B", fuentes: [] }]), "desarrollo") === "A (Ruiz, 2021).\n\nB");
+
+  // Referencias con el registro
+  const bib = prot.espacios.find((e) => e.id === "bibliografia")!;
+  const tb = tipoApartado(bib)!;
+  comprobar("Las referencias piden 20 como mínimo", tb.partes[0].minItems === 20);
+  const refs = (n: number) => Array.from({ length: n }, (_, k) => `Autor${k}, A. (2024). Obra ${k}. Editorial.`);
+  const vacia = { partes: {}, autoevaluacion: [] };
+  comprobar("Con 14 fuentes en el registro faltan referencias", revisarApartado(tb, vacia, op, { fuentesReferencias: refs(14) }).some((r) => r.id === "items-min-lista" && r.mensaje.includes("hay 14")));
+  comprobar("Con 20 fuentes en el registro, la lista vacía escrita a mano no falta",
+    !revisarApartado(tb, vacia, op, { fuentesReferencias: refs(20) }).some((r) => r.nivel === "falta"));
+  comprobar("El registro y las escritas a mano se suman",
+    !revisarApartado(tb, { partes: { lista: refs(5).join("\n") }, autoevaluacion: [] }, op, { fuentesReferencias: refs(15) }).some((r) => r.id === "items-min-lista"));
+  comprobar("Los pendientes del protocolo cuentan el registro",
+    !problemasProtocolo({ tipo: "protocolo", espacios: [bib] }, {}, { fuentesReferencias: refs(20) }).length && problemasProtocolo({ tipo: "protocolo", espacios: [bib] }, {}).length === 1);
+
+  // Precarga de la fundamentación al marco teórico del informe final (texto)
+  const marco = { ...informeFinalNuevo("if").espacios.find((e) => e.id === "if_marco")!, precargarDe: "fundamentacion" };
+  const pre = precargaEspacio(marco, prot.espacios, { descripcionProblema: "", justificacion: "", objetivoGeneral: "", objetivosEspecificos: [],
+    respuestas: { fundamentacion: guardarComoTexto(conPar([{ texto: "Primero.", fuentes: [1], cita: "Ruiz, 2021" }])) } });
+  comprobar("La fundamentación pasa al marco teórico como texto con sus citas", leerApartado(tipoApartado(marco)!, pre).partes.desarrollo === "Primero (Ruiz, 2021).");
+}
+
+// 24. Recursos y presupuesto, y plantilla nueva del protocolo (ajustes al protocolo, 19-nov-2026)
+{
+  const prot = protocoloNuevo("p");
+  const rec = prot.espacios.find((e) => e.elemento === "recursos_presupuesto")!;
+  const reglas = reglasRecursos(rec);
+  comprobar("Recursos: seis categorías, con costos en USD y al menos 3", reglas.categorias.length === 6 && reglas.conCostos && reglas.moneda === "USD" && reglas.minimo === 3);
+  const lista: Recurso[] = [
+    { categoria: "tecnicos", descripcion: "Laboratorio de cómputo (horas)", cantidad: 10, costoUnitario: 5 },
+    { categoria: "tecnicos", descripcion: "Proyector", cantidad: 1, costoUnitario: 25.5 },
+    { categoria: "operacionales", descripcion: "Gasolina", cantidad: 4, costoUnitario: 12.25 },
+  ];
+  const pres = presupuesto(lista);
+  comprobar("El presupuesto suma por categoría y en total",
+    pres.porCategoria.map((x) => `${x.categoria}:${x.total}`).join() === "tecnicos:75.5,operacionales:49" && pres.total === 124.5, JSON.stringify(pres));
+  comprobar("Recursos completos no tienen pendientes", problemasRecursos(rec, lista).length === 0);
+  comprobar("Faltan recursos si hay menos del mínimo", problemasRecursos(rec, lista.slice(0, 2)).some((m) => m.includes("al menos 3")));
+  comprobar("Con costos, cada recurso pide cantidad y costo", problemasRecursos(rec, [...lista, { categoria: "materiales", descripcion: "Reactivos" }]).some((m) => m.includes("sin cantidad")));
+  const sinCostos = { ...rec, parametros: { ...rec.parametros, conCostos: false, minimo: 1, categorias: ["tecnicos", "inmateriales"] } };
+  comprobar("Sin costos basta la descripción", problemasRecursos(sinCostos, [{ categoria: "tecnicos", descripcion: "Laboratorio" }]).length === 0);
+  const limpios = limpiarRecursos([...lista, { categoria: "inventada", descripcion: "X" }, { categoria: "inmateriales", descripcion: " Internet ", cantidad: 3 }], reglasRecursos(sinCostos));
+  comprobar("Al guardar quedan solo las categorías de la ficha y, sin costos, sin montos",
+    JSON.stringify(limpios) === JSON.stringify([{ categoria: "tecnicos", descripcion: "Laboratorio de cómputo (horas)" }, { categoria: "tecnicos", descripcion: "Proyector" }, { categoria: "inmateriales", descripcion: "Internet" }]), JSON.stringify(limpios));
+  comprobar("Un protocolo sin recursos los tiene pendientes", problemasProtocolo({ tipo: "protocolo", espacios: [rec] }, {}).length === 1);
+  comprobar("Los recursos solo van en el protocolo", elementoEnEtapa("recursos_presupuesto", "protocolo") && !elementoEnEtapa("recursos_presupuesto", "propuesta"));
+
+  // Plantilla nueva
+  comprobar("La plantilla sigue el orden de la reunión",
+    prot.espacios.map((e) => e.id).join() === "introduccion,generalidades,problematica,justificacion_protocolo,objetivos_protocolo,fundamentacion,hipotesis,matriz_hipotesis,variables,metodologia,eticas,recursos,bibliografia,anexos_protocolo");
+  comprobar("Las generalidades piden el resumen del proyecto", tipoApartado(prot.espacios.find((e) => e.id === "generalidades")!)!.partes.some((p) => p.id === "resumen" && !p.opcional));
+  comprobar("En las versiones anteriores el resumen es opcional", TIPOS_APARTADO.generalidades.partes.find((p) => p.id === "resumen")?.opcional === true);
+  const eticas = prot.espacios.find((e) => e.id === "eticas")!;
+  comprobar("Las consideraciones éticas son opcionales, con consentimiento y confidencialidad",
+    !eticas.obligatorio && tipoApartado(eticas)!.partes.map((p) => p.id).join() === "consentimiento,confidencialidad,riesgos");
+  const d = investigacionCompleta();
+  d.etapas = d.etapas.map((e) => (e.tipo === "protocolo" ? protocoloNuevo(e.id) : e));
+  comprobar("La ficha con la plantilla nueva es válida", validarDefinicion(d).length === 0, validarDefinicion(d).map((p) => p.mensaje).join(" | "));
+  comprobar("La ficha con la plantilla nueva conserva su forma", tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))));
+}
+
+// 25. Documento del protocolo (ajustes al protocolo, 19-nov-2026)
+{
+  const prot = protocoloNuevo("p");
+  // Cronograma: dos períodos de dos columnas; a1 en P1, a2 en P2.
+  const columnas = [{ periodo: 1 }, { periodo: 1 }, { periodo: 2 }, { periodo: 2 }];
+  const hoja = (id: string, codigo: string, montos: number[]): NodoPlan => ({ id, codigo, nivel: 4, titulo: `Actividad ${codigo}`, responsable: null, montos, hijos: [] });
+  const arbol: NodoPlan = { id: "og", codigo: "1", nivel: 1, titulo: "OG", responsable: null, montos: [], hijos: [
+    { id: "o", codigo: "1.1", nivel: 2, titulo: "Objetivo", responsable: null, montos: [], hijos: [
+      { id: "m", codigo: "1.1.1", nivel: 3, titulo: "Macro", responsable: null, montos: [], hijos: [hoja("a1", "1.1.1.1", [0, 1, 0, 0]), hoja("a2", "1.1.1.2", [0, 0, 1, 0])] }] }] };
+  const cron = bloquesCronograma(arbol, columnas);
+  const tabla = cron.find((b) => b.tipo === "tabla") as { columnas: string[]; filas: string[][] };
+  comprobar("El cronograma tiene una columna por período", tabla.columnas.join() === "Código,Objetivo, macroactividad o actividad,P1,P2");
+  comprobar("Cada actividad marca su período y los niveles superiores los de sus actividades",
+    tabla.filas.map((f) => `${f[0]}:${f.slice(2).join("")}`).join("|") === "1.1:■■|1.1.1:■■|1.1.1.1:■|1.1.1.2:■", tabla.filas.map((f) => f.join("/")).join(" | "));
+  const rec = prot.espacios.find((e) => e.elemento === "recursos_presupuesto")!;
+  const recursos = JSON.stringify([{ categoria: "operacionales", descripcion: "Gasolina", cantidad: 4, costoUnitario: 12.25 }, { categoria: "tecnicos", descripcion: "Laboratorio", cantidad: 10, costoUnitario: 5 }]);
+  const br = bloquesRecursos(rec, recursos);
+  const tablas = br.filter((b) => b.tipo === "tabla") as { filas: string[][] }[];
+  comprobar("Los recursos salen en el orden de las categorías, con su total", tablas[0].filas[0][0] === "Técnicos o de infraestructura" && tablas[0].filas[0][4] === "$50.00");
+  comprobar("El presupuesto cierra con el total general", tablas[1].filas.at(-1)!.join("|") === "Total general|2|$99.00", tablas[1].filas.at(-1)!.join("|"));
+  comprobar("Sin recursos, el documento lo marca pendiente", bloquesRecursos(rec, "")[0].tipo === "pendiente");
+
+  // Armado del documento
+  const contenidos: Record<string, string> = { recursos };
+  const { apartados } = apartadosInformeFinal(prot, contenidos, (e) => (e.elemento === "recursos_presupuesto" ? bloquesRecursos(e, contenidos[e.id]) : []),
+    { referencias: ["Zeta, A. (2020). Obra. Editorial.", "Alfa, B. (2019). Libro. Editorial."], insertar: [{ antesDe: "recursos", titulo: "Cronograma de actividades", bloques: () => cron }] });
+  const titulos = apartados.map((a) => `${a.numero ?? "-"} ${a.titulo}`);
+  const iCron = titulos.findIndex((t) => t.endsWith("Cronograma de actividades"));
+  comprobar("El cronograma va justo antes de los recursos y se numera", iCron >= 0 && titulos[iCron + 1].endsWith("Recursos y presupuesto") && apartados[iCron].numero === apartados[iCron + 1].numero! - 1, titulos.join(" | "));
+  const refs = apartados.find((a) => a.titulo === "Referencias bibliográficas")!;
+  const lista = refs.bloques.find((b) => b.tipo === "lista") as { items: string[] } | undefined;
+  comprobar("Las referencias del registro salen en orden alfabético y sin número", refs.numero === null && lista?.items.join(" / ") === "Alfa, B. (2019). Libro. Editorial. / Zeta, A. (2020). Obra. Editorial.");
+  comprobar("La portada del protocolo lleva su nombre", portadaInformeFinal({ titulo: "T", facultad: null, carrera: null, integrantes: [], asesor: null, fecha: "2026-11-19" }, "Protocolo de investigación").portada.grupos[0][0] === "PROTOCOLO DE INVESTIGACIÓN");
+  const sinRecursos = apartadosInformeFinal({ espacios: prot.espacios.filter((e) => e.id !== "recursos") }, {}, () => [], { insertar: [{ antesDe: "recursos", titulo: "Cronograma de actividades", bloques: () => cron }] });
+  comprobar("Si no está el espacio indicado, el cronograma va al final", sinRecursos.apartados.at(-1)!.titulo === "Cronograma de actividades");
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

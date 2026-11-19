@@ -6,7 +6,7 @@
 //   - En equipo, si la ficha lo pide, cada integrante ratifica la versión final (protocolo + plan) antes del envío.
 import crypto from "crypto";
 import { db } from "@/lib/db";
-import { detallesProyecto, ratificacionesPlan, respuestasEspacios } from "@/lib/schema";
+import { carreras, detallesProyecto, facultades, propuestas, ratificacionesPlan, respuestasEspacios, usuarios } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -15,6 +15,12 @@ import { esEtapaProtocolo, type EtapaProtocolo } from "@/lib/fichas/tipos";
 import { fechaLimiteDictamen, precargaEspacio, problemasProtocolo } from "@/lib/fichas/protocolo";
 import { validarPlanEquipo, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import { getPlanTrabajo, type DatosPlan } from "./planTrabajo";
+import { fuentesDePropuesta } from "./fuentesTrabajo";
+import { referenciasOrdenadas, type Fuente } from "@/lib/fichas/fuentes";
+import { contextoDeRevision, tipoApartado } from "@/lib/fichas/apartadosAcademicos";
+import { apartadosInformeFinal, portadaInformeFinal, type AnexoDocumento, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
+import { bloquesCronograma, bloquesRecursos } from "@/lib/fichas/documentoProtocolo";
+import { AUTORIDADES_ACADEMICAS } from "@/lib/informeFinal";
 
 export interface FirmaProtocolo {
   usuarioId: number;
@@ -33,13 +39,17 @@ export interface DatosProtocolo {
   ratificacion: { requerida: boolean; firmas: FirmaProtocolo[]; completa: boolean };
   /** Fecha límite del dictamen del asesor (ISO), si ya se envió. */
   fechaLimite: string | null;
+  /** Registro de fuentes del trabajo (ajustes al protocolo, 19-nov-2026). */
+  fuentes: Fuente[];
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string };
 
-function huella(respuestas: Record<string, string>, arbol: NodoPlan) {
+function huella(respuestas: Record<string, string>, arbol: NodoPlan, fuentes: Fuente[] = []) {
   const ordenadas = Object.keys(respuestas).sort().map((k) => [k, respuestas[k]]);
-  return crypto.createHash("sha256").update(JSON.stringify({ r: ordenadas, a: arbol })).digest("hex");
+  // Las fuentes forman parte del protocolo: si cambian, las firmas anteriores dejan de valer.
+  const f = fuentes.length ? { f: fuentes.map((x) => [x.id, x.datos]) } : {};
+  return crypto.createHash("sha256").update(JSON.stringify({ r: ordenadas, a: arbol, ...f })).digest("hex");
 }
 
 async function armar(propuestaId: number, plan: DatosPlan): Promise<{ datos: DatosProtocolo; huella: string } | null> {
@@ -61,7 +71,9 @@ async function armar(propuestaId: number, plan: DatosPlan): Promise<{ datos: Dat
     if (texto) precargas[e.id] = texto;
   }
 
-  const h = huella(respuestas, plan.plan.arbol);
+  const fuentes = await fuentesDePropuesta(propuestaId);
+  const h = huella(respuestas, plan.plan.arbol, fuentes);
+  const contexto = contextoDeRevision(etapa.espacios, { ...precargas, ...respuestas }, referenciasOrdenadas(fuentes).map((x) => x.referencia));
   const firmadas = await db.select().from(ratificacionesPlan).where(eq(ratificacionesPlan.propuestaId, propuestaId));
   const firmas: FirmaProtocolo[] = plan.equipo.map((i) => {
     const f = firmadas.find((x) => x.usuarioId === i.id);
@@ -76,7 +88,8 @@ async function armar(propuestaId: number, plan: DatosPlan): Promise<{ datos: Dat
       respuestas,
       precargas,
       // Lo precargado cuenta como respuesta: el egresado puede enviarlo tal cual si no necesita ajustes.
-      problemas: problemasProtocolo(etapa, { ...precargas, ...respuestas }),
+      problemas: problemasProtocolo(etapa, { ...precargas, ...respuestas }, contexto),
+      fuentes,
       ratificacion: { requerida, firmas, completa: !requerida || firmas.every((f) => f.vigente) },
       fechaLimite: enviado ? fechaLimiteDictamen(new Date(plan.plan.enviadoEn!), etapa).toISOString() : null,
     },
@@ -132,3 +145,47 @@ export async function motivoProtocoloNoEnviable(propuestaId: number): Promise<st
   return null;
 }
 
+
+/**
+ * Documento del protocolo (ajustes al protocolo, 19-nov-2026) para la vista de impresión y el Word, con el formato del
+ * informe final: portada, autoridades, índice, cada parte con sus subapartados numerados, el cronograma (del plan de
+ * trabajo, antes de los recursos), los recursos con el presupuesto, las referencias (con las del registro de fuentes)
+ * y los anexos. Los permisos son los del plan de trabajo (equipo y asesor).
+ */
+export async function getDocumentoProtocolo(propuestaId: number): Promise<Resultado<{ documento: DocumentoInformeFinal }>> {
+  const res = await getPlanTrabajo(propuestaId);
+  if (!res.success) return { success: false, error: res.error };
+  const plan = res.datos;
+  const armado = await armar(propuestaId, plan);
+  if (!armado) return { success: false, error: "La ficha de esta propuesta no tiene protocolo." };
+  const { etapa, respuestas, precargas, fuentes } = armado.datos;
+  const contenidos = { ...precargas, ...respuestas };
+  const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId));
+  const [lider] = await db.select({ carrera: carreras.nombre, facultad: facultades.nombre })
+    .from(usuarios).leftJoin(carreras, eq(usuarios.carreraId, carreras.id)).leftJoin(facultades, eq(carreras.facultadId, facultades.id))
+    .where(eq(usuarios.id, prop.egresadoId));
+  const [asesor] = prop.asesorId ? await db.select({ nombre: usuarios.nombreCompleto }).from(usuarios).where(eq(usuarios.id, prop.asesorId)) : [];
+  const enviado = plan.plan.enviadoEn && (plan.plan.estado === "enviado" || plan.plan.estado === "aprobado") ? new Date(plan.plan.enviadoEn) : null;
+  const { portada, lugarFecha } = portadaInformeFinal({
+    titulo: prop.titulo ?? "",
+    facultad: lider?.facultad ?? null,
+    carrera: lider?.carrera ?? null,
+    integrantes: plan.equipo.map((i) => ({ nombre: i.nombre, carnet: i.carnet })),
+    asesor: asesor?.nombre ?? null,
+    fecha: (enviado ?? new Date()).toISOString(),
+  }, "Protocolo de investigación");
+  const referencias = referenciasOrdenadas(fuentes).map((x) => x.referencia);
+  // El cronograma va antes de los recursos (o de las referencias, si la ficha no pide recursos).
+  const antesDe = etapa.espacios.find((e) => e.elemento === "recursos_presupuesto")?.id
+    ?? etapa.espacios.find((e) => e.elemento === "apartado" && tipoApartado(e)?.especiales.includes("referencias"))?.id
+    ?? "";
+  const { apartados, anexosCapitulo } = apartadosInformeFinal(etapa, contenidos,
+    (e, numero) => (e.elemento === "recursos_presupuesto" ? bloquesRecursos(e, contenidos[e.id], numero) : []),
+    { referencias, insertar: [{ antesDe, titulo: "Cronograma de actividades", bloques: () => bloquesCronograma(plan.plan.arbol as NodoPlan, plan.columnas) }] });
+  const anexos: AnexoDocumento[] = anexosCapitulo.map((a, i) => ({ etiqueta: `Anexo ${i + 1}`, descripcion: a.nombre, tipo: "documento" as const, url: a.url, nombre: a.nombre, actividad: null, nota: null }));
+  const estado = plan.plan.estado === "aprobado" ? "aprobado" : plan.plan.estado === "enviado" ? "entregado" : "redactando";
+  return {
+    success: true,
+    documento: { nombre: "Protocolo de investigación", portada, autoridades: AUTORIDADES_ACADEMICAS, lugarFecha, apartados, anexos, huella: estado === "redactando" ? null : armado.huella, estado },
+  };
+}

@@ -12,6 +12,7 @@ import {
   type ContenidoApartado, type ContextoRevision, type OpcionesRevision, type ParteApartado, type Revision, type TipoApartado,
 } from "@/lib/fichas/apartadosAcademicos";
 import type { Espacio } from "@/lib/fichas/tipos";
+import { ParrafosCitados, ReferenciasRegistro, useFuentes } from "./FuentesCitas";
 
 interface Props {
   propuestaId: number;
@@ -231,6 +232,8 @@ function Subapartado({ n, parte: p, valor, disabled, onChange, revisiones }: {
   const sobre = !!p.max && cuenta > p.max;
   const items = p.formato === "lista" || p.formato === "referencias" ? lineas(valor) : [];
   const visibles = revisiones.filter((r) => !r.id.startsWith("vacio-") && !r.id.startsWith("min-"));
+  // Con el registro de fuentes (protocolo), las referencias se arman solas y la fundamentación va por párrafos citados.
+  const registro = useFuentes();
 
   return (
     <div>
@@ -254,12 +257,16 @@ function Subapartado({ n, parte: p, valor, disabled, onChange, revisiones }: {
           {p.opciones?.map((o) => <option key={o.valor} value={o.valor}>{o.etiqueta}</option>)}
         </select>
       )}
-      {(p.formato === "lista" || p.formato === "referencias") && (
+      {p.formato === "citado" && <ParrafosCitados parte={p} valor={valor} onChange={onChange} disabled={disabled} />}
+      {p.formato === "referencias" && registro && <ReferenciasRegistro parte={p} valor={valor} onChange={onChange} disabled={disabled} />}
+      {(p.formato === "lista" || (p.formato === "referencias" && !registro)) && (
         <>
           <textarea id={id} rows={Math.max(4, Math.min(14, items.length + 2))} value={valor} disabled={disabled} onChange={(e) => onChange(e.target.value)}
             placeholder={p.formato === "referencias" ? "Apellido, A. A. (2020). Título del libro. Editorial." : "Uno por línea"} className={`${campo} ${p.formato === "referencias" ? "font-mono text-xs" : ""}`} />
           <div className="flex items-center justify-between text-xs text-muted mt-1">
-            <span>{items.length} {p.formato === "referencias" ? "referencia(s)" : "elemento(s)"} · uno por línea</span>
+            <span className={(p.minItems && items.length < p.minItems) || (p.maxItems && items.length > p.maxItems) ? "text-amber-700 font-bold" : ""}>
+              {items.length} {p.formato === "referencias" ? "referencia(s)" : "elemento(s)"}{rangoItems(p)} · uno por línea
+            </span>
             {p.formato === "referencias" && !disabled && items.length > 1 && (
               <button type="button" className="font-bold text-gray-600 hover:text-brand-red"
                 onClick={() => onChange([...items].sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" })).join("\n"))}>
@@ -283,10 +290,19 @@ function Subapartado({ n, parte: p, valor, disabled, onChange, revisiones }: {
   );
 }
 
+/** Límite de elementos o filas del subapartado, para mostrarlo junto al contador ("de 3 a 5"). */
+function rangoItems(p: ParteApartado) {
+  if (p.minItems && p.maxItems) return ` (de ${p.minItems} a ${p.maxItems})`;
+  if (p.minItems) return ` (al menos ${p.minItems})`;
+  if (p.maxItems) return ` (hasta ${p.maxItems})`;
+  return "";
+}
+
 function TablaParte({ parte: p, valor, disabled, onChange }: { parte: ParteApartado; valor: string; disabled: boolean; onChange: (v: string) => void }) {
   const columnas = p.columnas ?? ["Valor"];
   const filas = leerTabla(valor, columnas.length);
   const lista = filas.length ? filas : [columnas.map(() => "")];
+  const conTexto = lista.filter((f) => f.some((x) => x.trim())).length;
   const guardar = (nuevas: string[][]) => onChange(JSON.stringify(nuevas));
   return (
     <div className="overflow-x-auto">
@@ -313,7 +329,12 @@ function TablaParte({ parte: p, valor, disabled, onChange }: { parte: ParteApart
           ))}
         </tbody>
       </table>
-      {!disabled && <button type="button" onClick={() => guardar([...lista, columnas.map(() => "")])} className="mt-1.5 text-xs font-bold text-gray-600 hover:text-brand-red">+ Agregar fila</button>}
+      <div className="flex items-center justify-between mt-1.5 text-xs">
+        {!disabled && (!p.maxItems || lista.length < p.maxItems)
+          ? <button type="button" onClick={() => guardar([...lista, columnas.map(() => "")])} className="font-bold text-gray-600 hover:text-brand-red">+ Agregar fila</button>
+          : <span />}
+        <span className={`text-muted ${(p.maxItems && conTexto > p.maxItems) || (p.minItems && conTexto < p.minItems) ? "text-amber-700 font-bold" : ""}`}>{conTexto} fila(s){rangoItems(p)}</span>
+      </div>
     </div>
   );
 }

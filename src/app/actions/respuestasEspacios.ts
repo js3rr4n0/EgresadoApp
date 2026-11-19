@@ -23,6 +23,9 @@ import {
 import { leerFuenteImagen, leerOrigenImagen, validarOrigenImagen } from "@/lib/fuenteImagen";
 import { MAX_CARACTERES_LEYENDA } from "@/lib/reglasRegistroActividad";
 import { guardarComoTexto, leerTabla, tipoApartado, type ContenidoApartado } from "@/lib/fichas/apartadosAcademicos";
+import { conCitas, guardarParrafos, leerParrafos } from "@/lib/fichas/fuentes";
+import { limpiarRecursos, reglasRecursos } from "@/lib/fichas/recursos";
+import { fuentesDePropuesta } from "./fuentesTrabajo";
 
 const palabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 
@@ -117,6 +120,19 @@ async function guardarItems(propuestaId: number, espacioId: string, usuarioId: n
       set: { contenido, actualizadoPor: usuarioId, actualizadoEn: new Date() },
     });
   refrescar();
+}
+
+/** Recursos y presupuesto (ajustes al protocolo, 19-nov-2026): se guarda la lista limpia; el mínimo se exige al enviar. */
+export async function guardarRespuestaRecursos(propuestaId: number, espacioId: string, items: unknown[]): Promise<ResultadoEspacio> {
+  try {
+    const ctx = await espacioEditable(propuestaId, espacioId, ["recursos_presupuesto"]);
+    if (!ctx.ok) return { success: false, error: ctx.error };
+    await guardarItems(propuestaId, espacioId, ctx.session.userId, limpiarRecursos(items, reglasRecursos(ctx.espacio)));
+    return { success: true };
+  } catch (error) {
+    console.error("Error guardarRespuestaRecursos:", error);
+    return { success: false, error: "No se pudieron guardar los recursos." };
+  }
 }
 
 /** Enlaces, lista o tabla: se guarda la lista completa. La cantidad mínima se exige para avanzar, no para guardar. */
@@ -230,10 +246,18 @@ export async function guardarRespuestaApartado(propuestaId: number, espacioId: s
     const tipo = tipoApartado(ctx.espacio);
     if (!tipo) return { success: false, error: "El tipo de este apartado no existe." };
     const partes: Record<string, string> = {};
+    // Párrafos citados: solo fuentes del registro, y la cita se arma aquí con sus datos actuales.
+    const mapa = tipo.partes.some((p) => p.formato === "citado")
+      ? new Map((await fuentesDePropuesta(propuestaId)).map((f) => [f.id, f.datos]))
+      : null;
     for (const p of tipo.partes) {
       const v = contenido?.partes?.[p.id];
       if (typeof v !== "string") continue;
-      if (p.formato === "tabla") {
+      if (p.formato === "citado" && mapa) {
+        const parrafos = leerParrafos(v).slice(0, 80).map((x) => ({ texto: x.texto.slice(0, 6000), fuentes: x.fuentes.slice(0, 20) }));
+        const limpios = conCitas(parrafos, mapa).filter((x) => x.texto.trim() || x.fuentes.length);
+        if (limpios.length) partes[p.id] = guardarParrafos(limpios);
+      } else if (p.formato === "tabla") {
         const filas = leerTabla(v, p.columnas?.length ?? 1).map((f) => f.map((x) => x.trim().slice(0, 2000))).filter((f) => f.some(Boolean));
         if (filas.length) partes[p.id] = JSON.stringify(filas.slice(0, 50));
       } else if (p.formato === "seleccion") {

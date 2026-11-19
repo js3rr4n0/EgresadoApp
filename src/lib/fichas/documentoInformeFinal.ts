@@ -33,6 +33,8 @@ export interface AnexoDocumento {
 }
 
 export interface DocumentoInformeFinal {
+  /** Nombre del documento (para el Word y los enlaces): "Informe final de investigación" o "Protocolo de investigación". */
+  nombre?: string;
   portada: { encabezado: string[]; grupos: string[][] };
   autoridades: { nombre: string; cargo: string }[];
   lugarFecha: string;
@@ -56,7 +58,7 @@ export interface MetaInformeFinal {
 }
 
 /** Portada con las mismas reglas que la del documento final de pasantía (grupos centrados, en mayúsculas). */
-export function portadaInformeFinal(m: MetaInformeFinal) {
+export function portadaInformeFinal(m: MetaInformeFinal, documento = "INFORME FINAL DE INVESTIGACIÓN") {
   const mayus = (t: string | null | undefined) => (t || "").trim().toUpperCase();
   const [anio, mes] = m.fecha.slice(0, 10).split("-").map(Number);
   const lugarFecha = `SANTA ANA, ${MESES[mes - 1]} ${anio}`;
@@ -65,7 +67,7 @@ export function portadaInformeFinal(m: MetaInformeFinal) {
     portada: {
       encabezado: ["UNIVERSIDAD CATÓLICA DE EL SALVADOR", ...(m.facultad ? [mayus(m.facultad)] : [])],
       grupos: [
-        ["INFORME FINAL DE INVESTIGACIÓN"],
+        [documento.toUpperCase()],
         [mayus(m.titulo) || "—"],
         ["PRESENTADO POR:", ...m.integrantes.map((i) => `${mayus(i.nombre)}${i.carnet ? ` (${i.carnet.toUpperCase()})` : ""}`)],
         ["ASESOR:", mayus(m.asesor) || "—"],
@@ -79,18 +81,39 @@ export function portadaInformeFinal(m: MetaInformeFinal) {
 const parrafosDe = (t: string) => t.split(/\n\s*\n|\n/).map((p) => p.trim()).filter(Boolean);
 const esBibliografia = (titulo: string) => /bibliograf/i.test(titulo);
 
-/** Apartados del documento a partir de los capítulos de la ficha y su contenido vigente. */
+/**
+ * Apartados del documento a partir de los espacios de la ficha (capítulos del informe final o partes del protocolo) y su
+ * contenido vigente. Los elementos que genera el sistema (resultados por objetivo, recursos y presupuesto) piden sus
+ * bloques a "generar"; el reporte de modificaciones va sin número. Opciones (protocolo, 19-nov-2026): referencias del
+ * registro de fuentes que se suman a las del apartado de referencias, y apartados que se insertan antes de un espacio
+ * (el cronograma, que sale del plan de trabajo).
+ */
 export function apartadosInformeFinal(
-  etapa: EtapaInformeFinal,
+  etapa: Pick<EtapaInformeFinal, "espacios">,
   contenidos: Record<string, string | null | undefined>,
-  /** Capítulos que genera el sistema (resultados por objetivo, reporte de modificaciones): sus bloques según el número. */
-  generar: (e: EtapaInformeFinal["espacios"][number], numero: number | null) => BloqueDocumento[] = () => []
+  generar: (e: EtapaInformeFinal["espacios"][number], numero: number | null) => BloqueDocumento[] = () => [],
+  opciones: { referencias?: string[]; insertar?: { antesDe: string; titulo: string; bloques: (numero: number) => BloqueDocumento[] }[] } = {}
 ): { apartados: ApartadoDocumento[]; anexosCapitulo: ArchivoEspacio[] } {
   const apartados: ApartadoDocumento[] = [];
   let anexosCapitulo: ArchivoEspacio[] = [];
   let n = 0;
+  const insertados = new Set<number>();
+  const insertar = (antesDe: string | null) => {
+    (opciones.insertar ?? []).forEach((x, k) => {
+      if (insertados.has(k) || (antesDe !== null && x.antesDe !== antesDe)) return;
+      insertados.add(k);
+      const numero = ++n;
+      apartados.push({ numero, titulo: x.titulo, bloques: x.bloques(numero) });
+    });
+  };
   for (const e of etapa.espacios) {
+    insertar(e.id);
     const valor = contenidos[e.id] ?? "";
+    if (e.elemento === "recursos_presupuesto") {
+      const numero = ++n;
+      apartados.push({ numero, titulo: e.titulo, bloques: generar(e, numero) });
+      continue;
+    }
     if (e.elemento === "resultados_objetivos") {
       const numero = ++n;
       apartados.push({ numero, titulo: e.titulo, bloques: generar(e, numero) });
@@ -108,6 +131,12 @@ export function apartadosInformeFinal(
     }
     const tipo = e.elemento === "apartado" ? tipoApartado(e) : undefined;
     const ap = tipo ? leerApartado(tipo, valor) : null;
+    // Referencias del registro de fuentes: se suman a las escritas a mano del apartado de referencias.
+    const extra = tipo?.especiales.includes("referencias") ? (opciones.referencias ?? []) : [];
+    if (ap && extra.length) {
+      const parte = tipo!.partes.find((p) => p.formato === "referencias");
+      if (parte) ap.partes[parte.id] = [...new Set([...lineas(ap.partes[parte.id] ?? ""), ...extra])].join("\n");
+    }
     const vacio = tipo && ap ? tipo.partes.every((p) => parteVacia(p, ap.partes[p.id])) : !valor.trim() || valor.trim() === "[]";
     if (vacio && !e.obligatorio) continue;
     const bibliografia = (e.elemento === "lista" && esBibliografia(e.titulo)) || !!tipo?.especiales.includes("referencias");
@@ -132,5 +161,7 @@ export function apartadosInformeFinal(
     else if (e.elemento === "enlace") bloques.push({ tipo: "enlaces", items: leerItems("enlace", valor) as EnlaceEspacio[] });
     apartados.push({ numero, titulo: e.titulo, bloques });
   }
+  // Lo que se debía insertar antes de un espacio que no está: al final.
+  insertar(null);
   return { apartados, anexosCapitulo };
 }

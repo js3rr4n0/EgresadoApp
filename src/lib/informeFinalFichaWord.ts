@@ -92,7 +92,7 @@ export async function generarInformeFinalFichaWord(doc: DocumentoInformeFinal): 
   });
   const documento = new Document({
     creator: "Sistema de Procesos de Graduación - UNICAES",
-    title: "Informe final de investigación",
+    title: doc.nombre ?? "Informe final de investigación",
     features: { updateFields: true },
     styles: {
       default: { document: { run: { font: FUENTE, size: TAMANO_TEXTO }, paragraph: { spacing: { line: INTERLINEADO } } } },

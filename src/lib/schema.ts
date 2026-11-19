@@ -1094,6 +1094,24 @@ export const evidenciasPlan = pgTable(
   ]
 );
 
+// Registro de fuentes del trabajo (ajustes al protocolo, 19-nov-2026): cada fuente con sus campos APA 7 (los mismos de
+// pasantía, lib/citaApa.ts). Los párrafos citados del protocolo apuntan a ellas y las referencias se arman solas.
+// Script: scripts/fichas/crear_fuentes_trabajo.ts
+export const fuentesTrabajo = pgTable(
+  "fuentes_trabajo",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    datos: jsonb("datos").notNull(),
+    creadoPor: integer("creado_por").references(() => usuarios.id),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("fuentes_trabajo_propuesta_idx").on(table.propuestaId)]
+);
+
 // Productos por objetivo específico (notas del 13-nov-2026): al terminar las actividades de un objetivo, el egresado
 // entrega los productos prometidos en el plan con la conclusión del objetivo; el asesor revisa todo junto.
 // Una fila por propuesta y objetivo (nodo de nivel 2). Script: scripts/fichas/crear_entregas_objetivo.ts

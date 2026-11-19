@@ -3,16 +3,22 @@
 //   - El texto con que se precarga un espacio a partir de la propuesta aprobada.
 //   - La fecha límite del dictamen del asesor, en días hábiles o calendario.
 import { esRecurso, leerItems, problemasRecurso } from "./elementosRecurso";
+import { leerRecursos, problemasRecursos } from "./recursos";
 import type { Espacio, EtapaProtocolo } from "./tipos";
 import {
   guardarComoTexto, leerApartado, lineas, parteVacia, opcionesDeEspacio, partePrecarga, revisarApartado, textoApartado, textoParte, tipoApartado,
-  type ContenidoApartado, type TipoApartado,
+  type ContenidoApartado, type ContextoRevision, type TipoApartado,
 } from "./apartadosAcademicos";
 
 const palabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 
 /** Problemas de las respuestas del protocolo frente a las reglas de sus espacios (vacío = se puede enviar). */
-export function problemasProtocolo(etapa: { tipo?: string; espacios: Espacio[] }, respuestas: Record<string, string | null | undefined>): { espacioId: string; mensaje: string }[] {
+export function problemasProtocolo(
+  etapa: { tipo?: string; espacios: Espacio[] },
+  respuestas: Record<string, string | null | undefined>,
+  /** Registro de fuentes y referencias del documento (cuentan para el mínimo de referencias). */
+  contexto: ContextoRevision = {}
+): { espacioId: string; mensaje: string }[] {
   const problemas: { espacioId: string; mensaje: string }[] = [];
   for (const e of etapa.espacios) {
     const valor = respuestas[e.id] ?? "";
@@ -33,11 +39,13 @@ export function problemasProtocolo(etapa: { tipo?: string; espacios: Espacio[] }
         continue;
       }
       const c = leerApartado(tipo, valor);
-      if (!e.obligatorio && tipo.partes.every((x) => parteVacia(x, c.partes[x.id]))) continue;
+      if (!e.obligatorio && tipo.partes.every((x) => parteVacia(x, c.partes[x.id])) && !(contexto.fuentesReferencias?.length && tipo.especiales.includes("referencias"))) continue;
       // Un solo pendiente por apartado, con los subapartados que faltan o no llegan al mínimo.
-      const faltan = revisarApartado(tipo, c, opcionesDeEspacio(e, etapa.tipo ?? "protocolo")).filter((r) => r.nivel === "falta");
+      const faltan = revisarApartado(tipo, c, opcionesDeEspacio(e, etapa.tipo ?? "protocolo"), contexto).filter((r) => r.nivel === "falta");
       const nombres = faltan.map((r) => tipo.partes.find((x) => x.id === r.parte)?.titulo ?? r.mensaje);
       if (faltan.length) p(`"${e.titulo}": ${faltan.length === 1 ? "falta completar" : `faltan ${faltan.length} subapartados:`} ${nombres.join(", ")}.`);
+    } else if (e.elemento === "recursos_presupuesto") {
+      for (const m of problemasRecursos(e, leerRecursos(valor))) p(m);
     } else if (esRecurso(e.elemento)) {
       const r = { ...e, elemento: e.elemento };
       const items = leerItems(r.elemento, valor);
@@ -109,7 +117,13 @@ function precargaApartado(tipo: TipoApartado, origen: Espacio, datos: DatosPropu
     const tipoOrigen = tipoApartado(origen);
     if (tipoOrigen) {
       const c = leerApartado(tipoOrigen, datos.respuestas[origen.id]);
-      const partes = Object.fromEntries(Object.entries(c.partes).filter(([k, v]) => ids.has(k) && v.trim()));
+      // Párrafos citados que pasan a un texto (la fundamentación al marco teórico del informe): con sus citas.
+      const formatoDe = (t: TipoApartado, k: string) => t.partes.find((p) => p.id === k)?.formato;
+      const partes = Object.fromEntries(
+        Object.entries(c.partes)
+          .filter(([k, v]) => ids.has(k) && v.trim())
+          .map(([k, v]) => [k, formatoDe(tipoOrigen, k) === "citado" && formatoDe(tipo, k) !== "citado" ? textoParte(tipoOrigen, c, k) : v])
+      );
       if (Object.keys(partes).length) return { partes, autoevaluacion: [] };
     }
   }

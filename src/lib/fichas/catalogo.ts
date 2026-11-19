@@ -4,6 +4,7 @@
 // Los valores por defecto de los parámetros reproducen el comportamiento actual. Módulo puro.
 import type { ClaveElemento, Modalidad, ValorParametro } from "./tipos";
 import { TIPOS_ARCHIVO } from "./elementosRecurso";
+import { CATEGORIAS_RECURSO } from "./recursos";
 import { TIPOS_APARTADO_OPCIONES } from "./apartadosAcademicos";
 
 export type DefinicionParametro =
@@ -312,6 +313,24 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     requiere: [],
     etapas: ["informe_final"],
     parametros: [],
+  },
+  // Ajustes al protocolo (19-nov-2026): recursos por categoría y presupuesto calculado.
+  recursos_presupuesto: {
+    clave: "recursos_presupuesto",
+    nombre: "Recursos y presupuesto",
+    grupo: "Planificación",
+    descripcion: "Recursos necesarios para la investigación, por categoría (económicos, técnicos o de infraestructura, inmateriales, materiales o consumibles, operacionales y tiempo del investigador), con su cantidad y costo. El presupuesto se calcula solo: un total por categoría y el total general.",
+    formularioEn: ["investigacion"],
+    repetible: false,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["protocolo"],
+    parametros: [
+      { clave: "conCostos", etiqueta: "Pedir cantidad y costo de cada recurso (presupuesto)", tipo: "booleano", porDefecto: true },
+      { clave: "moneda", etiqueta: "Moneda", tipo: "opcion", porDefecto: "USD", opciones: [{ valor: "USD", etiqueta: "Dólares (USD)" }] },
+      { clave: "categorias", etiqueta: "Categorías que se piden", tipo: "opciones", porDefecto: CATEGORIAS_RECURSO.map((c) => c.valor), opciones: CATEGORIAS_RECURSO.map((c) => ({ valor: c.valor, etiqueta: c.etiqueta })), minimo: 1 },
+      { clave: "minimo", etiqueta: "Recursos mínimos", tipo: "numero", porDefecto: 3, min: 0, max: 50 },
+    ],
   },
   // Notas del 13-nov-2026: la bitácora de la ejecución como anexo del informe final.
   reporte_modificaciones: {

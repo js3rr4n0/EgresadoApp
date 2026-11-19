@@ -7,11 +7,13 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "../../src/lib/db";
 import {
-  fichas, fichasVersiones, historialEstados, informesFinalesFicha, informesPlan, integrantesProyecto, periodos, planesTrabajo, propuestas,
+  fichas, fichasVersiones, fuentesTrabajo, historialEstados, informesFinalesFicha, informesPlan, integrantesProyecto, periodos, planesTrabajo, propuestas,
   ratificacionesInformeFinal, ratificacionesPlan, ratificacionesPropuesta, registrosPlan, respuestasEspacios, usuarios, versionesCapitulo,
 } from "../../src/lib/schema";
 import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, type DefinicionFicha } from "../../src/lib/fichas/tipos";
 import { problemasProtocolo } from "../../src/lib/fichas/protocolo";
+import { contextoDeRevision } from "../../src/lib/fichas/apartadosAcademicos";
+import { leerDatosCita, textoCitaApa } from "../../src/lib/citaApa";
 import { capitulosPendientes, leerCapitulos } from "../../src/lib/fichas/informeFinalFicha";
 import crypto from "crypto";
 import { actividadesDelPeriodo, aplanar, numerar, responsables, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
@@ -97,7 +99,10 @@ async function main() {
     const respProt = Object.fromEntries(resp.filter((r) => protocolo.espacios.some((e) => e.id === r.espacioId)).map((r) => [r.espacioId, r.contenido ?? ""]));
     console.log(`  ${Object.keys(respProt).length} de ${protocolo.espacios.length} partes con respuesta`);
     if (plan && (plan.estado === "enviado" || plan.estado === "aprobado")) {
-      const pend = problemasProtocolo(protocolo, respProt);
+      // Con el registro de fuentes (19-nov-2026): sus referencias cuentan para el mínimo.
+      const fuentes = await db.select({ datos: fuentesTrabajo.datos }).from(fuentesTrabajo).where(eq(fuentesTrabajo.propuestaId, id));
+      const refs = fuentes.flatMap((x) => { const d = leerDatosCita(x.datos); return d ? [textoCitaApa(d)] : []; });
+      const pend = problemasProtocolo(protocolo, respProt, contextoDeRevision(protocolo.espacios, respProt, refs));
       ok("El protocolo enviado está completo", pend.length === 0, pend.map((p) => p.mensaje).join(" | "));
       if (protocolo.revision.ratificacion && equipo.length > 1) {
         // Misma huella que actions/protocolo.ts: respuestas del protocolo ordenadas y el árbol del plan enviado.

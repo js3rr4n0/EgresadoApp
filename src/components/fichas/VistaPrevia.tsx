@@ -5,6 +5,7 @@ import { ACTORES, CATALOGO, DOCUMENTOS_ESTUDIANTE } from "@/lib/fichas/catalogo"
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import { reglasRecurso } from "@/lib/fichas/elementosRecurso";
 import { tipoApartado } from "@/lib/fichas/apartadosAcademicos";
+import { reglasRecursos } from "@/lib/fichas/recursos";
 import { PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
 
 /** Reglas de un espacio en frases cortas, como las leería el egresado. */
@@ -50,6 +51,14 @@ function reglas(e: Espacio, equipo: boolean): string[] {
         `${tipo.nombre}: se redacta por subapartados (${tipo.partes.map((x) => x.titulo).join(" · ")}).`,
         ...(tipo.citasMinimas ? [`Al menos ${tipo.citasMinimas} citas en formato APA 7.`] : []),
         "Con guía, autoevaluación y revisión de redacción (tercera persona, tiempo verbal, oraciones largas).",
+      ];
+    }
+    case "recursos_presupuesto": {
+      const r = reglasRecursos(e);
+      return [
+        `Recursos por categoría: ${r.categorias.length} de 6.`,
+        r.conCostos ? `Con cantidad y costo unitario en ${r.moneda}; el presupuesto se calcula solo.` : "Solo la lista de recursos, sin costos.",
+        r.minimo ? `Al menos ${r.minimo} recurso(s).` : "Sin mínimo de recursos.",
       ];
     }
     case "reporte_modificaciones":

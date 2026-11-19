@@ -104,17 +104,22 @@ export function protocoloNuevo(id: string): EtapaProtocolo {
     revision: { diasRevision: 5, diasHabiles: true, ratificacion: true },
     espacios: [
       texto("introduccion", "Introducción", "Presentación general del estudio", { parametros: parametrosPorDefecto("texto", { minPalabras: 80, maxPalabras: 500 }) }),
-      apartado("generalidades", "generalidades", "Generalidades del estudio", "Línea de investigación, contexto y delimitación"),
-      apartado("problematica", "problematica", "Problemática a investigar", "Parte de la descripción del problema de la propuesta", { precargarDe: "problema" }),
+      // Ajustes al protocolo (19-nov-2026): el orden de la lista de la reunión; la portada, el índice y el cronograma
+      // (el plan de trabajo) se generan; sin "Esquema del informe final", que saldrá de un formato estándar.
+      apartado("generalidades", "generalidades", "Resumen y generalidades del proyecto", "Resumen, línea de investigación, contexto y delimitación", {
+        partes: [{ id: "resumen", activa: true, opcional: false }, { id: "linea", activa: true }, { id: "contexto", activa: true }],
+      }),
+      apartado("problematica", "problematica", "Planteamiento del problema", "Parte de la descripción del problema de la propuesta", { precargarDe: "problema" }),
       apartado("justificacion_protocolo", "justificacion", "Justificación de la investigación", "Parte de la justificación de la propuesta", { precargarDe: "justificacion" }),
-      apartado("objetivos_protocolo", "objetivos", "Objetivos", "Parte de los objetivos de la propuesta", { precargarDe: "objetivos" }),
-      apartado("hipotesis", "hipotesis", "Hipótesis", "Si procede según el tipo de investigación", { obligatorio: false }),
-      espacioProtocolo("matriz_hipotesis", "tabla", "Matriz de hipótesis", "Desglose de la hipótesis", { obligatorio: false }),
+      apartado("objetivos_protocolo", "objetivos", "Objetivos general y específicos", "Parte de los objetivos de la propuesta", { precargarDe: "objetivos" }),
+      apartado("fundamentacion", "fundamentacion", "Marco teórico o fundamentación teórica", "Esquema de temas y desarrollo por párrafos, cada uno con sus fuentes"),
+      apartado("hipotesis", "hipotesis", "Hipótesis o supuestos", "Si procede según el tipo de investigación", { obligatorio: false }),
+      espacioProtocolo("matriz_hipotesis", "tabla", "Matriz de la hipótesis", "Desglose de la hipótesis", { obligatorio: false }),
       apartado("variables", "variables", "Definición de variables o categorías", "Definición conceptual, operacional e indicadores"),
-      apartado("fundamentacion", "fundamentacion", "Fundamentación teórica", "Esquema de temas y desarrollo inicial, con citas APA 7"),
-      apartado("metodologia", "metodologia", "Metodología", "Tipo, población y muestra, técnicas, procedimiento y análisis"),
-      espacioProtocolo("esquema_informe", "lista", "Esquema del informe final", "Capítulos que llevará el informe de investigación"),
-      apartado("bibliografia", "referencias", "Referencias", "Fuentes consultadas, en APA 7 y en orden alfabético"),
+      apartado("metodologia", "metodologia", "Metodología", "Tipo y enfoque, población y muestra, técnicas e instrumentos, procedimiento y análisis"),
+      apartado("eticas", "consideraciones_eticas", "Consideraciones éticas", "Consentimiento, confidencialidad y riesgos (si el estudio trabaja con personas)", { obligatorio: false }),
+      espacioProtocolo("recursos", "recursos_presupuesto", "Recursos y presupuesto", "Recursos por categoría y presupuesto de la investigación"),
+      apartado("bibliografia", "referencias", "Referencias bibliográficas", "Las fuentes citadas y las consultadas, en APA 7 (mínimo 20)"),
       espacioProtocolo("anexos_protocolo", "archivo", "Anexos", "Instrumentos y documentos de apoyo", {
         obligatorio: false,
         parametros: parametrosPorDefecto("archivo", { tipos: ["pdf", "word", "excel"], minimo: 0, maximo: 5 }),

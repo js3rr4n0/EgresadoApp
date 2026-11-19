@@ -8,6 +8,7 @@ import type { ProblemaFicha } from "@/lib/fichas/validar";
 import { esEtapaPropuesta, esEtapaProtocolo, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, PRECARGAS_EJECUCION, type ClaveElemento, type DefinicionFicha, type Espacio, type EtapaConEspacios, type ValorParametro } from "@/lib/fichas/tipos";
 import { Proximamente } from "./comunes";
 import { nuevoId } from "./ids";
+import EditorSubapartados from "./EditorSubapartados";
 
 export const campoCompacto =
   "w-full h-9 border border-gray-300 rounded-md px-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25 focus:border-brand-red disabled:bg-gray-50 disabled:text-gray-500";
@@ -127,7 +128,9 @@ export default function EditorPropuesta({
 
   function actualizarParametro(clave: string, valor: ValorParametro) {
     if (!espacio) return;
-    actualizar({ parametros: { ...espacio.parametros, [clave]: valor } });
+    // Otro tipo de apartado tiene otros subapartados: la configuración anterior ya no aplica.
+    const otroTipo = espacio.elemento === "apartado" && clave === "tipo" && valor !== espacio.parametros.tipo;
+    actualizar({ parametros: { ...espacio.parametros, [clave]: valor }, ...(otroTipo ? { partes: undefined } : {}) });
   }
 
   function quitar() {
@@ -321,6 +324,11 @@ export default function EditorPropuesta({
                   </Tarjeta>
                 )}
 
+                {espacio.elemento === "apartado" ? (
+                  <Tarjeta titulo="Subapartados">
+                    <EditorSubapartados espacio={espacio} editable={editable} onChange={(partes) => actualizar({ partes })} />
+                  </Tarjeta>
+                ) : (
                 <Tarjeta titulo="Campos que se piden" extra={<Proximamente texto="Configurable más adelante" />}>
                   <ul className="divide-y divide-gray-100">
                     {CAMPOS_ELEMENTO[espacio.elemento].map((c) => (
@@ -336,6 +344,7 @@ export default function EditorPropuesta({
                     + Agregar campo
                   </button>
                 </Tarjeta>
+                )}
 
                 {espacio.origenFase1 && (
                   <p className="text-[11px] text-gray-400">

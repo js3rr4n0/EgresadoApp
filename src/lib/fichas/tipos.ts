@@ -28,7 +28,8 @@ export type ClaveElemento =
   | "tabla"
   | "apartado"
   | "resultados_objetivos"
-  | "reporte_modificaciones";
+  | "reporte_modificaciones"
+  | "recursos_presupuesto";
 
 export type ValorParametro = number | boolean | string | string[];
 
@@ -51,6 +52,32 @@ export interface Espacio {
    * problemática parte de la descripción del problema). El egresado la ajusta en lugar de escribirla de nuevo.
    */
   precargarDe?: string;
+  /**
+   * Solo apartados académicos (ajustes al protocolo, 19-nov-2026): configuración de cada subapartado en la ficha, en
+   * su orden (activar o desactivar, renombrar, reglas) y subapartados propios. Falta = los del tipo, como están.
+   */
+  partes?: ConfigParte[];
+}
+
+/** Configuración de un subapartado de un apartado académico en la ficha. Lo que falta toma el valor del tipo. */
+export interface ConfigParte {
+  /** Id del subapartado del tipo, o de uno propio (empieza con "x_"). */
+  id: string;
+  activa: boolean;
+  titulo?: string;
+  ayuda?: string;
+  /** true: no bloquea el envío si queda vacío. */
+  opcional?: boolean;
+  /** Palabras (texto y pregunta). 0 = sin límite. */
+  min?: number;
+  max?: number;
+  /** Elementos (lista) o filas (tabla). 0 = sin límite. */
+  minItems?: number;
+  maxItems?: number;
+  /** Párrafos citados: cada párrafo debe tener al menos una fuente. */
+  citaPorParrafo?: boolean;
+  /** Solo subapartados propios: su formato (y las columnas, si es tabla). */
+  propia?: { formato: "texto" | "lista" | "tabla"; columnas?: string[] };
 }
 
 export interface EtapaPropuesta {

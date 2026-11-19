@@ -1,9 +1,10 @@
 // Cambios entre dos definiciones de una ficha, en lenguaje del administrador. Se muestran antes de habilitar
 // una versión nueva para que se vea qué cambia respecto de la anterior. Módulo puro.
 import { CATALOGO } from "./catalogo";
+import { partesConfiguradas } from "./apartadosAcademicos";
 import {
   documentoSolicitado, productosObjetivo, esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, rangoPalabras,
-  type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type ValorParametro,
+  type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type ValorParametro,
 } from "./tipos";
 
 const texto = (v: ValorParametro | null | undefined) =>
@@ -64,6 +65,30 @@ const CAMPOS_PROTOCOLO: [string, (p: EtapaProtocolo) => ValorParametro][] = [
   ["Ratificación del equipo", (p) => p.revision.ratificacion],
 ];
 
+/** Cambios en los subapartados configurados de un apartado académico, en lenguaje del administrador. */
+function cambiosPartes(a: Espacio, n: Espacio, prefijo: string): string[] {
+  const cambios: string[] = [];
+  const pa = partesConfiguradas(a);
+  const pn = partesConfiguradas(n);
+  const porId = new Map(pa.map((x) => [x.id, x]));
+  const reglas = (x: (typeof pa)[number]) => [x.opcional ? "opcional" : "obligatorio",
+    x.min || x.max ? `${x.min ?? 0}–${x.max || "sin máximo"} palabras` : "",
+    x.minItems || x.maxItems ? `${x.minItems ?? 0}–${x.maxItems || "sin máximo"} ${x.formato === "tabla" ? "filas" : x.formato === "referencias" ? "referencias" : "elementos"}` : "",
+    x.formato === "citado" ? (x.citaPorParrafo === false ? "párrafos sin fuente obligatoria" : "una fuente por párrafo") : ""].filter(Boolean).join(", ");
+  for (const x of pn) {
+    const y = porId.get(x.id);
+    if (!y) { cambios.push(`${prefijo}se agregó el subapartado «${x.titulo}».`); continue; }
+    if (y.activa !== x.activa) cambios.push(`${prefijo}se ${x.activa ? "activó" : "desactivó"} «${x.titulo}».`);
+    if (y.titulo !== x.titulo) cambios.push(`${prefijo}«${y.titulo}» ahora se llama «${x.titulo}».`);
+    else if (y.ayuda !== x.ayuda) cambios.push(`${prefijo}cambió la ayuda de «${x.titulo}».`);
+    if (reglas(y) !== reglas(x)) cambios.push(`${prefijo}«${x.titulo}», ${reglas(y)} → ${reglas(x)}.`);
+  }
+  for (const y of pa) if (!pn.some((x) => x.id === y.id)) cambios.push(`${prefijo}se quitó el subapartado «${y.titulo}».`);
+  const orden = (l: typeof pa) => l.filter((x) => pa.some((y) => y.id === x.id) && pn.some((y) => y.id === x.id)).map((x) => x.id).join();
+  if (orden(pa) !== orden(pn)) cambios.push(`${prefijo}cambió el orden de los subapartados.`);
+  return cambios;
+}
+
 /** Cambios en los espacios de una etapa (propuesta o protocolo). */
 function compararEspacios(a: EtapaConEspacios, n: EtapaConEspacios, prefijo: string, nombreEtapa: string): string[] {
   const cambios: string[] = [];
@@ -91,6 +116,8 @@ function compararEspacios(a: EtapaConEspacios, n: EtapaConEspacios, prefijo: str
       const vn = e.parametros[par.clave];
       if (texto(va) !== texto(vn)) cambios.push(`${prefijo}"${e.titulo}": ${par.etiqueta.toLowerCase()}, ${texto(va)} → ${texto(vn)}.`);
     }
+    // Apartados académicos: los subapartados que se activaron, se agregaron o cambiaron de reglas (19-nov-2026).
+    if (e.elemento === "apartado" && v.parametros.tipo === e.parametros.tipo) cambios.push(...cambiosPartes(v, e, `${prefijo}"${e.titulo}": `));
   }
   const ordenA = a.espacios.filter((e) => porIdN.has(e.id)).map((e) => e.id).join();
   const ordenN = n.espacios.filter((e) => porIdA.has(e.id)).map((e) => e.id).join();

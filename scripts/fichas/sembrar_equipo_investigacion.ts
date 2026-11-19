@@ -37,16 +37,23 @@
 // modificaciones y cuyo informe final lo anexa.
 // Adelantar (16-nov-2026): --version-adelantar crea el borrador de una versión que permite adelantar actividades de
 // períodos siguientes; --actividad-futura agrega al plan una actividad de prueba planificada en el último período.
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual | --version-apartados | --version-ejecucion | --version-productos | --productos-plan | --version-resultados | --version-bitacora | --version-adelantar | --actividad-futura] [--solo | --apartados]
+// Fuentes y citas (19-nov-2026): --citas usa a inv.citas@prueba.test como egresado individual (--individual --citas lo
+// crea con la propuesta aprobada y el protocolo en redacción); --fuentes-prueba registra 20 fuentes de prueba en la
+// propuesta y convierte la fundamentación en párrafos citados.
+// Plantilla nueva del protocolo (19-nov-2026): --version-protocolo-nuevo crea el borrador de una versión con el protocolo
+// en el orden de la reunión (consideraciones éticas, recursos y presupuesto, sin esquema del informe).
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual | --version-apartados | --version-ejecucion | --version-productos | --productos-plan | --version-resultados | --version-bitacora | --version-adelantar | --actividad-futura | --fuentes-prueba | --version-protocolo-nuevo] [--solo | --apartados | --citas] [--solo | --apartados]
 import crypto from "crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
-import { cartasAceptacion, detallesProyecto, fichas, ratificacionesPropuesta, fichasVersiones, historialEstados, informesFinalesFicha, versionesCapitulo, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
+import { cartasAceptacion, detallesProyecto, fichas, fuentesTrabajo, ratificacionesPropuesta, fichasVersiones, historialEstados, informesFinalesFicha, versionesCapitulo, periodos, planesTrabajo, propuestas, respuestasEspacios, usuarios } from "../../src/lib/schema";
 import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaProtocolo, PRECARGA_CONCLUSIONES_OBJETIVOS, type DefinicionFicha, type Espacio } from "../../src/lib/fichas/tipos";
 import { guardarComoTexto, tipoApartado } from "../../src/lib/fichas/apartadosAcademicos";
 import { informeFinalNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
 import { validarDefinicion } from "../../src/lib/fichas/validar";
 import { numerar, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
+import { conCitas, guardarParrafos, leerParrafos } from "../../src/lib/fichas/fuentes";
+import { datosCitaVacios, leerDatosCita } from "../../src/lib/citaApa";
 import { exigirBaseDesarrollo } from "./guardia";
 
 const COHORTE = "PRUEBA-INV-2026";
@@ -61,8 +68,11 @@ const EGRESADOS = [
 /** Egresado del caso individual (I6). Con --apartados, el del protocolo con apartados académicos (13-nov-2026). */
 const APARTADOS = { correo: "inv.apartados@prueba.test", nombre: "Prueba Investigación Apartados", carnet: "INV-0005", carreraId: 1 };
 const usarApartados = process.argv.includes("--apartados");
-const SOLO = usarApartados ? APARTADOS : { correo: "inv.solo@prueba.test", nombre: "Prueba Investigación Individual", carnet: "INV-0004", carreraId: 1 };
-const usarSolo = process.argv.includes("--solo") || usarApartados;
+/** Ajustes al protocolo (19-nov-2026): egresado con el protocolo en redacción, para probar fuentes y citas. */
+const CITAS = { correo: "inv.citas@prueba.test", nombre: "Prueba Investigación Citas", carnet: "INV-0006", carreraId: 1 };
+const usarCitas = process.argv.includes("--citas");
+const SOLO = usarApartados ? APARTADOS : usarCitas ? CITAS : { correo: "inv.solo@prueba.test", nombre: "Prueba Investigación Individual", carnet: "INV-0004", carreraId: 1 };
+const usarSolo = process.argv.includes("--solo") || usarApartados || usarCitas;
 
 const lista = (ids: number[]) => sql.join(ids.map((i) => sql`${i}`), sql`, `);
 
@@ -323,6 +333,55 @@ async function actividadFutura() {
   console.log(`Actividad futura agregada en ${macro.codigo} del plan de la propuesta ${prop.id} (última columna).`);
 }
 
+/** Fuentes y citas (19-nov-2026): 20 fuentes de prueba y la fundamentación en párrafos citados con ellas. */
+async function fuentesPrueba() {
+  const { lider, prop } = await propuestaDelLider();
+  const actuales = await db.select({ id: fuentesTrabajo.id }).from(fuentesTrabajo).where(eq(fuentesTrabajo.propuestaId, prop.id));
+  const APELLIDOS = ["Álvarez", "Benítez", "Castro", "Durán", "Escobar", "Flores", "Guzmán", "Hernández", "Iraheta", "Juárez", "Kattán", "López", "Mejía", "Navarro", "Orellana", "Portillo", "Quintanilla", "Rivas", "Salazar", "Torres"];
+  if (actuales.length < 20) {
+    await db.insert(fuentesTrabajo).values(APELLIDOS.slice(actuales.length).map((a, k) => ({
+      propuestaId: prop.id, creadoPor: lider,
+      datos: { ...datosCitaVacios(k % 3 === 1 ? "articulo" : "libro"), autores: [{ apellidos: a, iniciales: "M." }], anio: String(2016 + (k % 9)),
+        titulo: `Hábitos de estudio y aprendizaje de la programación, volumen ${k + 1}`, editorial: "Editorial Universitaria",
+        revista: "Revista de Educación en Ingeniería", volumen: String(10 + k), numero: "2", paginas: "15-30" },
+    })));
+  }
+  const fuentes = await db.select({ id: fuentesTrabajo.id, datos: fuentesTrabajo.datos }).from(fuentesTrabajo).where(eq(fuentesTrabajo.propuestaId, prop.id)).orderBy(fuentesTrabajo.id);
+  const mapa = new Map(fuentes.flatMap((x) => { const d = leerDatosCita(x.datos); return d ? [[x.id, d] as const] : []; }));
+  const [fila] = await db.select().from(respuestasEspacios).where(and(eq(respuestasEspacios.propuestaId, prop.id), eq(respuestasEspacios.espacioId, "fundamentacion")));
+  if (fila?.contenido) {
+    const c = JSON.parse(fila.contenido);
+    const parrafos = leerParrafos(c.partes?.desarrollo ?? "");
+    if (parrafos.length && parrafos.every((p) => p.fuentes.length === 0)) {
+      c.partes.desarrollo = guardarParrafos(conCitas(parrafos.map((p, k) => ({ ...p, fuentes: [fuentes[k % fuentes.length].id, fuentes[(k + 3) % fuentes.length].id] })), mapa));
+      await db.update(respuestasEspacios).set({ contenido: JSON.stringify(c), actualizadoEn: new Date() }).where(eq(respuestasEspacios.id, fila.id));
+    }
+  }
+  console.log(`Propuesta ${prop.id}: ${fuentes.length} fuentes en el registro y la fundamentación con párrafos citados.`);
+}
+
+/** Plantilla nueva del protocolo (19-nov-2026): borrador con protocoloNuevo, sobre la última versión habilitada. */
+async function versionProtocoloNuevo() {
+  const [ficha] = await db.select({ id: fichas.id }).from(fichas).where(eq(fichas.codigo, "INV-ING-001-SIST"));
+  if (!ficha) throw new Error("No existe la ficha INV-ING-001-SIST.");
+  const versiones = await db.select().from(fichasVersiones).where(eq(fichasVersiones.fichaId, ficha.id)).orderBy(sql`${fichasVersiones.numero} DESC`);
+  const borrador = versiones.find((v) => v.estado === "borrador");
+  if (borrador) return console.log(`Ya existe el borrador v${borrador.numero} (id ${borrador.id}); habilítalo o descártalo desde el constructor.`);
+  const base = versiones.find((v) => v.estado === "habilitada");
+  if (!base) throw new Error("La ficha no tiene versiones habilitadas.");
+  const def = structuredClone(base.definicion) as DefinicionFicha;
+  const prot = def.etapas.find(esEtapaProtocolo);
+  if (!prot) throw new Error("La versión habilitada no tiene protocolo.");
+  prot.espacios = protocoloNuevo(prot.id).espacios;
+  const problemas = validarDefinicion(def);
+  if (problemas.length) throw new Error(`La definición nueva no es válida: ${problemas.map((p) => p.mensaje).join(" | ")}`);
+  const [v] = await db.insert(fichasVersiones).values({
+    fichaId: ficha.id, numero: versiones[0].numero + 1, estado: "borrador", definicion: def, basadaEnId: base.id,
+    notas: "Protocolo en el orden de la reunión: consideraciones éticas, recursos y presupuesto, sin esquema del informe.",
+  }).returning({ id: fichasVersiones.id, numero: fichasVersiones.numero });
+  console.log(`Borrador v${v.numero} (id ${v.id}) de INV-ING-001 creado desde la v${base.numero}.`);
+}
+
 /** Productos de prueba en los objetivos del plan de la propuesta (también si ya está aprobado). */
 async function productosPlan() {
   const { prop } = await propuestaDelLider();
@@ -511,6 +570,8 @@ async function run() {
   else if (process.argv.includes("--version-bitacora")) await versionBitacora();
   else if (process.argv.includes("--version-adelantar")) await versionAdelantar();
   else if (process.argv.includes("--actividad-futura")) await actividadFutura();
+  else if (process.argv.includes("--fuentes-prueba")) await fuentesPrueba();
+  else if (process.argv.includes("--version-protocolo-nuevo")) await versionProtocoloNuevo();
   else await sembrar();
 }
 

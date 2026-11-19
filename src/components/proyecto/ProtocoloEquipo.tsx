@@ -13,6 +13,9 @@ import TextoEspacioForm from "./TextoEspacioForm";
 import RecursoEspacioForm from "./RecursoEspacioForm";
 import ApartadoAcademicoForm from "./ApartadoAcademicoForm";
 import { contextoDeRevision } from "@/lib/fichas/apartadosAcademicos";
+import { fuentesCitadas, referenciasOrdenadas } from "@/lib/fichas/fuentes";
+import { ProveedorFuentes } from "./FuentesCitas";
+import RecursosPresupuestoForm from "./RecursosPresupuestoForm";
 
 const fecha = (iso: string) => new Date(iso).toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" });
 
@@ -34,7 +37,14 @@ export default function ProtocoloEquipo({ datos, plan, paso, base }: { datos: Da
   const miFirma = ratificacion.firmas.find((f) => f.usuarioId === plan.miId);
   const nav = { pasoSiguiente: Math.min(actual + 1, total), pasoAnterior: actual > 1 ? actual - 1 : null, hrefPaso };
   // Referencias y objetivos del mismo protocolo, para cruzar las citas y revisar las conclusiones.
-  const contexto = contextoDeRevision(etapa.espacios, { ...precargas, ...respuestas });
+  // Con el registro de fuentes (ajustes al protocolo, 19-nov-2026): sus referencias cuentan y se cruzan con las citas.
+  const contexto = contextoDeRevision(etapa.espacios, { ...precargas, ...respuestas }, referenciasOrdenadas(datos.fuentes).map((x) => x.referencia));
+  const registroFuentes = {
+    propuestaId: plan.propuesta.id,
+    fuentes: datos.fuentes,
+    citadas: fuentesCitadas(etapa.espacios, { ...precargas, ...respuestas }),
+    editable: editable && esLider,
+  };
 
   function ratificar() {
     setMensaje(null);
@@ -49,10 +59,18 @@ export default function ProtocoloEquipo({ datos, plan, paso, base }: { datos: Da
   return (
     <div className="space-y-4">
       <div className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-1">
-        <h1 className="text-xl font-bold text-card-dark">{etapa.nombre}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <h1 className="text-xl font-bold text-card-dark">{etapa.nombre}</h1>
+          {/* Documento del protocolo con portada, índice, cronograma, recursos y referencias (ajustes al protocolo, 19-nov-2026). */}
+          <div className="flex flex-wrap gap-2">
+            <a href={plan.rol === "asesor" ? `/asesor/plan/${plan.propuesta.id}/imprimir` : `/egresado/plan/imprimir?id=${plan.propuesta.id}`} target="_blank" rel="noreferrer"
+              className="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-300 text-gray-700 hover:bg-gray-50">Vista para imprimir (PDF)</a>
+            <a href={`/api/protocolo/${plan.propuesta.id}/word`} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-gray-300 text-gray-700 hover:bg-gray-50">Descargar Word</a>
+          </div>
+        </div>
         <p className="text-sm text-muted">Propuesta #{plan.propuesta.numero} · {plan.propuesta.titulo}</p>
         <p className="text-xs text-muted">
-          La portada y el índice se generan con los datos del trabajo, y el cronograma de actividades es el plan de trabajo (pestaña Plan de trabajo).
+          La portada, el índice y el cronograma (que sale del plan de trabajo) se generan solos en el documento del protocolo.
           {esLider && editable && " Como líder, redactas el protocolo; el equipo lo ratifica y lo envías junto con el plan."}
           {plan.rol === "integrante" && " Lo redacta el líder; revísalo y ratifícalo cuando esté listo."}
           {plan.rol === "asesor" && ` Tu dictamen escrito vence ${etapa.revision.diasRevision} días ${etapa.revision.diasHabiles ? "hábiles" : ""} después del envío.`}
@@ -99,9 +117,14 @@ export default function ProtocoloEquipo({ datos, plan, paso, base }: { datos: Da
               aviso={precargas[e.id] ? "Este texto se precargó con lo que escribieron en la propuesta aprobada. Ajústalo si hace falta y guárdalo." : undefined} />
           )}
           {e.elemento === "apartado" && (
-            <ApartadoAcademicoForm key={e.id} {...nav} propuestaId={plan.propuesta.id} espacio={e} etapa="protocolo" contexto={contexto}
-              initialData={respuestas[e.id] ?? precargas[e.id] ?? ""} isLocked={!editable} isReadOnly={!esLider}
-              aviso={precargas[e.id] ? "Este apartado se precargó con lo que escribieron en la propuesta aprobada. Distribúyelo en sus subapartados, complétalo y guárdalo." : undefined} />
+            <ProveedorFuentes value={registroFuentes}>
+              <ApartadoAcademicoForm key={e.id} {...nav} propuestaId={plan.propuesta.id} espacio={e} etapa="protocolo" contexto={contexto}
+                initialData={respuestas[e.id] ?? precargas[e.id] ?? ""} isLocked={!editable} isReadOnly={!esLider}
+                aviso={precargas[e.id] ? "Este apartado se precargó con lo que escribieron en la propuesta aprobada. Distribúyelo en sus subapartados, complétalo y guárdalo." : undefined} />
+            </ProveedorFuentes>
+          )}
+          {e.elemento === "recursos_presupuesto" && (
+            <RecursosPresupuestoForm key={e.id} {...nav} propuestaId={plan.propuesta.id} espacio={e} initialData={respuestas[e.id]} isLocked={!editable} isReadOnly={!esLider} />
           )}
           {esRecurso(e.elemento) && (
             <RecursoEspacioForm key={e.id} {...nav} propuestaId={plan.propuesta.id} espacio={{ ...e, elemento: e.elemento }} initialData={respuestas[e.id]}

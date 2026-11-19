@@ -76,6 +76,11 @@ export const CAMPOS_ELEMENTO: Record<ClaveElemento, CampoElemento[]> = {
   tabla: [{ nombre: "Filas (una celda de texto por columna)", tipo: "lista", obligatorio: true }],
   resultados_objetivos: [],
   reporte_modificaciones: [],
+  recursos_presupuesto: [
+    { nombre: "Categoría", tipo: "selección", obligatorio: true },
+    { nombre: "Descripción del recurso", tipo: "texto", obligatorio: true },
+    { nombre: "Cantidad y costo unitario", tipo: "texto", obligatorio: false },
+  ],
 };
 
 /** Apartados del informe final como los arma hoy el sistema (src/lib/informeFinal.ts). */

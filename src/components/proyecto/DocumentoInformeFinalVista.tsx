@@ -7,11 +7,11 @@ import BotonImprimir from "./BotonImprimir";
 
 const hoja = "break-before-page";
 
-export default function DocumentoInformeFinalVista({ doc, volver, word }: { doc: DocumentoInformeFinal; volver: string; word: string }) {
+export default function DocumentoInformeFinalVista({ doc, volver, word, volverTexto = "Volver al informe final" }: { doc: DocumentoInformeFinal; volver: string; word: string; volverTexto?: string }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-        <Link href={volver} className="text-sm text-gray-500 hover:text-brand-red">← Volver al informe final</Link>
+        <Link href={volver} className="text-sm text-gray-500 hover:text-brand-red">← {volverTexto}</Link>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted">
             {doc.estado === "redactando" ? "Vista previa: todavía no entregado" : `Versión ${doc.estado === "aprobado" ? "aprobada" : "entregada"}${doc.huella ? ` · huella ${doc.huella.slice(0, 12)}…` : ""}`}

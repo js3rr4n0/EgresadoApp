@@ -2,11 +2,46 @@
 // Devuelve la lista de problemas en lenguaje del administrador; una lista vacía significa que la ficha es válida.
 import { CATALOGO, elementoEnEtapa } from "./catalogo";
 import { esRecurso } from "./elementosRecurso";
-import { partePrecarga, tipoApartado } from "./apartadosAcademicos";
+import { partePrecarga, partesConfiguradas, tipoApartado, TIPOS_APARTADO } from "./apartadosAcademicos";
 import {
   esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, FORMATO_DEFINICION, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, PRECARGAS_EJECUCION,
-  type DefinicionFicha, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo,
+  type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo,
 } from "./tipos";
+
+const ID_PROPIA = /^x_[a-z0-9_]{1,30}$/;
+
+/**
+ * Configuración de los subapartados de un apartado académico (ajustes al protocolo, 19-nov-2026): al menos uno activo,
+ * ids sin repetir, subapartados del tipo que existan, propios con id "x_…" y formato válido, y mínimos ≤ máximos.
+ */
+export function problemasPartes(esp: Pick<Espacio, "elemento" | "parametros" | "partes">): string[] {
+  const lista: string[] = [];
+  const p = (m: string) => lista.push(m);
+  if (esp.elemento !== "apartado") return ["solo los apartados académicos configuran subapartados."];
+  const tipo = TIPOS_APARTADO[String(esp.parametros.tipo)];
+  if (!tipo) return [];
+  const ids = new Set<string>();
+  for (const c of esp.partes ?? []) {
+    const nombre = c.titulo?.trim() || tipo.partes.find((x) => x.id === c.id)?.titulo || c.id;
+    if (ids.has(c.id)) p(`el subapartado «${nombre}» está repetido.`);
+    ids.add(c.id);
+    if (c.propia) {
+      if (!ID_PROPIA.test(c.id)) p(`el subapartado propio «${nombre}» tiene un identificador no válido.`);
+      if (!c.titulo?.trim()) p("un subapartado propio no tiene título.");
+      if (!["texto", "lista", "tabla"].includes(c.propia.formato)) p(`«${nombre}» tiene un formato no válido.`);
+      if (c.propia.formato === "tabla" && (!c.propia.columnas?.length || c.propia.columnas.length > 8 || c.propia.columnas.some((x) => !x.trim()))) {
+        p(`la tabla «${nombre}» necesita de 1 a 8 columnas con nombre.`);
+      }
+    } else if (!tipo.partes.some((x) => x.id === c.id)) p(`el subapartado «${c.id}» no existe en el tipo «${tipo.nombre}».`);
+    if ((c.titulo ?? "").length > 120) p(`el título de «${nombre}» es demasiado largo.`);
+    const entero = (n: number | undefined) => n === undefined || (Number.isInteger(n) && n >= 0 && n <= 10000);
+    if (![c.min, c.max, c.minItems, c.maxItems].every(entero)) p(`«${nombre}» tiene un límite no válido.`);
+    if (c.min && c.max && c.min > c.max) p(`en «${nombre}» el mínimo de palabras es mayor que el máximo.`);
+    if (c.minItems && c.maxItems && c.minItems > c.maxItems) p(`en «${nombre}» el mínimo de elementos o filas es mayor que el máximo.`);
+  }
+  if (partesConfiguradas(esp).every((x) => !x.activa)) p("el apartado necesita al menos un subapartado activo.");
+  return lista;
+}
 
 export interface ProblemaFicha {
   /** Dónde está el problema: "ficha", el id de una etapa o "etapaId/espacioId". */
@@ -115,6 +150,7 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
         else if (v.length < par.minimo) p(`"${par.etiqueta}" necesita al menos ${par.minimo} opción(es).`);
       }
     }
+    if (esp.partes !== undefined) problemasPartes(esp).forEach((m) => p(m));
     if (esp.elemento === "texto") {
       const { minPalabras, maxPalabras } = esp.parametros as { minPalabras: number; maxPalabras: number };
       if (maxPalabras > 0 && minPalabras > maxPalabras) p("el mínimo de palabras es mayor que el máximo.");
@@ -303,7 +339,8 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
       v.every(
         (s: unknown) =>
           obj(s) && str(s.id) && str(s.elemento) && str(s.titulo) && str(s.descripcion) && str(s.ayuda) &&
-          typeof s.obligatorio === "boolean" && obj(s.parametros) && (s.precargarDe === undefined || str(s.precargarDe))
+          typeof s.obligatorio === "boolean" && obj(s.parametros) && (s.precargarDe === undefined || str(s.precargarDe)) &&
+          (s.partes === undefined || (Array.isArray(s.partes) && s.partes.every((c: unknown) => obj(c) && str((c as { id: unknown }).id) && typeof (c as { activa: unknown }).activa === "boolean")))
       );
     if (e.tipo === "informe_final") {
       const r = e.revision;

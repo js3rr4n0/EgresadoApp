@@ -3,9 +3,11 @@
 // revisiones automáticas en vivo. Fuente principal: "Estructura del protocolo de investigación", UNICAES (DIYPS, 2024),
 // complementada con rúbricas de evaluación de protocolos y el planteamiento del problema de Hernández-Sampieri.
 // Las revisiones son orientativas: solo los subapartados vacíos o por debajo del mínimo impiden enviar. Módulo puro.
-import type { Espacio } from "./tipos";
+import type { ConfigParte, Espacio } from "./tipos";
+import { leerParrafos, parrafoConCita } from "./fuentes";
 
-export type FormatoParte = "texto" | "pregunta" | "seleccion" | "lista" | "tabla" | "referencias";
+/** "citado": párrafos con sus fuentes del registro y la cita armada (ajustes al protocolo, 19-nov-2026). */
+export type FormatoParte = "texto" | "pregunta" | "seleccion" | "lista" | "tabla" | "referencias" | "citado";
 
 export interface ParteApartado {
   id: string;
@@ -20,6 +22,13 @@ export interface ParteApartado {
   columnas?: string[];
   /** Selección: opciones. */
   opciones?: { valor: string; etiqueta: string }[];
+  /** Lista: elementos; tabla: filas con contenido. 0 o sin valor = sin límite (ajustes al protocolo, 19-nov-2026). */
+  minItems?: number;
+  maxItems?: number;
+  /** Subapartado propio de la ficha (no viene del tipo). */
+  propia?: boolean;
+  /** Párrafos citados: cada párrafo debe tener al menos una fuente (por defecto, sí). */
+  citaPorParrafo?: boolean;
 }
 
 export type RevisionEspecial = "pregunta" | "hipotesis" | "objetivos" | "conclusiones" | "referencias";
@@ -52,12 +61,28 @@ export const LINEAS_UNICAES = [
 const LINEAS_OPCIONES = LINEAS_UNICAES.flatMap((l) => l.ejes.map((e) => ({ valor: `${l.valor}::${e}`, etiqueta: `${l.etiqueta} — ${e}` })));
 
 export const TIPOS_APARTADO: Record<string, TipoApartado> = {
+  consideraciones_eticas: {
+    clave: "consideraciones_eticas", nombre: "Consideraciones éticas", etapa: "protocolo",
+    proposito: "Explica cómo se protegerá a las personas que participan: su consentimiento, la confidencialidad de sus datos y los riesgos del estudio.",
+    partes: [
+      { id: "consentimiento", titulo: "Consentimiento informado", ayuda: "Cómo se informará a los participantes y cómo darán su consentimiento (y el de sus tutores, si son menores).", formato: "texto", min: 30, max: 250 },
+      { id: "confidencialidad", titulo: "Confidencialidad y uso de los datos", ayuda: "Cómo se protegerán la identidad y los datos, quién tendrá acceso y por cuánto tiempo se guardarán.", formato: "texto", min: 30, max: 250 },
+      { id: "riesgos", titulo: "Riesgos y beneficios", ayuda: "Posibles riesgos para los participantes, cómo se reducirán y qué beneficios obtienen.", formato: "texto", min: 20, max: 250, opcional: true },
+    ],
+    citasMinimas: 0,
+    autoevaluacion: ["Expliqué cómo se pedirá el consentimiento.", "Indiqué cómo se protegerán los datos."],
+    errores: ["Prometer anonimato y luego pedir el nombre en el instrumento.", "Omitir el consentimiento de los tutores de participantes menores de edad."],
+    ejemplo: "Antes de aplicar la encuesta se explicará el propósito del estudio y se pedirá el consentimiento por escrito; las respuestas serán anónimas y solo el equipo tendrá acceso a la base de datos.",
+    especiales: [],
+  },
   generalidades: {
     clave: "generalidades", nombre: "Generalidades", etapa: "ambas",
     proposito: "Ubica el estudio: la línea y el eje de investigación de la universidad, la unidad donde se genera y el contexto en que se realizará.",
     partes: [
       { id: "linea", titulo: "Línea y eje temático de investigación", ayuda: "Elija la línea institucional de UNICAES a la que aporta el estudio.", formato: "seleccion", opciones: LINEAS_OPCIONES },
       { id: "contexto", titulo: "Contexto y delimitación del estudio", ayuda: "Dónde (institución, lugar), cuándo (período) y con quiénes se realizará el estudio.", formato: "texto", min: 80, max: 400 },
+      // Ajustes al protocolo (19-nov-2026): opcional en el tipo para no cambiar las versiones habilitadas; la plantilla lo pide.
+      { id: "resumen", titulo: "Resumen del proyecto", ayuda: "En un párrafo: qué se investigará, con quiénes, cómo y qué se espera obtener.", formato: "texto", min: 80, max: 300, opcional: true },
     ],
     citasMinimas: 0,
     autoevaluacion: ["Indiqué el lugar, el período y la población del estudio.", "La línea elegida corresponde al tema."],
@@ -99,7 +124,7 @@ export const TIPOS_APARTADO: Record<string, TipoApartado> = {
     proposito: "Son la guía de la investigación: un objetivo general y de tres a cinco específicos, puntuales y claros, donde se identifican las variables o categorías.",
     partes: [
       { id: "general", titulo: "Objetivo general", ayuda: "Inicie con un verbo en infinitivo y responda a la pregunta de investigación.", formato: "texto", min: 10, max: 60 },
-      { id: "especificos", titulo: "Objetivos específicos", ayuda: "Uno por línea, cada uno con un verbo en infinitivo medible (identificar, determinar, analizar, comparar, describir…).", formato: "lista" },
+      { id: "especificos", titulo: "Objetivos específicos", ayuda: "Uno por línea, cada uno con un verbo en infinitivo medible (identificar, determinar, analizar, comparar, describir…).", formato: "lista", minItems: 3, maxItems: 5 },
     ],
     citasMinimas: 0,
     autoevaluacion: ["Cada objetivo identifica una variable o categoría.", "Los específicos, juntos, cumplen el general.", "Son alcanzables con la metodología y el tiempo disponibles."],
@@ -124,7 +149,7 @@ export const TIPOS_APARTADO: Record<string, TipoApartado> = {
     clave: "variables", nombre: "Definición de variables o categorías", etapa: "ambas",
     proposito: "Cuadro que define conceptual y operacionalmente cada variable o categoría del estudio, con los indicadores que la conforman.",
     partes: [
-      { id: "cuadro", titulo: "Cuadro de variables o categorías", ayuda: "Una fila por variable o categoría de los objetivos.", formato: "tabla", columnas: ["Variable o categoría", "Definición conceptual", "Definición operacional", "Indicadores"] },
+      { id: "cuadro", titulo: "Cuadro de variables o categorías", ayuda: "Una fila por variable o categoría de los objetivos.", formato: "tabla", columnas: ["Variable o categoría", "Definición conceptual", "Definición operacional", "Indicadores"], minItems: 1, maxItems: 10 },
     ],
     citasMinimas: 0,
     autoevaluacion: ["Están todas las variables de los objetivos y de la hipótesis.", "Cada indicador se puede observar o medir con un instrumento."],
@@ -137,7 +162,7 @@ export const TIPOS_APARTADO: Record<string, TipoApartado> = {
     proposito: "Lectura inicial de teoría: el esquema de los temas que darán forma conceptual a la investigación, en función de las variables, con fuentes académicas confiables (APA 7).",
     partes: [
       { id: "esquema", titulo: "Esquema de temas", ayuda: "Un tema por línea, en orden (1., 1.1, 1.2…), organizado por variables o categorías.", formato: "lista" },
-      { id: "desarrollo", titulo: "Desarrollo inicial", ayuda: "Resuma lo que dicen los autores principales sobre cada variable, citando en APA 7.", formato: "texto", min: 200, max: 1200 },
+      { id: "desarrollo", titulo: "Desarrollo inicial", ayuda: "Escriba por párrafos lo que dicen los autores sobre cada variable. Cada párrafo se sustenta en una o más fuentes: elíjalas y el sistema agrega la cita (Apellido, año) y la referencia.", formato: "citado", min: 200, max: 1200, citaPorParrafo: true },
     ],
     citasMinimas: 3,
     autoevaluacion: ["El esquema sigue las variables o categorías.", "Usé fuentes académicas (libros, artículos arbitrados), no solo páginas web."],
@@ -165,7 +190,7 @@ export const TIPOS_APARTADO: Record<string, TipoApartado> = {
     clave: "referencias", nombre: "Referencias", etapa: "ambas",
     proposito: "Las fuentes que fundamentan la investigación, en normas APA séptima edición, en orden alfabético.",
     partes: [
-      { id: "lista", titulo: "Referencias (APA 7)", ayuda: "Una referencia por línea. Ej.: Apellido, A. A. (2020). Título del libro. Editorial.", formato: "referencias" },
+      { id: "lista", titulo: "Referencias (APA 7)", ayuda: "Las fuentes que citó se agregan solas. Agregue también las que consultó aunque no las haya citado.", formato: "referencias", minItems: 20 },
     ],
     citasMinimas: 0,
     autoevaluacion: ["Toda cita del texto está en las referencias, y al revés.", "Las fuentes son recientes (preferentemente de los últimos 10 años)."],
@@ -317,6 +342,7 @@ export function leerTabla(valor: string | undefined, columnas: number): string[]
 export function parteVacia(p: ParteApartado, valor: string | undefined): boolean {
   const v = (valor ?? "").trim();
   if (!v) return true;
+  if (p.formato === "citado") return !leerParrafos(v).some((x) => x.texto.trim());
   if (p.formato === "tabla") return !leerTabla(v, p.columnas?.length ?? 1).some((f) => f.some((x) => x.trim()));
   return false;
 }
@@ -327,6 +353,7 @@ export function textoParte(tipo: TipoApartado, c: ContenidoApartado, parteId: st
   const v = c.partes[parteId]?.trim() ?? "";
   if (!p || parteVacia(p, v)) return "";
   if (p.formato === "seleccion") return p.opciones?.find((o) => o.valor === v)?.etiqueta ?? v;
+  if (p.formato === "citado") return leerParrafos(v).filter((x) => x.texto.trim()).map((x) => parrafoConCita(x)).join("\n\n");
   if (p.formato === "tabla") return leerTabla(v, p.columnas?.length ?? 1).filter((f) => f.some(Boolean)).map((f) => f.join(" · ")).join("\n");
   return v;
 }
@@ -363,6 +390,8 @@ export interface OpcionesRevision {
 }
 
 export interface ContextoRevision {
+  /** Referencias del registro de fuentes (ya en APA 7): cuentan para el mínimo de referencias. */
+  fuentesReferencias?: string[];
   /** Entradas de las referencias del mismo documento (para cruzar las citas). */
   referencias?: string[];
   /** Objetivos específicos del trabajo (para las conclusiones). */
@@ -418,12 +447,21 @@ export function revisarApartado(tipo: TipoApartado, c: ContenidoApartado, op: Op
   const textos: string[] = [];
 
   for (const p of tipo.partes) {
-    const v = (c.partes[p.id] ?? "").trim();
-    if (parteVacia(p, v)) {
+    const crudo = (c.partes[p.id] ?? "").trim();
+    // Párrafos citados: se revisan como un texto continuo (con sus citas) y cada párrafo debe tener su fuente.
+    const parrafos = p.formato === "citado" ? leerParrafos(crudo).filter((x) => x.texto.trim()) : [];
+    const v = p.formato === "citado" ? parrafos.map((x) => parrafoConCita(x)).join("\n\n") : crudo;
+    // Las referencias del registro de fuentes cuentan aunque la lista escrita a mano esté vacía.
+    const delRegistro = p.formato === "referencias" ? (ctx.fuentesReferencias ?? []) : [];
+    if (p.formato === "citado" && parrafos.length) {
+      const sinFuente = parrafos.filter((x) => !x.fuentes.length).length;
+      if (sinFuente && p.citaPorParrafo !== false) r.push({ id: `sin-fuente-${p.id}`, nivel: "falta", mensaje: `«${p.titulo}»: ${sinFuente} párrafo(s) sin fuente. Cada párrafo se sustenta en la literatura: elija al menos una fuente.`, parte: p.id });
+    }
+    if (parteVacia(p, crudo) && delRegistro.length === 0) {
       if (!p.opcional) r.push({ id: `vacio-${p.id}`, nivel: "falta", mensaje: `Falta «${p.titulo}».`, parte: p.id });
       continue;
     }
-    if (p.formato === "texto" || p.formato === "pregunta") {
+    if (p.formato === "texto" || p.formato === "pregunta" || p.formato === "citado") {
       textos.push(v);
       const n = palabras(v);
       if (p.min && n < p.min) r.push({ id: `min-${p.id}`, nivel: "falta", mensaje: `«${p.titulo}» tiene ${n} palabras; el mínimo es ${p.min}.`, parte: p.id });
@@ -435,6 +473,13 @@ export function revisarApartado(tipo: TipoApartado, c: ContenidoApartado, op: Op
       r.push({ id: "pregunta-signos", nivel: "aviso", mensaje: "La pregunta de investigación debe ir entre signos de interrogación (¿…?).", parte: p.id });
     }
     if (p.formato === "lista") textos.push(lineas(v).join(". "));
+    // Elementos o filas dentro de los límites de la ficha (por ejemplo, de 1 a 10 variables o de 3 a 5 objetivos).
+    if (p.formato === "lista" || p.formato === "tabla" || p.formato === "referencias") {
+      const n = p.formato === "tabla" ? leerTabla(v, p.columnas?.length ?? 1).filter((f) => f.some((x) => x.trim())).length : lineas(v).length + delRegistro.length;
+      const que = p.formato === "lista" ? "elemento(s)" : p.formato === "referencias" ? "referencia(s)" : "fila(s)";
+      if (p.minItems && n < p.minItems) r.push({ id: `items-min-${p.id}`, nivel: "falta", mensaje: `«${p.titulo}» necesita al menos ${p.minItems} ${que}; hay ${n}.`, parte: p.id });
+      else if (p.maxItems && n > p.maxItems) r.push({ id: `items-max-${p.id}`, nivel: "falta", mensaje: `«${p.titulo}» admite hasta ${p.maxItems} ${que}; hay ${n}.`, parte: p.id });
+    }
   }
 
   const todo = textos.join("\n");
@@ -477,14 +522,16 @@ export function revisarApartado(tipo: TipoApartado, c: ContenidoApartado, op: Op
     if (noInfinitivo.length) r.push({ id: "obj-infinitivo", nivel: "aviso", mensaje: `${noInfinitivo.length} objetivo(s) no empiezan con un verbo en infinitivo: «${noInfinitivo[0].slice(0, 50)}».` });
     const noMedibles = todos.filter((t) => VERBOS_NO_MEDIBLES.includes(verbo(t)));
     if (noMedibles.length) r.push({ id: "obj-medibles", nivel: "aviso", mensaje: `Use verbos medibles en lugar de «${verbo(noMedibles[0])}» (por ejemplo: identificar, determinar, analizar, comparar).` });
-    if (especificos.length && (especificos.length < 3 || especificos.length > 5)) r.push({ id: "obj-cantidad", nivel: "aviso", mensaje: `UNICAES pide de 3 a 5 objetivos específicos; hay ${especificos.length}.`, parte: "especificos" });
-    if (especificos.length >= 3 && especificos.length <= 5 && !noInfinitivo.length && !noMedibles.length) r.push({ id: "obj-ok", nivel: "ok", mensaje: `${especificos.length} objetivos específicos con verbos medibles en infinitivo.` });
+    // La cantidad la revisan los límites del subapartado (minItems y maxItems, de 3 a 5 por defecto).
+    const pe = tipo.partes.find((x) => x.id === "especificos");
+    const enRango = (!pe?.minItems || especificos.length >= pe.minItems) && (!pe?.maxItems || especificos.length <= pe.maxItems);
+    if (especificos.length && enRango && !noInfinitivo.length && !noMedibles.length) r.push({ id: "obj-ok", nivel: "ok", mensaje: `${especificos.length} objetivos específicos con verbos medibles en infinitivo.` });
   }
   if (tipo.especiales.includes("hipotesis")) {
     const ho = sinTildes(c.partes.ho ?? "");
     if (ho && !/\bno\b|\bningun|\bni\b/.test(ho)) r.push({ id: "ho-negacion", nivel: "aviso", mensaje: "La hipótesis nula suele ser la negación de la de investigación (no existe relación, no hay diferencia…).", parte: "ho" });
   }
-  if (tipo.especiales.includes("referencias")) r.push(...revisarReferencias(lineas(c.partes.lista ?? "")));
+  if (tipo.especiales.includes("referencias")) r.push(...revisarReferencias([...lineas(c.partes.lista ?? ""), ...(ctx.fuentesReferencias ?? [])]));
   if (tipo.especiales.includes("conclusiones") && ctx.objetivos?.length) {
     const parrafos = (c.partes.conclusiones ?? "").split(/\n\s*\n|\n/).map((x) => x.trim()).filter(Boolean);
     if (parrafos.length < ctx.objetivos.length) r.push({ id: "conclusiones-objetivos", nivel: "aviso", mensaje: `Hay ${ctx.objetivos.length} objetivos específicos y ${parrafos.length} párrafo(s) de conclusiones: escriba una conclusión por objetivo.`, parte: "conclusiones" });
@@ -499,6 +546,7 @@ export function avanceApartado(tipo: TipoApartado, c: ContenidoApartado) {
   const completas = obligatorias.filter((p) => {
     const v = (c.partes[p.id] ?? "").trim();
     if (parteVacia(p, v)) return false;
+    if (p.formato === "citado") return !p.min || palabras(leerParrafos(v).map((x) => x.texto).join(" ")) >= p.min;
     return !(p.formato === "texto" || p.formato === "pregunta") || !p.min || palabras(v) >= p.min;
   }).length;
   return { completas, total: obligatorias.length };
@@ -512,18 +560,95 @@ export const partePrecarga = (precargarDe: string): [string, string | undefined]
   return [id, parte || undefined];
 };
 
-/** Tipo de un espacio "apartado", con la extensión y las citas que configuró la ficha. */
-export function tipoApartado(e: Pick<Espacio, "parametros">): TipoApartado | undefined {
+/**
+ * Subapartados de un espacio "apartado" tal como los configuró la ficha (ajustes al protocolo, 19-nov-2026), incluidos
+ * los desactivados, en su orden: los del tipo con sus cambios y los propios. Los del tipo que la ficha no menciona (por
+ * ejemplo, porque se agregaron al tipo después) van al final, activos. Es lo que muestra el constructor.
+ */
+export function partesConfiguradas(e: Pick<Espacio, "parametros" | "partes">): (ParteApartado & { activa: boolean })[] {
+  const base = TIPOS_APARTADO[String(e.parametros.tipo)];
+  if (!base) return [];
+  const escala = (Number(e.parametros.extension) || 100) / 100;
+  const ajustar = (n: number | undefined) => (n ? Math.max(1, Math.round(n * escala)) : n);
+  const delTipo = new Map(base.partes.map((p) => [p.id, escala === 1 ? p : { ...p, min: ajustar(p.min), max: ajustar(p.max) }]));
+  const usados = new Set<string>();
+  const res: (ParteApartado & { activa: boolean })[] = [];
+  for (const c of e.partes ?? []) {
+    if (usados.has(c.id)) continue;
+    const p = delTipo.get(c.id);
+    if (!p && !c.propia) continue;
+    usados.add(c.id);
+    const origen: ParteApartado = p ?? { id: c.id, titulo: c.titulo || "Subapartado", ayuda: "", formato: c.propia!.formato, columnas: c.propia!.columnas, propia: true };
+    res.push({
+      ...origen,
+      titulo: c.titulo?.trim() || origen.titulo,
+      ayuda: c.ayuda?.trim() || origen.ayuda,
+      opcional: c.opcional ?? origen.opcional,
+      min: c.min ?? origen.min,
+      max: c.max ?? origen.max,
+      minItems: c.minItems ?? origen.minItems,
+      maxItems: c.maxItems ?? origen.maxItems,
+      citaPorParrafo: c.citaPorParrafo ?? origen.citaPorParrafo,
+      activa: c.activa,
+    });
+  }
+  for (const p of delTipo.values()) if (!usados.has(p.id)) res.push({ ...p, activa: true });
+  return res;
+}
+
+/** Tipo de un espacio "apartado", con la extensión, las citas y los subapartados que configuró la ficha. */
+export function tipoApartado(e: Pick<Espacio, "parametros" | "partes">): TipoApartado | undefined {
   const base = TIPOS_APARTADO[String(e.parametros.tipo)];
   if (!base) return undefined;
-  const escala = (Number(e.parametros.extension) || 100) / 100;
   const citas = Number(e.parametros.citasMinimas);
-  const ajustar = (n: number | undefined) => (n ? Math.max(1, Math.round(n * escala)) : n);
   return {
     ...base,
     citasMinimas: Number.isInteger(citas) && citas >= 0 ? citas : base.citasMinimas,
-    partes: base.partes.map((p) => (escala === 1 ? p : { ...p, min: ajustar(p.min), max: ajustar(p.max) })),
+    partes: partesConfiguradas(e).filter((p) => p.activa).map((p) => { const copia: ParteApartado & { activa?: boolean } = { ...p }; delete copia.activa; return copia; }),
   };
+}
+
+/** Configuración inicial de los subapartados para el constructor: los del tipo, todos activos y sin cambios. */
+export const configInicial = (tipo: string): ConfigParte[] => (TIPOS_APARTADO[tipo]?.partes ?? []).map((p) => ({ id: p.id, activa: true }));
+
+/**
+ * Puntos de partida de la metodología según el enfoque (ajustes al protocolo, punto 7). Usan los subapartados del tipo
+ * (con otro título si hace falta) más los propios de cada enfoque; después se ajustan en el constructor.
+ */
+export const ENFOQUES_METODOLOGIA = [
+  { valor: "cuantitativa", etiqueta: "Cuantitativa" },
+  { valor: "cualitativa", etiqueta: "Cualitativa" },
+  { valor: "mixta", etiqueta: "Mixta" },
+] as const;
+
+export function configMetodologia(enfoque: (typeof ENFOQUES_METODOLOGIA)[number]["valor"]): ConfigParte[] {
+  if (enfoque === "cualitativa") {
+    return [
+      { id: "tipo", activa: true, titulo: "Enfoque y diseño", ayuda: "Diseño cualitativo (fenomenológico, etnográfico, estudio de caso, teoría fundamentada…) y por qué responde a los objetivos." },
+      { id: "poblacion", activa: true, titulo: "Participantes y criterios de selección", ayuda: "Quiénes participan, cuántos y con qué criterios se eligen (muestreo intencional, bola de nieve, saturación)." },
+      { id: "tecnicas", activa: true, titulo: "Técnicas e instrumentos", ayuda: "Entrevista, grupo focal, observación o análisis documental, y el instrumento de cada una (guía, ficha)." },
+      { id: "x_categorias", activa: true, titulo: "Categorías de análisis", ayuda: "Categorías y subcategorías que orientan la recolección y el análisis.", propia: { formato: "tabla", columnas: ["Categoría", "Subcategorías", "Preguntas o temas"] }, minItems: 1, maxItems: 10 },
+      { id: "procedimiento", activa: true },
+      { id: "analisis", activa: true, titulo: "Análisis de la información", ayuda: "Cómo se codifica y analiza la información (análisis de contenido, triangulación, software)." },
+    ];
+  }
+  if (enfoque === "mixta") {
+    return [
+      { id: "tipo", activa: true, titulo: "Enfoque, alcance y diseño", ayuda: "Diseño mixto (secuencial o concurrente) y el peso de cada enfoque." },
+      { id: "poblacion", activa: true, titulo: "Población, muestra y participantes", ayuda: "Muestra de la parte cuantitativa y participantes de la parte cualitativa, con sus criterios." },
+      { id: "tecnicas", activa: true },
+      { id: "procedimiento", activa: true },
+      { id: "analisis", activa: true, titulo: "Análisis de los datos", ayuda: "Análisis estadístico de los datos cuantitativos y análisis de contenido de los cualitativos." },
+      { id: "x_integracion", activa: true, titulo: "Integración de los datos", ayuda: "Cómo se combinan los resultados de ambos enfoques para responder a la pregunta.", propia: { formato: "texto" }, min: 30, max: 250 },
+    ];
+  }
+  return [
+    { id: "tipo", activa: true, titulo: "Enfoque, alcance y diseño" },
+    { id: "poblacion", activa: true },
+    { id: "tecnicas", activa: true },
+    { id: "procedimiento", activa: true },
+    { id: "analisis", activa: true, titulo: "Análisis estadístico" },
+  ];
 }
 
 /** Opciones de revisión de un espacio según su etapa (protocolo en futuro, informe final en pasado). */
@@ -537,9 +662,12 @@ export function opcionesDeEspacio(e: Pick<Espacio, "parametros">, etapa: "protoc
   };
 }
 
-/** Referencias y objetivos específicos de un documento (protocolo o informe), para cruzar citas y revisar conclusiones. */
-export function contextoDeRevision(espacios: Espacio[], respuestas: Record<string, string | null | undefined>): ContextoRevision {
-  const ctx: ContextoRevision = {};
+/**
+ * Referencias y objetivos específicos de un documento (protocolo o informe), para cruzar citas y revisar conclusiones.
+ * Con "fuentesReferencias", las referencias del registro de fuentes también cuentan.
+ */
+export function contextoDeRevision(espacios: Espacio[], respuestas: Record<string, string | null | undefined>, fuentesReferencias?: string[]): ContextoRevision {
+  const ctx: ContextoRevision = fuentesReferencias?.length ? { fuentesReferencias, referencias: [...fuentesReferencias] } : {};
   for (const e of espacios) {
     if (e.elemento === "lista" && /bibliograf|referenc/i.test(e.titulo)) {
       try {
