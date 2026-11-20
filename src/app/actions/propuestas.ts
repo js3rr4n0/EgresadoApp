@@ -343,7 +343,10 @@ export async function enviarPropuesta(id: number) {
 
   // For team collaboration proposals (proyecto / investigacion), run pre-flight checks & ratification verification (§10 & §8)
   if (prop.tipo === "proyecto" || prop.tipo === "investigacion") {
-    const { verificarCapacidadEnvio } = await import("@/app/actions/proyecto");
+    const { verificarCapacidadEnvio, ratificarPropuesta } = await import("@/app/actions/proyecto");
+    // H15: en trabajo individual enviar la propuesta es la ratificación; no hace falta un paso aparte.
+    const { integrantesDePropuesta } = await import("@/lib/fichas/fichaDePropuesta");
+    if ((await integrantesDePropuesta(id)) === 1) await ratificarPropuesta(id);
     const checkRes = await verificarCapacidadEnvio(id);
     if (!checkRes.puedeEnviar) {
       return {
@@ -361,7 +364,7 @@ export async function enviarPropuesta(id: number) {
     const hasPago = docs.some(d => d.tipo === "pago_tg");
 
     if (!hasServicio || !hasNotas || !hasPago) {
-      return { success: false, error: "Debes subir OBLIGATORIAMENTE los tres archivos (Servicio, Notas, Pago) en tu portafolio para enviar la propuesta." };
+      return { success: false, error: "Para enviar la propuesta debes subir los tres documentos obligatorios: hoja de inscripción, constancia de servicio social y hoja de notas." };
     }
   }
 
@@ -531,6 +534,20 @@ export async function solicitarCorreccionDatosDecanato(formData: FormData) {
 }
 
 /** Primer paso nuevo de la ficha que no cumple sus reglas (null si todos cumplen o la propuesta no tiene ficha). */
+/** El líder y los integrantes que aceptaron, con su nombre (para los elementos propios por integrante). */
+async function integrantesConNombre(propuestaId: number): Promise<{ id: number; nombre: string }[]> {
+  const { integrantesProyecto } = await import("@/lib/schema");
+  const [prop] = await db.select({ egresadoId: propuestas.egresadoId }).from(propuestas).where(eq(propuestas.id, propuestaId));
+  if (!prop) return [];
+  const [lider] = await db.select({ id: usuarios.id, nombre: usuarios.nombreCompleto }).from(usuarios).where(eq(usuarios.id, prop.egresadoId));
+  const otros = await db
+    .select({ id: usuarios.id, nombre: usuarios.nombreCompleto })
+    .from(integrantesProyecto)
+    .innerJoin(usuarios, eq(integrantesProyecto.egresadoId, usuarios.id))
+    .where(and(eq(integrantesProyecto.propuestaId, propuestaId), eq(integrantesProyecto.estado, "aceptado")));
+  return [...(lider ? [lider] : []), ...otros];
+}
+
 async function espacioFichaIncompleto(propuestaId: number): Promise<string | null> {
   const { fichaDePropuesta, espaciosPropuesta } = await import("@/lib/fichas/fichaDePropuesta");
   const { esRecurso, leerItems, problemasRecurso } = await import("@/lib/fichas/elementosRecurso");
@@ -540,6 +557,13 @@ async function espacioFichaIncompleto(propuestaId: number): Promise<string | nul
   const filas = await db.select().from(respuestasEspacios).where(eq(respuestasEspacios.propuestaId, propuestaId));
   const respuesta = (id: string) => filas.find((f) => f.espacioId === id)?.contenido ?? "";
   for (const e of espaciosPropuesta(ficha.definicion)) {
+    // Campos adicionales del paso (C4), también en los pasos de la fase 1.
+    if (e.camposExtra?.length) {
+      const { defCamposExtra, claveCamposExtra } = await import("@/lib/fichas/elementosPropios");
+      const { problemasRespuestaPropia } = await import("@/lib/fichas/respuestasPropias");
+      const problemas = problemasRespuestaPropia(defCamposExtra(e), respuesta(claveCamposExtra(e.id)), []);
+      if (problemas.length > 0) return `"${e.titulo}", datos adicionales: ${problemas[0]}`;
+    }
     if (e.origenFase1) continue;
     if (e.elemento === "texto") {
       const t = respuesta(e.id).trim();
@@ -555,6 +579,12 @@ async function espacioFichaIncompleto(propuestaId: number): Promise<string | nul
       if (!e.obligatorio && items.length === 0) continue;
       const problemas = problemasRecurso(r, items);
       if (problemas.length > 0) return problemas[0];
+    } else if (e.elemento === "propio" && e.propio) {
+      // Catálogo editable (C3): por integrante, la parte de cada uno.
+      const { problemasRespuestaPropia } = await import("@/lib/fichas/respuestasPropias");
+      const integrantes = await integrantesConNombre(propuestaId);
+      const problemas = problemasRespuestaPropia(e.propio.definicion, respuesta(e.id), integrantes, e.obligatorio);
+      if (problemas.length > 0) return `"${e.titulo}": ${problemas[0]}`;
     }
   }
   return null;

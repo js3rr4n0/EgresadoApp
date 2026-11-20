@@ -38,7 +38,9 @@ export default function NuevaFichaModal({
 }) {
   const [abierto, setAbierto] = useState(false);
   const [modalidad, setModalidad] = useState<Modalidad>("pasantia");
+  // Proyecto e investigación parten, por defecto, de la plantilla recomendada (todas sus etapas).
   const [origen, setOrigen] = useState<string>("");
+  const conPlantilla = modalidad !== "pasantia";
   const [facultadId, setFacultadId] = useState<string>("");
   const [carreraId, setCarreraId] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +69,8 @@ export default function NuevaFichaModal({
         modalidad,
         facultadId: facultad?.id ?? null,
         carreraId: carrera?.id ?? null,
-        partirDeVersionId: origen ? Number(origen) : null,
+        partirDeVersionId: origen && origen !== "recomendada" ? Number(origen) : null,
+        ...(origen === "recomendada" ? { plantilla: "recomendada" as const } : {}),
       });
       if (!res.success) {
         setError(res.error);
@@ -112,7 +115,7 @@ export default function NuevaFichaModal({
                     <label key={m.clave} title={"nota" in m ? m.nota : undefined}
                       className={`border rounded-lg px-3 py-2 text-sm text-center font-medium ${!m.disponible ? "border-dashed border-gray-200 text-gray-400 cursor-not-allowed" : modalidad === m.clave ? "border-brand-red bg-red-50 text-brand-red cursor-pointer" : "border-gray-200 text-gray-600 hover:bg-gray-50 cursor-pointer"}`}>
                       <input type="radio" name="modalidad" value={m.clave} disabled={!m.disponible} checked={modalidad === m.clave}
-                        onChange={() => { setModalidad(m.clave as Modalidad); setOrigen(""); }} className="sr-only" />
+                        onChange={() => { setModalidad(m.clave as Modalidad); setOrigen(m.clave === "pasantia" ? "" : "recomendada"); }} className="sr-only" />
                       <span className="block">{m.nombre}</span>
                       <span className="block text-[10px] font-mono">{m.prefijo}</span>
                       {!m.disponible && <span className="block text-[10px]">Próximamente</span>}
@@ -141,9 +144,17 @@ export default function NuevaFichaModal({
               <div>
                 <label htmlFor="nf-origen" className={etiqueta}>4. Partir de</label>
                 <select id="nf-origen" className={campo} value={origen} onChange={(e) => setOrigen(e.target.value)}>
-                  <option value="">Ficha base de {ETIQUETA_MODALIDAD[modalidad].toLowerCase()} (funcionamiento actual)</option>
+                  {conPlantilla && (
+                    <option value="recomendada">
+                      Plantilla recomendada de {ETIQUETA_MODALIDAD[modalidad].toLowerCase()} ({modalidad === "investigacion" ? "propuesta, protocolo, cronograma, ejecución e informe final" : "propuesta, plan de trabajo y ejecución"})
+                    </option>
+                  )}
+                  <option value="">Ficha base de {ETIQUETA_MODALIDAD[modalidad].toLowerCase()} (funcionamiento actual{conPlantilla ? ": solo la propuesta" : ""})</option>
                   {origenesModalidad.map((o) => <option key={o.versionId} value={o.versionId}>Copia de {o.etiqueta}</option>)}
                 </select>
+                {origen === "recomendada" && (
+                  <p className="text-[11px] text-gray-500 mt-1">Trae todas las etapas que hoy funcionan, con los valores recomendados. Después se ajustan en cada pestaña.</p>
+                )}
               </div>
 
               <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">

@@ -8,7 +8,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { guardarRespuestaApartado } from "@/app/actions/respuestasEspacios";
 import {
-  avanceApartado, guardarComoTexto, leerApartado, leerTabla, lineas, opcionesDeEspacio, palabras, parteVacia, revisarApartado, tipoApartado,
+  avanceApartado, conRangoObjetivos, guardarComoTexto, leerApartado, leerTabla, lineas, opcionesDeEspacio, palabras, parteVacia, revisarApartado, tipoApartado,
   type ContenidoApartado, type ContextoRevision, type OpcionesRevision, type ParteApartado, type Revision, type TipoApartado,
 } from "@/lib/fichas/apartadosAcademicos";
 import type { Espacio } from "@/lib/fichas/tipos";
@@ -50,7 +50,7 @@ export default function ApartadoAcademicoForm({
   propuestaId, espacio, etapa, initialData, isLocked, isReadOnly = false, pasoSiguiente, pasoAnterior, hrefPaso, aviso, contexto,
 }: Props) {
   const router = useRouter();
-  const tipo = tipoApartado(espacio);
+  const tipo = conRangoObjetivos(tipoApartado(espacio), contexto?.rangoObjetivos);
   const [contenido, setContenido] = useState<ContenidoApartado>(() => (tipo ? leerApartado(tipo, initialData) : { partes: {}, autoevaluacion: [] }));
   const [pending, setPending] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
@@ -346,7 +346,7 @@ function TablaParte({ parte: p, valor, disabled, onChange }: { parte: ParteApart
 export function CapituloApartado({ espacio, contenido, disabled, onChange, contexto }: {
   espacio: Espacio; contenido: string; disabled: boolean; onChange: (valor: string) => void; contexto?: ContextoRevision;
 }) {
-  const tipo = tipoApartado(espacio);
+  const tipo = conRangoObjetivos(tipoApartado(espacio), contexto?.rangoObjetivos);
   const c = useMemo(() => (tipo ? leerApartado(tipo, contenido) : null), [tipo, contenido]);
   const opciones = opcionesDeEspacio(espacio, "informe_final");
   const revisiones = useMemo(() => (tipo && c ? revisarApartado(tipo, c, opciones, contexto) : []), [tipo, c, opciones, contexto]);

@@ -5,6 +5,8 @@ import { responderSolicitudAsesor, getDetallePropuestaAsesor } from "@/app/actio
 import Link from "next/link";
 import type { EntradaBandejaAsesor } from "@/app/actions/registrosActividad";
 import BandejaRevisionGlobal from "./BandejaRevisionGlobal";
+import BandejaFichasAsesor from "./BandejaFichasAsesor";
+import type { EntradaBandejaFicha } from "@/app/actions/bandejaFichas";
 
 const ESTILO_ESTATUS: Record<string, string> = {
   semana: "bg-red-50 text-unicaes border-red-200",
@@ -20,6 +22,8 @@ interface AsesorDashboardClientProps {
   seguimiento?: any[];
   bandeja?: EntradaBandejaAsesor[];
   diasPlazoRevision?: number;
+  /** Proyecto e investigación (H21): lo que espera revisión; null si el asesor no tiene propuestas con ficha. */
+  bandejaFichas?: EntradaBandejaFicha[] | null;
 }
 
 export default function AsesorDashboardClient({
@@ -28,6 +32,7 @@ export default function AsesorDashboardClient({
   seguimiento = [],
   bandeja = [],
   diasPlazoRevision = 3,
+  bandejaFichas = null,
 }: AsesorDashboardClientProps) {
   const [propuestas, setPropuestas] = useState<any[]>(initialPropuestas);
   const [solicitudes, setSolicitudes] = useState<any[]>(initialSolicitudes);
@@ -212,6 +217,7 @@ export default function AsesorDashboardClient({
       )}
 
       {/* Bandeja global de revisión: semanas e informes por revisar de todos los estudiantes */}
+      {bandejaFichas && <BandejaFichasAsesor entradas={bandejaFichas} diasPlazo={diasPlazoRevision} />}
       {seguimiento.length > 0 && <BandejaRevisionGlobal entradas={bandeja} diasPlazo={diasPlazoRevision} />}
 
       {/* Seguimiento de Actividades (registro progresivo) */}

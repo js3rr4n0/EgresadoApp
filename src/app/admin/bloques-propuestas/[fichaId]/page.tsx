@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { carreras, facultades, fichas, fichasVersiones } from "@/lib/schema";
 import EditorFicha from "@/components/fichas/EditorFicha";
 import type { DefinicionFicha, EstadoVersion, Modalidad } from "@/lib/fichas/tipos";
+import { listarElementosPropios } from "@/app/actions/elementosCatalogo";
 
 export const metadata = {
   title: "Ficha de trabajo de graduación | Gestión TG UNICAES",
@@ -58,8 +59,12 @@ export default async function FichaPage({
     if (origen) referencia = { etiqueta: `${origen.codigo ?? origen.nombre}, versión ${origen.numero}`, definicion: origen.definicion as DefinicionFicha };
   }
 
+  // Catálogo editable (C2): los elementos propios publicados se pueden agregar a la ficha.
+  const propios = (await listarElementosPropios()).filter((e) => e.estado === "publicado");
+
   return (
     <EditorFicha
+      propios={propios}
       key={actual.id}
       ficha={{
         id: ficha.id,

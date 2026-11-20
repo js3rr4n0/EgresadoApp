@@ -23,12 +23,18 @@ import ObjetivosProyectoForm from "@/components/proyecto/ObjetivosProyectoForm";
 import TextoEspacioForm from "@/components/proyecto/TextoEspacioForm";
 import { espaciosPropuesta, fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
 import type { Espacio } from "@/lib/fichas/tipos";
+import { objetivosPorIntegranteDe, rangoObjetivos, textoRangoObjetivos } from "@/lib/fichas/objetivos";
+import { getSession } from "@/lib/session";
+import PropioEspacioForm from "@/components/proyecto/PropioEspacioForm";
+import CamposExtraForm from "@/components/proyecto/CamposExtraForm";
+import { claveCamposExtra, defCamposExtra } from "@/lib/fichas/elementosPropios";
+import { leerRespuestaPropia, problemasRespuestaPropia, problemasValores, valoresDe } from "@/lib/fichas/respuestasPropias";
 import { getRespuestasEspacios } from "@/app/actions/respuestasEspacios";
 import { esRecurso, recursoCompleto } from "@/lib/fichas/elementosRecurso";
 import RecursoEspacioForm from "@/components/proyecto/RecursoEspacioForm";
 
 /** Formulario de la fase 1 que atiende cada espacio de la ficha de proyecto (entrega P2). */
-type TipoPasoProyecto = "portada" | "actores" | "carta" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "recurso" | "no_disponible";
+type TipoPasoProyecto = "portada" | "actores" | "carta" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "recurso" | "propio" | "no_disponible";
 function tipoPasoProyecto(e: Espacio): TipoPasoProyecto {
   switch (e.elemento) {
     case "portada":
@@ -47,13 +53,16 @@ function tipoPasoProyecto(e: Espacio): TipoPasoProyecto {
     case "enlace":
     case "lista":
       return "recurso";
+    // Catálogo editable (C3): elemento propio con su copia en la ficha.
+    case "propio":
+      return e.propio ? "propio" : "no_disponible";
     default:
       return "no_disponible";
   }
 }
 
 import { db } from "@/lib/db";
-import { empresas } from "@/lib/schema";
+import { empresas, usuarios } from "@/lib/schema";
 import { eq, asc, desc } from "drizzle-orm";
 
 export default async function EgresadoPage({
@@ -119,9 +128,13 @@ export default async function EgresadoPage({
   let teamMembers: any[] = [];
   let detallesProj: any = null;
   let respuestasProyecto: Record<string, string> = {};
+  // H19/H27: de 3 a 4 objetivos específicos por integrante (líder más los que aceptaron).
+  const porIntegrante = objetivosPorIntegranteDe(fichaProyecto?.version ? fichaProyecto.definicion : null);
+  let integrantesTrabajo = 1;
 
   if (isMultiUserFlow) {
     teamMembers = await getEquipoProyecto(propuesta.id);
+    integrantesTrabajo = 1 + teamMembers.filter((m: { estado?: string }) => m.estado === "aceptado").length;
     detallesProj = await getDetallesProyecto(propuesta.id);
     respuestasProyecto = await getRespuestasEspacios(propuesta.id);
     cartaData = await getCartaAceptacion(propuesta.id);
@@ -178,6 +191,15 @@ export default async function EgresadoPage({
     }
   }
 
+  // Elementos propios (C3): quién ve el paso y quiénes responden (el líder y los integrantes que aceptaron).
+  const miId = (await getSession())?.userId ?? 0;
+  const integrantesPropios = [
+    { id: propuesta.egresadoId, nombre: isLeader ? userDetails?.nombreCompleto ?? "Líder" : (await db.select({ n: usuarios.nombreCompleto }).from(usuarios).where(eq(usuarios.id, propuesta.egresadoId)))[0]?.n ?? "Líder" },
+    ...teamMembers.filter((m: { estado?: string }) => m.estado === "aceptado").map((m: { egresadoId: number; nombreCompleto: string }) => ({ id: m.egresadoId, nombre: m.nombreCompleto })),
+  ];
+  const rangoObjetivosPropuesta = rangoObjetivos(porIntegrante, integrantesTrabajo);
+  const textoRangoObjetivosPropuesta = textoRangoObjetivos(porIntegrante, integrantesTrabajo);
+
   // Calculate max allowed step
   let maxAllowedStep = 1;
 
@@ -206,18 +228,27 @@ export default async function EgresadoPage({
           return !!detallesProj?.alcance;
         case "objetivos":
           return !!(detallesProj?.objetivoGeneral && Array.isArray(detallesProj?.objetivosEspecificos) &&
-            detallesProj.objetivosEspecificos.length >= Number(p.espacio.parametros.minEspecificos ?? 4));
+            detallesProj.objetivosEspecificos.length >= rangoObjetivosPropuesta.min && detallesProj.objetivosEspecificos.length <= rangoObjetivosPropuesta.max);
         case "texto":
           return !p.espacio.obligatorio || !!respuestasProyecto[p.espacio.id]?.trim();
         case "recurso":
           return esRecurso(p.espacio.elemento) && recursoCompleto({ ...p.espacio, elemento: p.espacio.elemento }, respuestasProyecto[p.espacio.id]);
+        case "propio": {
+          // Para avanzar basta la parte de quien redacta; al enviar se revisan las de todos los integrantes.
+          const def = p.espacio.propio!.definicion;
+          if (def.alcance !== "integrante") return problemasRespuestaPropia(def, respuestasProyecto[p.espacio.id], [], p.espacio.obligatorio).length === 0;
+          return !p.espacio.obligatorio || problemasValores(def, valoresDe(leerRespuestaPropia(respuestasProyecto[p.espacio.id]), def, miId)).length === 0;
+        }
         default:
           return true;
       }
     };
     maxAllowedStep = 1;
+    // Campos adicionales del paso (C4): también cuentan para avanzar.
+    const extrasCompletos = (p: (typeof pasosProyecto)[number]) =>
+      !p.espacio.camposExtra?.length || problemasValores(defCamposExtra(p.espacio), valoresDe(leerRespuestaPropia(respuestasProyecto[claveCamposExtra(p.espacio.id)]), defCamposExtra(p.espacio))).length === 0;
     for (const p of pasosProyecto) {
-      if (p.num === pasosProyecto.length || !completo(p)) break;
+      if (p.num === pasosProyecto.length || !completo(p) || !extrasCompletos(p)) break;
       maxAllowedStep = p.num + 1;
     }
   } else {
@@ -534,7 +565,7 @@ export default async function EgresadoPage({
                     <ObjetivosProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialObjetivoGeneral={detallesProj?.objetivoGeneral}
                       initialObjetivosEspecificos={detallesProj?.objetivosEspecificos} isLocked={isFormLocked} isReadOnly={!isLeader}
                       observaciones={propuesta.observaciones}
-                      minEspecificos={Number(e.parametros.minEspecificos ?? 4)} maxEspecificos={Number(e.parametros.maxEspecificos ?? 6)} />
+                      minEspecificos={rangoObjetivosPropuesta.min} maxEspecificos={rangoObjetivosPropuesta.max} textoRango={textoRangoObjetivosPropuesta} />
                   )}
                   {paso.tipo === "texto" && (
                     <TextoEspacioForm key={e.id} propuestaId={propuesta.id} espacioId={e.id} titulo={e.titulo} descripcion={e.descripcion}
@@ -546,6 +577,11 @@ export default async function EgresadoPage({
                     <RecursoEspacioForm key={e.id} propuestaId={propuesta.id} espacio={{ ...e, elemento: e.elemento }} initialData={respuestasProyecto[e.id]}
                       isLocked={isFormLocked} isReadOnly={!isLeader} pasoSiguiente={currentStep + 1} pasoAnterior={currentStep > 1 ? currentStep - 1 : null} />
                   )}
+                  {paso.tipo === "propio" && (
+                    <PropioEspacioForm key={e.id} propuestaId={propuesta.id} espacio={e} initialData={respuestasProyecto[e.id]} miId={miId}
+                      integrantes={integrantesPropios} esLider={isLeader} isLocked={isFormLocked}
+                      pasoSiguiente={currentStep + 1} pasoAnterior={currentStep > 1 ? currentStep - 1 : null} />
+                  )}
                   {paso.tipo === "documentos" && (
                     <DocumentosEstudianteForm propuestaId={propuesta.id} isLocked={isFormLocked || !isLeader} documentosSubidos={documentosSubidos} prevStep={currentStep - 1} />
                   )}
@@ -554,6 +590,10 @@ export default async function EgresadoPage({
                       <h2 className="text-xl font-bold text-card-dark mb-2">{e.titulo}</h2>
                       Este paso de la ficha todavía no tiene formulario en el asistente. Puedes continuar con el siguiente.
                     </div>
+                  )}
+                  {(e.camposExtra?.length ?? 0) > 0 && paso.tipo !== "documentos" && (
+                    <CamposExtraForm key={`${e.id}-extra`} propuestaId={propuesta.id} espacio={e} initialData={respuestasProyecto[claveCamposExtra(e.id)]}
+                      puedeEditar={isLeader && !isFormLocked} />
                   )}
                 </div>
               );

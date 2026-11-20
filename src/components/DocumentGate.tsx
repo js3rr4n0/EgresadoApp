@@ -63,22 +63,22 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
   const docs = [
     {
       id: "servicio_social",
-      title: "Constancia de Servicio Social",
+      title: "Constancia de servicio social",
       desc: "Documento oficial que certifica la finalización de tus horas de servicio social.",
       done: hasServicio,
       url: urlServicio,
     },
     {
       id: "certificacion_notas",
-      title: "Certificación de Notas (CUM > 7.0)",
-      desc: "Historial académico que compruebe tu CUM requerido para optar a pasantía.",
+      title: "Hoja de notas",
+      desc: "Historial académico que compruebe el CUM requerido para el trabajo de graduación.",
       done: hasNotas,
       url: urlNotas,
     },
     {
       id: "pago_tg",
-      title: "Recibo de Pago (Trabajo de Graduación)",
-      desc: "Comprobante de pago del arancel correspondiente al proceso de graduación.",
+      title: "Hoja de inscripción del trabajo de graduación",
+      desc: "Documento oficial de inscripción al proceso de graduación.",
       done: hasPago,
       url: urlPago,
     },

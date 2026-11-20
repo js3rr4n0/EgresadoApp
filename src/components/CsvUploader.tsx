@@ -150,7 +150,13 @@ export default function CsvUploader() {
                 <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
               </label>
             </div>
-            
+            {selectedType === "usuarios" && (
+              <p className="mt-3 text-xs text-muted">
+                La cohorte de cada egresado es el nombre de un ciclo de Fechas y Periodos (por ejemplo, C1-2026). Los usuarios importados
+                entran con la contraseña inicial <strong>Egresado123!</strong>; compártala por un medio seguro.
+              </p>
+            )}
+
             {errors.length > 0 && (
               <div className="mt-6 bg-red-50 border border-red-100 rounded-lg p-4">
                 <h4 className="text-sm font-bold text-red-800 mb-2 flex items-center gap-2">

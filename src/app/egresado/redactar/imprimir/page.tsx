@@ -655,11 +655,11 @@ export default async function PrintPropuestaPage({
             const getTitle = (tipo: string) => {
               switch (tipo) {
                 case "pago_tg":
-                  return "HOJA DE INSCRIPCIÓN DE TRABAJO DE GRADUACIÓN";
+                  return "HOJA DE INSCRIPCIÓN DEL TRABAJO DE GRADUACIÓN";
                 case "certificacion_notas":
-                  return "CONSTANCIA DE HORAS SOCIALES";
+                  return "HOJA DE NOTAS";
                 case "servicio_social":
-                  return "CARTA DE SERVICIO SOCIAL";
+                  return "CONSTANCIA DE SERVICIO SOCIAL";
                 default:
                   return "DOCUMENTO ADJUNTO";
               }

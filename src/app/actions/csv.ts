@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { usuarios, carreras, facultades } from "@/lib/schema";
+import { usuarios, carreras, facultades, periodos } from "@/lib/schema";
 import { inArray, eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
@@ -126,6 +126,16 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
       });
 
       const validRoles = new Set(['admin', 'decanato', 'coordinador', 'asesor', 'egresado']);
+      // La cohorte de un usuario es el nombre de un ciclo (Fechas y Periodos), igual que en el formulario de usuario.
+      const ciclos = new Set((await db.select({ nombre: periodos.nombre }).from(periodos)).map((p) => p.nombre));
+      const leerJson = (texto: string, campo: string, fila: number) => {
+        try {
+          return JSON.parse(texto);
+        } catch {
+          errores.push(`Fila ${fila}: '${campo}' no es una lista válida (por ejemplo: [1, 2] o [{"cohorte": "C1-2026", "activa": true}]).`);
+          return null;
+        }
+      };
 
       // Generate a default hash for all inserted users to keep it fast
       const defaultPasswordHash = dryRun ? "" : await bcrypt.hash("Egresado123!", 10);
@@ -153,9 +163,10 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
         if (row.facultad_codigo && !fId) errores.push(`Fila ${fila}: No existe Facultad con código "${row.facultad_codigo}".`);
         if (row.carrera_codigo && !cId) errores.push(`Fila ${fila}: No existe Carrera con código "${row.carrera_codigo}".`);
 
-        if (row.cohorte && !/^C[12]\d{4}$/.test(row.cohorte)) {
-          errores.push(`Fila ${fila}: El formato de 'cohorte' debe ser C1 o C2 seguido del año (Ej: C12026).`);
+        if (row.cohorte && !ciclos.has(row.cohorte)) {
+          errores.push(`Fila ${fila}: No existe el ciclo "${row.cohorte}". La cohorte debe ser el nombre de un ciclo de Fechas y Periodos (por ejemplo: ${[...ciclos].slice(0, 3).join(", ")}).`);
         }
+        if (row.rol?.toLowerCase() === "egresado" && !row.cohorte) errores.push(`Fila ${fila}: un egresado necesita su 'cohorte'.`);
 
         validData.push({
           nombreCompleto: row.nombre_completo,
@@ -167,8 +178,8 @@ export async function validateAndInsertCsv(entidad: string, rawData: any[], dryR
           carreraId: cId,
           facultadId: fId,
           activo: row.activo !== "false" && row.activo !== "0" && row.activo !== false,
-          carrerasAsignadas: row.carreras_asignadas ? JSON.parse(row.carreras_asignadas) : null,
-          cohortesAsignadas: row.cohortes_asignadas ? JSON.parse(row.cohortes_asignadas) : null,
+          carrerasAsignadas: row.carreras_asignadas ? leerJson(row.carreras_asignadas, "carreras_asignadas", fila) : null,
+          cohortesAsignadas: row.cohortes_asignadas ? leerJson(row.cohortes_asignadas, "cohortes_asignadas", fila) : null,
         });
       });
 

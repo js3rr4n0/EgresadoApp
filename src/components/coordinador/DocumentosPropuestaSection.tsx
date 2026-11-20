@@ -9,6 +9,7 @@ import {
 import { openDocument } from "@/lib/pdfViewer";
 
 import { getRequiredDocsForTipo } from "@/lib/proposalUtils";
+import { estadoPlanDePropuesta } from "@/app/actions/planTrabajo";
 
 export const TIPOS_DOCUMENTOS_REQUERIDOS = [
   { tipo: "propuesta_aceptada", label: "Propuesta Aceptada / Modificada" },
@@ -36,6 +37,22 @@ export default function DocumentosPropuestaSection({
 }: Props) {
   const [currentEstado, setCurrentEstado] = useState<string | undefined>(propuestaEstado);
   const [startingPlan, setStartingPlan] = useState(false);
+  // Proyecto e investigación (H17): el inicio también espera que el asesor apruebe el plan de trabajo (y el protocolo),
+  // que se elaboran en el sistema después de aprobada la propuesta. null = la ficha no tiene plan (pasantía).
+  const conFicha = !!propuestaTipo && propuestaTipo !== "pasantia";
+  const queSigue = propuestaTipo === "investigacion" ? "el protocolo y el plan de trabajo" : "el plan de trabajo";
+  const [estadoPlan, setEstadoPlan] = useState<string | null>(null);
+  useEffect(() => {
+    if (!conFicha) return;
+    estadoPlanDePropuesta(Number(propuestaId)).then(setEstadoPlan).catch(() => setEstadoPlan(null));
+  }, [conFicha, propuestaId]);
+  const TEXTO_PLAN: Record<string, string> = {
+    sin_plan: "el equipo todavía no lo empieza",
+    redactando: "el equipo lo está elaborando",
+    enviado: "está en revisión del asesor",
+    observado: "el asesor pidió ajustes",
+  };
+  const planPendiente = conFicha && estadoPlan !== null && estadoPlan !== "aprobado";
 
   useEffect(() => {
     setCurrentEstado(propuestaEstado);
@@ -187,7 +204,9 @@ export default function DocumentosPropuestaSection({
             </span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Se requiere que los {totalRequiredCount} documentos estén subidos y verificados para habilitar la aprobación final del expediente.
+            {conFicha
+              ? `Los sube el asesor cuando aprueba ${queSigue}. La coordinación los necesita para dar inicio a la ejecución.`
+              : `Se requiere que los ${totalRequiredCount} documentos estén subidos y verificados para habilitar la aprobación final del expediente.`}
           </p>
         </div>
       </div>
@@ -373,6 +392,12 @@ export default function DocumentosPropuestaSection({
             <p className="text-xs text-slate-500 mt-0.5">
               Al hacer clic en este botón, el estado de la propuesta cambiará a <strong className="text-emerald-700 font-bold">En ejecución</strong> para el egresado y el asesor.
             </p>
+            {planPendiente && (
+              <p className="text-[11px] text-amber-800 font-bold mt-1.5 flex items-center gap-1">
+                <span>🔒</span>
+                <span>Falta que el asesor apruebe {queSigue}: {TEXTO_PLAN[estadoPlan ?? ""] ?? estadoPlan}.</span>
+              </p>
+            )}
             {!docsData.allRequiredUploaded && (
               <p className="text-[11px] text-amber-800 font-bold mt-1.5 flex items-center gap-1">
                 <span>🔒</span>
@@ -383,7 +408,7 @@ export default function DocumentosPropuestaSection({
           <button
             type="button"
             onClick={handleDarInicioPlan}
-            disabled={!docsData.allRequiredUploaded || startingPlan}
+            disabled={!docsData.allRequiredUploaded || planPendiente || startingPlan}
             className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-400 disabled:shadow-none disabled:active:scale-100 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0 cursor-pointer"
           >
             {startingPlan ? (

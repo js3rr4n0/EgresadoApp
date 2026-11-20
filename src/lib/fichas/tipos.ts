@@ -4,6 +4,8 @@
 // Glosario (specs/fichas): una ficha tiene etapas; la etapa de propuesta tiene espacios, y cada espacio es una
 // instancia de un elemento del catálogo con sus parámetros. La etapa de ejecución tiene períodos, subperíodos e hitos.
 
+import type { CampoPropio, CopiaElementoPropio } from "./elementosPropios";
+
 /** Versión del formato del JSON. Se incrementa si cambia la forma de la definición, no por cada ficha. */
 export const FORMATO_DEFINICION = 1;
 
@@ -29,7 +31,9 @@ export type ClaveElemento =
   | "apartado"
   | "resultados_objetivos"
   | "reporte_modificaciones"
-  | "recursos_presupuesto";
+  | "recursos_presupuesto"
+  /** Elemento propio del catálogo (catálogo editable, C2): el espacio guarda su copia en `propio`. */
+  | "propio";
 
 export type ValorParametro = number | boolean | string | string[];
 
@@ -57,6 +61,13 @@ export interface Espacio {
    * su orden (activar o desactivar, renombrar, reglas) y subapartados propios. Falta = los del tipo, como están.
    */
   partes?: ConfigParte[];
+  /** Solo el elemento "propio" (catálogo editable, C2): copia del elemento al agregarlo o al actualizarlo. */
+  propio?: CopiaElementoPropio;
+  /**
+   * Campos adicionales al final de un elemento del sistema (catálogo editable, C4), en la propuesta o el protocolo. Su
+   * respuesta va aparte, en "<id>#extra". Los campos propios del elemento no cambian: otras partes dependen de ellos.
+   */
+  camposExtra?: CampoPropio[];
 }
 
 /** Configuración de un subapartado de un apartado académico en la ficha. Lo que falta toma el valor del tipo. */
@@ -214,6 +225,11 @@ export interface EtapaPlan {
   minimos: {
     /** Objetivos específicos de cada integrante (en trabajo individual, del egresado). */
     objetivosPorIntegrante: number;
+    /**
+     * Máximo por integrante (H19/H27). Si la propuesta tiene el elemento «objetivos», el mínimo y el máximo salen de él
+     * (de 3 a 4 por defecto) para que propuesta, protocolo y plan pidan lo mismo.
+     */
+    maxObjetivosPorIntegrante?: number;
     macroPorObjetivo: number;
     actividadesPorMacro: number;
   };

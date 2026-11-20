@@ -1,6 +1,7 @@
 // Cambios entre dos definiciones de una ficha, en lenguaje del administrador. Se muestran antes de habilitar
 // una versión nueva para que se vea qué cambia respecto de la anterior. Módulo puro.
 import { CATALOGO } from "./catalogo";
+import { cambiosElementoPropio, defCamposExtra } from "./elementosPropios";
 import { partesConfiguradas } from "./apartadosAcademicos";
 import {
   cierreDe, componentesDe, documentoSolicitado, esCronogramaInvestigacion, productosObjetivo, esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, rangoPalabras,
@@ -44,7 +45,7 @@ const CAMPOS_PLAN: [string, (p: EtapaPlan) => ValorParametro][] = [
   ["Preparación del informe final", (p) => (cierreDe(p).activo ? cierreDe(p).titulo : "no")],
   ["Metodología de cada objetivo con referencias", (p) => !!p.metodologiaObjetivo],
   ["Subactividades", (p) => p.subactividades],
-  ["Objetivos específicos por integrante", (p) => p.minimos.objetivosPorIntegrante],
+  ["Objetivos específicos por integrante", (p) => (p.minimos.maxObjetivosPorIntegrante ? `de ${p.minimos.objetivosPorIntegrante} a ${p.minimos.maxObjetivosPorIntegrante}` : p.minimos.objetivosPorIntegrante)],
   ["Macroactividades por objetivo", (p) => p.minimos.macroPorObjetivo],
   ["Actividades por macroactividad", (p) => p.minimos.actividadesPorMacro],
   ["Presupuesto", (p) => (p.presupuesto.activo ? `${p.presupuesto.desglose === "monto" ? "un monto" : "recursos y gastos"} en ${p.presupuesto.moneda}` : "no")],
@@ -102,7 +103,7 @@ function compararEspacios(a: EtapaConEspacios, n: EtapaConEspacios, prefijo: str
   for (const { e, i } of porIdN.values()) {
     const previo = porIdA.get(e.id);
     if (!previo) {
-      cambios.push(`${prefijo}Se agregó el espacio "${e.titulo}" (${CATALOGO[e.elemento]?.nombre ?? e.elemento}) en la posición ${i + 1}.`);
+      cambios.push(`${prefijo}Se agregó el espacio "${e.titulo}" (${e.propio ? `elemento propio «${e.propio.definicion.nombre}»` : CATALOGO[e.elemento]?.nombre ?? e.elemento}) en la posición ${i + 1}.`);
       continue;
     }
     const v = previo.e;
@@ -119,6 +120,15 @@ function compararEspacios(a: EtapaConEspacios, n: EtapaConEspacios, prefijo: str
       const va = v.parametros[par.clave];
       const vn = e.parametros[par.clave];
       if (texto(va) !== texto(vn)) cambios.push(`${prefijo}"${e.titulo}": ${par.etiqueta.toLowerCase()}, ${texto(va)} → ${texto(vn)}.`);
+    }
+    // Elementos propios (C2): la copia se actualizó con la versión del catálogo, o es otro elemento.
+    if (e.elemento === "propio" && v.propio && e.propio) {
+      if (v.propio.elementoId !== e.propio.elementoId) cambios.push(`${prefijo}"${e.titulo}": ahora usa el elemento propio «${e.propio.definicion.nombre}».`);
+      else cambiosElementoPropio(v.propio.definicion, e.propio.definicion).forEach((m) => cambios.push(`${prefijo}"${e.titulo}": ${m}.`));
+    }
+    // Campos adicionales de un elemento del sistema (C4).
+    if (v.camposExtra?.length || e.camposExtra?.length) {
+      cambiosElementoPropio(defCamposExtra({ ...v, titulo: e.titulo }), defCamposExtra(e)).forEach((m) => cambios.push(`${prefijo}"${e.titulo}", campos adicionales: ${m}.`));
     }
     // Apartados académicos: los subapartados que se activaron, se agregaron o cambiaron de reglas (19-nov-2026).
     if (e.elemento === "apartado" && v.parametros.tipo === e.parametros.tipo) cambios.push(...cambiosPartes(v, e, `${prefijo}"${e.titulo}": `));

@@ -34,6 +34,7 @@ import { bloquesBitacora, entradasBitacora } from "@/lib/fichas/bitacora";
 import { referenciasOrdenadas } from "@/lib/fichas/fuentes";
 import { fuentesDePropuesta } from "./fuentesTrabajo";
 import { notaImagen } from "@/lib/fuenteImagen";
+import { limpiarRespuesta } from "@/lib/fichas/respuestasPropias";
 import { apartadosInformeFinal, portadaInformeFinal, type AnexoDocumento, type BloqueDocumento, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
 
 const MAX_TEXTO = 200_000;
@@ -239,7 +240,7 @@ export async function getInformeFinal(propuestaId: number): Promise<Resultado<{ 
           editable: enEquipo(ctx) && capituloEditable(estado, est),
         };
       }),
-      problemas: problemasInformeFinal(ctx.etapa, contenidos),
+      problemas: problemasInformeFinal(ctx.etapa, contenidos, integrantesDe(ctx)),
       pendientesAprobacion: [...capitulosPendientes(ctx.etapa, ctx.estados, contenidos).map((e) => e.titulo), ...(await objetivosSinProductos(propuestaId, ctx)), ...(await objetivosSinValidar(propuestaId, ctx))],
       ratificacion: { requerida, firmas, completa: !requerida || firmas.every((f) => f.vigente) },
       huellaActual: h,
@@ -254,6 +255,9 @@ export async function getInformeFinal(propuestaId: number): Promise<Resultado<{ 
 }
 
 /** Limpia el contenido según el elemento del capítulo (texto o JSON). */
+/** Integrantes del trabajo, para los elementos propios que piden una respuesta por integrante (C3). */
+const integrantesDe = (ctx: { plan: DatosPlan }) => ctx.plan.equipo.map((i) => ({ id: i.id, nombre: i.nombre }));
+
 function limpiar(e: Espacio, contenido: string): { ok: true; valor: string } | { ok: false; error: string } {
   if (capituloGenerado(e)) return { ok: false, error: "Este capítulo lo genera el sistema con los registros y los productos de la ejecución." };
   if (e.elemento === "apartado") {
@@ -273,6 +277,8 @@ function limpiar(e: Espacio, contenido: string): { ok: true; valor: string } | {
     const autoevaluacion = [...new Set(c.autoevaluacion.filter((n) => n >= 0 && n < tipo.autoevaluacion.length))];
     return { ok: true, valor: guardarComoTexto({ partes, autoevaluacion }) };
   }
+  // Elemento propio (C3): solo sus campos, con su tipo; archivos con formato y tamaño permitidos.
+  if (e.elemento === "propio") return e.propio ? limpiarRespuesta(e.propio.definicion, contenido) : { ok: false, error: "Falta la copia del elemento en la ficha." };
   if (e.elemento === "texto") {
     if (contenido.length > MAX_TEXTO) return { ok: false, error: `El capítulo admite hasta ${MAX_TEXTO.toLocaleString("es-SV")} caracteres.` };
     return { ok: true, valor: contenido.replace(/\r\n/g, "\n") };
@@ -436,7 +442,7 @@ export async function enviarCapitulo(propuestaId: number, espacioId: string): Pr
   const est = estadoDe(ctx, espacioId);
   if (!capituloEditable(ctx.fila.estado, est)) return { success: false, error: "Este capítulo ya está en revisión o aprobado." };
   const u = ctx.ultimas.get(espacioId);
-  const problemas = problemasInformeFinal({ ...ctx.etapa, espacios: [e] }, { [e.id]: u?.contenido ?? "" });
+  const problemas = problemasInformeFinal({ ...ctx.etapa, espacios: [e] }, { [e.id]: u?.contenido ?? "" }, integrantesDe(ctx));
   if (!u || problemas.length > 0) return { success: false, error: problemas[0]?.mensaje ?? `Guarda "${e.titulo}" antes de enviarlo.` };
   ctx.estados[espacioId] = { ...est, estado: "enviado", version: u.numero, enviadoEn: new Date().toISOString() };
   await guardarEstados(propuestaId, ctx.estados);
@@ -453,7 +459,7 @@ export async function enviarDocumentoCompleto(propuestaId: number): Promise<Resu
   const { ctx } = r;
   if (!enEquipo(ctx)) return { success: false, error: "No autorizado" };
   const { contenidos } = vigentes(ctx);
-  const problemas = problemasInformeFinal(ctx.etapa, contenidos);
+  const problemas = problemasInformeFinal(ctx.etapa, contenidos, integrantesDe(ctx));
   if (problemas.length > 0) return { success: false, error: problemas[0].mensaje };
   const ahora = new Date().toISOString();
   for (const e of ctx.etapa.espacios) {
@@ -608,7 +614,7 @@ export async function getDocumentoInformeFinal(propuestaId: number): Promise<Res
     if (e.elemento === "reporte_modificaciones") return bloquesBitacora(entradasBitacora(datosRes));
     generados = resultadosPorObjetivo({ ...datosRes, numero });
     return generados.bloques;
-  }, { referencias: referenciasOrdenadas(await fuentesDePropuesta(propuestaId)).map((x) => x.referencia) });
+  }, { referencias: referenciasOrdenadas(await fuentesDePropuesta(propuestaId)).map((x) => x.referencia), integrantes: integrantesDe(ctx) });
 
   const anexos: AnexoDocumento[] = [
     ...generados.anexos,

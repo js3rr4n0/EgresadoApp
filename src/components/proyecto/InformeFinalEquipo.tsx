@@ -18,9 +18,16 @@ import type { BloqueDocumento } from "@/lib/fichas/documentoInformeFinal";
 import { contextoDeRevision, leerApartado, textoApartado, tipoApartado, type ContextoRevision } from "@/lib/fichas/apartadosAcademicos";
 import type { Espacio } from "@/lib/fichas/tipos";
 import { CapituloApartado } from "./ApartadoAcademicoForm";
+import { CapituloPropio } from "./PropioEspacioForm";
+import { bloquesRespuesta } from "@/lib/fichas/respuestasPropias";
 
 /** Contenido legible de una versión: un apartado académico se muestra con los títulos de sus subapartados. */
 function legible(e: Espacio, contenido: string) {
+  // Elemento propio (C3): cada campo con su etiqueta, por persona si es por integrante.
+  if (e.elemento === "propio" && e.propio) {
+    return bloquesRespuesta(e.propio.definicion, contenido)
+      .map((b) => [b.persona, ...b.campos.map((c) => `${c.etiqueta}: ${c.texto}`)].filter(Boolean).join("\n")).join("\n\n") || "(vacío)";
+  }
   const tipo = e.elemento === "apartado" ? tipoApartado(e) : undefined;
   return tipo ? textoApartado(tipo, leerApartado(tipo, contenido)) || "(vacío)" : contenido;
 }
@@ -147,7 +154,8 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
             <EditorCapitulo key={`${cap.espacio.id}-${cap.ultima?.numero ?? 0}-${cap.estado.estado}`} propuestaId={plan.propuesta.id} cap={cap}
             siguiente={actual < datos.capitulos.length ? `${base}&cap=${actual + 1}` : null}
             porCapitulo={etapa.revision.porCapitulo} enEquipo={enEquipo}
-            contexto={contextoDeRevision(datos.capitulos.map((c) => c.espacio), Object.fromEntries(datos.capitulos.map((c) => [c.espacio.id, c.ultima?.contenido ?? c.precarga ?? ""])))} /></>}
+            contexto={{ ...contextoDeRevision(datos.capitulos.map((c) => c.espacio), Object.fromEntries(datos.capitulos.map((c) => [c.espacio.id, c.ultima?.contenido ?? c.precarga ?? ""]))), rangoObjetivos: plan.rangoObjetivos,
+              integrantes: plan.equipo.map((i) => ({ id: i.id, nombre: i.nombre })) }} miId={plan.miId} /></>}
 
           {esAsesor && cap.estado.estado === "enviado" && (
             <section className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-3">
@@ -252,7 +260,7 @@ function CapituloGenerado({ titulo, descripcion, bloques, siguiente, bitacora }:
 }
 
 /** Editor de un capítulo: texto, lista, tabla, enlaces o archivos. */
-function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo, contexto }: { propuestaId: number; cap: CapituloDatos; siguiente: string | null; porCapitulo: boolean; enEquipo: boolean; contexto: ContextoRevision }) {
+function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo, contexto, miId }: { propuestaId: number; cap: CapituloDatos; siguiente: string | null; porCapitulo: boolean; enEquipo: boolean; contexto: ContextoRevision; miId: number }) {
   const router = useRouter();
   const e = cap.espacio;
   const inicial = cap.ultima?.contenido ?? cap.precarga ?? (e.elemento === "texto" || e.elemento === "apartado" ? "" : "[]");
@@ -388,6 +396,7 @@ function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo, co
       )}
 
       {e.elemento === "apartado" && <CapituloApartado espacio={e} contenido={contenido} disabled={disabled} onChange={cambiar} contexto={contexto} />}
+      {e.elemento === "propio" && <CapituloPropio espacio={e} contenido={contenido} disabled={disabled} onChange={cambiar} miId={miId} integrantes={contexto.integrantes ?? []} />}
       {e.elemento === "texto" && (
         <div>
           <textarea aria-label={e.titulo} rows={16} value={contenido} disabled={disabled} onChange={(ev) => cambiar(ev.target.value)}

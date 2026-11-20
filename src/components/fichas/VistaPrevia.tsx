@@ -2,11 +2,23 @@
 
 import { useState } from "react";
 import { ACTORES, CATALOGO, DOCUMENTOS_ESTUDIANTE } from "@/lib/fichas/catalogo";
-import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
+import { CAMPOS_ELEMENTO, type CampoElemento } from "@/lib/fichas/disenoFuturo";
 import { reglasRecurso } from "@/lib/fichas/elementosRecurso";
+import { reglasCampo, type TipoCampo } from "@/lib/fichas/elementosPropios";
 import { tipoApartado } from "@/lib/fichas/apartadosAcademicos";
 import { reglasRecursos } from "@/lib/fichas/recursos";
 import { cierreDe, componentesDe, esCronogramaInvestigacion, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, diasSubperiodos, esEtapaEjecucion, esEtapaPlan, esEtapaPropuesta, opcionesRegistro, type DefinicionFicha, type Espacio, type EtapaConEspacios, type EtapaEjecucion } from "@/lib/fichas/tipos";
+
+/** Campos que dibuja la vista del egresado: los del elemento o, en un elemento propio, los de su copia (C2). */
+const TIPO_VISTA: Record<TipoCampo, CampoElemento["tipo"]> = {
+  texto: "texto", texto_largo: "texto largo", numero: "texto", fecha: "fecha", seleccion: "selección",
+  lista: "lista", archivo: "archivo", imagen: "imagen", enlace: "texto",
+};
+function camposDelPaso(e: Espacio): CampoElemento[] {
+  if (e.propio) return e.propio.definicion.campos.map((c) => ({ nombre: c.etiqueta, tipo: TIPO_VISTA[c.tipo], obligatorio: c.obligatorio }));
+  // Campos adicionales (C4): al final de los del sistema.
+  return [...CAMPOS_ELEMENTO[e.elemento], ...(e.camposExtra ?? []).map((c) => ({ nombre: c.etiqueta, tipo: TIPO_VISTA[c.tipo], obligatorio: c.obligatorio }))];
+}
 
 /** Reglas de un espacio en frases cortas, como las leería el egresado. */
 function reglas(e: Espacio, equipo: boolean): string[] {
@@ -35,7 +47,7 @@ function reglas(e: Espacio, equipo: boolean): string[] {
     case "actores":
       return [`Se piden: ${etiqueta(ACTORES, p.actores)}.`];
     case "objetivos":
-      return [`Un objetivo general y de ${p.minEspecificos} a ${p.maxEspecificos} objetivos específicos.`];
+      return [`Un objetivo general y de ${p.minEspecificos} a ${p.maxEspecificos} objetivos específicos por integrante (en equipo, por la cantidad de integrantes).`];
     case "documentos":
       return [`${CATALOGO.documentos.alcance === "integrante" && equipo ? "Cada integrante sube" : "Se sube"}: ${etiqueta(DOCUMENTOS_ESTUDIANTE, p.documentos) || "ningún documento"}.`];
     case "imagen":
@@ -63,6 +75,13 @@ function reglas(e: Espacio, equipo: boolean): string[] {
     }
     case "reporte_modificaciones":
       return ["Lo genera el sistema con la bitácora de la ejecución: va sin número, como anexo, y no se revisa aparte."];
+    case "propio":
+      return e.propio
+        ? [
+            ...(e.propio.definicion.alcance === "integrante" && equipo ? ["Cada integrante responde por separado."] : []),
+            ...e.propio.definicion.campos.map((c) => `${c.etiqueta}: ${reglasCampo(c)}.`),
+          ]
+        : ["Falta la copia del elemento propio."];
     case "resultados_objetivos":
       return [
         "Lo genera el sistema: no se redacta ni se revisa aparte.",
@@ -155,12 +174,12 @@ export function PasosEgresado({ definicion, etapa }: { definicion: DefinicionFic
               {espacio.ayuda ? <p className="text-sm text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">{espacio.ayuda}</p>
                 : <p className="text-xs text-gray-400">Sin texto de ayuda.</p>}
               <ul className="text-sm text-gray-700 list-disc pl-5 space-y-1">
-                {reglas(espacio, equipo).map((r, i) => <li key={i}>{r}</li>)}
+                {[...reglas(espacio, equipo), ...(espacio.camposExtra ?? []).map((c) => `Campo adicional «${c.etiqueta}»: ${reglasCampo(c)}.`)].map((r, i) => <li key={i}>{r}</li>)}
                 {precarga && <li>Empieza con lo que ya escribieron en «{precarga.titulo}»; pueden ajustarlo.</li>}
                 {!espacio.obligatorio && <li>Este paso es opcional.</li>}
               </ul>
               <div className="grid sm:grid-cols-2 gap-2">
-                {CAMPOS_ELEMENTO[espacio.elemento].map((c) => (
+                {camposDelPaso(espacio).map((c) => (
                   <div key={c.nombre} className={c.tipo === "texto largo" || c.tipo === "mapa" || c.tipo === "lista" ? "sm:col-span-2" : ""}>
                     <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-1">{c.nombre}{c.obligatorio && <span className="text-brand-red"> *</span>}</div>
                     <div className={`border border-gray-200 bg-gray-50 rounded-md text-xs text-gray-400 px-2.5 flex items-center ${c.tipo === "texto largo" ? "h-16" : c.tipo === "mapa" ? "h-20 justify-center" : "h-9"}`}>

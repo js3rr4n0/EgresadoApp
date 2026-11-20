@@ -2,6 +2,7 @@
 // Devuelve la lista de problemas en lenguaje del administrador; una lista vacía significa que la ficha es válida.
 import { CATALOGO, elementoEnEtapa } from "./catalogo";
 import { esRecurso } from "./elementosRecurso";
+import { ELEMENTOS_CON_CAMPOS_EXTRA, problemasCampos, problemasElementoPropio, tieneFormaCampos, tieneFormaCopia } from "./elementosPropios";
 import { partePrecarga, partesConfiguradas, tipoApartado, TIPOS_APARTADO } from "./apartadosAcademicos";
 import {
   cierreDe, componentesDe, documentoSolicitado, esCronogramaInvestigacion, productosObjetivo,
@@ -94,6 +95,8 @@ function validarPlan(plan: EtapaPlan, def: DefinicionFicha, problemas: ProblemaF
   const p = (mensaje: string) => problemas.push({ ubicacion: plan.id, mensaje: `${plan.nombre}: ${mensaje}` });
   const { objetivosPorIntegrante, macroPorObjetivo, actividadesPorMacro } = plan.minimos;
   if (!entero(objetivosPorIntegrante) || objetivosPorIntegrante < 1 || objetivosPorIntegrante > 10) p("los objetivos específicos por integrante deben estar entre 1 y 10.");
+  const maxObj = plan.minimos.maxObjetivosPorIntegrante;
+  if (maxObj !== undefined && (!entero(maxObj) || maxObj < objetivosPorIntegrante || maxObj > 10)) p("el máximo de objetivos por integrante debe estar entre el mínimo y 10.");
   if (!entero(macroPorObjetivo) || macroPorObjetivo < 1 || macroPorObjetivo > 10) p("las macroactividades por objetivo deben estar entre 1 y 10.");
   if (!entero(actividadesPorMacro) || actividadesPorMacro < 1 || actividadesPorMacro > 20) p("las actividades por macroactividad deben estar entre 1 y 20.");
   if (!entero(plan.aprobacion.diasRevision) || plan.aprobacion.diasRevision < 1 || plan.aprobacion.diasRevision > 30) p("los días de revisión del asesor deben estar entre 1 y 30.");
@@ -124,6 +127,7 @@ function validarPlan(plan: EtapaPlan, def: DefinicionFicha, problemas: ProblemaF
 function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problemas: ProblemaFicha[], fuentes: EtapaConEspacios[]): Set<string> {
   const vistos = new Set<string>();
   const idsEspacios = new Set<string>();
+  const propiosVistos = new Set<number>();
   const nombreEtapa = etapa.tipo === "propuesta" ? "la propuesta" : etapa.tipo === "protocolo" ? "el protocolo" : "el informe final";
   for (const esp of etapa.espacios) {
     const el = CATALOGO[esp.elemento];
@@ -166,6 +170,25 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
       }
     }
     if (esp.partes !== undefined) problemasPartes(esp).forEach((m) => p(m));
+    // Catálogo editable (C2): el espacio lleva la copia válida de un elemento propio, en una etapa que el elemento admite.
+    if (esp.elemento === "propio") {
+      if (!tieneFormaCopia(esp.propio)) p("falta la copia del elemento propio.");
+      else {
+        const d = esp.propio.definicion;
+        problemasElementoPropio(d).forEach((m) => p(`elemento «${d.nombre}»: ${m}`));
+        if (!d.etapas.includes(etapa.tipo)) p(`el elemento «${d.nombre}» no se puede usar en ${nombreEtapa}.`);
+        if (!d.repetible && propiosVistos.has(esp.propio.elementoId)) p(`el elemento «${d.nombre}» solo puede aparecer una vez.`);
+        propiosVistos.add(esp.propio.elementoId);
+      }
+    } else if (esp.propio !== undefined) p("solo un elemento propio lleva copia del catálogo.");
+    // Catálogo editable (C4): campos adicionales al final de un elemento del sistema, en la propuesta o el protocolo.
+    if (esp.camposExtra !== undefined) {
+      if (etapa.tipo === "informe_final") p("los capítulos del informe final no llevan campos adicionales.");
+      else if (!(ELEMENTOS_CON_CAMPOS_EXTRA as readonly string[]).includes(esp.elemento)) p("este elemento no admite campos adicionales.");
+      else if (def.modalidad === "pasantia") p("el asistente de pasantía todavía no muestra campos adicionales.");
+      else if (esp.camposExtra.length === 0) p("la lista de campos adicionales está vacía.");
+      else problemasCampos(esp.camposExtra).forEach((m) => p(`campos adicionales: ${m}`));
+    }
     if (esp.elemento === "texto") {
       const { minPalabras, maxPalabras } = esp.parametros as { minPalabras: number; maxPalabras: number };
       if (maxPalabras > 0 && minPalabras > maxPalabras) p("el mínimo de palabras es mayor que el máximo.");
@@ -355,7 +378,9 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
         (s: unknown) =>
           obj(s) && str(s.id) && str(s.elemento) && str(s.titulo) && str(s.descripcion) && str(s.ayuda) &&
           typeof s.obligatorio === "boolean" && obj(s.parametros) && (s.precargarDe === undefined || str(s.precargarDe)) &&
-          (s.partes === undefined || (Array.isArray(s.partes) && s.partes.every((c: unknown) => obj(c) && str((c as { id: unknown }).id) && typeof (c as { activa: unknown }).activa === "boolean")))
+          (s.partes === undefined || (Array.isArray(s.partes) && s.partes.every((c: unknown) => obj(c) && str((c as { id: unknown }).id) && typeof (c as { activa: unknown }).activa === "boolean"))) &&
+          (s.propio === undefined || tieneFormaCopia(s.propio)) &&
+          (s.camposExtra === undefined || tieneFormaCampos(s.camposExtra))
       );
     if (e.tipo === "informe_final") {
       const r = e.revision;
@@ -376,7 +401,7 @@ export function tieneFormaDeDefinicion(x: unknown): x is DefinicionFicha {
         (e.cierre === undefined || (obj(e.cierre) && typeof e.cierre.activo === "boolean" && str(e.cierre.titulo))) &&
         (e.metodologiaObjetivo === undefined || typeof e.metodologiaObjetivo === "boolean") &&
         ["no", "opcional", "obligatorio"].includes(e.subactividades as string) &&
-        obj(m) && num(m.objetivosPorIntegrante) && num(m.macroPorObjetivo) && num(m.actividadesPorMacro) &&
+        obj(m) && num(m.objetivosPorIntegrante) && (m.maxObjetivosPorIntegrante === undefined || num(m.maxObjetivosPorIntegrante)) && num(m.macroPorObjetivo) && num(m.actividadesPorMacro) &&
         obj(pr) && typeof pr.activo === "boolean" && (pr.desglose === "monto" || pr.desglose === "recursos_gastos") && str(pr.moneda) &&
         (e.granularidad === "subperiodo" || e.granularidad === "periodo") &&
         obj(eq) && (eq.responsable === "objetivo" || eq.responsable === "actividad") && typeof eq.planIndividual === "boolean" && typeof eq.panelCarga === "boolean" &&

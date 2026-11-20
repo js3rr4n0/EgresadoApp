@@ -11,7 +11,7 @@ import { definicionBase, VALORES_FASE1_COPIADOS as V } from "../../src/lib/ficha
 import { problemasPartes, tieneFormaDeDefinicion, validarDefinicion } from "../../src/lib/fichas/validar";
 import { compararDefiniciones } from "../../src/lib/fichas/diferencias";
 import { diasSubperiodos, documentoSolicitado, esEtapaEjecucion, esEtapaPlan, esEtapaInformeFinal, esEtapaPropuesta, esEtapaProtocolo, opcionesRegistro, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, productosObjetivo, type DefinicionFicha, type Modalidad } from "../../src/lib/fichas/tipos";
-import { ejecucionNueva, informeFinalNuevo, planNuevo, protocoloNuevo } from "../../src/lib/fichas/plantillas";
+import { ejecucionNueva, informeFinalNuevo, planNuevo, plantillaRecomendada, protocoloNuevo } from "../../src/lib/fichas/plantillas";
 import { CATALOGO, elementoEnEtapa, GRUPOS_CATALOGO, parametrosPorDefecto } from "../../src/lib/fichas/catalogo";
 import { leerItems, problemasRecurso, recursoCompleto } from "../../src/lib/fichas/elementosRecurso";
 import { fechaLimiteDictamen, precargaEspacio, problemasProtocolo, sumarDias, textoPrecarga } from "../../src/lib/fichas/protocolo";
@@ -30,6 +30,13 @@ import { datosCitaVacios, type DatosCitaApa } from "../../src/lib/citaApa";
 import { bloquesBitacora, entradasBitacora, limpiarModificacion, textoEntrada } from "../../src/lib/fichas/bitacora";
 import { apartadosInformeFinal, portadaInformeFinal } from "../../src/lib/fichas/documentoInformeFinal";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
+import { objetivosPorIntegranteDe, OBJETIVOS_POR_INTEGRANTE, rangoObjetivos, textoRangoObjetivos } from "../../src/lib/fichas/objetivos";
+import { conRangoObjetivos } from "../../src/lib/fichas/apartadosAcademicos";
+import { describirHistorial } from "../../src/lib/historialEstados";
+import { tituloDeCarrera } from "../../src/lib/tituloCarrera";
+import { conValores, guardarRespuesta, leerRespuestaPropia, limpiarRespuesta, limpiarValores, problemasRespuestaPropia, problemasValores, respuestaVacia, bloquesRespuesta, archivosRespuesta } from "../../src/lib/fichas/respuestasPropias";
+import { claveCamposExtra, defCamposExtra } from "../../src/lib/fichas/elementosPropios";
+import { cambiarTipo, cambiosElementoPropio, campoNuevo, copiaDe, elementoPropioNuevo, mismaDefinicion, problemasElementoPropio, reglasCampo, tieneFormaElementoPropio, TIPOS_CAMPO } from "../../src/lib/fichas/elementosPropios";
 import { esHojaPlan, normalizarArbol, objetivosEspecificos } from "../../src/lib/fichas/planTrabajo";
 import { elementoDe, estadoElemento, procesoPorObjetivo, TEXTOS_ELEMENTO } from "../../src/lib/fichas/elementosEjecucion";
 import { arbolConCitas, fuentesCitadasPlan, leerMetodologia, metodologiaValida, pideMetodologia, textoMetodologia } from "../../src/lib/fichas/metodologiaPlan";
@@ -115,9 +122,10 @@ comprobar(
   `El equipo sigue siendo de máximo ${V.maxIntegrantesEquipo} integrantes`,
   contiene("src/app/actions/proyecto.ts", new RegExp(`MAX_INTEGRANTES_EQUIPO = ${V.maxIntegrantesEquipo};`))
 );
+// Reunión del 20-nov-2026 (H19/H27): de 3 a 4 objetivos específicos por integrante, en propuesta, protocolo y plan.
 comprobar(
-  "Los objetivos específicos siguen siendo de 4 a 6",
-  contiene("src/app/actions/proyecto.ts", /OBJETIVOS_FASE1 = \{ min: 4, max: 6 \}/)
+  "Los objetivos específicos son de 3 a 4 por integrante",
+  contiene("src/lib/fichas/objetivos.ts", /OBJETIVOS_POR_INTEGRANTE: RangoObjetivos = \{ min: 3, max: 4 \}/)
 );
 
 // 3. La validación detecta errores típicos
@@ -1362,6 +1370,211 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
   comprobar("El objetivo general resume el avance y los objetivos validados", texto.includes("Objetivos específicos validados por el asesor: 0 de 2."));
   comprobar("Un plan de proyecto sigue con su capítulo de siempre", !esPlanPorElementos(planEjemplo(planNuevo("p"), 1, 4)) && esPlanPorElementos(arbol));
   comprobar("La plantilla nombra el capítulo por objetivo", informeFinalNuevo("if").espacios.find((e) => e.id === "if_resultados")!.titulo === "Desarrollo de la investigación por objetivo");
+}
+
+// 30. Plantilla recomendada al crear una ficha (recorrido integral, 19-nov-2026)
+{
+  for (const m of ["proyecto", "investigacion"] as const) {
+    const d = plantillaRecomendada(m);
+    comprobar(`La plantilla recomendada de ${m} es válida`, validarDefinicion(d).length === 0 && tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))), validarDefinicion(d).map((p) => p.mensaje).join(" | "));
+  }
+  comprobar("Proyecto: propuesta, plan y ejecución", plantillaRecomendada("proyecto").etapas.map((e) => e.tipo).join() === "propuesta,plan,ejecucion");
+  comprobar("Investigación: propuesta, protocolo, cronograma de investigación, ejecución e informe final",
+    plantillaRecomendada("investigacion").etapas.map((e) => e.tipo).join() === "propuesta,protocolo,plan,ejecucion,informe_final"
+      && esCronogramaInvestigacion(plantillaRecomendada("investigacion").etapas.find(esEtapaPlan)!));
+  comprobar("La pasantía usa su ficha base", JSON.stringify(plantillaRecomendada("pasantia")) === JSON.stringify(definicionBase("pasantia")));
+}
+
+// 31. Decisiones de la reunión del 20-nov-2026 y textos del recorrido integral
+{
+  // H19/H27: de 3 a 4 por integrante, multiplicado por el equipo.
+  comprobar("Rango por integrante por defecto", OBJETIVOS_POR_INTEGRANTE.min === 3 && OBJETIVOS_POR_INTEGRANTE.max === 4);
+  comprobar("En equipo de 3 se piden de 9 a 12", JSON.stringify(rangoObjetivos(OBJETIVOS_POR_INTEGRANTE, 3)) === JSON.stringify({ min: 9, max: 12 }));
+  comprobar("Individual: de 3 a 4", textoRangoObjetivos(OBJETIVOS_POR_INTEGRANTE, 1) === "de 3 a 4");
+  comprobar("Las plantillas recomendadas piden de 3 a 4 por integrante",
+    (["proyecto", "investigacion"] as const).every((m) => JSON.stringify(objetivosPorIntegranteDe(plantillaRecomendada(m))) === JSON.stringify({ min: 3, max: 4 })));
+  comprobar("El plan nuevo tiene máximo 4 por integrante", planNuevo("p").minimos.maxObjetivosPorIntegrante === 4);
+  const tipoObj = tipoApartado({ parametros: { tipo: "objetivos" } })!;
+  comprobar("El protocolo pide de 3 a 4 específicos por defecto", tipoObj.partes.find((p) => p.id === "especificos")!.maxItems === 4);
+  const conEquipo = conRangoObjetivos(tipoObj, { min: 6, max: 8 });
+  comprobar("En equipo el protocolo usa el rango del trabajo", conEquipo.partes.find((p) => p.id === "especificos")!.minItems === 6 && conEquipo.partes.find((p) => p.id === "especificos")!.maxItems === 8);
+  const cinco = { partes: { general: "Determinar el uso de la IA en estudiantes", especificos: "Identificar a\nDeterminar b\nAnalizar c\nComparar d\nDescribir e" }, autoevaluacion: [] };
+  const opObj = opcionesDeEspacio({ parametros: { tipo: "objetivos" } }, "protocolo");
+  comprobar("Individual: 5 objetivos en el protocolo no pasan", revisarApartado(tipoObj, cinco, opObj).some((r) => r.id === "items-max-especificos"));
+  comprobar("Con el rango del trabajo (de 4 a 8), 5 objetivos sí pasan", !revisarApartado(tipoObj, cinco, opObj, { rangoObjetivos: { min: 4, max: 8 } }).some((r) => r.id.startsWith("items-")));
+  const planMax = { ...planNuevo("p"), minimos: { ...planNuevo("p").minimos, objetivosPorIntegrante: 1, maxObjetivosPorIntegrante: 1 } };
+  const dos = numerar(planEjemplo({ ...planMax, minimos: { ...planMax.minimos, objetivosPorIntegrante: 2 } }, 1, 4));
+  comprobar("El plan detecta más objetivos del máximo", validarPlanEquipo(dos, planMax, [dos.responsable ?? 1], 4).some((p) => p.mensaje.includes("admite hasta 1")),
+    validarPlanEquipo(dos, planMax, [dos.responsable ?? 1], 4).map((p) => p.mensaje).join(" | "));
+
+  // H14: los 3 documentos obligatorios con los mismos nombres en todas las pantallas.
+  comprobar("Documentos obligatorios: hoja de inscripción, constancia de servicio social y hoja de notas",
+    ["src/components/DocumentGate.tsx", "src/components/DocumentosEstudianteForm.tsx"].every((f) => contiene(f, /Hoja de inscripción del trabajo de graduación/) && contiene(f, /Constancia de servicio social/) && contiene(f, /"Hoja de notas"/)));
+
+  // H18: los eventos del historial no son cambios de estado.
+  const ev = describirHistorial("coordinador_asignado", "solicitud_asesor_enviada");
+  comprobar("La solicitud de asesoría es un evento, no un cambio de estado", ev.tipo === "evento" && ev.texto === "Solicitud de asesoría enviada al docente" && ev.estado === "Coordinador asignado");
+  const cambio = describirHistorial("enviada", "coordinador_asignado");
+  comprobar("Un cambio real se muestra con nombres legibles", cambio.tipo === "cambio" && cambio.de === "Enviada" && cambio.a === "Coordinador asignado");
+
+  // H13: título al que se opta.
+  comprobar("Título a partir de la carrera", tituloDeCarrera("Ingeniería en Sistemas Informáticos") === "Ingeniero(a) en Sistemas Informáticos"
+    && tituloDeCarrera("Licenciatura en Enfermería") === "Licenciado(a) en Enfermería" && tituloDeCarrera("Arquitectura") === "Arquitecto(a)" && tituloDeCarrera(null) === null);
+}
+
+// 32. Elementos propios del catálogo (catálogo editable, entrega C1)
+{
+  const nuevo = elementoPropioNuevo("c1");
+  comprobar("Un elemento nuevo tiene la forma esperada y se puede publicar", tieneFormaElementoPropio(nuevo) && problemasElementoPropio(nuevo).length === 0,
+    problemasElementoPropio(nuevo).join(" | "));
+  comprobar("Cada tipo de campo nuevo tiene la forma esperada",
+    TIPOS_CAMPO.every((t) => tieneFormaElementoPropio({ ...nuevo, campos: [{ ...campoNuevo(t.valor, "x"), etiqueta: "X" }] })));
+  const sinNada = { ...nuevo, nombre: " ", etapas: [], campos: [] };
+  const p1 = problemasElementoPropio(sinNada);
+  comprobar("Detecta nombre, etapas y campos que faltan", p1.some((p) => p.includes("nombre")) && p1.some((p) => p.includes("etapa")) && p1.some((p) => p.includes("al menos un campo")));
+  const repetidos = { ...nuevo, campos: [{ ...campoNuevo("texto", "a"), etiqueta: "Título" }, { ...campoNuevo("texto", "b"), etiqueta: "título", obligatorio: false }] };
+  comprobar("Detecta etiquetas repetidas", problemasElementoPropio(repetidos).some((p) => p.includes("etiqueta «título»")));
+  const sel = { ...nuevo, campos: [{ ...campoNuevo("seleccion", "s"), etiqueta: "Área", opciones: ["Uno", " "] }] };
+  comprobar("Una selección necesita al menos dos opciones", problemasElementoPropio(sel).some((p) => p.includes("dos opciones")));
+  const limites = { ...nuevo, campos: [{ ...campoNuevo("lista", "l"), etiqueta: "Ideas", minimo: 5, maximo: 2 }, { ...campoNuevo("archivo", "f"), etiqueta: "Anexo", maxMB: 50, obligatorio: false }] };
+  const p2 = problemasElementoPropio(limites);
+  comprobar("Detecta límites invertidos y tamaños fuera de rango", p2.some((p) => p.includes("mínimo es mayor")) && p2.some((p) => p.includes("entre 1 y 10 MB")));
+  const opcionales = { ...nuevo, campos: [{ ...campoNuevo("texto", "o"), etiqueta: "Nota", obligatorio: false }] };
+  comprobar("Pide al menos un campo obligatorio", problemasElementoPropio(opcionales).some((p) => p.includes("obligatorio")));
+  const cambiado = cambiarTipo({ ...campoNuevo("texto", "t"), etiqueta: "Evidencia", ayuda: "PDF", obligatorio: false }, "archivo");
+  comprobar("Al cambiar el tipo se conservan la etiqueta, la ayuda y si es obligatorio", cambiado.etiqueta === "Evidencia" && cambiado.ayuda === "PDF" && !cambiado.obligatorio && cambiado.maxMB === 5 && cambiado.id === "t");
+  comprobar("Rechaza una definición con ids de campo repetidos o un tipo desconocido",
+    !tieneFormaElementoPropio({ ...nuevo, campos: [campoNuevo("texto", "a"), campoNuevo("texto", "a")] }) && !tieneFormaElementoPropio({ ...nuevo, campos: [{ ...campoNuevo("texto", "a"), tipo: "firma" }] }));
+  comprobar("Resume las reglas del campo", reglasCampo({ ...campoNuevo("lista", "l"), etiqueta: "Ideas" }) === "Lista · obligatorio · de 1 a 10 elementos");
+}
+
+// 33. Elementos propios dentro de una ficha (catálogo editable, entrega C2)
+{
+  const el = { ...elementoPropioNuevo("c1"), nombre: "Ficha técnica", etapas: ["propuesta" as const] };
+  const espacioPropio = (id: string, def = el, elementoId = 7): Espacio => ({ id, elemento: "propio", titulo: def.nombre, descripcion: "", ayuda: "", obligatorio: true, parametros: {}, propio: copiaDe(elementoId, def) });
+  const conPropio = (espacios: Espacio[], etapa: "propuesta" | "protocolo" = "propuesta") => {
+    const d = plantillaRecomendada("investigacion");
+    const e = d.etapas.find((x) => x.tipo === etapa) as { espacios: Espacio[] };
+    e.espacios.push(...espacios);
+    return d;
+  };
+  const valida = conPropio([espacioPropio("p1")]);
+  comprobar("Una ficha con un elemento propio es válida y conserva su forma", validarDefinicion(valida).length === 0 && tieneFormaDeDefinicion(JSON.parse(JSON.stringify(valida))),
+    validarDefinicion(valida).map((p) => p.mensaje).join(" | "));
+  comprobar("La copia es independiente del catálogo", (() => { const c = copiaDe(1, el); c.definicion.campos[0].etiqueta = "Otro"; return el.campos[0].etiqueta === "Descripción"; })());
+  comprobar("Detecta un elemento propio en una etapa que no admite", validarDefinicion(conPropio([espacioPropio("p1")], "protocolo")).some((p) => p.mensaje.includes("no se puede usar en el protocolo")));
+  comprobar("Detecta un elemento no repetible agregado dos veces", validarDefinicion(conPropio([espacioPropio("p1"), espacioPropio("p2")])).some((p) => p.mensaje.includes("solo puede aparecer una vez")));
+  comprobar("Un elemento repetible sí puede ir dos veces", validarDefinicion(conPropio([espacioPropio("p1", { ...el, repetible: true }), espacioPropio("p2", { ...el, repetible: true })])).length === 0);
+  const sinCopia = conPropio([{ ...espacioPropio("p1"), propio: undefined }]);
+  comprobar("Detecta un elemento propio sin copia", validarDefinicion(sinCopia).some((p) => p.mensaje.includes("falta la copia")));
+  const copiaMala = JSON.parse(JSON.stringify(valida));
+  copiaMala.etapas[0].espacios.at(-1).propio.definicion.campos[0].tipo = "firma";
+  comprobar("La revisión de forma rechaza una copia dañada", !tieneFormaDeDefinicion(copiaMala));
+  comprobar("Una copia con pendientes no se puede habilitar", validarDefinicion(conPropio([espacioPropio("p1", { ...el, campos: [] })])).some((p) => p.mensaje.includes("al menos un campo")));
+
+  const cambiado = { ...el, campos: [{ ...el.campos[0], maxPalabras: 300 }, { ...campoNuevo("archivo", "c2"), etiqueta: "Manual" }] };
+  const antes = conPropio([espacioPropio("p1")]);
+  const despues = conPropio([espacioPropio("p1", cambiado)]);
+  const cambios = compararDefiniciones(antes, despues);
+  comprobar("Los cambios de la copia aparecen en la pestaña Cambios",
+    cambios.some((c) => c.includes("se agregó el campo «Manual»")) && cambios.some((c) => c.includes("«Descripción»: Texto largo · obligatorio · hasta 500 palabras → Texto largo · obligatorio · hasta 300 palabras")), cambios.join(" | "));
+  comprobar("Agregar el espacio aparece como elemento propio", compararDefiniciones(conPropio([]), valida).some((c) => c.includes("elemento propio «Ficha técnica»")));
+  const reordenado = JSON.parse(JSON.stringify(el), (_k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).reverse()) : v));
+  comprobar("Comparar copias no depende del orden de las claves", mismaDefinicion(el, reordenado) && !mismaDefinicion(el, cambiado));
+  comprobar("Solo cambiar la ayuda se informa sin repetir las reglas",
+    cambiosElementoPropio(el, { ...el, campos: [{ ...el.campos[0], ayuda: "Nueva" }] })[0] === "«Descripción»: cambió la ayuda o una opción");
+  comprobar("El genérico de los elementos propios no aparece entre los del sistema", !Object.values(CATALOGO).filter((e) => e.clave !== "propio").some((e) => e.clave === "propio") && CATALOGO.propio.formularioEn.join() === "proyecto,investigacion");
+}
+
+// 34. Respuestas de los elementos propios (catálogo editable, entrega C3)
+{
+  const def = {
+    ...elementoPropioNuevo("d"), nombre: "Ficha técnica", etapas: ["propuesta" as const, "protocolo" as const, "informe_final" as const],
+    campos: [
+      { ...campoNuevo("texto_largo", "d"), etiqueta: "Descripción", minPalabras: 3, maxPalabras: 20 },
+      { ...campoNuevo("seleccion", "p"), etiqueta: "Plataforma", opciones: ["Web", "Móvil"] },
+      { ...campoNuevo("numero", "u"), etiqueta: "Usuarios", minimo: 1, maximo: 100, obligatorio: false },
+      { ...campoNuevo("archivo", "m"), etiqueta: "Manual", obligatorio: false, maxMB: 1 },
+      { ...campoNuevo("enlace", "e"), etiqueta: "Repositorio", obligatorio: false },
+    ],
+  };
+  const pdf = "data:application/pdf;base64," + Buffer.from("%PDF-1.4 prueba").toString("base64");
+  const bien = limpiarValores(def, { d: "  Sistema de control de inventario  ", p: ["Web"], u: "25", m: [{ url: pdf, nombre: "manual.pdf" }], x: "campo que no existe" });
+  comprobar("Limpia los valores: recorta, convierte el número y descarta campos ajenos",
+    bien.ok && bien.valores.d === "Sistema de control de inventario" && bien.valores.u === 25 && !("x" in bien.valores) && (bien.valores.m as { tipo: string }[])[0].tipo === "application/pdf");
+  comprobar("Rechaza un archivo con formato no permitido", !limpiarValores(def, { m: [{ url: "data:text/plain;base64,aG9sYQ==", nombre: "a.txt" }] }).ok);
+  const grande = "data:application/pdf;base64," + "A".repeat(Math.ceil((1.2 * 1024 * 1024) / 3) * 4);
+  comprobar("Rechaza un archivo más grande que el límite del campo", !limpiarValores(def, { m: [{ url: grande, nombre: "grande.pdf" }] }).ok);
+  comprobar("Rechaza dos opciones en una selección simple y una fecha mal escrita",
+    !limpiarValores(def, { p: ["Web", "Móvil"] }).ok && !limpiarValores({ ...def, campos: [{ ...campoNuevo("fecha", "f"), etiqueta: "Inicio" }] }, { f: "31/02/2026" }).ok);
+  comprobar("Una opción que no existe se descarta", (() => { const r = limpiarValores(def, { p: ["Escritorio"] }); return r.ok && !("p" in r.valores); })());
+  comprobar("Pendientes: obligatorios y palabras", (() => {
+    const p = problemasValores(def, { d: "Uno dos" });
+    return p.some((x) => x.includes("«Descripción» necesita al menos 3 palabras")) && p.some((x) => x.includes("falta «Plataforma»"));
+  })());
+  comprobar("Completo cuando cumple las reglas", bien.ok && problemasValores(def, bien.valores).length === 0, bien.ok ? problemasValores(def, bien.valores).join(" | ") : "");
+  comprobar("Detecta un enlace inválido", problemasValores(def, { d: "uno dos tres", p: ["Web"], e: [{ url: "no es url", descripcion: "Repo" }] }).some((x) => x.includes("no es una dirección válida")));
+
+  // Por integrante: cada uno guarda su parte sin tocar la de los demás; se revisa la de cada uno con su nombre.
+  const porInt = { ...def, alcance: "integrante" as const };
+  const equipo = [{ id: 11, nombre: "Ana" }, { id: 12, nombre: "Beto" }];
+  let r = conValores({}, porInt, 11, { d: "parte de Ana completa", p: ["Web"] });
+  r = conValores(r, porInt, 12, { d: "Beto" });
+  const json = guardarRespuesta(r);
+  comprobar("Por integrante: cada uno conserva su parte", leerRespuestaPropia(json).integrantes?.["11"]?.d === "parte de Ana completa" && leerRespuestaPropia(json).integrantes?.["12"]?.d === "Beto");
+  const pend = problemasRespuestaPropia(porInt, json, equipo);
+  comprobar("Por integrante: los pendientes dicen de quién son", pend.length > 0 && pend.every((x) => x.startsWith("Beto: ")), pend.join(" | "));
+  comprobar("Un espacio opcional vacío no tiene pendientes; uno obligatorio sí", problemasRespuestaPropia(def, "", [], false).length === 0 && problemasRespuestaPropia(def, "", []).length > 0);
+  comprobar("Respuesta vacía", respuestaVacia(def, "") && respuestaVacia(def, "[]") && !respuestaVacia(def, guardarRespuesta({ valores: { d: "x" } })));
+  const limpio = limpiarRespuesta(porInt, JSON.stringify({ integrantes: { "11": { d: "texto", z: 1 }, "malo": { d: "x" } } }));
+  comprobar("El capítulo se limpia entero (solo ids de usuario y campos del elemento)", limpio.ok && limpio.valor === JSON.stringify({ integrantes: { "11": { d: "texto" } } }));
+
+  // Protocolo e informe final: los pendientes del elemento propio y el documento.
+  const espacio: Espacio = { id: "ft", elemento: "propio", titulo: "Ficha técnica", descripcion: "", ayuda: "", obligatorio: true, parametros: {}, propio: copiaDe(5, def) };
+  const prot = { tipo: "protocolo", espacios: [espacio] };
+  comprobar("El protocolo pide el elemento propio", problemasProtocolo(prot, {}).some((x) => x.mensaje.includes("falta «Plataforma»")));
+  const completo = bien.ok ? guardarRespuesta({ valores: bien.valores }) : "";
+  comprobar("Con la respuesta completa, el protocolo no tiene pendientes", problemasProtocolo(prot, { ft: completo }).length === 0);
+  const { apartados, anexosCapitulo } = apartadosInformeFinal({ ...informeFinalNuevo("if"), espacios: [espacio] }, { ft: completo });
+  const txt = JSON.stringify(apartados);
+  comprobar("El documento trae cada campo y manda los archivos a los anexos",
+    txt.includes("Plataforma: Web") && txt.includes("Sistema de control de inventario") && anexosCapitulo.length === 1 && anexosCapitulo[0].nombre === "manual.pdf", txt);
+  comprobar("La revisión muestra cada campo con su etiqueta, por persona", bloquesRespuesta(porInt, json, equipo)[0].persona === "Ana" && archivosRespuesta(def, completo).length === 1);
+  comprobar("Un capítulo propio vacío cuenta como vacío", contenidoVacio(espacio, "") && !contenidoVacio(espacio, completo));
+}
+
+// 35. Campos adicionales en los elementos del sistema (catálogo editable, entrega C4)
+{
+  const extra = [{ ...campoNuevo("texto", "rep"), etiqueta: "Repositorio del código" }, { ...campoNuevo("numero", "hrs"), etiqueta: "Horas estimadas", obligatorio: false, minimo: 1 }];
+  const conExtra = (cambiar: (d: DefinicionFicha) => void) => { const d = plantillaRecomendada("investigacion"); cambiar(d); return d; };
+  const enObjetivos = conExtra((d) => { d.etapas.find(esEtapaPropuesta)!.espacios.find((e) => e.elemento === "objetivos")!.camposExtra = extra; });
+  comprobar("Un elemento del sistema con campos adicionales es válido y conserva su forma", validarDefinicion(enObjetivos).length === 0 && tieneFormaDeDefinicion(JSON.parse(JSON.stringify(enObjetivos))),
+    validarDefinicion(enObjetivos).map((p) => p.mensaje).join(" | "));
+  const enDocumentos = conExtra((d) => { const e = d.etapas.find(esEtapaPropuesta)!.espacios.find((x) => x.elemento === "documentos"); if (e) e.camposExtra = extra; });
+  comprobar("Los documentos obligatorios no admiten campos adicionales", validarDefinicion(enDocumentos).some((p) => p.mensaje.includes("no admite campos adicionales")));
+  const enInforme = conExtra((d) => { d.etapas.find(esEtapaInformeFinal)!.espacios[0].camposExtra = extra; });
+  comprobar("El informe final no lleva campos adicionales", validarDefinicion(enInforme).some((p) => p.mensaje.includes("informe final no llevan campos adicionales")));
+  const pas = definicionBase("pasantia");
+  const pasEsp = pas.etapas.find(esEtapaPropuesta)!.espacios.find((x) => x.elemento === "portada")!;
+  pasEsp.camposExtra = extra;
+  comprobar("La pasantía todavía no muestra campos adicionales", validarDefinicion(pas).some((p) => p.mensaje.includes("pasantía todavía no muestra")));
+  const repetidos = conExtra((d) => { d.etapas.find(esEtapaPropuesta)!.espacios.find((e) => e.elemento === "objetivos")!.camposExtra = [extra[0], { ...extra[0], id: "otro" }]; });
+  comprobar("Detecta campos adicionales con la misma etiqueta", validarDefinicion(repetidos).some((p) => p.mensaje.includes("campos adicionales: Hay 2 campos")));
+  const mala = JSON.parse(JSON.stringify(enObjetivos));
+  mala.etapas[0].espacios.find((e: Espacio) => e.elemento === "objetivos").camposExtra[0].tipo = "firma";
+  comprobar("La revisión de forma rechaza campos adicionales dañados", !tieneFormaDeDefinicion(mala));
+  const cambios = compararDefiniciones(plantillaRecomendada("investigacion"), enObjetivos);
+  comprobar("Cambios lista los campos adicionales agregados", cambios.some((c) => c.includes("campos adicionales: se agregó el campo «Repositorio del código»")), cambios.join(" | "));
+
+  // Protocolo: los campos adicionales se exigen y su respuesta va aparte.
+  const esp: Espacio = { id: "prob", elemento: "texto", titulo: "Problema", descripcion: "", ayuda: "", obligatorio: true, parametros: { minPalabras: 0, maxPalabras: 0 }, camposExtra: extra };
+  const prot = { tipo: "protocolo", espacios: [esp] };
+  comprobar("El protocolo pide los campos adicionales", problemasProtocolo(prot, { prob: "Texto del problema" }).some((p) => p.mensaje.includes("datos adicionales: falta «Repositorio del código»")));
+  const resp = guardarRespuesta({ valores: { rep: "github.com/equipo/proyecto" } });
+  comprobar("Con los datos adicionales, el protocolo no tiene pendientes", problemasProtocolo(prot, { prob: "Texto del problema", [claveCamposExtra("prob")]: resp }).length === 0);
+  const doc = JSON.stringify(apartadosInformeFinal({ ...informeFinalNuevo("if"), espacios: [esp] }, { prob: "Texto del problema", [claveCamposExtra("prob")]: resp }).apartados);
+  comprobar("El documento agrega los datos adicionales debajo del apartado", doc.includes("Datos adicionales") && doc.includes("Repositorio del código: github.com/equipo/proyecto"), doc);
+  comprobar("Los campos adicionales se tratan como una respuesta por trabajo", defCamposExtra(esp).alcance === "equipo" && defCamposExtra(esp).campos.length === 2);
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

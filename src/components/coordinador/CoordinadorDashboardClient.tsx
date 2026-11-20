@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { describirHistorial } from "@/lib/historialEstados";
 import {
   asignarAsesorCoordinador,
   responderSolicitudBajaCoordinador,
@@ -17,6 +18,8 @@ interface PropuestaPendiente {
   tipo: string;
   titulo: string;
   fechaAprobacion: Date | string | null;
+  /** La fecha es la de aprobación (true) o, si todavía no se aprueba, la de envío (H18). */
+  aprobada?: boolean;
   estudiantes: string;
   carrera: string;
   asesorAsignadoId: number | null;
@@ -330,7 +333,7 @@ export default function CoordinadorDashboardClient({
               <table className="w-full text-sm text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-100 text-slate-700 text-xs font-bold uppercase tracking-wider border-b border-slate-200">
-                    <th className="p-4 rounded-tl-lg">Fecha Aprobación</th>
+                    <th className="p-4 rounded-tl-lg">Fecha</th>
                     <th className="p-4">Modalidad</th>
                     <th className="p-4">Estudiante / Equipo</th>
                     <th className="p-4">Título de la Propuesta</th>
@@ -359,6 +362,7 @@ export default function CoordinadorDashboardClient({
                       <tr key={prop.id} className="hover:bg-slate-50 transition-colors">
                         <td className="p-4 font-semibold text-slate-600 whitespace-nowrap">
                           {fechaStr}
+                          <span className="block text-[10px] font-bold text-slate-400 uppercase">{prop.aprobada ? "Aprobada" : "Enviada"}</span>
                         </td>
                         <td className="p-4">
                           <span className="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase bg-rose-50 text-brand-red border border-rose-200">
@@ -440,7 +444,8 @@ export default function CoordinadorDashboardClient({
                               </button>
                             )}
 
-                            <a
+                            {/* El Gantt por semanas es de pasantía (H17). */}
+                            {prop.tipo === "pasantia" && <a
                               href={`/admin/propuestas/${prop.id}/imprimir?ganttOnly=true`}
                               target="_blank"
                               rel="noopener noreferrer"
@@ -448,7 +453,7 @@ export default function CoordinadorDashboardClient({
                               title="Exportar solo Diagrama de Gantt (PDF 1 pág)"
                             >
                               📊 Gantt
-                            </a>
+                            </a>}
                           </div>
                         </td>
                       </tr>
@@ -928,7 +933,13 @@ export default function CoordinadorDashboardClient({
                                 <span>{fechaStr}</span>
                               </div>
                               <p className="font-bold text-slate-900">
-                                Cambio de estado: <span className="text-rose-700">{h?.de || "N/A"}</span> → <span className="text-emerald-700">{h?.a || "N/A"}</span>
+                                {(() => {
+                                  // H18: los eventos (solicitud de asesoría, ajustes…) no son cambios de estado.
+                                  const l = describirHistorial(h?.de, h?.a);
+                                  return l.tipo === "cambio"
+                                    ? <>Cambio de estado: <span className="text-rose-700">{l.de}</span> → <span className="text-emerald-700">{l.a}</span></>
+                                    : <>{l.texto} <span className="text-slate-500 font-normal">(estado: {l.estado})</span></>;
+                                })()}
                               </p>
                             </div>
                           </div>

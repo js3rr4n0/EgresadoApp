@@ -6,6 +6,7 @@ import type { EstadoVersion, Modalidad } from "@/lib/fichas/tipos";
 import { ETIQUETA_MODALIDAD, EstadoVersionBadge } from "./comunes";
 import NuevaFichaModal from "./NuevaFichaModal";
 import CatalogoElementos from "./CatalogoElementos";
+import type { ElementoPropio } from "@/app/actions/elementosCatalogo";
 
 export interface FilaFicha {
   id: number;
@@ -42,8 +43,11 @@ export default function PanelFichas({
   filas,
   facultades,
   carreras,
+  propios = [],
 }: {
   filas: FilaFicha[];
+  /** Elementos propios del catálogo (catálogo editable, C1). */
+  propios?: ElementoPropio[];
   facultades: { id: number; nombre: string; codigo: string | null }[];
   carreras: { id: number; nombre: string; codigo: string | null; facultadId: number }[];
 }) {
@@ -64,8 +68,11 @@ export default function PanelFichas({
 
   const origenes = filas.flatMap((f) =>
     f.versiones
-      .filter((v) => v.estado !== "borrador")
-      .map((v) => ({ versionId: v.id, modalidad: f.modalidad, etiqueta: `${f.codigo ?? f.nombre} — versión ${v.numero}`, esBase: f.esBase }))
+      // Solo la versión habilitada más reciente de cada ficha: las anteriores ya no son un buen punto de partida.
+      .filter((v) => v.estado === "habilitada")
+      .sort((a, b) => b.numero - a.numero)
+      .slice(0, 1)
+      .map((v) => ({ versionId: v.id, modalidad: f.modalidad, etiqueta: `${f.codigo ?? f.nombre} — versión ${v.numero} (vigente)`, esBase: f.esBase }))
   );
   const existentes = filas.filter((f) => !f.esBase).map((f) => ({ id: f.id, codigo: f.codigo, modalidad: f.modalidad, facultadId: f.facultadId, carreraId: f.carreraId }));
 
@@ -91,7 +98,7 @@ export default function PanelFichas({
       </div>
 
       {vista === "catalogo" ? (
-        <CatalogoElementos />
+        <CatalogoElementos propios={propios} />
       ) : (
         <>
           <div className="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
@@ -120,7 +127,8 @@ export default function PanelFichas({
           </div>
 
           <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-2.5 text-sm">
-            <strong>Vista previa del constructor.</strong> Los egresados todavía usan el asistente actual; las fichas se conectarán a su proceso en la entrega 4.
+            <strong>Qué usa cada modalidad.</strong> Proyecto e investigación ya siguen su ficha: cada propuesta nueva toma la versión habilitada más reciente de la ficha de su carrera (o de su facultad, o general).
+            La pasantía todavía usa el asistente de la fase 1, aunque su ficha se puede consultar y versionar.
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-x-auto">

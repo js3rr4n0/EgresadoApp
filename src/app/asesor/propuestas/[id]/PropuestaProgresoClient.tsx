@@ -24,9 +24,11 @@ interface PropuestaProgresoClientProps {
     detallesProyecto: any;
   };
   informeData?: any;
+  /** Proyecto e investigación (H28): estado del plan de trabajo, para el estado de la propuesta. */
+  estadoPlan?: string | null;
 }
 
-export default function PropuestaProgresoClient({ data, informeData }: PropuestaProgresoClientProps) {
+export default function PropuestaProgresoClient({ data, informeData, estadoPlan = null }: PropuestaProgresoClientProps) {
   const { propuesta, estudiante, empresa, supervisor, carta, actividades, detallesProyecto } = data;
 
   const [activeTab, setActiveTab] = useState<"datos" | "plan" | "primer_contacto" | "documentos">("datos");
@@ -53,7 +55,9 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
   };
 
   const handleAprobarOK = async () => {
-    if (!confirm("¿Está seguro de dar el OK y APROBAR el plan de trabajo y propuesta de este estudiante?")) {
+    if (!confirm(conFicha
+      ? `¿Aprobar la propuesta? Después el equipo elaborará ${queSigue} en el sistema, y usted los revisará en su propia pantalla.`
+      : "¿Está seguro de dar el OK y APROBAR el plan de trabajo y propuesta de este estudiante?")) {
       return;
     }
     setSendingAprobar(true);
@@ -149,6 +153,12 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
     return "Investigación";
   };
 
+  // Proyecto e investigación (recorrido integral, H17): la propuesta se aprueba revisando sus objetivos; el plan de
+  // trabajo (y el protocolo) se elaboran después en el sistema. No se muestra el cronograma por semanas de pasantía.
+  const conFicha = propuesta.tipo !== "pasantia";
+  const queSigue = propuesta.tipo === "investigacion" ? "el protocolo y el plan de trabajo" : "el plan de trabajo";
+  const pendienteRevision = conFicha && !["aprobada", "primer_contacto_completado", "completada", "finalizada", "en_ejecucion", "rechazada", "anulada", "redactando"].includes(propuesta.estado);
+
   const isApprovedByAsesor =
     propuesta.estado === "aprobada" ||
     propuesta.estado === "primer_contacto_completado" ||
@@ -237,7 +247,7 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                     case "coordinador_asignado":
                       return { text: "Coordinador / Asesor Asignado", cls: "bg-purple-100 text-purple-900 border-purple-300" };
                     case "aprobada":
-                      return { text: "Aprobada por Asesor (Esperando Primer Contacto)", cls: "bg-emerald-100 text-emerald-950 border-emerald-400 font-extrabold" };
+                      return { text: conFicha ? (estadoPlan === "aprobado" ? "Plan aprobado: falta que la coordinación dé inicio" : estadoPlan === "enviado" ? `Por revisar: ${queSigue}` : `Aprobada: el equipo elabora ${queSigue}`) : "Aprobada por Asesor (Esperando Primer Contacto)", cls: "bg-emerald-100 text-emerald-950 border-emerald-400 font-extrabold" };
                     case "primer_contacto_completado":
                       return { text: "✓ Primer Contacto Completado", cls: "bg-teal-100 text-teal-950 border-teal-400 font-extrabold" };
                     case "rechazada":
@@ -260,14 +270,14 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <a
+          {!conFicha && <a
             href={`/asesor/propuestas/${propuesta.id}/imprimir?ganttOnly=true`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
           >
             📊 Exportar Gantt (PDF 1 pág)
-          </a>
+          </a>}
 
           <button
             onClick={() => setShowBajaModal(true)}
@@ -464,7 +474,10 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
-          Visualizar plan de trabajo
+          {conFicha ? "Revisión de la propuesta" : "Visualizar plan de trabajo"}
+          {pendienteRevision && (
+            <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded font-extrabold uppercase">Por revisar</span>
+          )}
         </button>
 
         {propuesta.tipo === "pasantia" && (
@@ -515,6 +528,17 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
       {/* ============================================================= */}
       {activeTab === "datos" && (
         <div className="space-y-6">
+          {pendienteRevision && (
+            <div className="p-4 rounded-2xl border-2 border-amber-300 bg-amber-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-extrabold text-amber-950">Esta propuesta espera su revisión</p>
+                <p className="text-xs text-amber-900">Revise los objetivos y apruebe la propuesta o solicite ajustes. Al aprobarla, el equipo elabora {queSigue}.</p>
+              </div>
+              <button type="button" onClick={() => setActiveTab("plan")} className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shrink-0">
+                Ir a la revisión de la propuesta
+              </button>
+            </div>
+          )}
           <div className="bg-white rounded-2xl border border-border shadow-sm p-6 md:p-8 space-y-6">
             <h2 className="text-lg font-bold text-card-dark border-b border-border pb-3 uppercase tracking-wider text-xs">
               Información General del Estudiante
@@ -640,13 +664,17 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
           <div className="bg-white rounded-2xl border border-border shadow-sm p-6 md:p-8 space-y-6">
             <div>
               <h2 className="text-lg font-bold text-card-dark flex items-center justify-between border-b border-border pb-3">
-                <span>Diagrama de Gantt y Plan de Trabajo Actividades por Mes</span>
-                <span className="text-xs bg-purple-100 text-purple-800 font-bold px-3 py-1 rounded-full">
-                  {actividadesList.length} actividades programadas
-                </span>
+                <span>{conFicha ? "Revisión de la propuesta" : "Diagrama de Gantt y Plan de Trabajo Actividades por Mes"}</span>
+                {!conFicha && (
+                  <span className="text-xs bg-purple-100 text-purple-800 font-bold px-3 py-1 rounded-full">
+                    {actividadesList.length} actividades programadas
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-muted mt-2 leading-relaxed">
-                Revisa la programación de actividades mes por mes según las semanas de trabajo. Puedes realizar modificaciones a la descripción de cualquier actividad si es necesario (los cambios se sincronizarán con el estudiante). Además, al final de cada mes podrás revisar el informe mensual subido.
+                {conFicha
+                  ? `Revise el objetivo general y los objetivos específicos, y apruebe la propuesta o solicite ajustes (al final de esta página). Después de aprobada, el equipo elabora ${queSigue} en el sistema, y usted los revisa en su propia pantalla.`
+                  : "Revisa la programación de actividades mes por mes según las semanas de trabajo. Puedes realizar modificaciones a la descripción de cualquier actividad si es necesario (los cambios se sincronizarán con el estudiante). Además, al final de cada mes podrás revisar el informe mensual subido."}
               </p>
             </div>
             {/* Section Dictámenes Oficiales UNICAES */}
@@ -904,7 +932,7 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
               </div>
             )}
 
-            {periodosUnicos.length === 0 ? (
+            {conFicha ? null : periodosUnicos.length === 0 ? (
               <div className="text-center py-12 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                 <p className="text-slate-500 font-semibold text-sm">
                   Aún no hay actividades registradas en el plan de trabajo.
@@ -1210,10 +1238,12 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
             <div className="mt-8 pt-6 border-t-2 border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-sm">
               <div>
                 <h3 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
-                  <span>📜 Aprobación y Dictamen Final de la Propuesta / Plan</span>
+                  <span>{conFicha ? "📜 Aprobación de la propuesta" : "📜 Aprobación y Dictamen Final de la Propuesta / Plan"}</span>
                 </h3>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Una vez verificado el plan de trabajo u objetivos y sus correcciones, puedes aprobar la propuesta y generar el dictamen oficial.
+                  {conFicha
+                    ? `Una vez revisados los objetivos, apruebe la propuesta o solicite ajustes. Al aprobarla, el equipo elabora ${queSigue}.`
+                    : "Una vez verificado el plan de trabajo u objetivos y sus correcciones, puedes aprobar la propuesta y generar el dictamen oficial."}
                 </p>
               </div>
 
@@ -1228,7 +1258,7 @@ export default function PropuestaProgresoClient({ data, informeData }: Propuesta
                       : "bg-emerald-600 hover:bg-emerald-700 text-white"
                   }`}
                 >
-                  <span>{sendingAprobar ? "Aprobando..." : propuesta.estado === "aprobada" ? "✓ Propuesta Aprobada (OK)" : "✅ Dar OK (Aprobar Plan)"}</span>
+                  <span>{sendingAprobar ? "Aprobando..." : propuesta.estado === "aprobada" ? "✓ Propuesta Aprobada (OK)" : conFicha ? "✅ Aprobar propuesta" : "✅ Dar OK (Aprobar Plan)"}</span>
                 </button>
 
                 <a

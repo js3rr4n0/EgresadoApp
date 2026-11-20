@@ -4,10 +4,11 @@
 //   - Las propuestas sin ficha (las anteriores) usan la ficha base, que describe la fase 1 tal como es.
 // Se asigna en proyecto (P2) e investigación (I2): son las modalidades cuyo asistente lee la ficha.
 import { db } from "@/lib/db";
-import { carreras, fichas, fichasVersiones, propuestas, usuarios } from "@/lib/schema";
+import { carreras, fichas, fichasVersiones, integrantesProyecto, propuestas, usuarios } from "@/lib/schema";
 import { and, desc, eq } from "drizzle-orm";
 import { definicionBase } from "./fichasBase";
 import { esEtapaPropuesta, type DefinicionFicha, type Espacio, type Modalidad } from "./tipos";
+import { objetivosPorIntegranteDe, rangoObjetivos, type RangoObjetivos } from "./objetivos";
 
 /** Modalidades cuyo asistente ya lee la ficha. */
 export const MODALIDADES_CON_FICHA: Modalidad[] = ["proyecto", "investigacion"];
@@ -79,11 +80,22 @@ export async function maxIntegrantesDePropuesta(propuestaId: number, porDefecto:
   return f?.version ? f.definicion.participantes.max : porDefecto;
 }
 
-/** Límites de objetivos específicos según la ficha de la propuesta (o los de la fase 1). */
-export async function limitesObjetivos(propuestaId: number, porDefecto: { min: number; max: number }) {
+/** Integrantes del trabajo: el líder más los que aceptaron la invitación. */
+export async function integrantesDePropuesta(propuestaId: number): Promise<number> {
+  const aceptados = await db
+    .select({ id: integrantesProyecto.id })
+    .from(integrantesProyecto)
+    .where(and(eq(integrantesProyecto.propuestaId, propuestaId), eq(integrantesProyecto.estado, "aceptado")));
+  return 1 + aceptados.length;
+}
+
+/**
+ * Límites de objetivos específicos (H19/H27): el rango por integrante de la ficha (de 3 a 4 por defecto) por la cantidad
+ * de integrantes. Las propuestas sin ficha usan la misma regla.
+ */
+export async function limitesObjetivos(propuestaId: number): Promise<RangoObjetivos & { porIntegrante: RangoObjetivos; integrantes: number }> {
   const f = await fichaDePropuesta(propuestaId);
-  if (!f?.version) return porDefecto;
-  const esp = espaciosPropuesta(f.definicion).find((e) => e.elemento === "objetivos");
-  if (!esp) return porDefecto;
-  return { min: Number(esp.parametros.minEspecificos), max: Number(esp.parametros.maxEspecificos) };
+  const porIntegrante = objetivosPorIntegranteDe(f?.version ? f.definicion : null);
+  const integrantes = await integrantesDePropuesta(propuestaId);
+  return { ...rangoObjetivos(porIntegrante, integrantes), porIntegrante, integrantes };
 }

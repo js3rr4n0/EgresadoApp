@@ -4,6 +4,7 @@
 import { precargaEspacio, problemasProtocolo, type DatosPropuestaPrecarga } from "./protocolo";
 import { PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, type Espacio, type EtapaInformeFinal } from "./tipos";
 import { guardarComoTexto, leerApartado, parteVacia, tipoApartado } from "./apartadosAcademicos";
+import { respuestaVacia } from "./respuestasPropias";
 
 /** Capítulo que genera el sistema (resultados por objetivo): no se redacta, no se envía ni se aprueba aparte. */
 export const capituloGenerado = (e: Pick<Espacio, "elemento">) => e.elemento === "resultados_objetivos" || e.elemento === "reporte_modificaciones";
@@ -12,6 +13,7 @@ export const capituloGenerado = (e: Pick<Espacio, "elemento">) => e.elemento ===
 export function contenidoVacio(e: Espacio, contenido: string | null | undefined): boolean {
   const v = (contenido ?? "").trim();
   if (!v || v === "[]") return true;
+  if (e.elemento === "propio") return !e.propio || respuestaVacia(e.propio.definicion, v);
   const tipo = e.elemento === "apartado" ? tipoApartado(e) : undefined;
   if (!tipo) return false;
   const c = leerApartado(tipo, v);
@@ -89,8 +91,8 @@ export function precargaCapitulo(
 }
 
 /** Pendientes del informe por capítulo (contenido de la última versión de cada uno). */
-export function problemasInformeFinal(etapa: EtapaInformeFinal, contenidos: Record<string, string | null | undefined>) {
-  return problemasProtocolo(etapa, contenidos);
+export function problemasInformeFinal(etapa: EtapaInformeFinal, contenidos: Record<string, string | null | undefined>, integrantes: { id: number; nombre: string }[] = []) {
+  return problemasProtocolo(etapa, contenidos, { integrantes });
 }
 
 /** Capítulos que faltan aprobar para poder ratificar y entregar (los opcionales vacíos no cuentan). */

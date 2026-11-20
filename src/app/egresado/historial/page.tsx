@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { propuestas, empresas, supervisores, documentosPropuesta, historialEstados, usuarios } from "@/lib/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import Link from "next/link";
+import { describirHistorial } from "@/lib/historialEstados";
 
 function formatFechaHoraSV(dateInput: Date | string | null) {
   if (!dateInput) return { fecha: "N/A", hora: "N/A" };
@@ -241,7 +242,13 @@ export default async function HistorialPropuestaPage() {
                           <span className="w-2 h-2 rounded-full bg-slate-400"></span>
                           <div>
                             <span className="font-bold text-slate-800">
-                              Cambio de estado: <span className="text-slate-500 font-normal">{h.de}</span> → <strong className="text-brand-red">{h.a}</strong>
+                              {(() => {
+                                // H18: los eventos (solicitud de asesoría, ajustes…) no son cambios de estado.
+                                const l = describirHistorial(h.de, h.a);
+                                return l.tipo === "cambio"
+                                  ? <>Cambio de estado: <span className="text-slate-500 font-normal">{l.de}</span> → <strong className="text-brand-red">{l.a}</strong></>
+                                  : <>{l.texto} <span className="text-slate-500 font-normal">(estado: {l.estado})</span></>;
+                              })()}
                             </span>
                             {h.usuarioNombre && (
                               <span className="text-slate-500 block text-[11px]">

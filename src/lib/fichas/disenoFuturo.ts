@@ -11,6 +11,8 @@ export interface CampoElemento {
 
 /** Campos que pide hoy cada elemento en el asistente (columnas de la fase 1). */
 export const CAMPOS_ELEMENTO: Record<ClaveElemento, CampoElemento[]> = {
+  // Los campos de un elemento propio están en su copia (Espacio.propio).
+  propio: [],
   portada: [
     { nombre: "Título del trabajo", tipo: "texto", obligatorio: true },
     { nombre: "Nombres y apellidos", tipo: "texto", obligatorio: true },

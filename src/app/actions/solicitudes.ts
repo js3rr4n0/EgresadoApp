@@ -98,7 +98,8 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         });
       }
 
-      // 2. Insert Supervisor
+      // 2. Insert Supervisor (recorrido integral, H29): solo si la solicitud lo trae; antes se creaba uno vacío.
+      if (data.supervisor?.nombres?.trim()) {
       const newSupervisores = await db.insert(supervisores).values({
         empresaId: targetEmpresaId,
         nombres: data.supervisor.nombres,
@@ -110,6 +111,7 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         titulo: data.supervisor.titulo || null,
       }).returning({ id: supervisores.id });
       targetSupervisorId = newSupervisores[0].id;
+      }
 
       // 3. Create historial
       const cambiosPayload = JSON.parse(JSON.stringify({ type: "create", data }));

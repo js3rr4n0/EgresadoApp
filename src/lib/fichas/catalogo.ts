@@ -53,9 +53,9 @@ export interface ElementoCatalogo {
 }
 
 export const DOCUMENTOS_ESTUDIANTE = [
-  { valor: "pago_tg", etiqueta: "Comprobante de pago del trabajo de graduación" },
-  { valor: "certificacion_notas", etiqueta: "Certificación de notas" },
+  { valor: "pago_tg", etiqueta: "Hoja de inscripción del trabajo de graduación" },
   { valor: "servicio_social", etiqueta: "Constancia de servicio social" },
+  { valor: "certificacion_notas", etiqueta: "Hoja de notas" },
 ];
 
 export const ACTORES = [
@@ -176,8 +176,9 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     requiere: [],
     etapas: ["propuesta"],
     parametros: [
-      { clave: "minEspecificos", etiqueta: "Objetivos específicos mínimos", tipo: "numero", porDefecto: 4, min: 1, max: 20 },
-      { clave: "maxEspecificos", etiqueta: "Objetivos específicos máximos", tipo: "numero", porDefecto: 6, min: 1, max: 20 },
+      // H19/H27: por integrante; el total de un equipo se multiplica por sus integrantes. Rige también el protocolo y el plan.
+      { clave: "minEspecificos", etiqueta: "Objetivos específicos mínimos por integrante", tipo: "numero", porDefecto: 3, min: 1, max: 10, ayuda: "Rige la propuesta, el protocolo y el plan de trabajo. En equipo se multiplica por los integrantes." },
+      { clave: "maxEspecificos", etiqueta: "Objetivos específicos máximos por integrante", tipo: "numero", porDefecto: 4, min: 1, max: 10 },
     ],
   },
   documentos: {
@@ -345,7 +346,24 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     etapas: ["informe_final"],
     parametros: [],
   },
+  // Catálogo editable (C2): los elementos propios que crea el administrador. No se agrega desde esta lista: cada espacio
+  // guarda la copia de un elemento propio publicado (elementosPropios.ts), con sus campos, etapas y si se repite.
+  propio: {
+    clave: "propio",
+    nombre: "Elemento propio",
+    grupo: "Contenido",
+    descripcion: "Formulario armado en el catálogo con campos de tipos conocidos. La ficha guarda una copia: editarlo en el catálogo no la cambia.",
+    // C3: formulario general en la propuesta, el protocolo y el informe final (el asistente de pasantía sigue siendo el de la fase 1).
+    formularioEn: ["proyecto", "investigacion"],
+    repetible: true,
+    alcance: "equipo",
+    requiere: [],
+    parametros: [],
+  },
 };
+
+/** Elementos del sistema (los de esta lista menos el genérico de los elementos propios). */
+export const ELEMENTOS_SISTEMA = Object.values(CATALOGO).filter((e) => e.clave !== "propio");
 
 /** El elemento puede usarse en esa etapa (propuesta o protocolo). */
 export const elementoEnEtapa = (clave: ClaveElemento, etapa: EtapaDeEspacios) => (CATALOGO[clave].etapas ?? ["propuesta", "protocolo", "informe_final"]).includes(etapa);

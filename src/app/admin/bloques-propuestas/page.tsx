@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { carreras, facultades, fichas, fichasVersiones } from "@/lib/schema";
 import PanelFichas, { type FilaFicha } from "@/components/fichas/PanelFichas";
 import type { EstadoVersion, Modalidad } from "@/lib/fichas/tipos";
+import { listarElementosPropios } from "@/app/actions/elementosCatalogo";
 
 export const metadata = {
   title: "Fichas de trabajos de graduación | Gestión TG UNICAES",
@@ -14,7 +15,7 @@ export default async function FichasPage() {
   const session = await getSession();
   if (!session || session.rol !== "admin") redirect("/login");
 
-  const [listaFichas, versiones, listaFacultades, listaCarreras] = await Promise.all([
+  const [listaFichas, versiones, listaFacultades, listaCarreras, propios] = await Promise.all([
     db.select().from(fichas).orderBy(asc(fichas.esBase), asc(fichas.codigo)),
     db
       .select({
@@ -31,6 +32,7 @@ export default async function FichasPage() {
       .select({ id: carreras.id, nombre: carreras.nombre, codigo: carreras.codigo, facultadId: carreras.facultadId })
       .from(carreras)
       .orderBy(asc(carreras.nombre)),
+    listarElementosPropios(),
   ]);
 
   const nombreFacultad = new Map(listaFacultades.map((f) => [f.id, f.nombre]));
@@ -61,5 +63,5 @@ export default async function FichasPage() {
     };
   });
 
-  return <PanelFichas filas={filas} facultades={listaFacultades} carreras={listaCarreras} />;
+  return <PanelFichas filas={filas} facultades={listaFacultades} carreras={listaCarreras} propios={propios} />;
 }

@@ -56,17 +56,20 @@ export default async function AsesorPropuestaProgresoPage({
 
   // Proyecto con ficha (P3): el plan de trabajo del equipo se revisa en su propia pantalla.
   const estadoPlan = await estadoPlanDePropuesta(pId);
+  // Investigación (H22): el protocolo se envía y se dictamina junto con el plan.
+  const queEs = (res.data as { propuesta: { tipo: string } }).propuesta.tipo === "investigacion" ? "el protocolo y el plan de trabajo" : "el plan de trabajo";
   const textoPlan: Record<string, string> = {
-    sin_plan: "El equipo todavía no ha empezado su plan de trabajo.",
-    redactando: "El equipo está elaborando su plan de trabajo.",
-    enviado: "El equipo envió su plan de trabajo: está pendiente de tu revisión.",
-    observado: "Pediste ajustes al plan de trabajo; el equipo los está corrigiendo.",
-    aprobado: "Aprobaste el plan de trabajo del equipo.",
+    sin_plan: `El equipo todavía no ha empezado ${queEs}.`,
+    redactando: `El equipo está elaborando ${queEs}.`,
+    enviado: `El equipo envió ${queEs}: está pendiente de tu revisión.`,
+    observado: `Pediste ajustes ${queEs === "el plan de trabajo" ? "al plan de trabajo" : "al protocolo y al plan de trabajo"}; el equipo los está corrigiendo.`,
+    aprobado: `Aprobaste ${queEs}.`,
   };
 
   return (
     <>
-      {estadoPlan && (
+      {/* El plan se elabora después de aprobada la propuesta (H17): antes no se muestra su estado. */}
+      {estadoPlan && !(estadoPlan === "sin_plan" && !["aprobada", "primer_contacto_completado", "en_ejecucion"].includes((res.data as { propuesta: { estado: string } }).propuesta.estado)) && (
         <div className={`mb-4 p-4 rounded-xl border flex flex-wrap items-center justify-between gap-3 ${estadoPlan === "enviado" ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"}`}>
           <div>
             <p className="text-sm font-bold text-slate-900">Plan de trabajo del equipo</p>
@@ -87,6 +90,7 @@ export default async function AsesorPropuestaProgresoPage({
         </div>
       )}
       <PropuestaProgresoClient
+        estadoPlan={estadoPlan}
         data={res.data as any}
         informeData={informeData}
       />

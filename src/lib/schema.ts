@@ -972,6 +972,24 @@ export const fichasVersiones = pgTable(
   ]
 );
 
+// Elementos propios del catálogo (catálogo editable, entrega C1): formularios armados con campos de tipos conocidos
+// (src/lib/fichas/elementosPropios.ts). Los crea el administrador; al agregarlos a una ficha se copia la definición.
+// Script: scripts/fichas/crear_elementos_catalogo.ts
+export const elementosCatalogo = pgTable(
+  "elementos_catalogo",
+  {
+    id: serial("id").primaryKey(),
+    nombre: varchar("nombre", { length: 150 }).notNull(),
+    estado: varchar("estado", { length: 20 }).notNull().default("borrador"),
+    definicion: jsonb("definicion").notNull(),
+    creadoPor: integer("creado_por").references(() => usuarios.id),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+    publicadoEn: timestamp("publicado_en", { withTimezone: true }),
+  },
+  (table) => [check("elementos_catalogo_estado_check", sql`${table.estado} IN ('borrador', 'publicado')`)]
+);
+
 // Respuestas de los espacios de la ficha que no existían en la fase 1 (por ejemplo, un bloque de texto nuevo).
 // espacio_id es el id estable del espacio dentro de la ficha. Script: scripts/fichas/ligar_propuestas_fichas.ts
 export const respuestasEspacios = pgTable(

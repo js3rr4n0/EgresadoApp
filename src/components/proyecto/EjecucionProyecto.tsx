@@ -469,14 +469,14 @@ export default function EjecucionProyecto({ datos }: { datos: DatosEjecucion }) 
       <div className={`${tarjeta} p-5 space-y-4`}>
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
           <div>
-            <h2 className="text-sm font-extrabold text-slate-900">Avance del proyecto</h2>
+            <h2 className="text-sm font-extrabold text-slate-900">Avance {t.del}</h2>
             <p className="mt-1">
               <span className="text-2xl font-extrabold text-slate-900">{avanceProyecto}%</span>
               <span className="text-xs font-bold text-slate-500"> del objetivo general</span>
               <span className="text-[11px] font-semibold text-slate-400"> · período {periodoActual} de {periodos.length}{p?.desde ? ` (${fechaCorta(p.desde)} al ${fechaCorta(p.hasta)})` : ""}</span>
             </p>
           </div>
-          <Pastilla clase="bg-slate-50 text-slate-700 border-slate-300">{enviadasProyecto} de {planificadasHastaHoy} actividades enviadas a la fecha</Pastilla>
+          <Pastilla clase="bg-slate-50 text-slate-700 border-slate-300">{enviadasProyecto} de {planificadasHastaHoy} {t.esInvestigacion ? "elementos o subactividades enviados" : "actividades enviadas"} a la fecha</Pastilla>
         </div>
         <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden" aria-label="Avance del objetivo general">
           <div className="h-full bg-unicaes rounded-full" style={{ width: `${avanceProyecto}%` }} />

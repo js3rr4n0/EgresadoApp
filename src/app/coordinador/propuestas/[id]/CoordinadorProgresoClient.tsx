@@ -133,14 +133,14 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                 </svg>
                 <span>{asesor ? "Cambiar Asesor" : "Asignar Asesor"}</span>
               </button>
-              <a
+              {propuestaTipo === "pasantia" && <a
                 href={`/coordinador/propuestas/${propuestaId}/imprimir?ganttOnly=true`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-colors shadow-xs"
               >
                 📊 Exportar Gantt (PDF 1 pág)
-              </a>
+              </a>}
               <a
                 href={`/coordinador/propuestas/${propuestaId}/imprimir`}
                 target="_blank"
@@ -239,7 +239,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
               : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
           }`}
         >
-          <span>📋 Validar Documentos (4 Obligatorios)</span>
+          <span>📋 Validar Documentos Obligatorios</span>
         </button>
 
         <button

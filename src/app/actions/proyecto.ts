@@ -20,8 +20,6 @@ import { huellaPropuesta } from "@/lib/huellaPropuesta";
 
 // Líder + integrantes. En la entrega P2 saldrá de la ficha de la propuesta (participantes.max).
 const MAX_INTEGRANTES_EQUIPO = 3;
-// Objetivos específicos de la fase 1; las propuestas ligadas a una ficha usan los de su ficha.
-const OBJETIVOS_FASE1 = { min: 4, max: 6 };
 
 /**
  * Invitaciones y Equipo del Proyecto (Especificación Colaboración Grupal Rev 2)
@@ -571,9 +569,9 @@ export async function saveObjetivosProyecto(
     return { success: false, error: "El objetivo general es obligatorio." };
   }
 
-  const lim = await limitesObjetivos(propuestaId, OBJETIVOS_FASE1);
+  const lim = await limitesObjetivos(propuestaId);
   if (!Array.isArray(data.objetivosEspecificos) || data.objetivosEspecificos.length < lim.min || data.objetivosEspecificos.length > lim.max) {
-    return { success: false, error: `Debes registrar entre ${lim.min} y ${lim.max} objetivos específicos.` };
+    return { success: false, error: `Debes registrar entre ${lim.min} y ${lim.max} objetivos específicos (de ${lim.porIntegrante.min} a ${lim.porIntegrante.max} por integrante).` };
   }
 
   const existing = await db
@@ -697,6 +695,28 @@ export async function getRatificacionesEstado(propuestaId: number) {
   };
 }
 
+/**
+ * Estado de las firmas para la pantalla (recorrido integral, H26): quién ratificó la versión actual y quién falta o tiene
+ * una firma que ya no vale (la propuesta o el equipo cambió). Solo para los integrantes de la propuesta.
+ */
+export async function getEstadoFirmasPropuesta(propuestaId: number) {
+  const session = await getSession();
+  if (!session) return null;
+  const info = await getRatificacionesEstado(propuestaId);
+  if (!info || !info.miembrosEstado.some((m) => m.usuarioId === session.userId)) return null;
+  return {
+    todosFirmaron: info.todosFirmaron,
+    miembros: info.miembrosEstado.map((m) => ({
+      usuarioId: m.usuarioId,
+      nombre: m.nombreCompleto,
+      esLider: m.esLider,
+      firmado: m.firmado,
+      /** Firmó una versión anterior: su firma ya no vale. */
+      vencida: !m.firmado && !!m.momento,
+    })),
+  };
+}
+
 export async function verificarCapacidadEnvio(propuestaId: number) {
   const errores: string[] = [];
   const propRows = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
@@ -720,14 +740,26 @@ export async function verificarCapacidadEnvio(propuestaId: number) {
     const hasPago = docs.some(d => d.tipo === "pago_tg");
 
     if (!hasServicio || !hasNotas || !hasPago) {
-      errores.push(`ENTREGABLES_INCOMPLETOS: El integrante ${u.nombreCompleto} (${u.carnet || 'Sin carnet'}) debe adjuntar Servicio Social, Notas y Pago TG en su portafolio.`);
+      errores.push(`Faltan documentos obligatorios: ${u.nombreCompleto} (${u.carnet || 'sin carnet'}) debe subir la hoja de inscripción, la constancia de servicio social y la hoja de notas en su panel principal.`);
     }
+  }
+
+  // 1b. Objetivos específicos de 3 a 4 por integrante (H19/H27): el equipo pudo cambiar después de escribirlos.
+  const [det] = await db.select({ especificos: detallesProyecto.objetivosEspecificos }).from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
+  const lim = await limitesObjetivos(propuestaId);
+  const cuantos = Array.isArray(det?.especificos) ? det.especificos.length : 0;
+  if (cuantos < lim.min || cuantos > lim.max) {
+    errores.push(`Objetivos específicos: con ${lim.integrantes} integrante(s) la propuesta necesita de ${lim.min} a ${lim.max} (de ${lim.porIntegrante.min} a ${lim.porIntegrante.max} por integrante) y tiene ${cuantos}. Ajústalos en el paso Objetivos.`);
   }
 
   // 2. Verificación de ratificación unánime (§8)
   const ratInfo = await getRatificacionesEstado(propuestaId);
   if (!ratInfo || !ratInfo.todosFirmaron) {
-    errores.push("RATIFICACION_INCOMPLETA: Todos los integrantes activos del equipo deben ratificar la versión final del plan de trabajo antes del envío.");
+    // H15/H26: decir quién falta, en lugar del código interno.
+    const faltan = (ratInfo?.miembrosEstado ?? []).filter((m) => !m.firmado).map((m) => m.nombreCompleto);
+    errores.push(faltan.length
+      ? `Falta ratificar la versión actual de la propuesta (en el paso Portada): ${faltan.join(", ")}. Cualquier cambio en la propuesta o en el equipo invalida las firmas anteriores.`
+      : "Falta ratificar la versión actual de la propuesta (en el paso Portada). Cualquier cambio en la propuesta o en el equipo invalida las firmas anteriores.");
   }
 
   return {

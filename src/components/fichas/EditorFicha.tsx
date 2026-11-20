@@ -9,6 +9,8 @@ import { validarDefinicion, type ProblemaFicha } from "@/lib/fichas/validar";
 import { esEtapaEjecucion, esEtapaPlan, esEtapaInformeFinal, esEtapaPropuesta, esEtapaProtocolo, type DefinicionFicha, type EstadoVersion, type Modalidad } from "@/lib/fichas/tipos";
 import { ETIQUETA_MODALIDAD, EstadoVersionBadge, Proximamente } from "./comunes";
 import EditorPropuesta from "./EditorPropuesta";
+import { ProveedorElementosPropios } from "./ContextoElementosPropios";
+import type { ElementoPropio } from "@/app/actions/elementosCatalogo";
 import EditorProtocolo from "./EditorProtocolo";
 import EditorInformeFinal from "./EditorInformeFinal";
 import EditorEjecucion from "./EditorEjecucion";
@@ -24,11 +26,13 @@ interface Props {
   versiones: { id: number; numero: number; estado: EstadoVersion; habilitadaEn: string | null; notas: string | null }[];
   version: { id: number; numero: number; estado: EstadoVersion; definicion: DefinicionFicha };
   referencia: { etiqueta: string; definicion: DefinicionFicha } | null;
+  /** Elementos propios publicados en el catálogo (catálogo editable, C2). */
+  propios?: ElementoPropio[];
 }
 
 const boton = "px-3.5 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
-export default function EditorFicha({ ficha, versiones, version, referencia }: Props) {
+export default function EditorFicha({ ficha, versiones, version, referencia, propios = [] }: Props) {
   const router = useRouter();
   const editable = version.estado === "borrador" && !ficha.esBase;
   const [definicion, setDefinicion] = useState<DefinicionFicha>(version.definicion);
@@ -117,6 +121,7 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
   ];
 
   return (
+    <ProveedorElementosPropios propios={propios}>
     <div className="w-full space-y-4">
       <div className="space-y-3">
         <Link href="/admin/bloques-propuestas" className="text-sm text-gray-500 hover:text-brand-red">← Fichas</Link>
@@ -294,6 +299,7 @@ export default function EditorFicha({ ficha, versiones, version, referencia }: P
         </div>
       )}
     </div>
+    </ProveedorElementosPropios>
   );
 }
 

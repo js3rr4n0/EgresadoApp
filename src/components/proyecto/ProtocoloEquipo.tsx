@@ -11,6 +11,9 @@ import type { DatosPlan } from "@/app/actions/planTrabajo";
 import { esRecurso } from "@/lib/fichas/elementosRecurso";
 import TextoEspacioForm from "./TextoEspacioForm";
 import RecursoEspacioForm from "./RecursoEspacioForm";
+import PropioEspacioForm from "./PropioEspacioForm";
+import CamposExtraForm from "./CamposExtraForm";
+import { claveCamposExtra } from "@/lib/fichas/elementosPropios";
 import ApartadoAcademicoForm from "./ApartadoAcademicoForm";
 import { contextoDeRevision } from "@/lib/fichas/apartadosAcademicos";
 import { fuentesCitadas, referenciasOrdenadas } from "@/lib/fichas/fuentes";
@@ -39,7 +42,7 @@ export default function ProtocoloEquipo({ datos, plan, paso, base }: { datos: Da
   const nav = { pasoSiguiente: Math.min(actual + 1, total), pasoAnterior: actual > 1 ? actual - 1 : null, hrefPaso };
   // Referencias y objetivos del mismo protocolo, para cruzar las citas y revisar las conclusiones.
   // Con el registro de fuentes (ajustes al protocolo, 19-nov-2026): sus referencias cuentan y se cruzan con las citas.
-  const contexto = contextoDeRevision(etapa.espacios, { ...precargas, ...respuestas }, referenciasOrdenadas(datos.fuentes).map((x) => x.referencia));
+  const contexto = { ...contextoDeRevision(etapa.espacios, { ...precargas, ...respuestas }, referenciasOrdenadas(datos.fuentes).map((x) => x.referencia)), rangoObjetivos: plan.rangoObjetivos };
   const registroFuentes = {
     propuestaId: plan.propuesta.id,
     fuentes: datos.fuentes,
@@ -124,6 +127,13 @@ export default function ProtocoloEquipo({ datos, plan, paso, base }: { datos: Da
                 initialData={respuestas[e.id] ?? precargas[e.id] ?? ""} isLocked={!editable} isReadOnly={!esLider}
                 aviso={precargas[e.id] ? "Este apartado se precargó con lo que escribieron en la propuesta aprobada. Distribúyelo en sus subapartados, complétalo y guárdalo." : undefined} />
             </ProveedorFuentes>
+          )}
+          {(e.camposExtra?.length ?? 0) > 0 && (
+            <CamposExtraForm key={`${e.id}-extra`} propuestaId={plan.propuesta.id} espacio={e} initialData={respuestas[claveCamposExtra(e.id)]} puedeEditar={esLider && editable} />
+          )}
+          {e.elemento === "propio" && (
+            <PropioEspacioForm key={e.id} {...nav} propuestaId={plan.propuesta.id} espacio={e} initialData={respuestas[e.id]} miId={plan.miId}
+              integrantes={plan.equipo.map((i) => ({ id: i.id, nombre: i.nombre }))} esLider={esLider} isLocked={!editable || !enEquipo} />
           )}
           {e.elemento === "recursos_presupuesto" && (
             <RecursosPresupuestoForm key={e.id} {...nav} propuestaId={plan.propuesta.id} espacio={e} initialData={respuestas[e.id]} isLocked={!editable} isReadOnly={!esLider} />

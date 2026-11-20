@@ -19,22 +19,22 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  // Mapped to existing DB enum values to retain uploads from DocumentGate
+  // H14: los mismos 3 documentos obligatorios del panel principal (mismos tipos en la BD), con los mismos nombres.
   const docs = [
     {
       id: "pago_tg",
-      title: "Hoja de inscripción de trabajo de graduación",
+      title: "Hoja de inscripción del trabajo de graduación",
       desc: "Documento oficial de inscripción al proceso de graduación.",
     },
     {
-      id: "certificacion_notas",
-      title: "Constancia de horas sociales",
-      desc: "Comprobante de realización de tus horas sociales.",
+      id: "servicio_social",
+      title: "Constancia de servicio social",
+      desc: "Documento oficial que certifica la finalización de tus horas de servicio social.",
     },
     {
-      id: "servicio_social",
-      title: "Carta de servicio social",
-      desc: "Documento de aprobación de servicio social emitido por la entidad.",
+      id: "certificacion_notas",
+      title: "Hoja de notas",
+      desc: "Historial académico que compruebe el CUM requerido para el trabajo de graduación.",
     }
   ];
 

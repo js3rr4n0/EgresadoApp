@@ -100,6 +100,7 @@ export async function getPropuestasPendientesCoordinador() {
           tipo: row.propuesta.tipo,
           titulo: row.propuesta.titulo || `Propuesta #${row.propuesta.numero}`,
           fechaAprobacion: row.propuesta.fechaAprobacion || row.propuesta.enviadaEn,
+          aprobada: !!row.propuesta.fechaAprobacion && !["enviada", "coordinador_asignado", "solicitud_asesor_enviada"].includes(row.propuesta.estado),
           estudiantes: estudiantesNombres,
           carrera: row.carreraNombre || "Sin Carrera",
           asesorAsignadoId: row.propuesta.asesorId,

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updatePortada, updateTituloPropuesta, solicitarCorreccionDatosDecanato } from "@/app/actions/propuestas";
+import { tituloDeCarrera } from "@/lib/tituloCarrera"; // H13
 
 interface PortadaFormProps {
   propuestaId: number;
@@ -154,7 +155,7 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
               <input 
                 type="text" 
                 readOnly 
-                value={initialData.carrera || "Carrera no asignada"} 
+                value={tituloDeCarrera(initialData.carrera) || "Carrera no asignada"} 
                 className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none" 
               />
               <InputLock />
@@ -268,7 +269,7 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
                 <input 
                   type="text" 
                   readOnly
-                  value={formData.carrera}
+                  value={tituloDeCarrera(formData.carrera) ?? ""}
                   className="w-full px-3 py-2 border border-border rounded-lg bg-slate-100 text-slate-500 font-medium cursor-not-allowed outline-none"
                   title="Este campo no se puede modificar desde la solicitud de datos erróneos."
                 />

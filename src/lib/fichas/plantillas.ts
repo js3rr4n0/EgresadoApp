@@ -3,7 +3,32 @@
 // incluyen plan ni ejecución de proyecto: estas plantillas son el punto de partida al agregarlas en una ficha nueva.
 // Los valores de proyecto salen del documento "Ejemplo para plantilla proyecto" (5-nov-2026).
 import { parametrosPorDefecto } from "./catalogo";
+import { definicionBase } from "./fichasBase";
+import type { DefinicionFicha } from "./tipos";
 import { CIERRE_POR_DEFECTO, COMPONENTES_INVESTIGACION, type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
+
+/**
+ * Plantilla recomendada al crear una ficha (recorrido integral, 19-nov-2026): la propuesta de la ficha base y todas las
+ * etapas que hoy funcionan con los valores recomendados, para no agregarlas una por una. Proyecto: plan de trabajo y
+ * ejecución. Investigación: protocolo, cronograma de investigación, ejecución e informe final por capítulos. La
+ * pasantía no tiene plantilla aparte: su ficha base ya es la de la fase 1.
+ */
+export function plantillaRecomendada(modalidad: Modalidad): DefinicionFicha {
+  const base = definicionBase(modalidad);
+  if (modalidad === "pasantia") return base;
+  const propuesta = base.etapas.filter((e) => e.tipo === "propuesta");
+  const investigacion = modalidad === "investigacion";
+  return {
+    ...base,
+    etapas: [
+      ...propuesta,
+      ...(investigacion ? [protocoloNuevo("protocolo")] : []),
+      planNuevo("plan", modalidad),
+      ejecucionNueva("ejecucion", modalidad, 1, true),
+      ...(investigacion ? [informeFinalNuevo("informe_final")] : []),
+    ],
+  };
+}
 
 /** Plan de trabajo jerárquico con los valores recomendados para proyecto (e investigación, que usa el mismo formato). */
 export function planNuevo(id: string, modalidad: Modalidad = "proyecto"): EtapaPlan {
@@ -20,7 +45,7 @@ export function planNuevo(id: string, modalidad: Modalidad = "proyecto"): EtapaP
     id,
     nombre: "Plan de trabajo",
     subactividades: "opcional",
-    minimos: { objetivosPorIntegrante: 3, macroPorObjetivo: 1, actividadesPorMacro: 1 },
+    minimos: { objetivosPorIntegrante: 3, maxObjetivosPorIntegrante: 4, macroPorObjetivo: 1, actividadesPorMacro: 1 },
     // Investigación también lleva presupuesto (notas del 19-nov-2026; corrige la respuesta Q4 del 12-nov).
     presupuesto: { activo: true, desglose: "monto", moneda: "USD" },
     granularidad: "subperiodo",

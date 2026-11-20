@@ -4,6 +4,8 @@
 //   - La fecha límite del dictamen del asesor, en días hábiles o calendario.
 import { esRecurso, leerItems, problemasRecurso } from "./elementosRecurso";
 import { leerRecursos, problemasRecursos } from "./recursos";
+import { problemasRespuestaPropia } from "./respuestasPropias";
+import { claveCamposExtra, defCamposExtra } from "./elementosPropios";
 import type { Espacio, EtapaProtocolo } from "./tipos";
 import {
   guardarComoTexto, leerApartado, lineas, parteVacia, opcionesDeEspacio, partePrecarga, revisarApartado, textoApartado, textoParte, tipoApartado,
@@ -45,6 +47,15 @@ export function problemasProtocolo(
       // Un subapartado con dos faltas (vacío y sin fuente, por ejemplo) se nombra una sola vez.
       const nombres = [...new Set(faltan.map((r) => tipo.partes.find((x) => x.id === r.parte)?.titulo ?? r.mensaje))];
       if (nombres.length) p(`"${e.titulo}": ${nombres.length === 1 ? "falta completar" : `faltan ${nombres.length} subapartados:`} ${nombres.join(", ")}.`);
+    }
+    // Campos adicionales del espacio (C4): su respuesta va en "<id>#extra".
+    if (e.camposExtra?.length) {
+      problemasRespuestaPropia(defCamposExtra(e), respuestas[claveCamposExtra(e.id)], []).slice(0, 3).forEach((m) => p(`"${e.titulo}", datos adicionales: ${m}`));
+    }
+    if (e.elemento === "propio") {
+      // Catálogo editable (C3): los campos del elemento propio; por integrante, la parte de cada uno.
+      if (!e.propio) p(`"${e.titulo}": falta la copia del elemento en la ficha.`);
+      else problemasRespuestaPropia(e.propio.definicion, valor, contexto.integrantes ?? [], e.obligatorio).slice(0, 3).forEach((m) => p(`"${e.titulo}": ${m}`));
     } else if (e.elemento === "recursos_presupuesto") {
       for (const m of problemasRecursos(e, leerRecursos(valor))) p(m);
     } else if (esRecurso(e.elemento)) {

@@ -10,8 +10,9 @@ import { getSession } from "@/lib/session";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
-import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaProtocolo, type EtapaEjecucion, type EtapaPlan } from "@/lib/fichas/tipos";
+import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, type EtapaEjecucion, type EtapaPlan } from "@/lib/fichas/tipos";
 import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
+import { objetivosPorIntegranteDe, rangoObjetivos, type RangoObjetivos } from "@/lib/fichas/objetivos";
 
 const fechaCorta = (d: Date) => d.toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" });
 import { cambioNoPermitido, normalizarArbol, numerar, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
@@ -54,6 +55,8 @@ export interface DatosPlan {
    * y la metodología del protocolo por subapartados, para partir de ella. null si la ficha no la pide.
    */
   metodologia: { fuentes: Fuente[]; protocolo: string[] } | null;
+  /** Objetivos específicos del trabajo en total (H19/H27): de 3 a 4 por integrante por la cantidad de integrantes. */
+  rangoObjetivos: RangoObjetivos;
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string; problemas?: ProblemaPlan[] };
@@ -137,7 +140,12 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
   if (session.rol === "asesor" && rol !== "asesor") return { success: false, error: "Esta propuesta no está asignada a ti." };
 
   const ficha = await fichaDePropuesta(propuestaId);
-  const etapa = ficha?.definicion.etapas.find(esEtapaPlan);
+  const etapaFicha = ficha?.definicion.etapas.find(esEtapaPlan);
+  // H19/H27: si la propuesta pide objetivos, el plan usa el mismo rango por integrante (de 3 a 4 por defecto).
+  const objetivosProp = ficha?.definicion.etapas.find(esEtapaPropuesta)?.espacios.find((e) => e.elemento === "objetivos");
+  const etapa: EtapaPlan | undefined = etapaFicha && objetivosProp
+    ? { ...etapaFicha, minimos: { ...etapaFicha.minimos, objetivosPorIntegrante: objetivosPorIntegranteDe(ficha!.definicion).min, maxObjetivosPorIntegrante: objetivosPorIntegranteDe(ficha!.definicion).max } }
+    : etapaFicha;
   const protocolo = ficha?.definicion.etapas.find(esEtapaProtocolo);
   const informeFinal = !!ficha?.definicion.etapas.some(esEtapaInformeFinal);
   const ejec = ficha?.definicion.etapas.find(esEtapaEjecucion);
@@ -187,6 +195,7 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
         : null,
       informeFinal,
       metodologia: pideMetodologia(etapa) ? { fuentes: await fuentesDe(propuestaId), protocolo: await metodologiaDelProtocolo(propuestaId, protocolo?.espacios ?? []) } : null,
+      rangoObjetivos: rangoObjetivos({ min: etapa.minimos.objetivosPorIntegrante, max: etapa.minimos.maxObjetivosPorIntegrante ?? Math.max(etapa.minimos.objetivosPorIntegrante, 4) }, equipo.length),
     },
   };
 }

@@ -46,7 +46,7 @@
 // cronograma de investigación (elementos por objetivo, bloque de preparación del informe y presupuesto).
 // --cronograma-prueba (E3) completa el plan de la propuesta con esa estructura (cada elemento obligatorio planificado,
 // la metodología de cada objetivo con una cita del registro) y lo deja aprobado, para probar la ejecución por elementos.
-// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual | --version-apartados | --version-ejecucion | --version-productos | --productos-plan | --version-resultados | --version-bitacora | --version-adelantar | --actividad-futura | --fuentes-prueba | --version-protocolo-nuevo | --version-cronograma | --cronograma-prueba] [--solo | --apartados | --citas] [--solo | --apartados]
+// Uso: npx tsx --env-file=.env.local scripts/fichas/sembrar_equipo_investigacion.ts [--borrar | --aprobar | --completar-protocolo | --completar-plan | --iniciar | --usar-version-vigente | --completar-informe-final | --individual | --version-apartados | --version-ejecucion | --version-productos | --productos-plan | --version-resultados | --version-bitacora | --version-adelantar | --actividad-futura | --fuentes-prueba | --version-protocolo-nuevo | --version-cronograma | --cronograma-prueba [--sin-aprobar]] [--propuesta <id>] [--solo | --apartados | --citas] [--solo | --apartados]
 import crypto from "crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../src/lib/db";
@@ -143,6 +143,13 @@ async function aprobar() {
 }
 
 async function propuestaDelLider() {
+  // Recorrido integral (20-nov-2026): --propuesta <id> trabaja sobre cualquier propuesta (su egresado es el líder).
+  const i = process.argv.indexOf("--propuesta");
+  if (i >= 0) {
+    const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, Number(process.argv[i + 1])));
+    if (!prop) throw new Error(`No existe la propuesta ${process.argv[i + 1]}.`);
+    return { lider: prop.egresadoId, prop };
+  }
   const [lider] = await db.select({ id: usuarios.id }).from(usuarios).where(eq(usuarios.correo, usarSolo ? SOLO.correo : EGRESADOS[0].correo));
   const [prop] = lider ? await db.select().from(propuestas).where(and(eq(propuestas.egresadoId, lider.id), eq(propuestas.tipo, "investigacion"))) : [];
   if (!prop) throw new Error("El líder de prueba no tiene propuesta de investigación.");
@@ -441,8 +448,11 @@ async function cronogramaPrueba() {
     });
   });
   const mapa = new Map((await db.select().from(fuentesTrabajo).where(eq(fuentesTrabajo.propuestaId, prop.id))).flatMap((f) => { const d = leerDatosCita(f.datos); return d ? [[f.id, d] as const] : []; }));
-  await db.update(planesTrabajo).set({ arbol: arbolConCitas(numerar(raiz), mapa), estado: "aprobado", version: plan.version + 1, comentarioAsesor: "Aprobado (atajo de prueba).", revisadoEn: new Date(), actualizadoEn: new Date() }).where(eq(planesTrabajo.id, plan.id));
-  console.log(`Plan de la propuesta ${prop.id}: cronograma de investigación de prueba, aprobado (${raiz.hijos.length} bloques).`);
+  // --sin-aprobar: solo llena el plan; el equipo lo envía y el asesor lo dictamina desde las pantallas.
+  const aprobar = !process.argv.includes("--sin-aprobar");
+  await db.update(planesTrabajo).set({ arbol: arbolConCitas(numerar(raiz), mapa), version: plan.version + 1, actualizadoEn: new Date(),
+    ...(aprobar ? { estado: "aprobado", comentarioAsesor: "Aprobado (atajo de prueba).", revisadoEn: new Date() } : {}) }).where(eq(planesTrabajo.id, plan.id));
+  console.log(`Plan de la propuesta ${prop.id}: cronograma de investigación de prueba, ${aprobar ? "aprobado" : "sin aprobar"} (${raiz.hijos.length} bloques).`);
 }
 
 /** Productos de prueba en los objetivos del plan de la propuesta (también si ya está aprobado). */
@@ -470,7 +480,13 @@ async function completarProtocolo() {
     if (hechas.has(e.id) || !e.obligatorio) continue;
     const contenido = e.elemento === "texto" ? `Texto de prueba para "${e.titulo}". ${relleno(Number(e.parametros.minPalabras) || 0)}`
       : e.elemento === "lista" ? JSON.stringify(["Elemento de prueba 1", "Elemento de prueba 2", "Elemento de prueba 3"])
-      : e.elemento === "apartado" ? apartadoDePrueba(e) : null;
+      : e.elemento === "apartado" ? apartadoDePrueba(e)
+      : e.elemento === "recursos_presupuesto" ? JSON.stringify([
+        { categoria: "inmateriales", descripcion: "Licencia de software estadístico", cantidad: 1, costoUnitario: 40 },
+        { categoria: "materiales", descripcion: "Impresión de cuestionarios", cantidad: 150, costoUnitario: 0.1 },
+        { categoria: "operacionales", descripcion: "Transporte para aplicar el instrumento", cantidad: 4, costoUnitario: 5 },
+      ])
+      : null;
     if (contenido === null) continue;
     await db.insert(respuestasEspacios).values({ propuestaId: prop.id, espacioId: e.id, contenido, actualizadoPor: lider, actualizadoEn: new Date() });
     n++;

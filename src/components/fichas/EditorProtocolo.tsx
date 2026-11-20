@@ -30,8 +30,8 @@ export default function EditorProtocolo({
         <h2 className="font-bold text-gray-800">Esta ficha no tiene protocolo</h2>
         <p className="text-sm text-gray-600 max-w-2xl">
           En investigación, después de aprobar la propuesta se presenta el <strong>protocolo</strong>: introducción, generalidades,
-          hipótesis, metodología, esquema del informe final, bibliografía y anexos. Su cronograma de actividades es el plan de
-          trabajo, y el asesor dictamina los dos juntos.
+          problema, justificación, objetivos, fundamentación con sus fuentes, hipótesis, variables, metodología, consideraciones
+          éticas, recursos y presupuesto, referencias y anexos. Su cronograma es el plan de trabajo, y el asesor dictamina los dos juntos.
         </p>
         {editable && (
           <button type="button" onClick={() => {

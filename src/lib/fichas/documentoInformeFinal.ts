@@ -4,6 +4,9 @@
 import { columnasTabla, leerItems, type ArchivoEspacio, type EnlaceEspacio } from "./elementosRecurso";
 import type { EtapaInformeFinal } from "./tipos";
 import { leerApartado, leerTabla, lineas, parteVacia, textoParte, tipoApartado } from "./apartadosAcademicos";
+import { tituloDeCarrera } from "../tituloCarrera";
+import { archivosRespuesta, bloquesRespuesta, respuestaVacia } from "./respuestasPropias";
+import { claveCamposExtra, defCamposExtra, type DefinicionElementoPropio } from "./elementosPropios";
 
 export type BloqueDocumento =
   | { tipo: "parrafos"; parrafos: string[] }
@@ -71,7 +74,7 @@ export function portadaInformeFinal(m: MetaInformeFinal, documento = "INFORME FI
         [mayus(m.titulo) || "—"],
         ["PRESENTADO POR:", ...m.integrantes.map((i) => `${mayus(i.nombre)}${i.carnet ? ` (${i.carnet.toUpperCase()})` : ""}`)],
         ["ASESOR:", mayus(m.asesor) || "—"],
-        ["PARA OPTAR AL TÍTULO DE:", mayus(m.carrera) || "—"],
+        ["PARA OPTAR AL TÍTULO DE:", mayus(tituloDeCarrera(m.carrera)) || "—"],
         [lugarFecha],
       ],
     },
@@ -92,7 +95,7 @@ export function apartadosInformeFinal(
   etapa: Pick<EtapaInformeFinal, "espacios">,
   contenidos: Record<string, string | null | undefined>,
   generar: (e: EtapaInformeFinal["espacios"][number], numero: number | null) => BloqueDocumento[] = () => [],
-  opciones: { referencias?: string[]; insertar?: { antesDe: string; titulo: string; bloques: (numero: number) => BloqueDocumento[] }[] } = {}
+  opciones: { referencias?: string[]; insertar?: { antesDe: string; titulo: string; bloques: (numero: number) => BloqueDocumento[] }[]; integrantes?: { id: number; nombre: string }[] } = {}
 ): { apartados: ApartadoDocumento[]; anexosCapitulo: ArchivoEspacio[] } {
   const apartados: ApartadoDocumento[] = [];
   let anexosCapitulo: ArchivoEspacio[] = [];
@@ -106,12 +109,34 @@ export function apartadosInformeFinal(
       apartados.push({ numero, titulo: x.titulo, bloques: x.bloques(numero) });
     });
   };
+  // Elementos propios (C3) y campos adicionales (C4): cada campo con su etiqueta; los textos largos como párrafos y
+  // los archivos a los anexos.
+  const deRespuesta = (def: DefinicionElementoPropio, valor: string): BloqueDocumento[] => {
+    const r: BloqueDocumento[] = [];
+    for (const b of bloquesRespuesta(def, valor, opciones.integrantes ?? [])) {
+      if (b.persona) r.push({ tipo: "subtitulo", texto: b.persona });
+      for (const c of b.campos) {
+        if (c.tipo === "texto_largo") r.push({ tipo: "subtitulo", texto: c.etiqueta }, { tipo: "parrafos", parrafos: parrafosDe(c.texto) });
+        else if (c.tipo === "lista") r.push({ tipo: "subtitulo", texto: c.etiqueta }, { tipo: "lista", items: c.texto.split("\n") });
+        else if (c.tipo === "archivo" || c.tipo === "imagen") r.push({ tipo: "parrafos", parrafos: [`${c.etiqueta}: ${c.texto} (en los anexos).`] });
+        else r.push({ tipo: "parrafos", parrafos: [`${c.etiqueta}: ${c.texto.replace(/\n/g, "; ")}`] });
+      }
+    }
+    anexosCapitulo = [...anexosCapitulo, ...archivosRespuesta(def, valor)];
+    return r;
+  };
+  const extras = (e: EtapaInformeFinal["espacios"][number]): BloqueDocumento[] => {
+    if (!e.camposExtra?.length) return [];
+    const valor = contenidos[claveCamposExtra(e.id)] ?? "";
+    const def = defCamposExtra(e);
+    return respuestaVacia(def, valor) ? [] : [{ tipo: "subtitulo", texto: "Datos adicionales" }, ...deRespuesta(def, valor)];
+  };
   for (const e of etapa.espacios) {
     insertar(e.id);
     const valor = contenidos[e.id] ?? "";
     if (e.elemento === "recursos_presupuesto") {
       const numero = ++n;
-      apartados.push({ numero, titulo: e.titulo, bloques: generar(e, numero) });
+      apartados.push({ numero, titulo: e.titulo, bloques: [...generar(e, numero), ...extras(e)] });
       continue;
     }
     if (e.elemento === "resultados_objetivos") {
@@ -137,7 +162,8 @@ export function apartadosInformeFinal(
       const parte = tipo!.partes.find((p) => p.formato === "referencias");
       if (parte) ap.partes[parte.id] = [...new Set([...lineas(ap.partes[parte.id] ?? ""), ...extra])].join("\n");
     }
-    const vacio = tipo && ap ? tipo.partes.every((p) => parteVacia(p, ap.partes[p.id])) : !valor.trim() || valor.trim() === "[]";
+    const vacio = e.elemento === "propio" ? !e.propio || respuestaVacia(e.propio.definicion, valor)
+      : tipo && ap ? tipo.partes.every((p) => parteVacia(p, ap.partes[p.id])) : !valor.trim() || valor.trim() === "[]";
     if (vacio && !e.obligatorio) continue;
     const bibliografia = (e.elemento === "lista" && esBibliografia(e.titulo)) || !!tipo?.especiales.includes("referencias");
     const numero = bibliografia ? null : ++n;
@@ -159,6 +185,8 @@ export function apartadosInformeFinal(
     else if (e.elemento === "lista") bloques.push({ tipo: "lista", items: ordenar(leerItems("lista", valor) as string[]), referencias: bibliografia });
     else if (e.elemento === "tabla") bloques.push({ tipo: "tabla", columnas: columnasTabla(e), filas: leerItems("tabla", valor) as string[][] });
     else if (e.elemento === "enlace") bloques.push({ tipo: "enlaces", items: leerItems("enlace", valor) as EnlaceEspacio[] });
+    else if (e.elemento === "propio" && e.propio) bloques.push(...deRespuesta(e.propio.definicion, valor));
+    bloques.push(...extras(e));
     apartados.push({ numero, titulo: e.titulo, bloques });
   }
   // Lo que se debía insertar antes de un espacio que no está: al final.

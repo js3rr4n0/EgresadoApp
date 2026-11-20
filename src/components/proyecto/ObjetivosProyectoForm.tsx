@@ -16,6 +16,8 @@ interface ObjetivosProyectoFormProps {
   // Límites de objetivos específicos de la ficha (P2); por defecto, los de la fase 1.
   minEspecificos?: number;
   maxEspecificos?: number;
+  /** Cómo se calcula el rango (H19/H27): "de 6 a 8 (de 3 a 4 por integrante, 2 integrantes)". */
+  textoRango?: string;
   propuestaId: number;
   initialObjetivoGeneral?: string | null;
   initialObjetivosEspecificos?: ObjectiveItem[] | null;
@@ -28,8 +30,9 @@ interface ObjetivosProyectoFormProps {
 export default function ObjetivosProyectoForm({
   pasoSiguiente,
   pasoAnterior,
-  minEspecificos = 4,
-  maxEspecificos = 6,
+  minEspecificos = 3,
+  maxEspecificos = 4,
+  textoRango,
   propuestaId,
   initialObjetivoGeneral,
   initialObjetivosEspecificos,
@@ -173,7 +176,7 @@ export default function ObjetivosProyectoForm({
           {isInvestigacion ? "Objetivos de la Investigación" : "Objetivos del Proyecto"}
         </h2>
         <p className="text-sm text-muted mt-1">
-          Establece 1 objetivo general y de {minEspecificos} a {maxEspecificos} objetivos específicos en la tabla a continuación.
+          Establece 1 objetivo general y {textoRango ?? `de ${minEspecificos} a ${maxEspecificos}`} objetivos específicos en la tabla a continuación.
         </p>
       </div>
 

@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { tipoApartado } from "@/lib/fichas/apartadosAcademicos";
-import { CATALOGO, elementoEnEtapa, GRUPOS_CATALOGO, parametrosPorDefecto, type DefinicionParametro, type EtapaDeEspacios } from "@/lib/fichas/catalogo";
+import { CATALOGO, ELEMENTOS_SISTEMA, elementoEnEtapa, GRUPOS_CATALOGO, parametrosPorDefecto, type DefinicionParametro, type EtapaDeEspacios } from "@/lib/fichas/catalogo";
+import { copiaDe, ELEMENTOS_CON_CAMPOS_EXTRA, mismaDefinicion, reglasCampo } from "@/lib/fichas/elementosPropios";
+import { EditorCampos } from "./EditorElementoPropio";
+import type { ElementoPropio } from "@/app/actions/elementosCatalogo";
+import { useElementosPropios } from "./ContextoElementosPropios";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
 import { esEtapaPropuesta, esEtapaProtocolo, PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, PRECARGAS_EJECUCION, type ClaveElemento, type DefinicionFicha, type Espacio, type EtapaConEspacios, type ValorParametro } from "@/lib/fichas/tipos";
-import { Proximamente } from "./comunes";
 import { nuevoId } from "./ids";
 import EditorSubapartados from "./EditorSubapartados";
 
@@ -121,6 +124,24 @@ export default function EditorPropuesta({
     setSeleccion(nuevo.id);
   }
 
+  // Catálogo editable (C2): un elemento propio publicado se agrega como copia; la ficha no cambia si después se edita.
+  const propios = useElementosPropios().filter((x) => x.definicion.etapas.includes(tipoEtapa));
+  const propiosPresentes = new Set(etapa.espacios.flatMap((e) => (e.propio ? [e.propio.elementoId] : [])));
+  function agregarPropio(el: ElementoPropio) {
+    const nuevo: Espacio = {
+      id: nuevoId("propio"),
+      elemento: "propio",
+      titulo: el.definicion.nombre.slice(0, 80),
+      descripcion: "",
+      ayuda: "",
+      obligatorio: true,
+      parametros: {},
+      propio: copiaDe(el.id, el.definicion),
+    };
+    cambiarEspacios([...etapa.espacios, nuevo]);
+    setSeleccion(nuevo.id);
+  }
+
   function actualizar(cambios: Partial<Espacio>) {
     if (!espacio) return;
     cambiarEspacios(etapa.espacios.map((e) => (e.id === espacio.id ? { ...e, ...cambios } : e)));
@@ -198,7 +219,7 @@ export default function EditorPropuesta({
                   <div className="min-w-0 flex-1">
                     <div className="font-bold text-sm text-gray-800 truncate">{e.titulo || "(sin título)"}</div>
                     <div className="text-[11px] text-gray-500 truncate">
-                      {CATALOGO[e.elemento]?.nombre ?? e.elemento}
+                      {e.propio ? `Propio: ${e.propio.definicion.nombre}` : CATALOGO[e.elemento]?.nombre ?? e.elemento}
                       {CATALOGO[e.elemento] && !CATALOGO[e.elemento].formularioEn.includes(definicion.modalidad) && " · sin formulario en el asistente"}
                       {!e.obligatorio && " · opcional"}
                       {e.precargarDe && " · se precarga"}
@@ -223,7 +244,7 @@ export default function EditorPropuesta({
               <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wide mb-2">Agregar espacio desde el catálogo</h3>
               <div className="space-y-1.5">
                 {GRUPOS_CATALOGO.map(({ grupo }) => {
-                  const elementos = Object.values(CATALOGO).filter((el) => el.grupo === grupo && elementoEnEtapa(el.clave, tipoEtapa));
+                  const elementos = ELEMENTOS_SISTEMA.filter((el) => el.grupo === grupo && elementoEnEtapa(el.clave, tipoEtapa));
                   if (elementos.length === 0) return null;
                   return (
                     <div key={grupo} className="flex flex-wrap items-center gap-1.5">
@@ -242,6 +263,22 @@ export default function EditorPropuesta({
                     </div>
                   );
                 })}
+                {propios.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-gray-500 w-24 shrink-0">Elementos propios</span>
+                    {propios.map((el) => {
+                      const yaEsta = !el.definicion.repetible && propiosPresentes.has(el.id);
+                      return (
+                        <button key={el.id} type="button" disabled={yaEsta}
+                          title={yaEsta ? `Ya está en ${nombreEtapa}` : `${el.definicion.descripcion || el.definicion.nombre} (Elemento propio del catálogo.)`}
+                          onClick={() => agregarPropio(el)}
+                          className="text-xs font-bold px-2 py-1 rounded-md bg-white border border-dashed border-amber-300 text-gray-700 hover:border-brand-red hover:text-brand-red disabled:opacity-40 disabled:cursor-not-allowed">
+                          + {el.definicion.nombre}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 <p className="text-[11px] text-gray-500 pt-1">Los de borde punteado todavía no tienen formulario en el asistente de esta modalidad: quedan en la ficha y el egresado verá el paso como pendiente de formulario.</p>
               </div>
             </div>
@@ -255,8 +292,8 @@ export default function EditorPropuesta({
             <>
               <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2 px-4 py-3 border-b border-gray-100">
                 <div className="min-w-0">
-                  <span className="inline-block text-[11px] font-bold text-brand-red bg-red-50 rounded px-1.5 py-0.5 uppercase tracking-wide">{elemento.nombre}</span>
-                  <p className="text-xs text-gray-500 mt-1">{elemento.descripcion}</p>
+                  <span className="inline-block text-[11px] font-bold text-brand-red bg-red-50 rounded px-1.5 py-0.5 uppercase tracking-wide">{espacio.propio ? `Elemento propio · ${espacio.propio.definicion.nombre}` : elemento.nombre}</span>
+                  <p className="text-xs text-gray-500 mt-1">{espacio.propio ? espacio.propio.definicion.descripcion || elemento.descripcion : elemento.descripcion}</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <label className="flex items-center gap-2 text-xs font-bold text-gray-600">
@@ -324,25 +361,47 @@ export default function EditorPropuesta({
                   </Tarjeta>
                 )}
 
-                {espacio.elemento === "apartado" ? (
+                {espacio.elemento === "propio" ? (
+                  <CopiaPropio espacio={espacio} editable={editable} onActualizar={(el) => actualizar({ propio: copiaDe(el.id, el.definicion) })} />
+                ) : espacio.elemento === "apartado" ? (
                   <Tarjeta titulo="Subapartados">
                     <EditorSubapartados espacio={espacio} editable={editable} onChange={(partes) => actualizar({ partes })} />
                   </Tarjeta>
                 ) : (
-                <Tarjeta titulo="Campos que se piden" extra={<Proximamente texto="Configurable más adelante" />}>
-                  <ul className="divide-y divide-gray-100">
-                    {CAMPOS_ELEMENTO[espacio.elemento].map((c) => (
-                      <li key={c.nombre} className="flex items-center gap-2 py-1.5 text-sm">
-                        <span className="text-gray-300" aria-hidden="true">⋮⋮</span>
-                        <span className="flex-1 text-gray-700">{c.nombre}</span>
-                        <span className="text-[11px] text-gray-400 w-20">{c.tipo}</span>
-                        <Interruptor etiqueta={`Pedir ${c.nombre}`} activo deshabilitado />
-                      </li>
-                    ))}
-                  </ul>
-                  <button type="button" disabled className="mt-2 text-xs font-bold text-gray-400 border border-dashed border-gray-300 rounded-md px-2 py-1 cursor-not-allowed">
-                    + Agregar campo
-                  </button>
+                <Tarjeta titulo="Campos que se piden">
+                  {/* Catálogo editable (C4): los campos del elemento quedan fijos; se pueden agregar campos al final. */}
+                  {CAMPOS_ELEMENTO[espacio.elemento].length > 0 && (
+                    <ul className="divide-y divide-gray-100">
+                      {CAMPOS_ELEMENTO[espacio.elemento].map((c) => (
+                        <li key={c.nombre} className="flex items-center gap-2 py-1.5 text-sm">
+                          <span className="flex-1 text-gray-700">{c.nombre}{c.obligatorio ? "" : " (opcional)"}</span>
+                          <span className="text-[11px] text-gray-400 w-20">{c.tipo}</span>
+                          <span className="text-[10px] font-bold text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">Campo del sistema</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="text-[11px] text-gray-500 mt-1.5">Los campos del sistema no se cambian: otras partes del proceso dependen de ellos (por ejemplo, los objetivos arman el plan).</p>
+                  {(ELEMENTOS_CON_CAMPOS_EXTRA as readonly string[]).includes(espacio.elemento) && tipoEtapa !== "informe_final" && definicion.modalidad !== "pasantia" ? (
+                    <div className="mt-3 pt-3 border-t border-gray-100">
+                      <h4 className="text-xs font-bold text-gray-700 mb-1">Campos adicionales ({espacio.camposExtra?.length ?? 0})</h4>
+                      <p className="text-[11px] text-gray-500 mb-2">Se piden al final de este paso, con los mismos tipos de los elementos propios. Se guardan aparte de los del sistema.</p>
+                      {editable ? (
+                        <EditorCampos campos={espacio.camposExtra ?? []} prefijo={`ex-${espacio.id}`}
+                          onChange={(campos) => actualizar({ camposExtra: campos.length ? campos : undefined })} />
+                      ) : (espacio.camposExtra ?? []).length ? (
+                        <ul className="divide-y divide-gray-100">
+                          {(espacio.camposExtra ?? []).map((c) => (
+                            <li key={c.id} className="py-1.5 text-sm"><span className="text-gray-800">{c.etiqueta}</span><span className="block text-[11px] text-gray-500">{reglasCampo(c)}</span></li>
+                          ))}
+                        </ul>
+                      ) : <p className="text-sm text-gray-500">Sin campos adicionales.</p>}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-gray-400 mt-2">
+                      {definicion.modalidad === "pasantia" ? "El asistente de pasantía todavía es el de la fase 1: no muestra campos adicionales." : tipoEtapa === "informe_final" ? "Los capítulos del informe final no llevan campos adicionales: use un elemento propio." : "Este elemento no admite campos adicionales."}
+                    </p>
+                  )}
                 </Tarjeta>
                 )}
 
@@ -357,6 +416,45 @@ export default function EditorPropuesta({
         </section>
       </div>
     </div>
+  );
+}
+
+/** Campos de la copia del elemento propio y, si cambió en el catálogo, la opción de actualizarla (C2, Q2). */
+function CopiaPropio({ espacio, editable, onActualizar }: { espacio: Espacio; editable: boolean; onActualizar: (el: ElementoPropio) => void }) {
+  const catalogo = useElementosPropios();
+  const copia = espacio.propio;
+  if (!copia) return <p className="text-sm text-red-700">Falta la copia del elemento propio: quítalo y vuelve a agregarlo.</p>;
+  const publicado = catalogo.find((x) => x.id === copia.elementoId);
+  const desactualizada = publicado && !mismaDefinicion(publicado.definicion, copia.definicion);
+  const fecha = new Date(copia.copiadoEn).toLocaleDateString("es-SV", { day: "numeric", month: "short", year: "numeric" });
+  return (
+    <Tarjeta titulo="Campos que se piden (copia del catálogo)">
+      <ul className="divide-y divide-gray-100">
+        {copia.definicion.campos.map((c) => (
+          <li key={c.id} className="py-1.5 text-sm">
+            <span className="text-gray-800">{c.etiqueta}</span>
+            <span className="block text-[11px] text-gray-500">{reglasCampo(c)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className="text-[11px] text-gray-500 mt-2">
+        Copiado el {fecha}. {copia.definicion.alcance === "integrante" ? "Una respuesta por integrante. " : ""}Los campos se editan en el catálogo de elementos;
+        esta ficha conserva su copia hasta que la actualices.
+      </p>
+      {desactualizada && (
+        <div className="mt-2 text-xs bg-amber-50 border border-amber-200 text-amber-900 rounded-md px-2.5 py-2 flex flex-wrap items-center justify-between gap-2">
+          <span>El elemento cambió en el catálogo después de copiarlo.</span>
+          {editable && (
+            <button type="button" onClick={() => onActualizar(publicado)} className="font-bold text-brand-red hover:underline">Actualizar la copia</button>
+          )}
+        </div>
+      )}
+      {!publicado && (
+        <p className="mt-2 text-xs text-gray-500 bg-gray-50 border border-gray-200 rounded-md px-2.5 py-2">
+          El elemento ya no está publicado en el catálogo; la ficha conserva su copia.
+        </p>
+      )}
+    </Tarjeta>
   );
 }
 

@@ -374,7 +374,14 @@ export function validarPlanEquipo(raiz: NodoPlan, plan: EtapaPlan, integrantes: 
       p(null, `Cada integrante debe tener al menos ${plan.minimos.objetivosPorIntegrante} objetivos específicos; uno de ellos tiene ${objetivos}.`);
       break;
     }
+    // H19/H27: también un máximo por integrante (de 3 a 4, como la propuesta).
+    const maxObj = plan.minimos.maxObjetivosPorIntegrante;
+    if (equipo && plan.equipo.responsable === "objetivo" && maxObj && objetivos > maxObj) {
+      p(null, `Cada integrante puede tener hasta ${maxObj} objetivos específicos; uno de ellos tiene ${objetivos}.`);
+      break;
+    }
     if (!equipo && objetivos < plan.minimos.objetivosPorIntegrante) p(null, `El plan necesita al menos ${plan.minimos.objetivosPorIntegrante} objetivos específicos.`);
+    if (!equipo && maxObj && objetivos > maxObj) p(null, `El plan admite hasta ${maxObj} objetivos específicos; tiene ${objetivos}.`);
     if (equipo && plan.equipo.responsable === "actividad" && !propio) {
       p(null, "Todos los integrantes deben tener actividades a su cargo.");
       break;

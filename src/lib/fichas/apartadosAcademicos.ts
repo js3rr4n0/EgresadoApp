@@ -121,10 +121,10 @@ export const TIPOS_APARTADO: Record<string, TipoApartado> = {
   },
   objetivos: {
     clave: "objetivos", nombre: "Objetivos", etapa: "ambas",
-    proposito: "Son la guía de la investigación: un objetivo general y de tres a cinco específicos, puntuales y claros, donde se identifican las variables o categorías.",
+    proposito: "Son la guía de la investigación: un objetivo general y de tres a cuatro específicos por integrante, puntuales y claros, donde se identifican las variables o categorías.",
     partes: [
       { id: "general", titulo: "Objetivo general", ayuda: "Inicie con un verbo en infinitivo y responda a la pregunta de investigación.", formato: "texto", min: 10, max: 60 },
-      { id: "especificos", titulo: "Objetivos específicos", ayuda: "Uno por línea, cada uno con un verbo en infinitivo medible (identificar, determinar, analizar, comparar, describir…).", formato: "lista", minItems: 3, maxItems: 5 },
+      { id: "especificos", titulo: "Objetivos específicos", ayuda: "Uno por línea, cada uno con un verbo en infinitivo medible (identificar, determinar, analizar, comparar, describir…).", formato: "lista", minItems: 3, maxItems: 4 },
     ],
     citasMinimas: 0,
     autoevaluacion: ["Cada objetivo identifica una variable o categoría.", "Los específicos, juntos, cumplen el general.", "Son alcanzables con la metodología y el tiempo disponibles."],
@@ -396,6 +396,16 @@ export interface ContextoRevision {
   referencias?: string[];
   /** Objetivos específicos del trabajo (para las conclusiones). */
   objetivos?: string[];
+  /** Cantidad de objetivos específicos del trabajo (H19/H27): de 3 a 4 por integrante, como la propuesta y el plan. */
+  rangoObjetivos?: { min: number; max: number };
+  /** Integrantes del trabajo (líder incluido): los elementos propios por integrante piden la parte de cada uno (C3). */
+  integrantes?: { id: number; nombre: string }[];
+}
+
+/** El tipo «objetivos» con la cantidad de específicos del trabajo (la de la propuesta y el plan), si se conoce. */
+export function conRangoObjetivos<T extends TipoApartado | undefined>(tipo: T, rango?: { min: number; max: number }): T {
+  if (!tipo || !rango || !tipo.especiales.includes("objetivos")) return tipo;
+  return { ...tipo, partes: tipo.partes.map((p) => (p.id === "especificos" ? { ...p, minItems: rango.min, maxItems: rango.max } : p)) };
 }
 
 const PRIMERA_PERSONA = /\b(yo|nosotros|nosotras|mi|mis|nuestro|nuestra|nuestros|nuestras|hemos|haremos|realizaremos|aplicaremos|investigaremos|analizaremos|creemos|considero|consideramos|pienso|pensamos)\b/gi;
@@ -442,7 +452,8 @@ export function revisarReferencias(entradas: string[], anioActual = new Date().g
 }
 
 /** Revisiones del apartado. "falta" impide enviar; "aviso" orienta; "ok" confirma lo que está bien. */
-export function revisarApartado(tipo: TipoApartado, c: ContenidoApartado, op: OpcionesRevision, ctx: ContextoRevision = {}): Revision[] {
+export function revisarApartado(tipoFicha: TipoApartado, c: ContenidoApartado, op: OpcionesRevision, ctx: ContextoRevision = {}): Revision[] {
+  const tipo = conRangoObjetivos(tipoFicha, ctx.rangoObjetivos);
   const r: Revision[] = [];
   const textos: string[] = [];
 
@@ -522,7 +533,7 @@ export function revisarApartado(tipo: TipoApartado, c: ContenidoApartado, op: Op
     if (noInfinitivo.length) r.push({ id: "obj-infinitivo", nivel: "aviso", mensaje: `${noInfinitivo.length} objetivo(s) no empiezan con un verbo en infinitivo: «${noInfinitivo[0].slice(0, 50)}».` });
     const noMedibles = todos.filter((t) => VERBOS_NO_MEDIBLES.includes(verbo(t)));
     if (noMedibles.length) r.push({ id: "obj-medibles", nivel: "aviso", mensaje: `Use verbos medibles en lugar de «${verbo(noMedibles[0])}» (por ejemplo: identificar, determinar, analizar, comparar).` });
-    // La cantidad la revisan los límites del subapartado (minItems y maxItems, de 3 a 5 por defecto).
+    // La cantidad la revisan los límites del subapartado (minItems y maxItems: los del trabajo o de 3 a 4).
     const pe = tipo.partes.find((x) => x.id === "especificos");
     const enRango = (!pe?.minItems || especificos.length >= pe.minItems) && (!pe?.maxItems || especificos.length <= pe.maxItems);
     if (especificos.length && enRango && !noInfinitivo.length && !noMedibles.length) r.push({ id: "obj-ok", nivel: "ok", mensaje: `${especificos.length} objetivos específicos con verbos medibles en infinitivo.` });

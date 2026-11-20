@@ -60,7 +60,8 @@ async function armar(propuestaId: number, plan: DatosPlan): Promise<{ datos: Dat
   const filas = await db.select({ id: respuestasEspacios.espacioId, contenido: respuestasEspacios.contenido }).from(respuestasEspacios).where(eq(respuestasEspacios.propuestaId, propuestaId));
   const todas = Object.fromEntries(filas.map((f) => [f.id, f.contenido ?? ""]));
   const ids = new Set(etapa.espacios.map((e) => e.id));
-  const respuestas = Object.fromEntries(Object.entries(todas).filter(([k]) => ids.has(k)));
+  // Con los campos adicionales de cada espacio (C4), que van en "<id>#extra".
+  const respuestas = Object.fromEntries(Object.entries(todas).filter(([k]) => ids.has(k.replace(/#extra$/, ""))));
 
   const [det] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
   const espaciosProp = espaciosPropuesta(ficha.definicion);
@@ -73,7 +74,7 @@ async function armar(propuestaId: number, plan: DatosPlan): Promise<{ datos: Dat
 
   const fuentes = await fuentesDePropuesta(propuestaId);
   const h = huella(respuestas, plan.plan.arbol, fuentes);
-  const contexto = contextoDeRevision(etapa.espacios, { ...precargas, ...respuestas }, referenciasOrdenadas(fuentes).map((x) => x.referencia));
+  const contexto = { ...contextoDeRevision(etapa.espacios, { ...precargas, ...respuestas }, referenciasOrdenadas(fuentes).map((x) => x.referencia)), rangoObjetivos: plan.rangoObjetivos, integrantes: plan.equipo.map((i) => ({ id: i.id, nombre: i.nombre })) };
   const firmadas = await db.select().from(ratificacionesPlan).where(eq(ratificacionesPlan.propuestaId, propuestaId));
   const firmas: FirmaProtocolo[] = plan.equipo.map((i) => {
     const f = firmadas.find((x) => x.usuarioId === i.id);
@@ -181,7 +182,7 @@ export async function getDocumentoProtocolo(propuestaId: number): Promise<Result
     ?? "";
   const { apartados, anexosCapitulo } = apartadosInformeFinal(etapa, contenidos,
     (e, numero) => (e.elemento === "recursos_presupuesto" ? bloquesRecursos(e, contenidos[e.id], numero) : []),
-    { referencias, insertar: [{ antesDe, titulo: "Cronograma de actividades", bloques: () => bloquesCronograma(plan.plan.arbol as NodoPlan, plan.columnas) }] });
+    { referencias, integrantes: plan.equipo.map((i) => ({ id: i.id, nombre: i.nombre })), insertar: [{ antesDe, titulo: "Cronograma de actividades", bloques: () => bloquesCronograma(plan.plan.arbol as NodoPlan, plan.columnas) }] });
   const anexos: AnexoDocumento[] = anexosCapitulo.map((a, i) => ({ etiqueta: `Anexo ${i + 1}`, descripcion: a.nombre, tipo: "documento" as const, url: a.url, nombre: a.nombre, actividad: null, nota: null }));
   const estado = plan.plan.estado === "aprobado" ? "aprobado" : plan.plan.estado === "enviado" ? "entregado" : "redactando";
   return {

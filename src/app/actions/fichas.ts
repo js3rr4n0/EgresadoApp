@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
 import { carreras, facultades, fichas, fichasVersiones } from "@/lib/schema";
 import { definicionBase } from "@/lib/fichas/fichasBase";
+import { plantillaRecomendada } from "@/lib/fichas/plantillas";
 import { armarCodigo, nombreAutomatico, raizCodigo, siguienteCorrelativo } from "@/lib/fichas/codigo";
 import { tieneFormaDeDefinicion, validarDefinicion, type ProblemaFicha } from "@/lib/fichas/validar";
 import type { DefinicionFicha, Modalidad } from "@/lib/fichas/tipos";
@@ -44,6 +45,8 @@ export async function crearFicha(datos: {
   facultadId: number | null;
   carreraId: number | null;
   partirDeVersionId: number | null;
+  /** "recomendada": la ficha base con todas las etapas recomendadas (plantillaRecomendada). Sin origen elegido. */
+  plantilla?: "recomendada";
 }): Promise<Resultado<{ fichaId: number; codigo: string }>> {
   try {
     const session = await exigirAdmin();
@@ -86,6 +89,8 @@ export async function crearFicha(datos: {
       definicion = origen.version.definicion as DefinicionFicha;
       basadaEnId = origen.version.id;
     }
+    // La plantilla recomendada se compara contra la ficha base en "Cambios" (basadaEnId sigue siendo la base).
+    if (datos.plantilla === "recomendada" && !datos.partirDeVersionId) definicion = plantillaRecomendada(datos.modalidad);
 
     const raiz = raizCodigo(datos.modalidad, facultad?.codigo ?? null);
     const nombre = nombreAutomatico(datos.modalidad, facultad?.nombre ?? null, carrera?.nombre ?? null);

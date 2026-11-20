@@ -4,12 +4,14 @@
 // investigación, ordenado por secciones. Cualquier elemento se puede usar en cualquier ficha; se indica en qué etapas
 // funciona y en qué asistentes ya tiene formulario. Al final, las etapas y los momentos de control como referencia
 // (no son espacios: se agregan desde su pestaña del constructor).
-import { useState } from "react";
-import { CATALOGO, elementoEnEtapa, GRUPOS_CATALOGO, type EtapaDeEspacios } from "@/lib/fichas/catalogo";
+import { useState, useTransition } from "react";
+import { crearElementoPropio, type ElementoPropio } from "@/app/actions/elementosCatalogo";
+import EditorElementoPropio from "./EditorElementoPropio";
+import { CATALOGO, ELEMENTOS_SISTEMA, elementoEnEtapa, GRUPOS_CATALOGO, type EtapaDeEspacios } from "@/lib/fichas/catalogo";
 import { CAMPOS_ELEMENTO } from "@/lib/fichas/disenoFuturo";
 import { TIPOS_APARTADO } from "@/lib/fichas/apartadosAcademicos";
 import { TIPOS_HITO, type ClaveElemento, type Modalidad } from "@/lib/fichas/tipos";
-import { ETIQUETA_MODALIDAD, Proximamente } from "./comunes";
+import { ETIQUETA_MODALIDAD } from "./comunes";
 
 const MODALIDADES: Modalidad[] = ["pasantia", "proyecto", "investigacion"];
 const ETAPAS: { clave: EtapaDeEspacios; nombre: string }[] = [
@@ -42,12 +44,25 @@ const ETAPAS_REFERENCIA: { id: string; nombre: string; pestana: string; usadoEn:
   },
 ];
 
-type Seleccion = { tipo: "elemento"; clave: ClaveElemento } | { tipo: "etapa"; id: string } | { tipo: "hitos" };
+type Seleccion = { tipo: "elemento"; clave: ClaveElemento } | { tipo: "propio"; id: number } | { tipo: "etapa"; id: string } | { tipo: "hitos" };
 
 const chip = "rounded-md px-2 py-0.5 font-bold";
 
-export default function CatalogoElementos() {
+export default function CatalogoElementos({ propios: iniciales = [] }: { propios?: ElementoPropio[] }) {
   const [sel, setSel] = useState<Seleccion>({ tipo: "elemento", clave: "portada" });
+  // Elementos propios (catálogo editable, entrega C1): los crea el administrador desde aquí.
+  const [propios, setPropios] = useState<ElementoPropio[]>(iniciales);
+  const [error, setError] = useState<string | null>(null);
+  const [creando, iniciar] = useTransition();
+  const nuevo = () =>
+    iniciar(async () => {
+      const r = await crearElementoPropio();
+      if (!r.success) return setError(r.error);
+      setError(null);
+      setPropios((p) => [...p, r.elemento]);
+      setSel({ tipo: "propio", id: r.elemento.id });
+    });
+  const propioSel = sel.tipo === "propio" ? propios.find((p) => p.id === sel.id) : undefined;
   const activo = (s: Seleccion) => JSON.stringify(s) === JSON.stringify(sel);
   const boton = (s: Seleccion, texto: string, nota?: string) => (
     <button type="button" onClick={() => setSel(s)} aria-current={activo(s)}
@@ -62,21 +77,25 @@ export default function CatalogoElementos() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <p className="text-sm text-gray-600 max-w-3xl">
           Todos los elementos que usan las fichas de pasantía, proyecto e investigación. Cualquiera se puede agregar a cualquier ficha:
-          cada uno indica en qué etapas funciona y en qué asistentes ya tiene formulario. Al final están las etapas y los momentos de control,
-          que se agregan desde su pestaña.
+          cada uno indica en qué etapas funciona y en qué asistentes ya tiene formulario. Con «Nuevo elemento» se arma un elemento propio
+          con los campos que hagan falta. Al final están las etapas y los momentos de control, que se agregan desde su pestaña.
         </p>
-        <button type="button" disabled title="Entrega posterior"
-          className="px-3.5 py-2 rounded-lg text-sm font-bold border border-dashed border-gray-300 text-gray-400 cursor-not-allowed shrink-0">
-          + Nuevo elemento
+        <button type="button" onClick={nuevo} disabled={creando}
+          className="px-3.5 py-2 rounded-lg text-sm font-bold bg-brand-red text-white hover:bg-red-800 disabled:opacity-50 shrink-0">
+          {creando ? "Creando…" : "+ Nuevo elemento"}
         </button>
       </div>
+      {error && <p role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
 
       <div className="grid md:grid-cols-[14rem_minmax(0,1fr)] gap-4">
         <nav className="bg-white border border-gray-200 rounded-xl p-2 space-y-3 self-start" aria-label="Catálogo">
           {GRUPOS_CATALOGO.map(({ grupo }, i) => (
             <div key={grupo}>
               <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide px-2 mb-1">{i + 1}. {grupo}</div>
-              {Object.values(CATALOGO).filter((x) => x.grupo === grupo).map((x) => <div key={x.clave}>{boton({ tipo: "elemento", clave: x.clave }, x.nombre)}</div>)}
+              {ELEMENTOS_SISTEMA.filter((x) => x.grupo === grupo).map((x) => <div key={x.clave}>{boton({ tipo: "elemento", clave: x.clave }, x.nombre)}</div>)}
+              {propios.filter((p) => p.definicion.grupo === grupo).map((p) => (
+                <div key={`p${p.id}`}>{boton({ tipo: "propio", id: p.id }, p.definicion.nombre.trim() || "Elemento sin nombre", p.estado === "publicado" ? "Propio · publicado" : "Propio · borrador")}</div>
+              ))}
             </div>
           ))}
           <div className="border-t border-gray-100 pt-2">
@@ -88,6 +107,11 @@ export default function CatalogoElementos() {
 
         <section className="bg-white border border-gray-200 rounded-xl p-5 space-y-5 min-w-0">
           {sel.tipo === "elemento" && <DetalleElemento clave={sel.clave} />}
+          {sel.tipo === "propio" && propioSel && (
+            <EditorElementoPropio key={propioSel.id} elemento={propioSel}
+              onCambio={(e) => setPropios((p) => p.map((x) => (x.id === e.id ? e : x)))}
+              onEliminado={(id) => { setPropios((p) => p.filter((x) => x.id !== id)); setSel({ tipo: "elemento", clave: "portada" }); }} />
+          )}
           {sel.tipo === "etapa" && <DetalleEtapa id={sel.id} />}
           {sel.tipo === "hitos" && <DetalleHitos />}
         </section>
@@ -139,7 +163,7 @@ function DetalleElemento({ clave }: { clave: ClaveElemento }) {
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide">Campos que llena el egresado</h3>
-          <Proximamente texto="Editar campos: entrega posterior" />
+          <span className="text-[11px] text-gray-500">Campos del sistema: fijos. En cada ficha se pueden agregar campos al final del paso.</span>
         </div>
         <ul className="divide-y divide-gray-100 border border-gray-100 rounded-lg">
           {CAMPOS_ELEMENTO[el.clave].map((c) => (
@@ -180,7 +204,7 @@ const ETAPA_TIPO = { protocolo: "Protocolo", informe: "Informe final", ambas: "P
 const REVISION_ESPECIAL = {
   pregunta: "pregunta entre ¿?",
   hipotesis: "Ho niega a Hi",
-  objetivos: "verbos en infinitivo medibles, de 3 a 5 específicos",
+  objetivos: "verbos en infinitivo medibles, de 3 a 4 específicos por integrante (como la propuesta y el plan)",
   conclusiones: "una conclusión por objetivo",
   referencias: "forma APA 7, orden alfabético, duplicados y antigüedad",
 } as const;

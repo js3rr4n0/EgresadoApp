@@ -10,6 +10,7 @@ import { planNuevo } from "@/lib/fichas/plantillas";
 import { aplanar, cargaPorIntegrante, planEjemplo, planIndividual, totalesNodo } from "@/lib/fichas/planTrabajo";
 import { campoCompacto, EncabezadoSeccion, etiquetaCompacta, Interruptor, Tarjeta } from "./EditorPropuesta";
 import { nuevoId } from "./ids";
+import { objetivosPorIntegranteDe } from "@/lib/fichas/objetivos";
 
 function Numero({ id, etiqueta, valor, onChange, editable, min = 1, max = 20, sufijo }: {
   id: string; etiqueta: string; valor: number; onChange: (n: number) => void; editable: boolean; min?: number; max?: number; sufijo?: string;
@@ -80,8 +81,9 @@ export default function EditorPlan({
       <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
         <h2 className="font-bold text-gray-800">Esta ficha no tiene plan de trabajo</h2>
         <p className="text-sm text-gray-600 max-w-2xl">
-          En proyecto, después de aprobar la propuesta se elabora el plan de trabajo: un cronograma con consecuencia lógica
-          (objetivo general → objetivos específicos → macroactividades → actividades) que es también la tabla de presupuesto.
+          Después de aprobar la propuesta se elabora el plan de trabajo, que es también la tabla de presupuesto. En proyecto es un
+          cronograma con consecuencia lógica (objetivo general → objetivos específicos → macroactividades → actividades); en
+          investigación, cada objetivo se organiza por su proceso (metodología, desarrollo, resultados, conclusiones y discusión).
           En equipo hay un plan general y uno individual por integrante, y el asesor revisa que el reparto sea equitativo.
         </p>
         {editable && (
@@ -103,8 +105,8 @@ export default function EditorPlan({
     onChange({ ...definicion, etapas: definicion.etapas.map((e) => (esEtapaPlan(e) ? { ...e, ...cambios } : e)) });
   const propios = problemas.filter((p) => p.ubicacion === plan.id);
   const objetivos = definicion.etapas.find(esEtapaPropuesta)?.espacios.find((e) => e.elemento === "objetivos");
-  const maxPropuesta = objetivos ? Number(objetivos.parametros.maxEspecificos) : null;
-  const necesarios = plan.minimos.objetivosPorIntegrante * definicion.participantes.max;
+  // H19/H27: si la propuesta pide objetivos, el plan usa su mismo rango por integrante.
+  const rangoPropuesta = objetivos ? objetivosPorIntegranteDe(definicion) : null;
   const investigacion = esCronogramaInvestigacion(plan);
 
   return (
@@ -206,8 +208,17 @@ export default function EditorPlan({
                   </div>
                 )}
                 <div className="flex flex-wrap gap-3">
+                  {rangoPropuesta ? (
+                    <div>
+                      <span className={etiquetaCompacta}>{equipo ? "Objetivos por integrante" : "Objetivos específicos"}</span>
+                      <p className="text-xs text-gray-700 mt-1">De {rangoPropuesta.min} a {rangoPropuesta.max}, como en el elemento «Objetivos» de la propuesta.</p>
+                    </div>
+                  ) : <>
                   <Numero id="plan-obj" etiqueta={equipo ? "Objetivos por integrante" : "Objetivos específicos"} valor={plan.minimos.objetivosPorIntegrante} max={10} editable={editable}
                     onChange={(v) => set({ minimos: { ...plan.minimos, objetivosPorIntegrante: v } })} sufijo="mín." />
+                  <Numero id="plan-obj-max" etiqueta={equipo ? "Objetivos por integrante" : "Objetivos específicos"} valor={plan.minimos.maxObjetivosPorIntegrante ?? plan.minimos.objetivosPorIntegrante} max={10} editable={editable}
+                    onChange={(v) => set({ minimos: { ...plan.minimos, maxObjetivosPorIntegrante: v } })} sufijo="máx." />
+                  </>}
                   {!investigacion && <>
                   <Numero id="plan-mac" etiqueta="Macro por objetivo" valor={plan.minimos.macroPorObjetivo} max={10} editable={editable}
                     onChange={(v) => set({ minimos: { ...plan.minimos, macroPorObjetivo: v } })} sufijo="mín." />
@@ -235,12 +246,7 @@ export default function EditorPlan({
                   </p>
                 </div>
                 </>}
-                {equipo && maxPropuesta !== null && necesarios > maxPropuesta && (
-                  <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
-                    Con {definicion.participantes.max} integrantes el plan pide al menos {necesarios} objetivos específicos, pero la propuesta permite hasta {maxPropuesta}.
-                    Pregunta pendiente: ¿el mínimo depende del equipo o el plan puede agregar objetivos? (FICHA_PROYECTO.md §7)
-                  </p>
-                )}
+
               </div>
             </Tarjeta>
 

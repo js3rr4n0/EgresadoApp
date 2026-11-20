@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { updatePortada, solicitarCorreccionDatosDecanato, updateTituloPropuesta } from "@/app/actions/propuestas";
 import {
   invitarIntegrante,
@@ -9,8 +9,10 @@ import {
   ratificarPropuesta,
   transferirLiderazgo,
   retirarseDelProyecto,
+  getEstadoFirmasPropuesta,
 } from "@/app/actions/proyecto";
 import { useRouter } from "next/navigation";
+import { tituloDeCarrera } from "@/lib/tituloCarrera"; // H13
 
 interface ProyectoPortadaFormProps {
   // Pasos del asistente según el orden de la ficha (P2); por defecto, el orden de la fase 1.
@@ -163,6 +165,16 @@ export default function ProyectoPortadaForm({
 
   const [ratifying, setRatifying] = useState(false);
 
+  // H26: quién ratificó la versión actual y a quién le falta (o se le venció la firma por un cambio).
+  type EstadoFirmas = Awaited<ReturnType<typeof getEstadoFirmasPropuesta>>;
+  const [firmas, setFirmas] = useState<EstadoFirmas>(null);
+  const cargarFirmas = useCallback(() => {
+    getEstadoFirmasPropuesta(propuestaId).then(setFirmas).catch(() => setFirmas(null));
+  }, [propuestaId]);
+  useEffect(() => {
+    cargarFirmas();
+  }, [cargarFirmas, teamMembers.length]);
+
   const handleRatificar = async () => {
     setRatifying(true);
     setError(null);
@@ -172,7 +184,8 @@ export default function ProyectoPortadaForm({
     if (!res.success) {
       setError(res.error || "Error al ratificar la propuesta.");
     } else {
-      setSuccess(res.message || "Versión del plan de trabajo ratificada exitosamente con la huella digital.");
+      setSuccess(res.message || "Versión de la propuesta ratificada exitosamente con la huella digital.");
+      cargarFirmas();
       router.refresh();
     }
   };
@@ -327,7 +340,7 @@ export default function ProyectoPortadaForm({
               <input 
                 type="text" 
                 readOnly 
-                value={userDetails?.carrera || "Carrera no asignada"} 
+                value={tituloDeCarrera(userDetails?.carrera) || "Carrera no asignada"} 
                 className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none" 
               />
               <InputLock />
@@ -367,6 +380,7 @@ export default function ProyectoPortadaForm({
                     setSavingTitulo(true);
                     await updateTituloPropuesta(propuestaId, titulo);
                     setSavingTitulo(false);
+                    cargarFirmas(); // H26: cambiar el título invalida las firmas
                   }
                   alert("Borrador del título guardado exitosamente.");
                 }}
@@ -500,7 +514,7 @@ export default function ProyectoPortadaForm({
               {teamMembers.length === 0 && (
                 <tr>
                   <td colSpan={isLeader && !isLocked ? 4 : 3} className="px-6 py-6 text-center text-muted text-xs">
-                    No has añadido más integrantes a este proyecto.
+                    No has añadido más integrantes {isInvestigacion ? "a esta investigación" : "a este proyecto"}.
                   </td>
                 </tr>
               )}
@@ -508,8 +522,15 @@ export default function ProyectoPortadaForm({
           </table>
         </div>
 
+        {/* H15: en trabajo individual no hay que ratificar aparte; el envío deja ratificada la versión enviada. */}
+        {!isLocked && !teamMembers.some((m) => m.estado === "aceptado") && (
+          <p className="mt-6 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+            <strong>Trabajo individual:</strong> al enviar la propuesta queda ratificada la versión enviada. Si se une alguien al equipo, cada integrante deberá ratificarla aquí.
+          </p>
+        )}
+
         {/* Section: Ratificación Unánime del Plan de Trabajo (§8) */}
-        {!isLocked && (
+        {!isLocked && teamMembers.some((m) => m.estado === "aceptado") && (
           <div className="mt-6 bg-slate-900 text-white rounded-xl p-5 border border-slate-800 shadow-md">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
@@ -520,7 +541,7 @@ export default function ProyectoPortadaForm({
                   <h4 className="font-bold text-sm text-white">Firma de Conformidad del Equipo</h4>
                 </div>
                 <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-                  Cada integrante del equipo debe ratificar de forma individual la versión final del proyecto.
+                  Cada integrante del equipo debe ratificar de forma individual la versión final de la propuesta.
                   Toda modificación posterior al título, alcance o actividades invalidará las firmas previas para garantizar el acuerdo unánime.
                 </p>
               </div>
@@ -549,6 +570,22 @@ export default function ProyectoPortadaForm({
                 )}
               </div>
             </div>
+            {firmas && (
+              <div className="mt-4 pt-3 border-t border-slate-700 space-y-1.5">
+                <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">
+                  Firmas de la versión actual: {firmas.miembros.filter((m) => m.firmado).length} de {firmas.miembros.length}
+                  {firmas.todosFirmaron ? " · lista para enviar" : ""}
+                </p>
+                <ul className="flex flex-wrap gap-2">
+                  {firmas.miembros.map((m) => (
+                    <li key={m.usuarioId} className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${m.firmado ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/40" : m.vencida ? "bg-amber-500/15 text-amber-200 border-amber-500/40" : "bg-slate-800 text-slate-300 border-slate-600"}`}>
+                      {m.firmado ? "✓" : m.vencida ? "↺" : "○"} {m.nombre}{m.esLider ? " (líder)" : ""}
+                      <span className="font-normal"> · {m.firmado ? "firmó" : m.vencida ? "debe volver a firmar: la propuesta o el equipo cambió" : "falta firmar"}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -614,7 +651,7 @@ export default function ProyectoPortadaForm({
                 <input 
                   type="text" 
                   readOnly
-                  value={formData.carrera}
+                  value={tituloDeCarrera(formData.carrera) ?? ""}
                   className="w-full px-3 py-2 border border-border rounded-lg bg-slate-100 text-slate-500 font-medium cursor-not-allowed outline-none"
                   title="Este campo no se puede modificar desde la solicitud de datos erróneos."
                 />

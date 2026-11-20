@@ -261,11 +261,15 @@ export default function UserForm({ carreras, periodos = [], facultades = [] }: {
                 type="text" 
                 value={newCohorte}
                 onChange={e => setNewCohorte(e.target.value)}
-                placeholder="Ej: C12026"
-                pattern="^C[12]\d{4}$"
-                title="Debe ser C1 o C2 seguido del año (Ej: C12026)"
+                list="cohortes-ciclos"
+                placeholder="Nombre del ciclo (por ejemplo: C1-2026)"
+                title="Elija un ciclo de Fechas y Periodos"
                 className="flex-1 px-4 py-2.5 rounded-lg border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all"
               />
+              {/* Los ciclos de Fechas y Periodos, como en la edición del usuario y en la cohorte del egresado. */}
+              <datalist id="cohortes-ciclos">
+                {periodos.map(p => <option key={p.id} value={p.nombre} />)}
+              </datalist>
               <button 
                 type="button"
                 onClick={() => {

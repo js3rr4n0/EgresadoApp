@@ -4,7 +4,7 @@
 // catálogo ampliado, imágenes, archivos, enlaces y listas (guardados como JSON en el mismo campo).
 // Las reglas (obligatorio, palabras, cantidades y formatos) salen de la ficha ligada a la propuesta.
 import { db } from "@/lib/db";
-import { planesTrabajo, propuestas, respuestasEspacios } from "@/lib/schema";
+import { integrantesProyecto, planesTrabajo, propuestas, respuestasEspacios } from "@/lib/schema";
 import { getSession } from "@/lib/session";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -26,6 +26,8 @@ import { guardarComoTexto, leerTabla, tipoApartado, type ContenidoApartado } fro
 import { conCitas, guardarParrafos, leerParrafos } from "@/lib/fichas/fuentes";
 import { limpiarRecursos, reglasRecursos } from "@/lib/fichas/recursos";
 import { fuentesDePropuesta } from "./fuentesTrabajo";
+import { conValores, guardarRespuesta, leerRespuestaPropia, limpiarValores } from "@/lib/fichas/respuestasPropias";
+import { claveCamposExtra, defCamposExtra, ELEMENTOS_CON_CAMPOS_EXTRA } from "@/lib/fichas/elementosPropios";
 
 const palabras = (t: string) => (t.trim() ? t.trim().split(/\s+/).length : 0);
 
@@ -87,7 +89,7 @@ function refrescar() {
  * Espacio de la ficha que el usuario puede editar ahora. En la propuesta: el líder, mientras se redacta. En el
  * protocolo (I3): el líder, después de aprobada la propuesta y mientras el plan no esté enviado ni aprobado.
  */
-async function espacioEditable<E extends ClaveElemento>(propuestaId: number, espacioId: string, elementos: E[]) {
+async function espacioEditable<E extends ClaveElemento>(propuestaId: number, espacioId: string, elementos: E[], opciones: { integrantes?: boolean } = {}) {
   const session = await getSession();
   if (!session || session.rol !== "egresado") return { ok: false, error: "No autorizado" } as const;
   const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
@@ -96,7 +98,15 @@ async function espacioEditable<E extends ClaveElemento>(propuestaId: number, esp
   const enProtocolo = !enPropuesta ? ficha?.definicion.etapas.find(esEtapaProtocolo)?.espacios.find((e) => e.id === espacioId) : undefined;
   const espacio = enPropuesta ?? enProtocolo;
   if (!prop || !ficha?.version || !espacio || !(elementos as string[]).includes(espacio.elemento)) return { ok: false, error: "Este paso no existe en la ficha de la propuesta." } as const;
-  if (prop.egresadoId !== session.userId) return { ok: false, error: `Solo el líder del equipo puede redactar ${enProtocolo ? "el protocolo" : "la propuesta"}.` } as const;
+  const esLider = prop.egresadoId === session.userId;
+  // Elementos propios por integrante (C3): cada integrante aceptado responde su parte.
+  let esIntegrante = false;
+  if (!esLider && opciones.integrantes) {
+    const [m] = await db.select({ id: integrantesProyecto.id }).from(integrantesProyecto)
+      .where(and(eq(integrantesProyecto.propuestaId, propuestaId), eq(integrantesProyecto.egresadoId, session.userId), eq(integrantesProyecto.estado, "aceptado")));
+    esIntegrante = !!m;
+  }
+  if (!esLider && !esIntegrante) return { ok: false, error: `Solo el líder del equipo puede redactar ${enProtocolo ? "el protocolo" : "la propuesta"}.` } as const;
   if (enPropuesta && (prop.estado !== "redactando" || prop.bloqueada)) return { ok: false, error: "La propuesta no se puede modificar en su estado actual." } as const;
   if (enProtocolo) {
     if (!ESTADOS_CON_PLAN.includes(prop.estado)) return { ok: false, error: "El protocolo se redacta después de aprobada la propuesta." } as const;
@@ -107,7 +117,7 @@ async function espacioEditable<E extends ClaveElemento>(propuestaId: number, esp
     .select({ contenido: respuestasEspacios.contenido })
     .from(respuestasEspacios)
     .where(and(eq(respuestasEspacios.propuestaId, propuestaId), eq(respuestasEspacios.espacioId, espacioId)));
-  return { ok: true, session, espacio: espacio as Espacio & { elemento: E }, actual: fila?.contenido ?? null } as const;
+  return { ok: true, session, esLider, espacio: espacio as Espacio & { elemento: E }, actual: fila?.contenido ?? null } as const;
 }
 
 async function guardarItems(propuestaId: number, espacioId: string, usuarioId: number, items: unknown[]) {
@@ -230,6 +240,47 @@ export async function quitarArchivoEspacio(propuestaId: number, espacioId: strin
   } catch (error) {
     console.error("Error quitarArchivoEspacio:", error);
     return { success: false, error: "No se pudo quitar el archivo." };
+  }
+}
+
+// ─────────────── Elemento propio del catálogo (catálogo editable, entrega C3) ───────────────
+
+/**
+ * Guarda los campos de un elemento propio. Se guarda aunque falten campos (es un borrador): los obligatorios y los
+ * mínimos se exigen para avanzar y enviar. Por trabajo lo redacta el líder; por integrante, cada uno su parte.
+ */
+export async function guardarRespuestaPropia(propuestaId: number, espacioId: string, valores: unknown): Promise<ResultadoEspacio> {
+  try {
+    const ctx = await espacioEditable(propuestaId, espacioId, ["propio"], { integrantes: true });
+    if (!ctx.ok) return { success: false, error: ctx.error };
+    const def = ctx.espacio.propio?.definicion;
+    if (!def) return { success: false, error: "Falta la copia del elemento en la ficha." };
+    const porIntegrante = def.alcance === "integrante";
+    if (!porIntegrante && !ctx.esLider) return { success: false, error: "Este paso lo redacta el líder del equipo." };
+    const limpio = limpiarValores(def, valores);
+    if (!limpio.ok) return { success: false, error: limpio.error };
+    const respuesta = conValores(leerRespuestaPropia(ctx.actual), def, porIntegrante ? ctx.session.userId : null, limpio.valores);
+    await guardarTexto(propuestaId, espacioId, ctx.session.userId, guardarRespuesta(respuesta));
+    return { success: true };
+  } catch (error) {
+    console.error("Error guardarRespuestaPropia:", error);
+    return { success: false, error: "No se pudo guardar el paso." };
+  }
+}
+
+/** Campos adicionales de un paso del sistema (C4): los guarda el líder, aparte de los campos del paso ("<id>#extra"). */
+export async function guardarCamposExtra(propuestaId: number, espacioId: string, valores: unknown): Promise<ResultadoEspacio> {
+  try {
+    const ctx = await espacioEditable(propuestaId, espacioId, [...ELEMENTOS_CON_CAMPOS_EXTRA]);
+    if (!ctx.ok) return { success: false, error: ctx.error };
+    if (!ctx.espacio.camposExtra?.length) return { success: false, error: "Este paso no tiene campos adicionales en la ficha." };
+    const limpio = limpiarValores(defCamposExtra(ctx.espacio), valores);
+    if (!limpio.ok) return { success: false, error: limpio.error };
+    await guardarTexto(propuestaId, claveCamposExtra(espacioId), ctx.session.userId, guardarRespuesta({ valores: limpio.valores }));
+    return { success: true };
+  } catch (error) {
+    console.error("Error guardarCamposExtra:", error);
+    return { success: false, error: "No se pudieron guardar los datos adicionales." };
   }
 }
 

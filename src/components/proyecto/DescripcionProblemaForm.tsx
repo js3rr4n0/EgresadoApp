@@ -66,7 +66,7 @@ export default function DescripcionProblemaForm({
           {isInvestigacion ? "Descripción del Problema o la Oportunidad a ser Investigada" : "Descripción del Problema o la Oportunidad"}
         </h2>
         <p className="text-sm text-muted mt-1">
-          Describe la problemática o la oportunidad identificada que motiva el desarrollo de este proyecto (máximo 3 páginas).
+          Describe la problemática o la oportunidad identificada que motiva el desarrollo de {isInvestigacion ? "esta investigación" : "este proyecto"} (máximo 3 páginas).
         </p>
       </div>
 

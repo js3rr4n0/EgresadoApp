@@ -66,7 +66,7 @@ export default function JustificacionProyectoForm({
           {isInvestigacion ? "Justificación de la Investigación" : "Justificación del Proyecto"}
         </h2>
         <p className="text-sm text-muted mt-1">
-          Argumenta la relevancia, conveniencia, beneficios e impacto esperado de llevar a cabo este proyecto (máximo 3 páginas).
+          Argumenta la relevancia, conveniencia, beneficios e impacto esperado de llevar a cabo {isInvestigacion ? "esta investigación" : "este proyecto"} (máximo 3 páginas).
         </p>
       </div>
 

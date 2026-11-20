@@ -101,6 +101,7 @@ export default function DatosEmpresarialesForm({
       mapaUrl: "",
     },
     supervisor: {
+      titulo: "",
       nombres: "",
       apellidos: "",
       cargo: "",
@@ -211,7 +212,7 @@ export default function DatosEmpresarialesForm({
     // Reset form data
     setRevData({
       empresa: { nombre: "", area: "", descripcion: "", antecedentes: "", direccion: "", organigramaUrl: "", mapaUrl: "" },
-      supervisor: { nombres: "", apellidos: "", cargo: "", especialidad: "", telefono: "", correo: "" }
+      supervisor: { titulo: "", nombres: "", apellidos: "", cargo: "", especialidad: "", telefono: "", correo: "" }
     });
     
     setFormModalOpen(true);
@@ -664,6 +665,34 @@ export default function DatosEmpresarialesForm({
                     )}
                   </div>
                 </div>
+
+                {/* H29: el supervisor va en la misma solicitud, así basta una aprobación de administración. */}
+                {problemMode === "create_new" && (
+                  <div className="space-y-3 pt-4 border-t border-border">
+                    <div>
+                      <h4 className="text-sm font-bold text-card-dark">Supervisor en la empresa</h4>
+                      <p className="text-xs text-muted mt-0.5">Si lo registra aquí, se aprueba junto con la empresa y no hace falta otra solicitud.</p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {([
+                        ["titulo", "Título (Ej: Ing., Lic.)"],
+                        ["nombres", "Nombres"],
+                        ["apellidos", "Apellidos"],
+                        ["cargo", "Cargo"],
+                        ["especialidad", "Especialidad"],
+                        ["telefono", "Teléfono"],
+                        ["correo", "Correo electrónico"],
+                      ] as const).map(([campo, etiqueta]) => (
+                        <div key={campo}>
+                          <label className="block text-xs font-bold text-card-dark mb-1">{etiqueta}</label>
+                          <input type={campo === "correo" ? "email" : "text"} aria-label={`Supervisor: ${etiqueta}`} value={revData.supervisor[campo] ?? ""}
+                            onChange={e => setRevData(p => ({ ...p, supervisor: { ...p.supervisor, [campo]: e.target.value } }))}
+                            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

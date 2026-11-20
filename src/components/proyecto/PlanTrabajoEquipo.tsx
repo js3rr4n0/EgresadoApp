@@ -143,9 +143,9 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
           )}
           {prot && <p className="text-xs text-muted mt-1">Es el cronograma de actividades del protocolo: se envía y se dictamina junto con él.</p>}
           <p className="text-xs text-muted mt-1">
-            {rol === "lider" && "Como líder, estructuras el plan y asignas un responsable a cada " + (nivelResp === 2 ? "objetivo específico." : "actividad.")}
+            {rol === "lider" && (equipoMultiple ? "Como líder, estructuras el plan y asignas un responsable a cada " + (nivelResp === 2 ? "objetivo específico." : "actividad.") : "Estructuras el plan: objetivos, actividades y su distribución en el tiempo.")}
             {rol === "integrante" && "Completa lo que está a tu cargo: títulos, actividades y montos. El líder asigna responsables y envía el plan."}
-            {rol === "asesor" && "Revisa la consecuencia lógica y que la carga del equipo sea equitativa antes de aprobar."}
+            {rol === "asesor" && (equipoMultiple ? "Revisa la consecuencia lógica y que la carga del equipo sea equitativa antes de aprobar." : "Revisa la consecuencia lógica del plan antes de aprobar.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">

@@ -2,6 +2,7 @@
 // período y para el informe final, ajustando el título, el período de realización y la fecha. Módulo puro: la usan la vista
 // de impresión y el documento Word para que ambos coincidan.
 import { tituloDocumentoInforme } from "@/lib/periodosPasantia";
+import { tituloDeCarrera } from "@/lib/tituloCarrera";
 
 const MESES = [
   "ENERO",
@@ -57,7 +58,7 @@ export function datosPortada(e: EntradaPortada): DatosPortada {
       ["PERÍODO DE REALIZACIÓN:", e.desde && e.hasta ? `DEL ${fechaPortada(e.desde)} AL ${fechaPortada(e.hasta)}` : "—"],
       ["PRESENTADO POR:", mayus(e.estudiante) || "—", ...(e.carnet ? [e.carnet.toUpperCase()] : [])],
       // El título académico que otorga cada carrera aún no está registrado en el sistema; mientras tanto se muestra la carrera.
-      ["PARA OPTAR AL TÍTULO DE:", mayus(e.carrera) || "—"],
+      ["PARA OPTAR AL TÍTULO DE:", mayus(tituloDeCarrera(e.carrera)) || "—"],
       [`${CIUDAD}, ${MESES[mes - 1]} ${anio}`],
     ],
   };

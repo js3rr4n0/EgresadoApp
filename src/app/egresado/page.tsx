@@ -1,7 +1,7 @@
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { documentosEgresado, propuestas, solicitudesAsesor, usuarios, empresas, supervisores, historialEstados } from "@/lib/schema";
+import { documentosEgresado, propuestas, solicitudesAsesor, usuarios, empresas, supervisores, historialEstados, cartasAceptacion } from "@/lib/schema";
 import { eq, asc, desc, and } from "drizzle-orm";
 import DocumentGate from "@/components/DocumentGate";
 import Link from "next/link";
@@ -73,7 +73,12 @@ export default async function EgresadoLandingPage() {
         submittedStates.includes(p.estado) ||
         (p.coordinadorId !== null && !["rechazada", "anulada"].includes(p.estado)) ||
         (p.asesorId !== null && !["rechazada", "anulada"].includes(p.estado))
-    ) || acceptedTeam?.propuesta;
+    ) ||
+    // Integrante de un equipo (recorrido integral, 20-nov-2026): mientras la propuesta del equipo está en redacción, el
+    // integrante sigue viendo sus documentos obligatorios (el envío los exige a todos) y no un "enviada a revisión".
+    (acceptedTeam && (acceptedTeam.propuesta.enviadaEn !== null || submittedStates.includes(acceptedTeam.propuesta.estado))
+      ? acceptedTeam.propuesta
+      : undefined);
   const hasSubmittedPropuesta = !!activeSubmittedProp;
 
   let activeStatusTitle = "";
@@ -82,7 +87,7 @@ export default async function EgresadoLandingPage() {
   let asesorNombre = "";
   let coordinadorNombre = "";
   let activeEmpresa = null;
-  let activeSupervisor = null;
+  let activeSupervisor: { titulo?: string | null; nombres: string; apellidos: string } | null = null;
 
   if (activeSubmittedProp) {
     if (activeSubmittedProp.empresaId) {
@@ -92,6 +97,11 @@ export default async function EgresadoLandingPage() {
     if (activeSubmittedProp.supervisorId) {
       const [sup] = await db.select().from(supervisores).where(eq(supervisores.id, activeSubmittedProp.supervisorId)).limit(1);
       activeSupervisor = sup || null;
+    }
+    // Proyecto e investigación (H16): el supervisor se escribe en el paso de la carta, no se elige del catálogo.
+    if (!activeSupervisor) {
+      const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, activeSubmittedProp.id)).limit(1);
+      if (carta?.supNombres) activeSupervisor = { titulo: carta.supTitulo ?? "", nombres: carta.supNombres, apellidos: carta.supApellidos ?? "" };
     }
 
     if (activeSubmittedProp.coordinadorId) {
@@ -162,6 +172,12 @@ export default async function EgresadoLandingPage() {
       activeStatusTitle = "¡Primer Contacto Completado y Plan Validado! 🎉";
       activeStatusDesc = `El docente asesor${asesorNombre ? ` (${asesorNombre})` : ""} ha completado exitosamente el Informe de Primer Contacto. La empresa ha validado tu plan de trabajo y tu propuesta avanza en el desarrollo del proyecto.`;
       activeBadgeClass = "bg-teal-100 text-teal-950 border-teal-400 font-black";
+    } else if (activeSubmittedProp.estado === "aprobada" && activeSubmittedProp.tipo !== "pasantia") {
+      // Proyecto e investigación (H17): después de aprobada, el equipo elabora el plan (y el protocolo) en el sistema.
+      const queSigue = activeSubmittedProp.tipo === "investigacion" ? "el protocolo y el plan de trabajo" : "el plan de trabajo";
+      activeStatusTitle = "Propuesta aprobada: ahora sigue " + queSigue;
+      activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} fue aprobada por el docente asesor${asesorNombre ? ` (${asesorNombre})` : ""}. Elabore ${queSigue} en «Plan de trabajo» y ${activeSubmittedProp.tipo === "investigacion" ? "envíelos al asesor; cuando los apruebe" : "envíelo al asesor; cuando lo apruebe"}, la coordinación da inicio a la ejecución.`;
+      activeBadgeClass = "bg-emerald-100 text-emerald-950 border-emerald-400 font-black";
     } else if (activeSubmittedProp.estado === "aprobada") {
       activeStatusTitle = "Propuesta Aprobada — Esperando Primer Contacto";
       activeStatusDesc = `Su propuesta #${activeSubmittedProp.numero} ha sido aprobada exitosamente por el docente asesor${asesorNombre ? ` (${asesorNombre})` : ""}. Estado actual: Esperando que el docente asesor realice el primer contacto con el supervisor empresarial.`;

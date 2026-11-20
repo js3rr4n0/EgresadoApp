@@ -1,12 +1,14 @@
 import { getMisPropuestasAsesor, getSolicitudesAsesor } from "@/app/actions/asesor";
 import { getResumenSeguimientoAsesor } from "@/app/actions/registrosActividad";
 import AsesorDashboardClient from "./AsesorDashboardClient";
+import { getBandejaFichasAsesor } from "@/app/actions/bandejaFichas";
 
 export default async function AsesorPage() {
-  const [propuestasRes, solicitudesRes, seguimientoRes] = await Promise.all([
+  const [propuestasRes, solicitudesRes, seguimientoRes, fichas] = await Promise.all([
     getMisPropuestasAsesor(),
     getSolicitudesAsesor(),
     getResumenSeguimientoAsesor(),
+    getBandejaFichasAsesor(),
   ]);
 
   const propuestas = propuestasRes.success && propuestasRes.data ? propuestasRes.data : [];
@@ -22,6 +24,7 @@ export default async function AsesorPage() {
       seguimiento={seguimiento}
       bandeja={bandeja}
       diasPlazoRevision={diasPlazoRevision}
+      bandejaFichas={fichas.tienePropuestas ? fichas.entradas : null}
     />
   );
 }
