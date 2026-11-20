@@ -3,11 +3,11 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { crearFicha, descartarBorrador, guardarBorrador, habilitarVersion, nuevaVersion, retirarVersion } from "@/app/actions/fichas";
+import { asignarCohortesVersion, crearFicha, descartarBorrador, guardarBorrador, habilitarVersion, nuevaVersion, retirarVersion } from "@/app/actions/fichas";
 import { compararDefiniciones } from "@/lib/fichas/diferencias";
 import { validarDefinicion, type ProblemaFicha } from "@/lib/fichas/validar";
 import { esEtapaEjecucion, esEtapaPlan, esEtapaInformeFinal, esEtapaPropuesta, esEtapaProtocolo, type DefinicionFicha, type EstadoVersion, type Modalidad } from "@/lib/fichas/tipos";
-import { ETIQUETA_MODALIDAD, EstadoVersionBadge, Proximamente } from "./comunes";
+import { ETIQUETA_MODALIDAD, EstadoVersionBadge } from "./comunes";
 import EditorPropuesta from "./EditorPropuesta";
 import { ProveedorElementosPropios } from "./ContextoElementosPropios";
 import type { ElementoPropio } from "@/app/actions/elementosCatalogo";
@@ -23,7 +23,9 @@ type Pestana = "propuesta" | "protocolo" | "plan" | "ejecucion" | "informe_final
 
 interface Props {
   ficha: { id: number; codigo: string | null; nombre: string; modalidad: Modalidad; esBase: boolean; alcance: string };
-  versiones: { id: number; numero: number; estado: EstadoVersion; habilitadaEn: string | null; notas: string | null }[];
+  versiones: { id: number; numero: number; estado: EstadoVersion; habilitadaEn: string | null; notas: string | null; cohortes: number[]; procesos: number }[];
+  /** Ciclos (cohortes) para ligar a las versiones (H1). */
+  ciclos?: Ciclo[];
   version: { id: number; numero: number; estado: EstadoVersion; definicion: DefinicionFicha };
   referencia: { etiqueta: string; definicion: DefinicionFicha } | null;
   /** Elementos propios publicados en el catálogo (catálogo editable, C2). */
@@ -32,7 +34,10 @@ interface Props {
 
 const boton = "px-3.5 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
-export default function EditorFicha({ ficha, versiones, version, referencia, propios = [] }: Props) {
+type Ciclo = { id: number; nombre: string; activo: boolean };
+
+export default function EditorFicha({ ficha, versiones, version, referencia, propios = [], ciclos = [] }: Props) {
+  const [cohortesElegidas, setCohortesElegidas] = useState<number[]>([]);
   const router = useRouter();
   const editable = version.estado === "borrador" && !ficha.esBase;
   const [definicion, setDefinicion] = useState<DefinicionFicha>(version.definicion);
@@ -89,7 +94,7 @@ export default function EditorFicha({ ficha, versiones, version, referencia, pro
         if (!g.success) return g;
         setSucio(false);
       }
-      return habilitarVersion(version.id, notas);
+      return habilitarVersion(version.id, notas, cohortesElegidas);
     }, `Versión ${version.numero} habilitada.`, () => setHabilitando(false));
 
   const idPropuesta = definicion.etapas.find(esEtapaPropuesta)?.id;
@@ -111,7 +116,7 @@ export default function EditorFicha({ ficha, versiones, version, referencia, pro
     ...(conProtocolo ? [{ id: "protocolo" as const, texto: "Protocolo", marca: enProtocolo }] : []),
     ...(ficha.modalidad === "pasantia" ? [] : [{ id: "plan" as const, texto: "Plan de trabajo", marca: enPlan }]),
     { id: "ejecucion", texto: "Ejecución", marca: enEjecucion },
-    ...(conProtocolo || informeFinalActual ? [{ id: "informe_final" as const, texto: "Informe final", marca: enInforme }] : []),
+    ...(ficha.modalidad !== "pasantia" || informeFinalActual ? [{ id: "informe_final" as const, texto: "Informe final", marca: enInforme }] : []),
     { id: "cierre", texto: "Cierre", diseno: true },
     { id: "revision", texto: "Presentación de revisión", diseno: true },
     { id: "publica", texto: "Presentación pública", diseno: true },
@@ -250,7 +255,8 @@ export default function EditorFicha({ ficha, versiones, version, referencia, pro
           {pestana === "roles" && <EditorRoles />}
           {pestana === "cambios" && <ListaCambios referencia={referencia?.etiqueta ?? null} cambios={cambios} />}
           {pestana === "versiones" && (
-            <Versiones ficha={ficha} versiones={versiones} versionActual={version.id} pendiente={pendiente}
+            <Versiones ficha={ficha} versiones={versiones} versionActual={version.id} pendiente={pendiente} ciclos={ciclos}
+              onCohortes={(id, numero, cohortes) => ejecutar(() => asignarCohortesVersion(id, cohortes), `Cohortes de la versión ${numero} guardadas.`)}
               onDeshabilitar={(id, n) => { if (window.confirm(`¿Deshabilitar la versión ${n}? No se borra nada: los procesos que la usaron conservan su historial, pero no podrá asignarse a cohortes nuevas.`)) ejecutar(() => retirarVersion(id), `Versión ${n} deshabilitada.`); }} />
           )}
         </>
@@ -279,9 +285,10 @@ export default function EditorFicha({ ficha, versiones, version, referencia, pro
                   <ul className="text-sm text-gray-700 list-disc pl-5 space-y-0.5">{cambios.map((c, i) => <li key={i}>{c}</li>)}</ul>
                 </div>
               )}
-              <div className="border border-dashed border-gray-300 rounded-lg px-3 py-2.5 flex items-center justify-between gap-2">
-                <span className="text-sm text-gray-500">Cohortes que usarán esta versión</span>
-                <Proximamente texto="Entrega 3" />
+              <div>
+                <h3 className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Cohortes que usarán esta versión</h3>
+                <SelectorCohortes ciclos={ciclos} elegidas={cohortesElegidas} onChange={setCohortesElegidas}
+                  usoActual={(id) => versiones.find((v) => v.id !== version.id && v.estado === "habilitada" && v.cohortes.includes(id))?.numero ?? null} />
               </div>
               <div>
                 <label htmlFor="hab-notas" className="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Notas de la versión (opcional)</label>
@@ -322,12 +329,55 @@ function ListaCambios({ referencia, cambios }: { referencia: string | null; camb
   );
 }
 
+/**
+ * Cohortes (ciclos) para una versión (H1). Sin ninguna marcada, la versión sirve para las cohortes que no tienen otra
+ * versión de esta ficha. Una cohorte marcada que hoy usa otra versión pasa a esta; sus propuestas ya creadas no cambian.
+ */
+function SelectorCohortes({ ciclos, elegidas, onChange, usoActual }: {
+  ciclos: Ciclo[];
+  elegidas: number[];
+  onChange: (ids: number[]) => void;
+  usoActual: (id: number) => number | null;
+}) {
+  if (ciclos.length === 0) return <p className="text-sm text-gray-500">No hay ciclos registrados en Fechas y Periodos.</p>;
+  const mueve = elegidas.filter((id) => usoActual(id) !== null);
+  return (
+    <div className="space-y-2">
+      <div className="grid sm:grid-cols-2 gap-x-4 gap-y-1.5">
+        {ciclos.map((c) => {
+          const uso = usoActual(c.id);
+          return (
+            <label key={c.id} className="flex items-center gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={elegidas.includes(c.id)} onChange={(e) => onChange(e.target.checked ? [...elegidas, c.id] : elegidas.filter((x) => x !== c.id))} />
+              <span className="font-mono">{c.nombre}</span>
+              {!c.activo && <span className="text-[10px] text-gray-400">(inactivo)</span>}
+              {uso !== null && <span className="text-[10px] text-amber-700">hoy usa v{uso}</span>}
+            </label>
+          );
+        })}
+      </div>
+      <p className="text-[11px] text-gray-500">
+        {elegidas.length === 0
+          ? "Sin cohortes marcadas, la versión sirve para las cohortes que no tienen otra versión de esta ficha."
+          : "Las propuestas nuevas de estas cohortes usarán esta versión. Las que ya existen conservan la suya."}
+      </p>
+      {mueve.length > 0 && (
+        <p className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+          {mueve.map((id) => `${ciclos.find((c) => c.id === id)?.nombre} deja la versión ${usoActual(id)}`).join("; ")}.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Versiones({
-  ficha, versiones, versionActual, pendiente, onDeshabilitar,
+  ficha, versiones, versionActual, pendiente, onDeshabilitar, ciclos, onCohortes,
 }: {
   ficha: Props["ficha"];
   versiones: Props["versiones"];
   versionActual: number;
+  ciclos: Ciclo[];
+  onCohortes: (id: number, numero: number, cohortes: number[]) => void;
   pendiente: boolean;
   onDeshabilitar: (id: number, numero: number) => void;
 }) {
@@ -361,14 +411,53 @@ function Versiones({
               </div>
               {v.habilitadaEn && <p className="text-xs text-gray-500 mt-1">Habilitada el {new Date(v.habilitadaEn).toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" })}</p>}
               {v.notas && <p className="text-xs text-gray-600 mt-1">{v.notas}</p>}
+              {v.estado !== "borrador" && !ficha.esBase && (
+                <CohortesVersion version={v} versiones={versiones} ciclos={ciclos} pendiente={pendiente} onGuardar={(c) => onCohortes(v.id, v.numero, c)} />
+              )}
             </li>
           ))}
         </ol>
-        <div className="mt-3 border border-dashed border-gray-300 rounded-lg px-3 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500">
-          <span>Cohortes ligadas a cada versión y procesos en curso</span>
-          <Proximamente texto="Entregas 3 y 4" />
-        </div>
+        <p className="mt-3 text-[11px] text-gray-500">
+          Una propuesta nueva usa la versión de la cohorte del egresado; si su cohorte no tiene, la habilitada sin cohortes; a igual
+          alcance, la habilitada más recientemente. Una propuesta ya creada conserva su versión.
+        </p>
       </section>
+    </div>
+  );
+}
+
+/** Cohortes y procesos de una versión, con la opción de cambiar las cohortes si está habilitada (H1). */
+function CohortesVersion({ version: v, versiones, ciclos, pendiente, onGuardar }: {
+  version: Props["versiones"][number];
+  versiones: Props["versiones"];
+  ciclos: Ciclo[];
+  pendiente: boolean;
+  onGuardar: (cohortes: number[]) => void;
+}) {
+  const [editando, setEditando] = useState(false);
+  const [elegidas, setElegidas] = useState<number[]>(v.cohortes);
+  const nombres = v.cohortes.map((id) => ciclos.find((c) => c.id === id)?.nombre ?? `#${id}`);
+  return (
+    <div className="mt-1.5 text-xs text-gray-600 space-y-1.5">
+      <p>
+        <span className="font-bold">Cohortes:</span>{" "}
+        {nombres.length ? nombres.join(", ") : v.estado === "habilitada" ? "ninguna marcada (sirve para las cohortes sin otra versión)" : "ninguna"}
+        {" · "}
+        <span className="font-bold">Procesos:</span> {v.procesos}
+        {v.estado === "habilitada" && !editando && (
+          <button type="button" onClick={() => { setElegidas(v.cohortes); setEditando(true); }} className="ml-2 font-bold text-brand-red hover:underline">Cambiar cohortes</button>
+        )}
+      </p>
+      {editando && (
+        <div className="border border-gray-200 rounded-lg p-2.5 bg-white space-y-2">
+          <SelectorCohortes ciclos={ciclos} elegidas={elegidas} onChange={setElegidas}
+            usoActual={(id) => versiones.find((x) => x.id !== v.id && x.estado === "habilitada" && x.cohortes.includes(id))?.numero ?? null} />
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => setEditando(false)} className="px-2.5 py-1 rounded-md font-bold text-gray-600 hover:bg-gray-100">Cancelar</button>
+            <button type="button" disabled={pendiente} onClick={() => { onGuardar(elegidas); setEditando(false); }} className="px-2.5 py-1 rounded-md font-bold bg-brand-red text-white disabled:opacity-50">Guardar cohortes</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

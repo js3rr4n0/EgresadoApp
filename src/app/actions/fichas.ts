@@ -3,11 +3,11 @@
 // Reglas de versiones: una ficha tiene como máximo un borrador; las versiones habilitadas no se editan
 // (se crea una versión nueva a partir de ellas); las fichas base describen la fase 1 y son solo de lectura.
 
-import { and, desc, eq, like, max } from "drizzle-orm";
+import { and, desc, eq, inArray, like, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { carreras, facultades, fichas, fichasVersiones } from "@/lib/schema";
+import { carreras, facultades, fichas, fichasVersiones, fichasVersionesCohortes, periodos } from "@/lib/schema";
 import { definicionBase } from "@/lib/fichas/fichasBase";
 import { plantillaRecomendada } from "@/lib/fichas/plantillas";
 import { armarCodigo, nombreAutomatico, raizCodigo, siguienteCorrelativo } from "@/lib/fichas/codigo";
@@ -147,7 +147,37 @@ export async function guardarBorrador(versionId: number, definicion: unknown): P
   }
 }
 
-export async function habilitarVersion(versionId: number, notas: string): Promise<Resultado> {
+/**
+ * Liga la versión con las cohortes elegidas (H1). Una cohorte queda en una sola versión de cada ficha: si estaba en otra,
+ * pasa a esta. Las propuestas que ya existen conservan su versión.
+ */
+async function ligarCohortes(versionId: number, fichaId: number, cohortes: number[]) {
+  const ids = [...new Set(cohortes.filter((x) => Number.isInteger(x)))];
+  const validas = ids.length ? (await db.select({ id: periodos.id }).from(periodos).where(inArray(periodos.id, ids))).map((p) => p.id) : [];
+  const otras = (await db.select({ id: fichasVersiones.id }).from(fichasVersiones).where(eq(fichasVersiones.fichaId, fichaId))).map((v) => v.id).filter((id) => id !== versionId);
+  if (validas.length && otras.length) {
+    await db.delete(fichasVersionesCohortes).where(and(inArray(fichasVersionesCohortes.versionId, otras), inArray(fichasVersionesCohortes.periodoId, validas)));
+  }
+  await db.delete(fichasVersionesCohortes).where(eq(fichasVersionesCohortes.versionId, versionId));
+  if (validas.length) await db.insert(fichasVersionesCohortes).values(validas.map((periodoId) => ({ versionId, periodoId })));
+}
+
+/** Cambia las cohortes de una versión habilitada (H1). */
+export async function asignarCohortesVersion(versionId: number, cohortes: number[]): Promise<Resultado> {
+  try {
+    await exigirAdmin();
+    const fila = await versionConFicha(versionId);
+    if (!fila) return { success: false, error: "La versión no existe." };
+    if (fila.version.estado !== "habilitada") return { success: false, error: "Solo una versión habilitada tiene cohortes." };
+    await ligarCohortes(versionId, fila.ficha.id, cohortes);
+    refrescar(fila.ficha.id);
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : "No se pudieron guardar las cohortes." };
+  }
+}
+
+export async function habilitarVersion(versionId: number, notas: string, cohortes: number[] = []): Promise<Resultado> {
   try {
     await exigirAdmin();
     const fila = await versionConFicha(versionId);
@@ -161,6 +191,7 @@ export async function habilitarVersion(versionId: number, notas: string): Promis
       .update(fichasVersiones)
       .set({ estado: "habilitada", habilitadaEn: new Date(), notas: notas.trim() || null, actualizadaEn: new Date() })
       .where(eq(fichasVersiones.id, versionId));
+    await ligarCohortes(versionId, fila.ficha.id, cohortes);
     refrescar(fila.ficha.id);
     return { success: true };
   } catch (error) {

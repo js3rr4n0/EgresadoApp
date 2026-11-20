@@ -169,17 +169,17 @@ Sobre el informe final: hoy el proyecto termina en los informes del período.
 
 | # | Dónde | Hallazgo | Estado |
 |---|---|---|---|
-| H1 | Fechas y Periodos | La cohorte no se liga a una versión de la ficha | Abierto (entrega 3) |
+| H1 | Fechas y Periodos | La cohorte no se liga a una versión de la ficha | **Resuelto (20-nov).** Decisión: elegir las cohortes al habilitar una versión. La propuesta nueva usa la versión de la cohorte del egresado; si no hay, la habilitada sin cohortes; una cohorte en curso conserva la suya. Tabla `fichas_versiones_cohortes`, `lib/fichas/cohortesFicha.ts`, selector al habilitar y "Cambiar cohortes" en Versiones; la lista de fichas llena Cohortes y Procesos. DEMO-2026 quedó en PRO-ING-002-SOFT v1 |
 | H2 | Nueva ficha | "Partir de la ficha base" de proyecto o investigación trae solo la propuesta | **Resuelto (20-nov):** "Plantilla recomendada", la opción por defecto en proyecto e investigación |
 | H3 | Constructor | Textos desactualizados: protocolo, plan vacío y aviso de la lista de fichas | **Resuelto (20-nov)** |
 | H4 | Nueva ficha | "Partir de" lista todas las versiones, también las viejas | **Resuelto (20-nov):** solo la versión vigente de cada ficha |
 | H5 | Catálogo | "Nuevo elemento" y "Editar campos" no disponibles | **Decidido (20-nov): sí debe poder hacerlo, es un paso esencial.** Diseño y entregas C1–C4 en `CATALOGO_EDITABLE.md`. **C1–C4 hechas (20-nov):** crear y publicar elementos propios, agregarlos a las fichas como copia, llenarlos en la propuesta, el protocolo y el informe final, y agregar campos adicionales a los elementos del sistema. Los campos del sistema siguen fijos (ver §8 de CATALOGO_EDITABLE.md) |
-| H6 | Pasantía | La ficha no gobierna el proceso | Abierto (entrega 4) |
-| H7 | Proyecto | Sin informe final ni cierre | Abierto |
-| H8 | Fechas y Periodos | El formulario del ciclo está pensado para pasantía (4 informes, visita, 150 días); proyecto e investigación usan los períodos de su ficha | Para la reunión |
+| H6 | Pasantía | La ficha no gobierna el proceso | Decidido (20-nov): queda para después (entrega 4). La pasantía sigue con la fase 1 |
+| H7 | Proyecto | Sin informe final ni cierre | **Resuelto (20-nov).** Decisión: informe final por capítulos, el mismo módulo de investigación. Plantilla `informeFinalProyectoNuevo` (introducción; problema, justificación, alcance y objetivos desde la propuesta; desarrollo por objetivo y bitácora generados; conclusiones desde las de cada objetivo; bibliografía y anexos). Las fichas de proyecto ya habilitadas no lo tienen: hace falta una versión nueva. **Probado (20-nov):** PRO-ING-002-SOFT v3 (v2 sin el elemento propio de prueba, más el informe final; DEMO-2026 pasó de v1 a v3); la propuesta 76 pasó a v3 con `scripts/fichas/cambiar_version_propuesta.ts` (solo si propuesta, plan y ejecución son idénticos). Pedro redactó y envió la introducción (la revisión detectó la estructura bajo el mínimo), el asesor la vio en su bandeja y la aprobó; el problema se precargó de la propuesta, el desarrollo por objetivo se generó con la ejecución, el PDF dice "INFORME FINAL DEL PROYECTO" y el Word se descarga como Informe_final_del_proyecto_76_borrador.docx. Arreglado en la prueba: la pestaña Informe final del constructor no aparecía en proyecto y "Agregar informe final" usaba la plantilla de investigación |
+| H8 | Fechas y Periodos | El formulario del ciclo está pensado para pasantía (4 informes, visita, 150 días); proyecto e investigación usan los períodos de su ficha | **Resuelto (20-nov).** El formulario del ciclo separa lo común (nombre o cohorte, recepción y fechas de referencia) de la sección "Pasantía" (informes, visita, informe final y el cálculo de 150 días), y aclara que proyecto e investigación toman sus períodos de la ficha |
 | H9 | Carga masiva y usuario nuevo | La cohorte se exigía con el formato "C12026", pero los ciclos se llaman "C1-2026" o "DEMO-2026": un CSV real fallaba. Una lista inválida en carreras o cohortes asignadas rompía la carga | **Resuelto (20-nov):** la cohorte debe ser un ciclo existente, el egresado la necesita y las listas inválidas dan un error claro. El usuario nuevo elige la cohorte asignada de los ciclos |
 | H10 | Usuarios | **No existe el cambio de contraseña**, aunque el formulario dice "deberá cambiarla al primer acceso". No hay "olvidé mi contraseña". La carga masiva pone "Egresado123!" a todos y no lo decía | Fuera del alcance: es de otro módulo (la carga masiva ya avisa la contraseña inicial) |
-| H11 | Dos fichas para la misma carrera | Si hay dos fichas habilitadas de la misma modalidad y carrera, la propuesta toma la de número de versión más alto, no la más nueva. Por eso las fichas DEMO van en otra carrera | Para la reunión (se resuelve con H1) |
+| H11 | Dos fichas para la misma carrera | Si hay dos fichas habilitadas de la misma modalidad y carrera, la propuesta toma la de número de versión más alto, no la más nueva. Por eso las fichas DEMO van en otra carrera | **Resuelto (20-nov) con H1:** a igual alcance gana la versión habilitada más recientemente, no el número de versión más alto |
 | H12 | Inicio del egresado | Los documentos obligatorios dicen "CUM requerido para optar a pasantía" en todas las modalidades | **Resuelto (20-nov):** "CUM requerido para el trabajo de graduación" |
 | H13 | Propuesta de investigación (asistente) | Textos de proyecto en investigación: "motiva el desarrollo de este proyecto", "Integrantes… a este proyecto", la ratificación habla de la "versión final del proyecto". "Título al que se quiere optar" se llena con el nombre de la carrera, no con el título | **Resuelto (20-nov).** Además de los textos, "Título al que se quiere optar" y "PARA OPTAR AL TÍTULO DE" se deducen de la carrera (`lib/tituloCarrera.ts`): "Ingeniería en…" → "Ingeniero(a) en…" |
 | H14 | Documentos del egresado | Hay **dos juegos de documentos obligatorios distintos**. El panel pide servicio social, notas y pago; el paso 7 pide hoja de inscripción, constancia de horas sociales y carta de servicio social. El envío exige los seis. Es el pendiente O3 | **Resuelto (20-nov).** Decisión: son 3, hoja de inscripción, constancia de servicio social y hoja de notas. Eran los mismos 3 archivos con nombres distintos en el panel y en el paso de documentos; ahora todas las pantallas, la impresión, el catálogo y los mensajes usan los mismos nombres |
@@ -221,10 +221,11 @@ Sobre el informe final: hoy el proyecto termina en los informes del período.
 - **H19:** alinear los rangos. Hecho.
 - **H5:** el catálogo debe permitir crear elementos y editar campos. Diseño en `CATALOGO_EDITABLE.md`; C1–C4 hechas.
 
-**Siguen para decidir:**
-1. **H1 y H11:** qué versión de la ficha usa cada cohorte, incluida la cohorte en curso cuando se habilita una versión nueva.
-2. **H7 y H6:** informe final o cierre de proyecto, y si la ficha de pasantía debe gobernar su proceso.
-3. **H8:** el formulario del ciclo está pensado para pasantía.
+**Decisiones del 20-nov sobre los que seguían abiertos (hechas):**
+- **H1 y H11:** las cohortes se eligen al habilitar una versión; a igual alcance gana la más reciente.
+- **H7:** proyecto cierra con informe final por capítulos.
+- **H8:** el ciclo separa la sección de pasantía.
+- **H6:** la ficha de pasantía queda para después (entrega 4).
 
 **Pendientes de trabajo, por prioridad:**
 1. ~~H21~~ **Resuelto (20-nov).**

@@ -146,7 +146,7 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
         <div>
           <h2 className="text-2xl font-bold text-gray-800">Ciclos y Periodos Académicos</h2>
           <p className="text-sm text-gray-500 mt-1">
-            Define y edita manualmente todas las fechas límite para el ciclo.
+            Cada ciclo es una cohorte: define la recepción de propuestas de todas las modalidades y las fechas de pasantía.
           </p>
         </div>
         <button
@@ -192,7 +192,7 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                 </div>
                 <div className="flex items-center gap-2 text-sm">
                   <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
-                  <span className="text-gray-500 font-medium">Límite Informe Final:</span>
+                  <span className="text-gray-500 font-medium">Informe final (pasantía):</span>
                   <span className="font-bold text-gray-700">{p.maxInformeFinal}</span>
                 </div>
                 <div className="flex items-center gap-2 text-sm">
@@ -245,13 +245,14 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                 </div>
               )}
 
+              {/* H8 (recorrido integral): lo común del ciclo primero; las fechas que solo usa la pasantía, en su sección. */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Fechas Base */}
                 <div className="space-y-6">
-                  <h4 className="font-bold text-brand-red border-b pb-2">1. Fechas de Recepción</h4>
+                  <h4 className="font-bold text-brand-red border-b pb-2">1. Ciclo y recepción de propuestas (todas las modalidades)</h4>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Nombre del Ciclo</label>
+                    <label htmlFor="ciclo-nombre" className="block text-sm font-bold text-gray-700 mb-1">Nombre del ciclo (cohorte)</label>
                     <input
+                      id="ciclo-nombre"
                       type="text"
                       required
                       placeholder="Ej. C2-2025"
@@ -259,12 +260,14 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                       value={formData.nombre}
                       onChange={(e) => handleDateChange("nombre", e.target.value)}
                     />
+                    <p className="text-xs text-gray-500 mt-1">Es la cohorte de los egresados (carga masiva y usuarios) y la que se marca al habilitar una ficha.</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Inicio de Recepción</label>
+                      <label htmlFor="ciclo-inicio" className="block text-sm font-bold text-gray-700 mb-1">Inicio de recepción</label>
                       <input
+                        id="ciclo-inicio"
                         type="date"
                         required
                         className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900 text-sm"
@@ -273,8 +276,9 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-gray-700 mb-1">Fin de Recepción</label>
+                      <label htmlFor="ciclo-fin" className="block text-sm font-bold text-gray-700 mb-1">Fin de recepción</label>
                       <input
+                        id="ciclo-fin"
                         type="date"
                         required
                         className="w-full border-gray-300 border p-3 rounded-lg focus:ring-brand-red focus:border-brand-red text-gray-900 text-sm"
@@ -284,58 +288,67 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                     </div>
                   </div>
 
-                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 mt-4">
-                    <p className="text-sm text-emerald-800 mb-3">Puedes autocompletar todas las demás fechas basándote en la fecha de <b>Fin de Recepción</b> (reglas de los 150 días).</p>
-                    <button type="button" onClick={handleAutoFill} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-sm transition-colors shadow-sm">
-                      ✨ Calcular Fechas Automáticamente
-                    </button>
+                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 text-sm text-blue-900">
+                    <b>Proyecto e investigación</b> toman sus períodos, informes y plazos de su ficha (pestaña Ejecución del constructor).
+                    De este ciclo usan la recepción de propuestas y la cohorte.
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="font-bold text-brand-red border-b pb-2">2. Fechas de referencia del ciclo</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="ciclo-maxAprobacionPropuesta" className="block text-xs font-bold text-gray-700 mb-1">Aprobación de propuestas</label>
+                      <input id="ciclo-maxAprobacionPropuesta" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxAprobacionPropuesta} onChange={(e) => handleDateChange("maxAprobacionPropuesta", e.target.value)} />
+                    </div>
+                    <div>
+                      <label htmlFor="ciclo-maxInicioProceso" className="block text-xs font-bold text-gray-700 mb-1">Inicio de ejecución</label>
+                      <input id="ciclo-maxInicioProceso" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxInicioProceso} onChange={(e) => handleDateChange("maxInicioProceso", e.target.value)} />
+                    </div>
+                    <div>
+                      <label htmlFor="ciclo-maxAprobacionFinal" className="block text-xs font-bold text-gray-700 mb-1">Finalización del periodo técnico</label>
+                      <input id="ciclo-maxAprobacionFinal" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxAprobacionFinal} onChange={(e) => handleDateChange("maxAprobacionFinal", e.target.value)} />
+                    </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Fechas Límites Editables */}
                 <div className="space-y-4">
-                  <h4 className="font-bold text-brand-red border-b pb-2">2. Fechas Límite (Editables)</h4>
-                  
+                  <h4 className="font-bold text-brand-red border-b pb-2">3. Pasantía</h4>
+                  <p className="text-xs text-gray-500">Solo las usa la pasantía (asistente de la fase 1): los cuatro informes mensuales, la visita del asesor y el informe final consolidado.</p>
+                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200">
+                    <p className="text-sm text-emerald-800 mb-3">Se pueden calcular a partir del <b>fin de recepción</b> (regla de los 150 días de pasantía); también llena las fechas de referencia.</p>
+                    <button type="button" onClick={handleAutoFill} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-sm transition-colors shadow-sm">
+                      ✨ Calcular fechas automáticamente
+                    </button>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Aprobación Propuesta</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxAprobacionPropuesta} onChange={(e) => handleDateChange("maxAprobacionPropuesta", e.target.value)} />
+                      <label htmlFor="ciclo-maxPrimerInforme" className="block text-xs font-bold text-gray-700 mb-1">Primer informe</label>
+                      <input id="ciclo-maxPrimerInforme" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxPrimerInforme} onChange={(e) => handleDateChange("maxPrimerInforme", e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Inicio de Ejecución</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxInicioProceso} onChange={(e) => handleDateChange("maxInicioProceso", e.target.value)} />
+                      <label htmlFor="ciclo-maxSegundoInforme" className="block text-xs font-bold text-gray-700 mb-1">Segundo informe</label>
+                      <input id="ciclo-maxSegundoInforme" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxSegundoInforme} onChange={(e) => handleDateChange("maxSegundoInforme", e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Primer Informe</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxPrimerInforme} onChange={(e) => handleDateChange("maxPrimerInforme", e.target.value)} />
+                      <label htmlFor="ciclo-maxTercerInforme" className="block text-xs font-bold text-gray-700 mb-1">Tercer informe</label>
+                      <input id="ciclo-maxTercerInforme" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxTercerInforme} onChange={(e) => handleDateChange("maxTercerInforme", e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Segundo Informe</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxSegundoInforme} onChange={(e) => handleDateChange("maxSegundoInforme", e.target.value)} />
+                      <label htmlFor="ciclo-maxCuartoInforme" className="block text-xs font-bold text-gray-700 mb-1">Cuarto informe</label>
+                      <input id="ciclo-maxCuartoInforme" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxCuartoInforme} onChange={(e) => handleDateChange("maxCuartoInforme", e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Tercer Informe</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxTercerInforme} onChange={(e) => handleDateChange("maxTercerInforme", e.target.value)} />
+                      <label htmlFor="ciclo-visitaAsesorInicio" className="block text-xs font-bold text-gray-700 mb-1">Inicio de la visita del asesor</label>
+                      <input id="ciclo-visitaAsesorInicio" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.visitaAsesorInicio} onChange={(e) => handleDateChange("visitaAsesorInicio", e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Cuarto Informe</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxCuartoInforme} onChange={(e) => handleDateChange("maxCuartoInforme", e.target.value)} />
+                      <label htmlFor="ciclo-visitaAsesorFin" className="block text-xs font-bold text-gray-700 mb-1">Fin de la visita del asesor</label>
+                      <input id="ciclo-visitaAsesorFin" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.visitaAsesorFin} onChange={(e) => handleDateChange("visitaAsesorFin", e.target.value)} />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Inicio Visita Asesor</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.visitaAsesorInicio} onChange={(e) => handleDateChange("visitaAsesorInicio", e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Fin Visita Asesor</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.visitaAsesorFin} onChange={(e) => handleDateChange("visitaAsesorFin", e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Informe Final (Consolidado)</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxInformeFinal} onChange={(e) => handleDateChange("maxInformeFinal", e.target.value)} />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-gray-700 mb-1">Fecha Finalización Periodo Técnico</label>
-                      <input type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxAprobacionFinal} onChange={(e) => handleDateChange("maxAprobacionFinal", e.target.value)} />
+                      <label htmlFor="ciclo-maxInformeFinal" className="block text-xs font-bold text-gray-700 mb-1">Informe final (consolidado)</label>
+                      <input id="ciclo-maxInformeFinal" type="date" required className="w-full border-gray-300 border p-2 rounded focus:ring-brand-red text-sm" value={formData.maxInformeFinal} onChange={(e) => handleDateChange("maxInformeFinal", e.target.value)} />
                     </div>
                   </div>
                 </div>

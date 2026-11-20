@@ -2,7 +2,7 @@
 
 import { esEtapaEjecucion, esEtapaInformeFinal, type DefinicionFicha, type EtapaInformeFinal } from "@/lib/fichas/tipos";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
-import { informeFinalNuevo } from "@/lib/fichas/plantillas";
+import { informeFinalNuevo, informeFinalProyectoNuevo } from "@/lib/fichas/plantillas";
 import EditorPropuesta, { campoCompacto, EncabezadoSeccion, etiquetaCompacta, Interruptor, Tarjeta } from "./EditorPropuesta";
 import { nuevoId } from "./ids";
 
@@ -29,14 +29,14 @@ export default function EditorInformeFinal({
       <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-3">
         <h2 className="font-bold text-gray-800">Esta ficha no tiene informe final por capítulos</h2>
         <p className="text-sm text-gray-600 max-w-2xl">
-          En investigación, el informe final es el documento de la investigación (la tesis). El equipo lo redacta en el sistema
+          El informe final es el documento con que cierra el proyecto o la investigación (la tesis). El equipo lo redacta en el sistema
           capítulo por capítulo: cada guardado queda como versión, el asesor revisa y al final todos ratifican la versión que se
           entrega, que queda congelada. Se exporta a PDF y Word con el formato del documento final.
         </p>
         {!tieneEjecucion && <p className="text-xs text-amber-800">Primero agrega la etapa de ejecución: el informe final va después de ella.</p>}
         {editable && (
           <button type="button" disabled={!tieneEjecucion}
-            onClick={() => onChange({ ...definicion, etapas: [...definicion.etapas.filter((e) => !esEtapaInformeFinal(e)), informeFinalNuevo(nuevoId("informe_final"))] })}
+            onClick={() => onChange({ ...definicion, etapas: [...definicion.etapas.filter((e) => !esEtapaInformeFinal(e)), (definicion.modalidad === "proyecto" ? informeFinalProyectoNuevo : informeFinalNuevo)(nuevoId("informe_final"))] })}
             className="px-3.5 py-2 rounded-lg text-sm font-bold bg-brand-red hover:bg-red-800 text-white disabled:opacity-50">
             + Agregar informe final
           </button>

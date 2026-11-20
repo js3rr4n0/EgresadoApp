@@ -4,8 +4,9 @@
 //   - Las propuestas sin ficha (las anteriores) usan la ficha base, que describe la fase 1 tal como es.
 // Se asigna en proyecto (P2) e investigación (I2): son las modalidades cuyo asistente lee la ficha.
 import { db } from "@/lib/db";
-import { carreras, fichas, fichasVersiones, integrantesProyecto, propuestas, usuarios } from "@/lib/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { carreras, fichas, fichasVersiones, fichasVersionesCohortes, integrantesProyecto, periodos, propuestas, usuarios } from "@/lib/schema";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { elegirVersion } from "./cohortesFicha";
 import { definicionBase } from "./fichasBase";
 import { esEtapaPropuesta, type DefinicionFicha, type Espacio, type Modalidad } from "./tipos";
 import { objetivosPorIntegranteDe, rangoObjetivos, type RangoObjetivos } from "./objetivos";
@@ -27,26 +28,34 @@ export interface FichaDePropuesta {
 export async function versionParaNuevaPropuesta(modalidad: Modalidad, egresadoId: number): Promise<number | null> {
   if (!MODALIDADES_CON_FICHA.includes(modalidad)) return null;
   const [u] = await db
-    .select({ carreraId: usuarios.carreraId, facultadId: usuarios.facultadId, facultadCarrera: carreras.facultadId })
+    .select({ carreraId: usuarios.carreraId, facultadId: usuarios.facultadId, facultadCarrera: carreras.facultadId, cohorte: usuarios.cohorte })
     .from(usuarios)
     .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
     .where(eq(usuarios.id, egresadoId))
     .limit(1);
   const facultadId = u?.facultadId ?? u?.facultadCarrera ?? null;
+  // La cohorte del egresado es el nombre de un ciclo (H9).
+  const [ciclo] = u?.cohorte ? await db.select({ id: periodos.id }).from(periodos).where(eq(periodos.nombre, u.cohorte)).limit(1) : [];
 
   const candidatas = await db
-    .select({ id: fichasVersiones.id, numero: fichasVersiones.numero, carreraId: fichas.carreraId, facultadId: fichas.facultadId })
+    .select({ id: fichasVersiones.id, habilitadaEn: fichasVersiones.habilitadaEn, carreraId: fichas.carreraId, facultadId: fichas.facultadId })
     .from(fichasVersiones)
     .innerJoin(fichas, eq(fichasVersiones.fichaId, fichas.id))
     .where(and(eq(fichas.modalidad, modalidad), eq(fichas.esBase, false), eq(fichasVersiones.estado, "habilitada")))
     .orderBy(desc(fichasVersiones.numero));
+  const ligas = candidatas.length
+    ? await db.select().from(fichasVersionesCohortes).where(inArray(fichasVersionesCohortes.versionId, candidatas.map((c) => c.id)))
+    : [];
 
+  // H1/H11: primero la versión de su cohorte, luego las que no tienen cohortes; a igual alcance, la más reciente.
   const nivel = (c: (typeof candidatas)[number]) =>
     c.carreraId !== null ? (c.carreraId === u?.carreraId ? 3 : -1)
       : c.facultadId !== null ? (c.facultadId === facultadId ? 2 : -1)
       : 1;
-  const mejor = candidatas.filter((c) => nivel(c) > 0).sort((a, b) => nivel(b) - nivel(a) || b.numero - a.numero)[0];
-  return mejor?.id ?? null;
+  return elegirVersion(
+    candidatas.map((c) => ({ id: c.id, nivel: nivel(c), habilitadaEn: c.habilitadaEn, cohortes: ligas.filter((l) => l.versionId === c.id).map((l) => l.periodoId) })),
+    ciclo?.id ?? null
+  );
 }
 
 /** Definición con la que se redacta una propuesta (su versión, o la ficha base si no tiene). */

@@ -1,8 +1,8 @@
 import { notFound, redirect } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
-import { carreras, facultades, fichas, fichasVersiones } from "@/lib/schema";
+import { carreras, facultades, fichas, fichasVersiones, fichasVersionesCohortes, periodos, propuestas } from "@/lib/schema";
 import EditorFicha from "@/components/fichas/EditorFicha";
 import type { DefinicionFicha, EstadoVersion, Modalidad } from "@/lib/fichas/tipos";
 import { listarElementosPropios } from "@/app/actions/elementosCatalogo";
@@ -59,12 +59,21 @@ export default async function FichaPage({
     if (origen) referencia = { etiqueta: `${origen.codigo ?? origen.nombre}, versión ${origen.numero}`, definicion: origen.definicion as DefinicionFicha };
   }
 
+  // H1: los ciclos (cohortes), las cohortes ligadas a cada versión y cuántas propuestas usan cada una.
+  const idsVersiones = versiones.map((x) => x.id);
+  const [ciclos, ligas, usos] = await Promise.all([
+    db.select({ id: periodos.id, nombre: periodos.nombre, activo: periodos.activo }).from(periodos).orderBy(desc(periodos.activo), desc(periodos.inicioRecepcion)),
+    db.select().from(fichasVersionesCohortes).where(inArray(fichasVersionesCohortes.versionId, idsVersiones)),
+    db.select({ versionId: propuestas.fichaVersionId }).from(propuestas).where(inArray(propuestas.fichaVersionId, idsVersiones)),
+  ]);
+
   // Catálogo editable (C2): los elementos propios publicados se pueden agregar a la ficha.
   const propios = (await listarElementosPropios()).filter((e) => e.estado === "publicado");
 
   return (
     <EditorFicha
       propios={propios}
+      ciclos={ciclos}
       key={actual.id}
       ficha={{
         id: ficha.id,
@@ -80,6 +89,8 @@ export default async function FichaPage({
         estado: x.estado as EstadoVersion,
         habilitadaEn: x.habilitadaEn?.toISOString() ?? null,
         notas: x.notas,
+        cohortes: ligas.filter((l) => l.versionId === x.id).map((l) => l.periodoId),
+        procesos: usos.filter((u) => u.versionId === x.id).length,
       }))}
       version={{
         id: actual.id,

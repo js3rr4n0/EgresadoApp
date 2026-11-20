@@ -36,6 +36,8 @@ import { describirHistorial } from "../../src/lib/historialEstados";
 import { tituloDeCarrera } from "../../src/lib/tituloCarrera";
 import { conValores, guardarRespuesta, leerRespuestaPropia, limpiarRespuesta, limpiarValores, problemasRespuestaPropia, problemasValores, respuestaVacia, bloquesRespuesta, archivosRespuesta } from "../../src/lib/fichas/respuestasPropias";
 import { claveCamposExtra, defCamposExtra } from "../../src/lib/fichas/elementosPropios";
+import { cohortesQueSeMueven, elegirVersion } from "../../src/lib/fichas/cohortesFicha";
+import { informeFinalProyectoNuevo } from "../../src/lib/fichas/plantillas";
 import { cambiarTipo, cambiosElementoPropio, campoNuevo, copiaDe, elementoPropioNuevo, mismaDefinicion, problemasElementoPropio, reglasCampo, tieneFormaElementoPropio, TIPOS_CAMPO } from "../../src/lib/fichas/elementosPropios";
 import { esHojaPlan, normalizarArbol, objetivosEspecificos } from "../../src/lib/fichas/planTrabajo";
 import { elementoDe, estadoElemento, procesoPorObjetivo, TEXTOS_ELEMENTO } from "../../src/lib/fichas/elementosEjecucion";
@@ -568,7 +570,8 @@ comprobar("La validación de proyecto sin protocolo no cambia", validarDefinicio
   comprobar("Revisión por capítulo y ratificación por defecto", inf.revision.porCapitulo && inf.revision.ratificacion);
   const mal = (cambiar: (x: DefinicionFicha) => void) => { const x = conInforme(); cambiar(x); return validarDefinicion(x).map((p) => p.mensaje); };
   detecta("informe final antes de la ejecución", mal((x) => { const i = x.etapas.pop()!; x.etapas.splice(1, 0, i); }), "debe ser la última etapa");
-  detecta("informe final en proyecto", proyectoConCambio((x) => { x.etapas.push(informeFinalNuevo("if")); }), "solo para investigación");
+  // H7 (20-nov-2026): proyecto también tiene informe final; la pasantía no.
+  detecta("informe final en pasantía", conCambio((x) => { x.etapas.push(informeFinalNuevo("if")); }), "la pasantía usa su documento final");
   detecta("precarga desde un capítulo que no existe", mal((x) => { x.etapas.find(esEtapaInformeFinal)!.espacios[0].precargarDe = "nada"; }), "ya no está en la propuesta ni en el protocolo");
   detecta("marco de las actividades en el protocolo", investigacionConCambio((x) => { x.etapas.find(esEtapaProtocolo)!.espacios[0].precargarDe = PRECARGA_MARCO_REGISTROS; }), "solo se precarga en el informe final");
   detecta("una lista precargada desde un texto", mal((x) => {
@@ -1378,7 +1381,7 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
     const d = plantillaRecomendada(m);
     comprobar(`La plantilla recomendada de ${m} es válida`, validarDefinicion(d).length === 0 && tieneFormaDeDefinicion(JSON.parse(JSON.stringify(d))), validarDefinicion(d).map((p) => p.mensaje).join(" | "));
   }
-  comprobar("Proyecto: propuesta, plan y ejecución", plantillaRecomendada("proyecto").etapas.map((e) => e.tipo).join() === "propuesta,plan,ejecucion");
+  comprobar("Proyecto: propuesta, plan, ejecución e informe final (H7)", plantillaRecomendada("proyecto").etapas.map((e) => e.tipo).join() === "propuesta,plan,ejecucion,informe_final");
   comprobar("Investigación: propuesta, protocolo, cronograma de investigación, ejecución e informe final",
     plantillaRecomendada("investigacion").etapas.map((e) => e.tipo).join() === "propuesta,protocolo,plan,ejecucion,informe_final"
       && esCronogramaInvestigacion(plantillaRecomendada("investigacion").etapas.find(esEtapaPlan)!));
@@ -1575,6 +1578,30 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
   const doc = JSON.stringify(apartadosInformeFinal({ ...informeFinalNuevo("if"), espacios: [esp] }, { prob: "Texto del problema", [claveCamposExtra("prob")]: resp }).apartados);
   comprobar("El documento agrega los datos adicionales debajo del apartado", doc.includes("Datos adicionales") && doc.includes("Repositorio del código: github.com/equipo/proyecto"), doc);
   comprobar("Los campos adicionales se tratan como una respuesta por trabajo", defCamposExtra(esp).alcance === "equipo" && defCamposExtra(esp).campos.length === 2);
+}
+
+// 36. Pendientes de la reunión del 20-nov-2026: cohortes (H1/H11) e informe final de proyecto (H7)
+{
+  const v = (id: number, nivel: number, fecha: string, cohortes: number[] = []) => ({ id, nivel, habilitadaEn: fecha, cohortes });
+  comprobar("Gana la versión ligada a la cohorte del egresado", elegirVersion([v(1, 3, "2026-11-01", [7]), v(2, 3, "2026-11-19")], 7) === 1);
+  comprobar("Sin versión de su cohorte, gana la que no tiene cohortes", elegirVersion([v(1, 3, "2026-11-19", [8]), v(2, 3, "2026-11-01")], 7) === 2);
+  comprobar("Si todas son de otras cohortes, igual recibe una (la más reciente)", elegirVersion([v(1, 3, "2026-11-01", [8]), v(2, 3, "2026-11-19", [9])], 7) === 2);
+  comprobar("H11: a igual alcance gana la habilitada más recientemente, no el número de versión", elegirVersion([v(12, 3, "2026-10-01"), v(3, 3, "2026-11-19")], null) === 3);
+  comprobar("La ficha de su carrera gana a la de su facultad aunque sea más vieja", elegirVersion([v(1, 2, "2026-11-19"), v(2, 3, "2026-01-01")], null) === 2);
+  comprobar("Una versión que no lo alcanza nunca se elige", elegirVersion([v(1, -1, "2026-11-19", [7])], 7) === null);
+  comprobar("Avisa qué cohortes dejan otra versión al habilitar",
+    JSON.stringify(cohortesQueSeMueven([7, 8], [{ numero: 1, estado: "habilitada", cohortes: [7] }, { numero: 2, estado: "retirada", cohortes: [8] }])) === JSON.stringify([{ cohorteId: 7, deVersion: 1 }]));
+
+  const proyecto = plantillaRecomendada("proyecto");
+  const inf = proyecto.etapas.find(esEtapaInformeFinal)!;
+  const idsPropuesta = new Set(proyecto.etapas.find(esEtapaPropuesta)!.espacios.map((e) => e.id));
+  comprobar("Proyecto: el informe final se llama así y se revisa por capítulo", inf.nombre === "Informe final del proyecto" && inf.revision.porCapitulo && inf.revision.ratificacion);
+  comprobar("Proyecto: los capítulos parten de la propuesta (problema, justificación, alcance, objetivos)",
+    ["if_problema", "if_justificacion", "if_alcance", "if_objetivos"].every((id) => idsPropuesta.has(inf.espacios.find((e) => e.id === id)?.precargarDe ?? "")));
+  comprobar("Proyecto: el desarrollo por objetivo y la bitácora los genera el sistema; las conclusiones parten de las de cada objetivo",
+    inf.espacios.some((e) => e.elemento === "resultados_objetivos") && inf.espacios.some((e) => e.elemento === "reporte_modificaciones")
+      && inf.espacios.find((e) => e.id === "if_conclusiones")?.precargarDe === PRECARGA_CONCLUSIONES_OBJETIVOS);
+  comprobar("Proyecto: el informe final sale en una ficha válida", validarDefinicion({ ...proyecto, etapas: [...proyecto.etapas.filter((e) => e.tipo !== "informe_final"), informeFinalProyectoNuevo("if")] }).length === 0);
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

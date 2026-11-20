@@ -5,7 +5,7 @@
 import { parametrosPorDefecto } from "./catalogo";
 import { definicionBase } from "./fichasBase";
 import type { DefinicionFicha } from "./tipos";
-import { CIERRE_POR_DEFECTO, COMPONENTES_INVESTIGACION, type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
+import { CIERRE_POR_DEFECTO, COMPONENTES_INVESTIGACION, PRECARGA_CONCLUSIONES_OBJETIVOS, type ClaveElemento, type Espacio, type EtapaEjecucion, type EtapaInformeFinal, type EtapaPlan, type EtapaProtocolo, type Modalidad } from "./tipos";
 
 /**
  * Plantilla recomendada al crear una ficha (recorrido integral, 19-nov-2026): la propuesta de la ficha base y todas las
@@ -25,7 +25,8 @@ export function plantillaRecomendada(modalidad: Modalidad): DefinicionFicha {
       ...(investigacion ? [protocoloNuevo("protocolo")] : []),
       planNuevo("plan", modalidad),
       ejecucionNueva("ejecucion", modalidad, 1, true),
-      ...(investigacion ? [informeFinalNuevo("informe_final")] : []),
+      // H7 (reunión del 20-nov-2026): proyecto también cierra con informe final por capítulos.
+      investigacion ? informeFinalNuevo("informe_final") : informeFinalProyectoNuevo("informe_final"),
     ],
   };
 }
@@ -162,6 +163,40 @@ export function protocoloNuevo(id: string): EtapaProtocolo {
  * académicas y el índice se generan; los anexos de resultados salen de las evidencias de la ejecución. Los capítulos que
  * ya existen se precargan del protocolo (ids de protocoloNuevo); el marco teórico, de la fundamentación teórica.
  */
+/**
+ * Informe final por capítulos de proyecto (H7, reunión del 20-nov-2026): el mismo módulo que investigación (versiones,
+ * revisión por capítulo, ratificación, PDF y Word). Sin protocolo, los capítulos parten de la propuesta; el desarrollo
+ * por objetivo con sus productos y la bitácora los genera el sistema; las conclusiones parten de las de cada objetivo.
+ */
+export function informeFinalProyectoNuevo(id: string): EtapaInformeFinal {
+  const apartado = (i: string, tipo: string, t: string, d: string, extra: Partial<Espacio> = {}) =>
+    espacioProtocolo(i, "apartado", t, d, { parametros: parametrosPorDefecto("apartado", { tipo }), ...extra });
+  const texto = (i: string, t: string, d: string, extra: Partial<Espacio> = {}) =>
+    espacioProtocolo(i, "texto", t, d, { parametros: parametrosPorDefecto("texto", { minPalabras: 100, maxPalabras: 0 }), ...extra });
+  return {
+    tipo: "informe_final",
+    id,
+    nombre: "Informe final del proyecto",
+    revision: { porCapitulo: true, ratificacion: true, diasRevision: 5, diasHabiles: true },
+    espacios: [
+      apartado("if_introduccion", "introduccion", "Introducción", "Presentación del proyecto y de la estructura del informe"),
+      texto("if_problema", "Descripción del problema", "Parte de la descripción del problema de la propuesta", { precargarDe: "problema" }),
+      texto("if_justificacion", "Justificación del proyecto", "Parte de la justificación de la propuesta", { precargarDe: "justificacion" }),
+      texto("if_alcance", "Alcance del proyecto", "Límites y entregables, a partir de la propuesta", { precargarDe: "alcance" }),
+      apartado("if_objetivos", "objetivos", "Objetivos", "Parte de los objetivos de la propuesta", { precargarDe: "objetivos" }),
+      // El desarrollo por objetivo, con sus productos y evidencias, lo genera el sistema con la ejecución.
+      espacioProtocolo("if_resultados", "resultados_objetivos", "Desarrollo del proyecto por objetivo", "Se genera por objetivo con sus actividades, sus productos aprobados y las evidencias de la ejecución"),
+      apartado("if_conclusiones", "conclusiones", "Conclusiones y recomendaciones", "Parte de las conclusiones aprobadas de cada objetivo", { precargarDe: PRECARGA_CONCLUSIONES_OBJETIVOS }),
+      apartado("if_bibliografia", "referencias", "Bibliografía", "Referencias en APA 7 y en orden alfabético, si se usaron", { obligatorio: false }),
+      espacioProtocolo("if_modificaciones", "reporte_modificaciones", "Reporte de modificaciones", "Se genera con los cambios reportados en las actividades y los objetivos"),
+      espacioProtocolo("if_anexos", "archivo", "Anexos", "Manuales, planos u otros documentos del proyecto (las evidencias y los productos se agregan solos)", {
+        obligatorio: false,
+        parametros: parametrosPorDefecto("archivo", { tipos: ["pdf", "word", "excel"], minimo: 0, maximo: 10 }),
+      }),
+    ],
+  };
+}
+
 export function informeFinalNuevo(id: string): EtapaInformeFinal {
   // Redacción académica guiada (13-nov-2026): cada capítulo es un apartado académico (en pasado; conclusiones por objetivo).
   const apartado = (i: string, tipo: string, t: string, d: string, extra: Partial<Espacio> = {}) =>

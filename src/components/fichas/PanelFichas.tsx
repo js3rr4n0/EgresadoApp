@@ -19,6 +19,10 @@ export interface FilaFicha {
   carreraId: number | null;
   vigente: number | null;
   borrador: number | null;
+  /** Cohortes de las versiones habilitadas (H1), por ejemplo "v2: C1-2026 · v1: sin cohortes". */
+  cohortes?: string | null;
+  /** Propuestas que usan alguna versión de la ficha. */
+  procesos?: number;
   versiones: { id: number; numero: number; estado: EstadoVersion }[];
   actualizada: string;
 }
@@ -138,8 +142,8 @@ export default function PanelFichas({
                   <th className="text-left font-bold px-4 py-3">Código</th>
                   <th className="text-left font-bold px-4 py-3">Ficha</th>
                   <th className="text-left font-bold px-4 py-3">Estado</th>
-                  <th className="text-left font-bold px-4 py-3" title="Se asignan en la entrega 3">Cohortes</th>
-                  <th className="text-left font-bold px-4 py-3" title="Se cuentan en la entrega 4">Procesos</th>
+                  <th className="text-left font-bold px-4 py-3" title="Cohortes ligadas a las versiones habilitadas">Cohortes</th>
+                  <th className="text-left font-bold px-4 py-3" title="Propuestas que usan alguna versión de la ficha">Procesos</th>
                   <th className="text-left font-bold px-4 py-3">Actualizada</th>
                   <th className="px-4 py-3" />
                 </tr>
@@ -161,8 +165,8 @@ export default function PanelFichas({
                         {f.vigente === null && f.borrador === null && <EstadoVersionBadge estado="retirada" />}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-gray-400">{f.esBase ? "Todas (fase 1)" : "Sin asignar"}</td>
-                    <td className="px-4 py-3 text-xs text-gray-400">—</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{f.esBase ? "Todas (fase 1)" : f.cohortes ?? <span className="text-gray-400">Sin versión habilitada</span>}</td>
+                    <td className="px-4 py-3 text-xs text-gray-600">{f.esBase ? "—" : f.procesos ?? 0}</td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                       {new Date(f.actualizada).toLocaleDateString("es-SV", { day: "numeric", month: "short", year: "numeric" })}
                     </td>
@@ -182,7 +186,7 @@ export default function PanelFichas({
             </table>
           </div>
           <p className="text-xs text-gray-500">
-            Las columnas Cohortes y Procesos se llenarán cuando cada cohorte se ligue a una versión (entrega 3) y las propuestas usen la ficha (entrega 4).
+            Cohortes: las que se marcaron al habilitar cada versión; «todas» o «las demás cohortes» es la versión que reciben las cohortes sin una propia. Procesos: propuestas que usan la ficha (proyecto e investigación; la pasantía sigue con la fase 1).
           </p>
         </>
       )}

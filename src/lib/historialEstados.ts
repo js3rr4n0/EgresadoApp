@@ -28,6 +28,7 @@ const EVENTOS: [string, string][] = [
   ["ajustes_solicitados", "Ajustes solicitados"],
   ["ajustes_completados", "Ajustes completados"],
   ["solicitud_baja", "Solicitud de baja"],
+  ["ficha_version", "La propuesta pasó a otra versión de su ficha"],
 ];
 
 /** Nombre legible de un estado de la propuesta (o el código, si no se conoce). */

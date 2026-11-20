@@ -235,7 +235,8 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
 
 function validarInformeFinal(informe: EtapaInformeFinal, def: DefinicionFicha, problemas: ProblemaFicha[]) {
   const p = (mensaje: string) => problemas.push({ ubicacion: informe.id, mensaje: `${informe.nombre}: ${mensaje}` });
-  if (def.modalidad !== "investigacion") p("el informe final por capítulos es, por ahora, solo para investigación.");
+  // H7 (20-nov-2026): también proyecto. La pasantía sigue con su documento final de la fase 1.
+  if (def.modalidad === "pasantia") p("el informe final por capítulos es para proyecto e investigación; la pasantía usa su documento final.");
   if (informe.espacios.length === 0) p("no tiene capítulos.");
   const { diasRevision } = informe.revision;
   if (!entero(diasRevision) || diasRevision < 1 || diasRevision > 30) p("los días de revisión del asesor deben estar entre 1 y 30.");

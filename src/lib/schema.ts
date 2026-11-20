@@ -972,6 +972,24 @@ export const fichasVersiones = pgTable(
   ]
 );
 
+// Cohortes que usan cada versión de ficha (H1, la "entrega 3"): se marcan al habilitar la versión. Una cohorte queda en
+// una sola versión de cada ficha; las propuestas ya creadas conservan la suya (propuestas.ficha_version_id).
+// Script: scripts/fichas/crear_cohortes_fichas.ts
+export const fichasVersionesCohortes = pgTable(
+  "fichas_versiones_cohortes",
+  {
+    id: serial("id").primaryKey(),
+    versionId: integer("version_id")
+      .notNull()
+      .references(() => fichasVersiones.id, { onDelete: "cascade" }),
+    periodoId: integer("periodo_id")
+      .notNull()
+      .references(() => periodos.id, { onDelete: "cascade" }),
+    asignadaEn: timestamp("asignada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [unique("fichas_versiones_cohortes_unique").on(table.versionId, table.periodoId)]
+);
+
 // Elementos propios del catálogo (catálogo editable, entrega C1): formularios armados con campos de tipos conocidos
 // (src/lib/fichas/elementosPropios.ts). Los crea el administrador; al agregarlos a una ficha se copia la definición.
 // Script: scripts/fichas/crear_elementos_catalogo.ts

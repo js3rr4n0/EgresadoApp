@@ -518,8 +518,8 @@ export async function entregarInformeFinal(propuestaId: number): Promise<Resulta
   if (d.pendientesAprobacion.length > 0) return { success: false, error: `Faltan capítulos por aprobar: ${d.pendientesAprobacion.join(", ")}.` };
   if (!d.ratificacion.completa) return { success: false, error: `Falta que ratifiquen la versión final: ${d.ratificacion.firmas.filter((f) => !f.vigente).map((f) => f.nombre).join(", ")}.` };
   await db.update(informesFinalesFicha).set({ estado: "entregado", huellaFinal: d.huellaActual, entregadoEn: new Date(), actualizadoEn: new Date() }).where(eq(informesFinalesFicha.propuestaId, propuestaId));
-  await avisarAsesor(propuestaId, `El equipo de la propuesta #${d.plan.propuesta.numero} entregó la versión final del informe de investigación.`);
-  await notificarEquipo(propuestaId, "informe_final", "Se entregó la versión final del informe de investigación al asesor.");
+  await avisarAsesor(propuestaId, `El equipo de la propuesta #${d.plan.propuesta.numero} entregó la versión final del ${d.etapa.nombre.toLowerCase()}.`);
+  await notificarEquipo(propuestaId, "informe_final", `Se entregó la versión final del ${d.etapa.nombre.toLowerCase()} al asesor.`);
   refrescar(propuestaId);
   return { success: true };
 }
@@ -535,7 +535,7 @@ export async function revisarInformeFinal(propuestaId: number, decision: "aproba
   if (texto.length < 20) return { success: false, error: "Escribe tu dictamen del informe final (al menos 20 caracteres)." };
   if (decision === "aprobar") {
     await db.update(informesFinalesFicha).set({ estado: "aprobado", aprobadoEn: new Date(), comentarioFinal: texto, revisadoPor: ctx.plan.miId, actualizadoEn: new Date() }).where(eq(informesFinalesFicha.propuestaId, propuestaId));
-    await notificarEquipo(propuestaId, "informe_final", `El asesor aprobó el informe final de investigación: ${texto}`);
+    await notificarEquipo(propuestaId, "informe_final", `El asesor aprobó el ${ctx.etapa.nombre.toLowerCase()}: ${texto}`);
   } else {
     for (const e of ctx.etapa.espacios) if (ctx.estados[e.id]) ctx.estados[e.id] = { ...ctx.estados[e.id], estado: "observado", comentario: texto };
     await guardarEstados(propuestaId, ctx.estados, { estado: "redactando", huellaFinal: null, entregadoEn: null, comentarioFinal: texto, revisadoPor: ctx.plan.miId });
@@ -605,7 +605,7 @@ export async function getDocumentoInformeFinal(propuestaId: number): Promise<Res
     integrantes: ctx.plan.equipo.map((i) => ({ nombre: i.nombre, carnet: i.carnet })),
     asesor: asesor?.nombre ?? null,
     fecha: (ctx.fila.entregadoEn ?? new Date()).toISOString(),
-  });
+  }, ctx.etapa.nombre.toUpperCase());
   // Resultados por objetivo: el capítulo que genera el sistema y los anexos de productos y evidencias, en el orden del
   // plan (objetivo → productos → actividades). Sin ese capítulo en la ficha, los anexos salen en el mismo orden.
   const datosRes = await datosResultados(propuestaId, ctx, true);
@@ -623,6 +623,6 @@ export async function getDocumentoInformeFinal(propuestaId: number): Promise<Res
 
   return {
     success: true,
-    documento: { portada, autoridades: AUTORIDADES_ACADEMICAS, lugarFecha, apartados, anexos, huella: ctx.fila.huellaFinal, estado: ctx.fila.estado },
+    documento: { nombre: ctx.etapa.nombre, portada, autoridades: AUTORIDADES_ACADEMICAS, lugarFecha, apartados, anexos, huella: ctx.fila.huellaFinal, estado: ctx.fila.estado },
   };
 }
