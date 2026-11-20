@@ -4,11 +4,14 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { updateUsuario } from "@/app/actions/usuarios";
 import Link from "next/link";
+import { seOfreceEn } from "@/lib/carrerasSedes";
 
 interface Carrera {
   id: number;
   nombre: string;
   facultadId?: number;
+  /** Otras facultades o sedes donde también se ofrece (Ilobasco). */
+  sedes?: number[];
 }
 
 interface Facultad {
@@ -61,7 +64,7 @@ export default function EditUserForm({
   const [newCohorte, setNewCohorte] = useState("");
 
   const filteredCarreras = facultadId
-    ? carreras.filter((c) => String(c.facultadId) === facultadId)
+    ? carreras.filter((c) => seOfreceEn(c, facultadId))
     : carreras;
 
   const handleSelectAllFacultyCarreras = () => {
@@ -179,10 +182,10 @@ export default function EditUserForm({
           </div>
 
           {/* Facultad selector para coordinadores, decanato o asesores */}
-          {(rol === "coordinador" || rol === "decanato" || rol === "asesor") && (
+          {(rol === "coordinador" || rol === "decanato" || rol === "asesor" || rol === "egresado") && (
             <div>
               <label className="block text-sm font-bold text-foreground mb-1.5">
-                Facultad Asignada
+                {rol === "egresado" ? "Facultad o sede donde estudia" : "Facultad Asignada"}
               </label>
               <select
                 name="facultadId"
@@ -204,7 +207,8 @@ export default function EditUserForm({
               <label className="block text-sm font-bold text-foreground mb-1.5">Carrera Principal</label>
               <select name="carreraId" defaultValue={user.carreraId || ""} className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all">
                 <option value="">Ninguna / No Aplica</option>
-                {carreras.map(c => (
+                {/* El egresado ve las carreras de su facultad o sede, y siempre la que ya tiene. */}
+                {(rol === "egresado" ? carreras.filter((c) => seOfreceEn(c, facultadId) || c.id === user.carreraId) : carreras).map(c => (
                   <option key={c.id} value={c.id}>{c.nombre}</option>
                 ))}
               </select>

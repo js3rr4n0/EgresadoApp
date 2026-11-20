@@ -18,7 +18,7 @@ import {
   organigramasEmpresa,
 } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { eq, and, asc, desc, inArray, lte } from "drizzle-orm";
+import { eq, and, asc, desc, inArray, lte, sql } from "drizzle-orm";
 import { codigoActividad, ESTADOS_REGISTRADOS, getPeriodosPropuesta } from "@/lib/habilitacionActividades";
 import { rangoSemanaISO, esInformeFinal, hoyISOElSalvador } from "@/lib/periodosPasantia";
 import { datosPortada } from "@/lib/portadaInforme";
@@ -63,11 +63,13 @@ export async function getInformeCompilado(informeId: number) {
         nombreCompleto: usuarios.nombreCompleto,
         carnet: usuarios.carnet,
         carrera: carreras.nombre,
+        tituloCarrera: carreras.titulo,
         facultad: facultades.nombre,
       })
       .from(usuarios)
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
-      .leftJoin(facultades, eq(carreras.facultadId, facultades.id))
+      // La facultad del egresado (su sede, p. ej. Ilobasco) o, si no la tiene, la de su carrera.
+      .leftJoin(facultades, eq(facultades.id, sql`coalesce(${usuarios.facultadId}, ${carreras.facultadId})`))
       .where(eq(usuarios.id, prop.egresadoId))
       .limit(1);
 
@@ -197,6 +199,7 @@ export async function getInformeCompilado(informeId: number) {
       numeroInforme: informe.numero,
       facultad: egresadoRow?.facultad,
       carrera: egresadoRow?.carrera,
+      tituloCarrera: egresadoRow?.tituloCarrera,
       empresa: empresa?.nombre,
       estudiante: egresadoRow?.nombreCompleto,
       carnet: egresadoRow?.carnet,

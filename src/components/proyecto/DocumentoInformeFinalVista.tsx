@@ -2,7 +2,7 @@
 // misma estructura que el Word (lib/fichas/documentoInformeFinal.ts) y el formato del documento final: carta, Times New
 // Roman 12, interlineado 1.5, portada y autoridades sin número, apartados en hoja nueva y en mayúsculas.
 import Link from "next/link";
-import type { DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
+import { figurasDe, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
 import BotonImprimir from "./BotonImprimir";
 
 const hoja = "break-before-page";
@@ -60,6 +60,14 @@ export default function DocumentoInformeFinalVista({ doc, volver, word, volverTe
           </ol>
         </section>
 
+        {/* Índice de figuras (entrega F2) */}
+        {figurasDe(doc.apartados).length > 0 && (
+          <section className={`${hoja} pt-10 print:pt-0`}>
+            <h2 className="text-center font-bold mb-4">ÍNDICE DE FIGURAS</h2>
+            <ol className="space-y-1">{figurasDe(doc.apartados).map((f) => <li key={f.numero}>Figura {f.numero}. {f.leyenda}</li>)}</ol>
+          </section>
+        )}
+
         {doc.apartados.map((a) => (
           <section key={a.titulo} className={`${hoja} pt-10 print:pt-0`}>
             <h2 className="text-center font-bold mb-4">{a.numero ? `${a.numero}. ` : ""}{a.titulo.toUpperCase()}</h2>
@@ -73,11 +81,25 @@ export default function DocumentoInformeFinalVista({ doc, volver, word, volverTe
                   : <ul key={i} className="list-disc pl-8 my-3">{b.items.map((t, k) => <li key={k}>{t}</li>)}</ul>;
               }
               if (b.tipo === "enlaces") return <ul key={i} className="list-disc pl-8 my-3">{b.items.map((x, k) => <li key={k}>{x.descripcion}: {x.url}</li>)}</ul>;
+              if (b.tipo === "figura") {
+                return (
+                  <figure key={i} className="my-6" style={{ breakInside: "avoid" }}>
+                    <p className="font-bold">Figura {b.numero}</p>
+                    <p className="italic mb-2">{b.leyenda}</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {b.url ? <img src={b.url} alt={b.leyenda} className="max-h-96 mx-auto border border-gray-300" /> : <p className="italic text-gray-500">(imagen no disponible)</p>}
+                    {b.fuente && <figcaption className="text-[10pt] mt-1">Nota. {b.fuente}</figcaption>}
+                  </figure>
+                );
+              }
               return (
-                <table key={i} className="w-full border border-black text-[11pt] my-4 border-collapse">
+                <div key={i} className="my-4">
+                {b.titulo && <p className="font-bold mb-1">{b.titulo}</p>}
+                <table className="w-full border border-black text-[11pt] border-collapse">
                   <thead><tr>{b.columnas.map((c) => <th key={c} className="border border-black px-2 py-1 bg-gray-200 text-left">{c}</th>)}</tr></thead>
                   <tbody>{b.filas.map((f, k) => <tr key={k}>{b.columnas.map((c, j) => <td key={c} className="border border-black px-2 py-1 align-top">{f[j]}</td>)}</tr>)}</tbody>
                 </table>
+                </div>
               );
             })}
           </section>

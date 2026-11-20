@@ -16,8 +16,24 @@ import { CIERRE_POR_DEFECTO, COMPONENTES_INVESTIGACION, PRECARGA_CONCLUSIONES_OB
 export function plantillaRecomendada(modalidad: Modalidad): DefinicionFicha {
   const base = definicionBase(modalidad);
   if (modalidad === "pasantia") return base;
-  const propuesta = base.etapas.filter((e) => e.tipo === "propuesta");
   const investigacion = modalidad === "investigacion";
+  // Notas del 20-nov-2026 (Q4): la propuesta de investigación tiene la sección "Involucrados": quién solicita o
+  // patrocina (los actores de siempre, que usan la hoja de inscripción y los informes) y las demás personas o entidades.
+  const propuesta = base.etapas.filter((e) => e.tipo === "propuesta").map((e) =>
+    !investigacion || e.tipo !== "propuesta" ? e : {
+      ...e,
+      espacios: e.espacios.map((s) => (s.elemento !== "actores" ? s : {
+        ...s,
+        titulo: "Involucrados",
+        descripcion: "Personas o entidades involucradas en la investigación, empezando por quién la solicita o patrocina.",
+        camposExtra: [{
+          id: "otros_involucrados", etiqueta: "Otras personas o entidades involucradas", tipo: "lista" as const, obligatorio: false,
+          ayuda: "Una por línea: el nombre y cómo participa (por ejemplo, «Laboratorio de Química: presta los equipos»).",
+          minimo: 0, maximo: 15, maxPalabras: 30,
+        }],
+      })),
+    }
+  );
   return {
     ...base,
     etapas: [
@@ -167,6 +183,10 @@ export function protocoloNuevo(id: string): EtapaProtocolo {
  * Informe final por capítulos de proyecto (H7, reunión del 20-nov-2026): el mismo módulo que investigación (versiones,
  * revisión por capítulo, ratificación, PDF y Word). Sin protocolo, los capítulos parten de la propuesta; el desarrollo
  * por objetivo con sus productos y la bitácora los genera el sistema; las conclusiones parten de las de cada objetivo.
+ * Orden de los elementos del informe final de proyecto (notas del 20-nov-2026): portada, autoridades e índices los
+ * genera el sistema; luego agradecimientos (una página por integrante), introducción, justificación, alcance,
+ * objetivos, desarrollo y ejecución, cronograma original y ejecutado, involucrados, conclusiones, bibliografía, reporte
+ * de cambios, carta de finalización y anexos.
  */
 export function informeFinalProyectoNuevo(id: string): EtapaInformeFinal {
   const apartado = (i: string, tipo: string, t: string, d: string, extra: Partial<Espacio> = {}) =>
@@ -179,16 +199,24 @@ export function informeFinalProyectoNuevo(id: string): EtapaInformeFinal {
     nombre: "Informe final del proyecto",
     revision: { porCapitulo: true, ratificacion: true, diasRevision: 5, diasHabiles: true },
     espacios: [
-      apartado("if_introduccion", "introduccion", "Introducción", "Presentación del proyecto y de la estructura del informe"),
-      texto("if_problema", "Descripción del problema", "Parte de la descripción del problema de la propuesta", { precargarDe: "problema" }),
+      apartado("if_agradecimientos", "agradecimientos_equipo", "Agradecimientos", "Opcional: una página por integrante", { obligatorio: false }),
+      apartado("if_introduccion", "introduccion_proyecto", "Introducción", "Cuatro párrafos, como en pasantía e investigación"),
       texto("if_justificacion", "Justificación del proyecto", "Parte de la justificación de la propuesta", { precargarDe: "justificacion" }),
       texto("if_alcance", "Alcance del proyecto", "Límites y entregables, a partir de la propuesta", { precargarDe: "alcance" }),
       apartado("if_objetivos", "objetivos", "Objetivos", "Parte de los objetivos de la propuesta", { precargarDe: "objetivos" }),
       // El desarrollo por objetivo, con sus productos y evidencias, lo genera el sistema con la ejecución.
-      espacioProtocolo("if_resultados", "resultados_objetivos", "Desarrollo del proyecto por objetivo", "Se genera por objetivo con sus actividades, sus productos aprobados y las evidencias de la ejecución"),
+      espacioProtocolo("if_resultados", "resultados_objetivos", "Desarrollo y ejecución del proyecto", "Se genera por objetivo con lo realizado en los cinco meses: sus actividades, sus productos aprobados y las evidencias de la ejecución"),
+      espacioProtocolo("if_cronograma", "cronograma_comparado", "Cronograma original y ejecutado", "Se genera con el cronograma del plan y lo ejecutado en cada período"),
+      espacioProtocolo("if_involucrados", "anexo_involucrados", "Involucrados", "Se genera con los involucrados de la propuesta, el equipo y el asesor"),
       apartado("if_conclusiones", "conclusiones", "Conclusiones y recomendaciones", "Parte de las conclusiones aprobadas de cada objetivo", { precargarDe: PRECARGA_CONCLUSIONES_OBJETIVOS }),
       apartado("if_bibliografia", "referencias", "Bibliografía", "Referencias en APA 7 y en orden alfabético, si se usaron", { obligatorio: false }),
-      espacioProtocolo("if_modificaciones", "reporte_modificaciones", "Reporte de modificaciones", "Se genera con los cambios reportados en las actividades y los objetivos"),
+      espacioProtocolo("if_modificaciones", "reporte_modificaciones", "Reporte de cambios, inconvenientes y modificaciones", "Se genera con los cambios, inconvenientes y modificaciones reportados en la bitácora"),
+      // Q7 (20-nov-2026): proyecto también lleva la presentación pública y la carta de finalización.
+      apartado("if_presentacion", "presentacion_publica", "Evidencia de presentación pública", "Fecha, lugar, público y fotografías de la presentación"),
+      espacioProtocolo("if_carta", "archivo", "Carta de finalización satisfactoria", "PDF de la carta; la revisa el asesor", {
+        ayuda: "Suba la carta de finalización satisfactoria en PDF. El sistema no la verifica: la revisa el asesor.",
+        parametros: parametrosPorDefecto("archivo", { tipos: ["pdf"], minimo: 1, maximo: 1 }),
+      }),
       espacioProtocolo("if_anexos", "archivo", "Anexos", "Manuales, planos u otros documentos del proyecto (las evidencias y los productos se agregan solos)", {
         obligatorio: false,
         parametros: parametrosPorDefecto("archivo", { tipos: ["pdf", "word", "excel"], minimo: 0, maximo: 10 }),
@@ -206,26 +234,41 @@ export function informeFinalNuevo(id: string): EtapaInformeFinal {
     id,
     nombre: "Informe final de investigación",
     revision: { porCapitulo: true, ratificacion: true, diasRevision: 5, diasHabiles: true },
+    // Orden de las notas del 20-nov-2026 (INFORME_FINAL_INVESTIGACION.md). Portada, autoridades e índices los genera
+    // el sistema. Todo se precarga y se puede modificar, salvo «Desarrollo o ejecución de la investigación».
     espacios: [
-      apartado("if_introduccion", "introduccion", "Introducción", "Presentación del estudio y de la estructura del informe", { precargarDe: "introduccion" }),
+      apartado("if_agradecimientos", "agradecimientos", "Agradecimientos", "A mentores, personas y entidades que apoyaron la investigación", { obligatorio: false }),
+      apartado("if_introduccion", "introduccion_informe", "Introducción", "Cuatro párrafos, como en el informe final de pasantía"),
       apartado("if_generalidades", "generalidades", "Generalidades del estudio", "Línea de investigación, contexto y delimitación", { precargarDe: "generalidades" }),
       apartado("if_problematica", "problematica", "Problemática o temática investigada", "Parte de la problemática del protocolo", { precargarDe: "problematica" }),
       apartado("if_justificacion", "justificacion", "Justificación de la investigación", "Parte de la justificación del protocolo", { precargarDe: "justificacion_protocolo" }),
-      apartado("if_objetivos", "objetivos", "Objetivos", "Parte de los objetivos del protocolo", { precargarDe: "objetivos_protocolo" }),
+      apartado("if_objetivos", "objetivos_informe", "Objetivos", "Los originales del protocolo y, si cambiaron, los finales y por qué", { precargarDe: "objetivos_protocolo" }),
       apartado("if_marco", "marco_teorico", "Marco teórico o referencial", "Parte de la fundamentación teórica del protocolo", { precargarDe: "fundamentacion" }),
-      // Los cinco subapartados de la metodología del protocolo, ahora en pasado (con los cambios respecto de lo planificado).
-      apartado("if_metodologia", "metodologia_realizada", "Metodología de la investigación", "Parte de la metodología del protocolo: lo que se realizó", { precargarDe: "metodologia" }),
-      // Notas del 13-nov-2026: los resultados se generan solos, por objetivo, con sus productos y evidencias.
-      // Cronograma de investigación (19-nov-2026, E4): el capítulo va por objetivo y por los elementos de su proceso.
-      espacioProtocolo("if_resultados", "resultados_objetivos", "Desarrollo de la investigación por objetivo", "Se genera por objetivo con la metodología, el desarrollo, los resultados, las conclusiones preliminares y la discusión registrados en la ejecución"),
-      apartado("if_hipotesis", "comprobacion_hipotesis", "Comprobación de hipótesis", "Si procede según el tipo de investigación", { obligatorio: false }),
+      apartado("if_metodologia", "metodologia_informe", "Metodología de la investigación", "Metodología general, tipo de investigación, población y muestra, técnicas e instrumentos", { precargarDe: "metodologia" }),
+      // El cuerpo de la investigación: lo que se hizo, se redactó y se aprobó durante la ejecución (no se modifica).
+      espacioProtocolo("if_resultados", "resultados_objetivos", "Desarrollo o ejecución de la investigación", "Se genera por objetivo con la metodología, el desarrollo, los resultados, las conclusiones preliminares y la discusión de la ejecución, y con el cronograma original y el ejecutado"),
+      apartado("if_analisis", "analisis_informe", "Análisis estadístico o de información realizado", "Notas de los elementos estadísticos, fórmulas, tablas y resultados de su aplicación"),
+      apartado("if_resultados_obtenidos", "resultados", "Resultados obtenidos", "Párrafos y datos (tablas, gráficos o fotografías)"),
+      // Entrega F2: la tabla de cumplimiento parte de los indicadores del cuadro de variables del protocolo.
+      apartado("if_hipotesis", "comprobacion_hipotesis", "Comprobación de hipótesis", "Si procede: fórmulas y cumplimiento de los indicadores del protocolo", { obligatorio: false, precargarDe: "variables" }),
       apartado("if_hallazgos", "discusion", "Presentación de los hallazgos principales", "Hallazgos más relevantes y su interpretación"),
       // Cronograma de investigación (notas del 19-nov-2026): las conclusiones finales se redactan aparte; las de cada
       // objetivo son conclusiones preliminares y ya no se precargan aquí.
       apartado("if_conclusiones", "conclusiones", "Conclusiones y recomendaciones", "Conclusiones finales de la investigación, distintas de las conclusiones preliminares de cada objetivo"),
-      apartado("if_bibliografia", "referencias", "Bibliografía", "Referencias en APA 7 y en orden alfabético", { precargarDe: "bibliografia" }),
+      // Entrega F3: las fuentes citadas se separan solas de la bibliografía (las consultadas que no se citaron).
+      espacioProtocolo("if_referencias", "referencias_citadas", "Citas y referencias", "Se genera con las fuentes citadas dentro del informe"),
+      apartado("if_bibliografia", "referencias", "Bibliografía", "Fuentes consultadas o analizadas que no se citaron (las citadas pasan a «Citas y referencias»)", { precargarDe: "bibliografia", obligatorio: false }),
+      // Entrega F4: presentación pública, derechos de autoría y anexos obligatorios.
+      apartado("if_presentacion", "presentacion_publica", "Evidencia de presentación pública", "Fecha, lugar, público y fotografías de la presentación"),
+      espacioProtocolo("if_derechos", "derechos_autoria", "Derechos de autoría de la investigación", "Hoja fija; se edita en la ficha"),
+      espacioProtocolo("if_carta", "archivo", "Carta de finalización satisfactoria", "PDF de la carta; la revisa el asesor", {
+        ayuda: "Suba la carta de finalización satisfactoria en PDF. El sistema no la verifica: la revisa el asesor.",
+        parametros: parametrosPorDefecto("archivo", { tipos: ["pdf"], minimo: 1, maximo: 1 }),
+      }),
       // Notas del 13-nov-2026: la bitácora de la ejecución, como anexo que genera el sistema.
       espacioProtocolo("if_modificaciones", "reporte_modificaciones", "Reporte de modificaciones", "Se genera con los cambios reportados en las actividades y los objetivos"),
+      espacioProtocolo("if_involucrados", "anexo_involucrados", "Involucrados", "Se genera con los involucrados de la propuesta, el equipo y el asesor"),
+      espacioProtocolo("if_recursos", "anexo_recursos", "Recursos", "Se genera con los recursos del protocolo y los cambios de la bitácora"),
       espacioProtocolo("if_anexos", "archivo", "Anexos", "Instrumentos y documentos complementarios (las evidencias de las actividades se agregan solas)", {
         obligatorio: false,
         parametros: parametrosPorDefecto("archivo", { tipos: ["pdf", "word", "excel"], minimo: 0, maximo: 10 }),

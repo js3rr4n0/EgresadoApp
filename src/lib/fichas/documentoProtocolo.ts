@@ -33,6 +33,44 @@ export function bloquesCronograma(arbol: NodoPlan, columnas: { periodo: number }
   ];
 }
 
+/**
+ * Cronograma original y ejecutado (notas del 20-nov-2026): por cada objetivo, elemento o actividad del plan y cada
+ * período, ■ si estaba planificado, ● si se ejecutó (tiene registros enviados o aprobados en ese período, propios o de
+ * sus actividades) y ■● si ambas. Va al final del capítulo de desarrollo del informe final.
+ */
+export function bloquesCronogramaComparado(
+  arbol: NodoPlan,
+  columnas: { periodo: number }[],
+  registros: { nodoId: string; periodo: number; estado: string }[]
+): BloqueDocumento[] {
+  const periodos = [...new Set(columnas.map((c) => c.periodo))].sort((a, b) => a - b);
+  const nodos = aplanar(arbol).filter((n) => n.nivel >= 2 && n.nivel <= 4);
+  if (nodos.length === 0 || periodos.length === 0) return [];
+  const validos = registros.filter((r) => r.estado === "enviado" || r.estado === "aprobado");
+  const descendientes = (n: NodoPlan): string[] => [n.id, ...n.hijos.flatMap(descendientes)];
+  const filas = nodos.map((n) => {
+    const totales = totalesNodo(n, columnas.length);
+    const ids = new Set(descendientes(n));
+    return [
+      n.codigo,
+      `${n.nivel === 3 ? "  " : n.nivel === 4 ? "    " : ""}${n.titulo || "Sin título"}`,
+      ...periodos.map((p) => {
+        const plan = columnas.some((c, i) => c.periodo === p && (totales[i] ?? 0) > 0);
+        const hecho = validos.some((r) => r.periodo === p && ids.has(r.nodoId));
+        return `${plan ? "■" : ""}${hecho ? "●" : ""}`;
+      }),
+    ];
+  });
+  return [
+    { tipo: "parrafos", parrafos: ["Cronograma original (■: período planificado) y ejecutado (●: período con actividades registradas). ■● indica que se ejecutó en el período planificado."] },
+    {
+      tipo: "tabla",
+      columnas: ["Código", nodos.some((n) => n.componente) ? "Objetivo, elemento del proceso o subactividad" : "Objetivo, macroactividad o actividad", ...periodos.map((p) => `P${p}`)],
+      filas,
+    },
+  ];
+}
+
 /** Recursos por categoría y presupuesto (total por categoría y total general), como tablas. */
 export function bloquesRecursos(e: Pick<Espacio, "parametros">, valor: string | null | undefined, numero: number | null = null): BloqueDocumento[] {
   const sub = (k: number, t: string) => `${numero ? `${numero}.${k} ` : ""}${t}`;

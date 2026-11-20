@@ -52,6 +52,12 @@ export interface ElementoCatalogo {
   parametros: DefinicionParametro[];
 }
 
+/** Texto provisional de la hoja de derechos de autoría (Q8): se reemplaza por el oficial cuando la universidad lo dé. */
+export const DERECHOS_PROVISIONALES = [
+  "Texto provisional: la Universidad Católica de El Salvador proporcionará el texto oficial de los derechos de autoría de los trabajos de graduación.",
+  "Los autores declaran que el contenido de esta investigación es original y que las fuentes consultadas se citan y se referencian conforme a las normas APA 7.",
+];
+
 export const DOCUMENTOS_ESTUDIANTE = [
   { valor: "pago_tg", etiqueta: "Hoja de inscripción del trabajo de graduación" },
   { valor: "servicio_social", etiqueta: "Constancia de servicio social" },
@@ -345,6 +351,71 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     requiere: [],
     etapas: ["informe_final"],
     parametros: [],
+  },
+  // Informe final de investigación (notas del 20-nov-2026, entrega F3): citas y referencias separadas de la bibliografía.
+  referencias_citadas: {
+    clave: "referencias_citadas",
+    nombre: "Citas y referencias",
+    grupo: "Apartados académicos",
+    descripcion: "Capítulo que genera el sistema con las fuentes citadas dentro del informe (del registro de fuentes y de la bibliografía escrita a mano), en APA 7 y en orden alfabético. Las fuentes que no se citaron quedan en la bibliografía.",
+    formularioEn: ["proyecto", "investigacion"],
+    repetible: false,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["informe_final"],
+    parametros: [],
+  },
+  // Informe final (notas del 20-nov-2026, entrega F4): anexos obligatorios y la hoja de derechos de autoría.
+  anexo_involucrados: {
+    clave: "anexo_involucrados",
+    nombre: "Anexo de involucrados",
+    grupo: "Apartados académicos",
+    descripcion: "Anexo que genera el sistema con las personas y entidades involucradas: las de la sección «Involucrados» de la propuesta (quién solicita o patrocina y las demás), el equipo y el asesor.",
+    formularioEn: ["proyecto", "investigacion"],
+    repetible: false,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["informe_final"],
+    parametros: [],
+  },
+  anexo_recursos: {
+    clave: "anexo_recursos",
+    nombre: "Anexo de recursos",
+    grupo: "Apartados académicos",
+    descripcion: "Anexo que genera el sistema con los recursos y el presupuesto del protocolo y los cambios de recursos y costos reportados en la bitácora. Necesita los recursos en el protocolo.",
+    formularioEn: ["investigacion"],
+    repetible: false,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["informe_final"],
+    parametros: [],
+  },
+  // Informe final de proyecto (notas del 20-nov-2026): el cronograma como capítulo propio, después del desarrollo.
+  cronograma_comparado: {
+    clave: "cronograma_comparado",
+    nombre: "Cronograma original y ejecutado",
+    grupo: "Apartados académicos",
+    descripcion: "Capítulo que genera el sistema con el cronograma del plan de trabajo (lo planificado) y lo que se ejecutó en cada período. Si está en el informe, el desarrollo por objetivo ya no lo incluye al final.",
+    formularioEn: ["proyecto", "investigacion"],
+    repetible: false,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["informe_final"],
+    parametros: [],
+  },
+  derechos_autoria: {
+    clave: "derechos_autoria",
+    nombre: "Derechos de autoría",
+    grupo: "Apartados académicos",
+    descripcion: "Hoja fija del documento final. Mientras la universidad da el texto oficial, lleva uno provisional que se edita aquí.",
+    formularioEn: ["proyecto", "investigacion"],
+    repetible: false,
+    alcance: "equipo",
+    requiere: [],
+    etapas: ["informe_final"],
+    parametros: [
+      { clave: "parrafos", etiqueta: "Texto de la hoja (un párrafo por línea)", tipo: "textos", porDefecto: DERECHOS_PROVISIONALES, minimo: 1, maximo: 10, ayuda: "Reemplácelo por el texto oficial cuando la universidad lo dé." },
+    ],
   },
   // Catálogo editable (C2): los elementos propios que crea el administrador. No se agrega desde esta lista: cada espacio
   // guarda la copia de un elemento propio publicado (elementosPropios.ts), con sus campos, etapas y si se repite.

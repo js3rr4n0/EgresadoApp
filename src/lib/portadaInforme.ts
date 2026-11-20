@@ -37,6 +37,8 @@ export interface EntradaPortada {
   numeroInforme: number;
   facultad: string | null | undefined;
   carrera: string | null | undefined;
+  /** Título que otorga la carrera (carreras.titulo); si falta, se deduce del nombre. */
+  tituloCarrera?: string | null;
   empresa: string | null | undefined;
   estudiante: string | null | undefined;
   carnet: string | null | undefined;
@@ -57,8 +59,7 @@ export function datosPortada(e: EntradaPortada): DatosPortada {
       ["REALIZADA EN:", mayus(e.empresa) || "—"],
       ["PERÍODO DE REALIZACIÓN:", e.desde && e.hasta ? `DEL ${fechaPortada(e.desde)} AL ${fechaPortada(e.hasta)}` : "—"],
       ["PRESENTADO POR:", mayus(e.estudiante) || "—", ...(e.carnet ? [e.carnet.toUpperCase()] : [])],
-      // El título académico que otorga cada carrera aún no está registrado en el sistema; mientras tanto se muestra la carrera.
-      ["PARA OPTAR AL TÍTULO DE:", mayus(tituloDeCarrera(e.carrera)) || "—"],
+      ["PARA OPTAR AL TÍTULO DE:", mayus(tituloDeCarrera(e.carrera, e.tituloCarrera)) || "—"],
       [`${CIUDAD}, ${MESES[mes - 1]} ${anio}`],
     ],
   };

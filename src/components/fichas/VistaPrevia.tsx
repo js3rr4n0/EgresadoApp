@@ -73,6 +73,16 @@ function reglas(e: Espacio, equipo: boolean): string[] {
         r.minimo ? `Al menos ${r.minimo} recurso(s).` : "Sin mínimo de recursos.",
       ];
     }
+    case "anexo_involucrados":
+      return ["Anexo que genera el sistema con los involucrados de la propuesta, el equipo y el asesor."];
+    case "cronograma_comparado":
+      return ["Capítulo que genera el sistema con el cronograma original del plan y lo ejecutado en cada período."];
+    case "anexo_recursos":
+      return ["Anexo que genera el sistema con los recursos del protocolo y los cambios de recursos y costos de la bitácora."];
+    case "derechos_autoria":
+      return ["Hoja fija con el texto de los derechos de autoría; no la redacta el equipo."];
+    case "referencias_citadas":
+      return ["Lo genera el sistema con las fuentes citadas en el informe, en APA 7 y en orden alfabético; va sin número. Las no citadas quedan en la bibliografía."];
     case "reporte_modificaciones":
       return ["Lo genera el sistema con la bitácora de la ejecución: va sin número, como anexo, y no se revisa aparte."];
     case "propio":

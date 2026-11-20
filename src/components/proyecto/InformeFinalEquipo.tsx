@@ -132,7 +132,7 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
 
         <div className="min-w-0 space-y-3">
           {capituloGenerado(cap.espacio) ? (
-            <CapituloGenerado titulo={cap.espacio.titulo} descripcion={cap.espacio.descripcion} bloques={datos.generados[cap.espacio.id] ?? []} bitacora={cap.espacio.elemento === "reporte_modificaciones"}
+            <CapituloGenerado titulo={cap.espacio.titulo} descripcion={cap.espacio.descripcion} bloques={datos.generados[cap.espacio.id] ?? []} bitacora={cap.espacio.elemento === "reporte_modificaciones"} referencias={cap.espacio.elemento === "referencias_citadas"} elemento={cap.espacio.elemento}
               siguiente={actual < datos.capitulos.length ? `${base}&cap=${actual + 1}` : null} />
           ) : <>
             {(datos.consulta[cap.espacio.id] ?? []).length > 0 && (
@@ -232,7 +232,15 @@ export default function InformeFinalEquipo({ datos, capitulo, base, exportar }: 
  * Capítulo que genera el sistema (resultados por objetivo, notas del 13-nov-2026): se muestra tal como saldrá en el
  * documento, sin editor ni revisión aparte. Se actualiza solo con los registros y los productos de la ejecución.
  */
-function CapituloGenerado({ titulo, descripcion, bloques, siguiente, bitacora }: { titulo: string; descripcion: string; bloques: BloqueDocumento[]; siguiente: string | null; bitacora?: boolean }) {
+/** Explicación de los anexos y páginas que genera el sistema (entrega F4). */
+const AVISO_GENERADO: Record<string, string> = {
+  anexo_involucrados: "Esta sección la arma el sistema con la sección «Involucrados» de la propuesta (quién solicita o patrocina y las demás personas o entidades), el equipo y el asesor. Para cambiarlo, se corrige la propuesta.",
+  cronograma_comparado: "Este capítulo lo arma el sistema con el cronograma del plan de trabajo (lo planificado) y con lo que se registró como ejecutado en cada período.",
+  anexo_recursos: "Este anexo lo arma el sistema con los recursos y el presupuesto del protocolo y con los cambios de recursos y costos que se reportaron en la bitácora de la ejecución.",
+  derechos_autoria: "Esta hoja es fija: su texto lo define la universidad en la ficha. No la redacta el equipo.",
+};
+
+function CapituloGenerado({ titulo, descripcion, bloques, siguiente, bitacora, referencias, elemento }: { titulo: string; descripcion: string; bloques: BloqueDocumento[]; siguiente: string | null; bitacora?: boolean; referencias?: boolean; elemento?: string }) {
   return (
     <section className="bg-white border border-border rounded-xl p-5 shadow-xs space-y-3">
       <div>
@@ -240,9 +248,13 @@ function CapituloGenerado({ titulo, descripcion, bloques, siguiente, bitacora }:
         {descripcion && <p className="text-xs text-muted">{descripcion}</p>}
       </div>
       <p className="text-xs text-sky-900 bg-sky-50 border border-sky-200 rounded-lg px-3 py-2">
-        {bitacora
+        {elemento && AVISO_GENERADO[elemento]
+          ? AVISO_GENERADO[elemento]
+          : referencias
+          ? "Esta lista la arma el sistema con las fuentes que se citaron dentro del informe: las del registro de fuentes (párrafos citados y metodología del plan) y las de la bibliografía cuyo autor y año aparecen como cita. Las que no se citaron quedan en «Bibliografía». Va sin número y se actualiza sola."
+          : bitacora
           ? "Este anexo lo arma el sistema con la bitácora de la ejecución: los cambios y acontecimientos que se reportaron al enviar las actividades y los objetivos. No se redacta ni se envía aparte; va sin número, al final del documento."
-          : "Este capítulo lo arma el sistema con lo registrado en la ejecución: los productos de cada objetivo y, por macroactividad, las fechas, el resultado y las evidencias de cada actividad. No se redacta ni se envía aparte: el asesor ya revisó cada actividad y cada objetivo. En el documento, los productos y las evidencias van como anexos numerados."}
+          : "Este capítulo lo arma el sistema con lo que se registró y aprobó en la ejecución, objetivo por objetivo, y termina con el cronograma original y el ejecutado. Es el único que no se modifica: ya se redactó y el asesor lo revisó durante la ejecución. En el documento, los productos y las evidencias van como anexos numerados."}
       </p>
       <div className="text-sm text-gray-800 space-y-2 border border-gray-200 rounded-lg p-4 bg-gray-50/50">
         {bloques.length === 0 && <p className="text-muted">Todavía no hay registros enviados en la ejecución.</p>}
@@ -251,6 +263,15 @@ function CapituloGenerado({ titulo, descripcion, bloques, siguiente, bitacora }:
           : b.tipo === "parrafos" ? b.parrafos.map((p, k) => <p key={`${i}-${k}`}>{p}</p>)
           : b.tipo === "lista" ? <ul key={i} className="list-disc pl-6 space-y-1">{b.items.map((t, k) => <li key={k}>{t}</li>)}</ul>
           : b.tipo === "pendiente" ? <p key={i} className="text-amber-800 italic">{b.texto}</p>
+          : b.tipo === "tabla" ? (
+            // Por ejemplo, el cronograma original y el ejecutado (notas del 20-nov-2026).
+            <div key={i} className="overflow-x-auto">
+              <table className="text-xs border-collapse min-w-full">
+                <thead><tr>{b.columnas.map((c, k) => <th key={k} className="border border-gray-300 bg-gray-100 px-2 py-1 text-left font-bold whitespace-nowrap">{c}</th>)}</tr></thead>
+                <tbody>{b.filas.map((f, k) => <tr key={k}>{f.map((x, j) => <td key={j} className={`border border-gray-200 px-2 py-1 ${j > 1 ? "text-center" : ""} whitespace-pre`}>{x}</td>)}</tr>)}</tbody>
+              </table>
+            </div>
+          )
           : null
         )}
       </div>
@@ -395,7 +416,7 @@ function EditorCapitulo({ propuestaId, cap, siguiente, porCapitulo, enEquipo, co
         </div>
       )}
 
-      {e.elemento === "apartado" && <CapituloApartado espacio={e} contenido={contenido} disabled={disabled} onChange={cambiar} contexto={contexto} />}
+      {e.elemento === "apartado" && <CapituloApartado espacio={e} contenido={contenido} disabled={disabled} onChange={cambiar} contexto={contexto} propuestaId={propuestaId} />}
       {e.elemento === "propio" && <CapituloPropio espacio={e} contenido={contenido} disabled={disabled} onChange={cambiar} miId={miId} integrantes={contexto.integrantes ?? []} />}
       {e.elemento === "texto" && (
         <div>

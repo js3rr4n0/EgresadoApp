@@ -8,6 +8,7 @@ import type { AnexoDocumento, BloqueDocumento } from "./documentoInformeFinal";
 import { avancesEnviados, hojasElemento, procesoPorObjetivo } from "./elementosEjecucion";
 import { leerMetodologia, textoMetodologia } from "./metodologiaPlan";
 import type { ClaveComponente } from "./tipos";
+import { bloquesCronogramaComparado } from "./documentoProtocolo";
 
 export interface RegistroResultado {
   nodoId: string;
@@ -66,9 +67,29 @@ export function resultadosPorObjetivo(args: {
   entregas: EntregaResultado[];
   productos: ProductoResultado[];
   numero: number | null;
+  /** Columnas del plan: si vienen, el capítulo termina con el cronograma original y el ejecutado (20-nov-2026). */
+  columnas?: { periodo: number }[];
 }): { bloques: BloqueDocumento[]; anexos: AnexoDocumento[] } {
   // Cronograma de investigación (E4): el capítulo va por objetivo y por elementos del proceso.
-  if (esPlanPorElementos(args.arbol)) return desarrolloPorObjetivo(args);
+  const r = esPlanPorElementos(args.arbol) ? desarrolloPorObjetivo(args) : resultadosPorActividad(args);
+  const cronograma = args.columnas?.length ? bloquesCronogramaComparado(args.arbol, args.columnas, args.registros) : [];
+  if (cronograma.length) {
+    // Siguiente número del capítulo (N.k): después de los subtítulos de primer nivel que ya tiene.
+    const primerNivel = args.numero !== null ? r.bloques.filter((b) => b.tipo === "subtitulo" && new RegExp(`^${args.numero}\\.\\d+ `).test(b.texto)).length : 0;
+    r.bloques.push({ tipo: "subtitulo", texto: `${args.numero !== null ? `${args.numero}.${primerNivel + 1} ` : ""}Cronograma original y ejecutado` }, ...cronograma);
+  }
+  return r;
+}
+
+/** Proyecto: el desarrollo por objetivo con sus productos y, por macroactividad, sus actividades. */
+function resultadosPorActividad(args: {
+  arbol: NodoPlan;
+  registros: RegistroResultado[];
+  evidencias: EvidenciaResultado[];
+  entregas: EntregaResultado[];
+  productos: ProductoResultado[];
+  numero: number | null;
+}): { bloques: BloqueDocumento[]; anexos: AnexoDocumento[] } {
   const { arbol, registros, evidencias, entregas, productos, numero } = args;
   const validos = registros.filter((r) => cuenta(r.estado));
   // Último registro enviado de cada actividad: su avance, su resultado y sus fechas.

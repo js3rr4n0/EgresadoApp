@@ -8,7 +8,7 @@ import { problemasRespuestaPropia } from "./respuestasPropias";
 import { claveCamposExtra, defCamposExtra } from "./elementosPropios";
 import type { Espacio, EtapaProtocolo } from "./tipos";
 import {
-  guardarComoTexto, leerApartado, lineas, parteVacia, opcionesDeEspacio, partePrecarga, revisarApartado, textoApartado, textoParte, tipoApartado,
+  guardarComoTexto, leerApartado, leerTabla, lineas, parteVacia, opcionesDeEspacio, partePrecarga, revisarApartado, textoApartado, textoParte, tipoApartado,
   type ContenidoApartado, type ContextoRevision, type TipoApartado,
 } from "./apartadosAcademicos";
 
@@ -111,6 +111,23 @@ export function textoPrecarga(origen: Espacio | undefined, datos: DatosPropuesta
   }
 }
 
+/**
+ * Filas de la tabla de cumplimiento de indicadores (entrega F2): cada indicador del cuadro de variables del protocolo
+ * ("Variable: indicador"), con el valor esperado, el obtenido y si se cumple por llenar. Los indicadores de una celda se
+ * separan por punto y coma o por línea.
+ */
+export function indicadoresDeVariables(origen: Espacio, contenido: string | null | undefined): string[][] {
+  const tipo = tipoApartado(origen);
+  const cuadro = tipo?.partes.find((p) => p.formato === "tabla" && p.columnas?.some((c) => /indicador/i.test(c)));
+  if (!tipo || !cuadro) return [];
+  const columnas = cuadro.columnas!;
+  const iInd = columnas.findIndex((c) => /indicador/i.test(c));
+  const c = leerApartado(tipo, contenido);
+  return leerTabla(c.partes[cuadro.id], columnas.length).flatMap((f) =>
+    f[iInd].split(/[;\n]/).map((x) => x.trim()).filter(Boolean).map((ind) => [f[0].trim() ? `${f[0].trim()}: ${ind}` : ind, "", "", ""])
+  );
+}
+
 /** Contenido inicial de un apartado académico: de los objetivos de la propuesta, de otro apartado o de un texto. */
 function precargaApartado(tipo: TipoApartado, origen: Espacio, datos: DatosPropuestaPrecarga, parte?: string): ContenidoApartado {
   const ids = new Set(tipo.partes.map((p) => p.id));
@@ -123,6 +140,11 @@ function precargaApartado(tipo: TipoApartado, origen: Espacio, datos: DatosPropu
       },
       autoevaluacion: [],
     };
+  }
+  // Entrega F2: la comprobación de hipótesis parte de los indicadores del cuadro de variables del protocolo, uno por fila.
+  if (origen.elemento === "apartado" && !parte && ids.has("indicadores")) {
+    const filas = indicadoresDeVariables(origen, datos.respuestas[origen.id]);
+    if (filas.length) return { partes: { indicadores: JSON.stringify(filas) }, autoevaluacion: [] };
   }
   if (origen.elemento === "apartado" && !parte) {
     // Mismos subapartados (por ejemplo, la metodología del protocolo en la metodología realizada del informe).

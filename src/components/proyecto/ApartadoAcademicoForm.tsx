@@ -8,11 +8,12 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { guardarRespuestaApartado } from "@/app/actions/respuestasEspacios";
 import {
-  avanceApartado, conRangoObjetivos, guardarComoTexto, leerApartado, leerTabla, lineas, opcionesDeEspacio, palabras, parteVacia, revisarApartado, tipoApartado,
+  avanceApartado, conIntegrantes, conRangoObjetivos, guardarComoTexto, leerApartado, leerTabla, lineas, opcionesDeEspacio, palabras, parteVacia, revisarApartado, tipoApartado,
   type ContenidoApartado, type ContextoRevision, type OpcionesRevision, type ParteApartado, type Revision, type TipoApartado,
 } from "@/lib/fichas/apartadosAcademicos";
 import type { Espacio } from "@/lib/fichas/tipos";
 import { ParrafosCitados, ReferenciasRegistro, useFuentes } from "./FuentesCitas";
+import { FigurasParte, PropuestaApartado, TablasParte } from "./FigurasTablasParte";
 
 interface Props {
   propuestaId: number;
@@ -112,7 +113,9 @@ export default function ApartadoAcademicoForm({
           <div role="status" className={`mb-5 p-3 rounded-lg text-sm font-medium border ${mensaje.tipo === "ok" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-600 border-red-200"}`}>{mensaje.texto}</div>
         )}
 
-        <PartesApartado tipo={tipo} contenido={contenido} revisiones={revisiones} disabled={disabled} onCambiar={cambiar} />
+        <PropuestaApartado.Provider value={propuestaId}>
+          <PartesApartado tipo={tipo} contenido={contenido} revisiones={revisiones} disabled={disabled} onCambiar={cambiar} />
+        </PropuestaApartado.Provider>
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border mt-8">
           {pasoAnterior !== null ? (
@@ -277,6 +280,8 @@ function Subapartado({ n, parte: p, valor, disabled, onChange, revisiones }: {
         </>
       )}
       {p.formato === "tabla" && <TablaParte parte={p} valor={valor} disabled={disabled} onChange={onChange} />}
+      {p.formato === "figuras" && <FigurasParte valor={valor} disabled={disabled} onChange={onChange} />}
+      {p.formato === "tablas" && <TablasParte valor={valor} disabled={disabled} onChange={onChange} />}
 
       {(p.formato === "texto" || p.formato === "pregunta") && (
         <div className={`flex justify-between text-xs mt-1 ${bajo ? "text-red-600 font-bold" : sobre ? "text-amber-700 font-bold" : "text-muted"}`}>
@@ -343,10 +348,12 @@ function TablaParte({ parte: p, valor, disabled, onChange }: { parte: ParteApart
  * Capítulo del informe final que es un apartado académico (redacción guiada, 13-nov-2026). El contenido es el JSON
  * guardado en la versión del capítulo; el guardado, las versiones y el envío los maneja el editor del capítulo.
  */
-export function CapituloApartado({ espacio, contenido, disabled, onChange, contexto }: {
+export function CapituloApartado({ espacio, contenido, disabled, onChange, contexto, propuestaId }: {
   espacio: Espacio; contenido: string; disabled: boolean; onChange: (valor: string) => void; contexto?: ContextoRevision;
+  /** Para subir figuras (entrega F2). */
+  propuestaId?: number;
 }) {
-  const tipo = conRangoObjetivos(tipoApartado(espacio), contexto?.rangoObjetivos);
+  const tipo = conIntegrantes(conRangoObjetivos(tipoApartado(espacio), contexto?.rangoObjetivos), contexto?.integrantes);
   const c = useMemo(() => (tipo ? leerApartado(tipo, contenido) : null), [tipo, contenido]);
   const opciones = opcionesDeEspacio(espacio, "informe_final");
   const revisiones = useMemo(() => (tipo && c ? revisarApartado(tipo, c, opciones, contexto) : []), [tipo, c, opciones, contexto]);
@@ -360,8 +367,10 @@ export function CapituloApartado({ espacio, contenido, disabled, onChange, conte
           <span className="font-bold uppercase tracking-wide text-brand-red">{tipo.nombre}</span>
           <span>Subapartados completos: <strong className="text-card-dark">{avance.completas}/{avance.total}</strong></span>
         </div>
-        <PartesApartado tipo={tipo} contenido={c} revisiones={revisiones} disabled={disabled}
-          onCambiar={(parte, valor) => cambiar({ ...c, partes: { ...c.partes, [parte]: valor } })} />
+        <PropuestaApartado.Provider value={propuestaId ?? null}>
+          <PartesApartado tipo={tipo} contenido={c} revisiones={revisiones} disabled={disabled}
+            onCambiar={(parte, valor) => cambiar({ ...c, partes: { ...c.partes, [parte]: valor } })} />
+        </PropuestaApartado.Provider>
       </div>
       <GuiaApartado tipo={tipo} contenido={c} revisiones={revisiones} opciones={opciones} disabled={disabled}
         mostrarAutoevaluacion={espacio.parametros.autoevaluacion !== false}

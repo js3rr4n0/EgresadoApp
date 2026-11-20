@@ -31,6 +31,14 @@ export type ClaveElemento =
   | "apartado"
   | "resultados_objetivos"
   | "reporte_modificaciones"
+  /** Informe final (entrega F3): las fuentes citadas en el informe; lo genera el sistema. */
+  | "referencias_citadas"
+  /** Informe final (entrega F4): anexos y páginas que genera el sistema. */
+  | "anexo_involucrados"
+  | "anexo_recursos"
+  /** Informe final de proyecto (notas del 20-nov-2026): el cronograma original y el ejecutado como capítulo propio. */
+  | "cronograma_comparado"
+  | "derechos_autoria"
   | "recursos_presupuesto"
   /** Elemento propio del catálogo (catálogo editable, C2): el espacio guarda su copia en `propio`. */
   | "propio";

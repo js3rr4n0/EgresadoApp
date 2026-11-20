@@ -8,7 +8,7 @@ import crypto from "crypto";
 import { db } from "@/lib/db";
 import { carreras, detallesProyecto, facultades, propuestas, ratificacionesPlan, respuestasEspacios, usuarios } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta, espaciosPropuesta } from "@/lib/fichas/fichaDePropuesta";
 import { esEtapaProtocolo, type EtapaProtocolo } from "@/lib/fichas/tipos";
@@ -18,7 +18,8 @@ import { getPlanTrabajo, type DatosPlan } from "./planTrabajo";
 import { fuentesDePropuesta } from "./fuentesTrabajo";
 import { referenciasOrdenadas, type Fuente } from "@/lib/fichas/fuentes";
 import { contextoDeRevision, tipoApartado } from "@/lib/fichas/apartadosAcademicos";
-import { apartadosInformeFinal, portadaInformeFinal, type AnexoDocumento, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
+import { apartadosInformeFinal, idsFigurasDe, portadaInformeFinal, type AnexoDocumento, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
+import { urlsFiguras } from "@/lib/fichas/figurasServidor";
 import { bloquesCronograma, bloquesRecursos } from "@/lib/fichas/documentoProtocolo";
 import { AUTORIDADES_ACADEMICAS } from "@/lib/informeFinal";
 
@@ -162,8 +163,9 @@ export async function getDocumentoProtocolo(propuestaId: number): Promise<Result
   const { etapa, respuestas, precargas, fuentes } = armado.datos;
   const contenidos = { ...precargas, ...respuestas };
   const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId));
-  const [lider] = await db.select({ carrera: carreras.nombre, facultad: facultades.nombre })
-    .from(usuarios).leftJoin(carreras, eq(usuarios.carreraId, carreras.id)).leftJoin(facultades, eq(carreras.facultadId, facultades.id))
+  const [lider] = await db.select({ carrera: carreras.nombre, tituloCarrera: carreras.titulo, facultad: facultades.nombre })
+    .from(usuarios).leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
+    .leftJoin(facultades, eq(facultades.id, sql`coalesce(${usuarios.facultadId}, ${carreras.facultadId})`))
     .where(eq(usuarios.id, prop.egresadoId));
   const [asesor] = prop.asesorId ? await db.select({ nombre: usuarios.nombreCompleto }).from(usuarios).where(eq(usuarios.id, prop.asesorId)) : [];
   const enviado = plan.plan.enviadoEn && (plan.plan.estado === "enviado" || plan.plan.estado === "aprobado") ? new Date(plan.plan.enviadoEn) : null;
@@ -171,6 +173,7 @@ export async function getDocumentoProtocolo(propuestaId: number): Promise<Result
     titulo: prop.titulo ?? "",
     facultad: lider?.facultad ?? null,
     carrera: lider?.carrera ?? null,
+    tituloCarrera: lider?.tituloCarrera ?? null,
     integrantes: plan.equipo.map((i) => ({ nombre: i.nombre, carnet: i.carnet })),
     asesor: asesor?.nombre ?? null,
     fecha: (enviado ?? new Date()).toISOString(),
@@ -182,7 +185,7 @@ export async function getDocumentoProtocolo(propuestaId: number): Promise<Result
     ?? "";
   const { apartados, anexosCapitulo } = apartadosInformeFinal(etapa, contenidos,
     (e, numero) => (e.elemento === "recursos_presupuesto" ? bloquesRecursos(e, contenidos[e.id], numero) : []),
-    { referencias, integrantes: plan.equipo.map((i) => ({ id: i.id, nombre: i.nombre })), insertar: [{ antesDe, titulo: "Cronograma de actividades", bloques: () => bloquesCronograma(plan.plan.arbol as NodoPlan, plan.columnas) }] });
+    { referencias, integrantes: plan.equipo.map((i) => ({ id: i.id, nombre: i.nombre })), figuras: await urlsFiguras(propuestaId, idsFigurasDe(etapa.espacios, contenidos)), insertar: [{ antesDe, titulo: "Cronograma de actividades", bloques: () => bloquesCronograma(plan.plan.arbol as NodoPlan, plan.columnas) }] });
   const anexos: AnexoDocumento[] = anexosCapitulo.map((a, i) => ({ etiqueta: `Anexo ${i + 1}`, descripcion: a.nombre, tipo: "documento" as const, url: a.url, nombre: a.nombre, actividad: null, nota: null }));
   const estado = plan.plan.estado === "aprobado" ? "aprobado" : plan.plan.estado === "enviado" ? "entregado" : "redactando";
   return {

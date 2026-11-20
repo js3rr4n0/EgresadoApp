@@ -18,6 +18,9 @@ interface ActoresIntervinientesFormProps {
   isLocked: boolean;
   isReadOnly?: boolean;
   isInvestigacion?: boolean;
+  /** Título y descripción del paso en la ficha (por ejemplo, "Involucrados" en investigación, notas del 20-nov-2026). */
+  titulo?: string;
+  descripcion?: string;
 }
 
 export default function ActoresIntervinientesForm({
@@ -28,6 +31,8 @@ export default function ActoresIntervinientesForm({
   isLocked,
   isReadOnly = false,
   isInvestigacion = false,
+  titulo,
+  descripcion,
 }: ActoresIntervinientesFormProps) {
   const router = useRouter();
   const [patrocinador, setPatrocinador] = useState(initialData?.actorPatrocinador || "");
@@ -83,12 +88,12 @@ export default function ActoresIntervinientesForm({
     <div className="bg-white border border-border rounded-xl p-6 lg:p-8 shadow-sm">
       <div className="mb-6 border-b border-border pb-4">
         <h2 className="text-xl font-bold text-card-dark">
-          {isInvestigacion ? "Actores Intervinientes de la Investigación" : "Actores Intervinientes del Proyecto"}
+          {titulo || (isInvestigacion ? "Actores Intervinientes de la Investigación" : "Actores Intervinientes del Proyecto")}
         </h2>
         <p className="text-sm text-muted mt-1">
-          {isInvestigacion
+          {descripcion || (isInvestigacion
             ? "Establece y describe a los 3 actores principales de la investigación: Patrocinador, Investigador y Financista."
-            : "Establece y describe a los actores principales del proyecto, así como sus aportes y rol en el mismo."}
+            : "Establece y describe a los actores principales del proyecto, así como sus aportes y rol en el mismo.")}
         </p>
       </div>
 
@@ -107,9 +112,9 @@ export default function ActoresIntervinientesForm({
       <div className="space-y-6">
         <div>
           <label className="block text-sm font-bold text-card-dark mb-2">
-            1. Patrocinador {isInvestigacion && "de la investigación"} <span className="text-red-500">*</span>
+            1. {isInvestigacion ? "Quién solicita o patrocina la investigación" : "Patrocinador"} <span className="text-red-500">*</span>
           </label>
-          <p className="text-xs text-muted mb-2">Entidad, empresa o persona que impulsa o patrocina la propuesta.</p>
+          <p className="text-xs text-muted mb-2">Entidad, empresa o persona que {isInvestigacion ? "solicita, impulsa o patrocina la investigación" : "impulsa o patrocina la propuesta"}.</p>
           <textarea
             rows={4}
             value={patrocinador}

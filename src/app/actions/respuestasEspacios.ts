@@ -22,7 +22,7 @@ import {
 } from "@/lib/fichas/elementosRecurso";
 import { leerFuenteImagen, leerOrigenImagen, validarOrigenImagen } from "@/lib/fuenteImagen";
 import { MAX_CARACTERES_LEYENDA } from "@/lib/reglasRegistroActividad";
-import { guardarComoTexto, leerTabla, tipoApartado, type ContenidoApartado } from "@/lib/fichas/apartadosAcademicos";
+import { guardarComoTexto, leerTabla, limpiarFigurasTablas, tipoApartado, type ContenidoApartado } from "@/lib/fichas/apartadosAcademicos";
 import { conCitas, guardarParrafos, leerParrafos } from "@/lib/fichas/fuentes";
 import { limpiarRecursos, reglasRecursos } from "@/lib/fichas/recursos";
 import { fuentesDePropuesta } from "./fuentesTrabajo";
@@ -313,6 +313,10 @@ export async function guardarRespuestaApartado(propuestaId: number, espacioId: s
         if (filas.length) partes[p.id] = JSON.stringify(filas.slice(0, 50));
       } else if (p.formato === "seleccion") {
         if (p.opciones?.some((o) => o.valor === v)) partes[p.id] = v;
+      } else if (p.formato === "figuras" || p.formato === "tablas") {
+        // Entrega F2: figuras (id, leyenda y fuente) y tablas libres, limpias.
+        const limpio = limpiarFigurasTablas(p.formato, v);
+        if (limpio !== "[]") partes[p.id] = limpio;
       } else if (v.trim()) partes[p.id] = v.trim().slice(0, 60000);
     }
     const autoevaluacion = (Array.isArray(contenido?.autoevaluacion) ? contenido.autoevaluacion : [])

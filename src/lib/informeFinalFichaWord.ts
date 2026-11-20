@@ -10,7 +10,7 @@ import {
   ANCHO_CONTENIDO, apartadoFinal, cargarLogo, celda, decodificarImagen, estiloIndice, FUENTE, INTERLINEADO, PAGINA, parrafo, parrafosCuerpo,
   portadaWord, subtitulo1, tamanoImagen, TAMANO_LEYENDA, TAMANO_TEXTO, texto, tituloAnexo,
 } from "@/lib/informeWord";
-import type { DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
+import { figurasDe, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
 
 function autoridades(doc: DocumentoInformeFinal): Paragraph[] {
   const linea = (contenido: string, antes = 0, nuevaHoja = false) =>
@@ -39,6 +39,12 @@ export async function generarInformeFinalFichaWord(doc: DocumentoInformeFinal): 
   const contenido: (Paragraph | Table | TableOfContents)[] = [];
   contenido.push(apartadoFinal("Índice", false, false));
   contenido.push(new TableOfContents("Índice", { hyperlink: true, headingStyleRange: "1-2" }));
+  // Índice de figuras (entrega F2): la lista de las figuras numeradas del documento.
+  const figuras = figurasDe(doc.apartados);
+  if (figuras.length) {
+    contenido.push(apartadoFinal("Índice de figuras", false));
+    contenido.push(...figuras.map((f) => parrafo(`Figura ${f.numero}. ${f.leyenda}`)));
+  }
 
   for (const a of doc.apartados) {
     contenido.push(apartadoFinal(`${a.numero ? `${a.numero}. ` : ""}${a.titulo}`));
@@ -55,7 +61,19 @@ export async function generarInformeFinalFichaWord(doc: DocumentoInformeFinal): 
           spacing: { line: INTERLINEADO, after: 120 },
         })));
       } else if (b.tipo === "enlaces") contenido.push(...b.items.map((x) => parrafo(`${x.descripcion}: ${x.url}`)));
-      else contenido.push(tabla(b.columnas, b.filas), parrafo(""));
+      else if (b.tipo === "figura") {
+        // APA 7: número en negrita, título en cursiva, la imagen y la nota con la fuente.
+        contenido.push(parrafo([texto(`Figura ${b.numero}`, { bold: true })]), parrafo([texto(b.leyenda, { italics: true })]));
+        const img = b.url ? decodificarImagen(b.url) : null;
+        if (img) {
+          const t = tamanoImagen(img.datos, img.tipo);
+          contenido.push(new Paragraph({ alignment: AlignmentType.CENTER, spacing: { line: 240, after: 60 }, children: [new ImageRun({ type: img.tipo, data: img.datos, transformation: { width: t.width * 2, height: t.height * 2 } })] }));
+        } else contenido.push(parrafo([texto("(imagen no disponible)", { italics: true })]));
+        if (b.fuente) contenido.push(new Paragraph({ spacing: { line: 240, after: 120 }, children: [texto(`Nota. ${b.fuente}`, { size: TAMANO_LEYENDA })] }));
+      } else {
+        if (b.titulo) contenido.push(parrafo([texto(b.titulo, { bold: true })]));
+        contenido.push(tabla(b.columnas, b.filas), parrafo(""));
+      }
     }
   }
 

@@ -7,7 +7,52 @@ import type { ConfigParte, Espacio } from "./tipos";
 import { leerParrafos, parrafoConCita } from "./fuentes";
 
 /** "citado": párrafos con sus fuentes del registro y la cita armada (ajustes al protocolo, 19-nov-2026). */
-export type FormatoParte = "texto" | "pregunta" | "seleccion" | "lista" | "tabla" | "referencias" | "citado";
+export type FormatoParte = "texto" | "pregunta" | "seleccion" | "lista" | "tabla" | "referencias" | "citado" | "figuras" | "tablas";
+
+/**
+ * Entrega F2 del informe final (notas del 20-nov-2026): figuras e imágenes con su leyenda (la imagen va aparte, en
+ * figuras_documento) y tablas libres con título. El documento las numera (Figura N, Tabla N) y arma el índice de figuras.
+ */
+export interface FiguraParte { id: number; leyenda: string; fuente: string }
+export interface TablaLibre { titulo: string; columnas: string[]; filas: string[][] }
+
+const lista_ = (valor: string | undefined): unknown[] => {
+  try {
+    const v = JSON.parse(valor || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+};
+
+export function leerFiguras(valor: string | undefined): FiguraParte[] {
+  return lista_(valor)
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+    .map((x) => ({ id: Number(x.id), leyenda: String(x.leyenda ?? ""), fuente: String(x.fuente ?? "") }))
+    .filter((x) => Number.isInteger(x.id) && x.id > 0);
+}
+
+export function leerTablas(valor: string | undefined): TablaLibre[] {
+  return lista_(valor)
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+    .map((x) => {
+      const columnas = (Array.isArray(x.columnas) ? x.columnas : []).map((c) => String(c ?? ""));
+      const filas = (Array.isArray(x.filas) ? x.filas : []).filter(Array.isArray).map((f: unknown[]) => columnas.map((_, i) => String(f[i] ?? "")));
+      return { titulo: String(x.titulo ?? ""), columnas, filas };
+    });
+}
+
+/** Figuras o tablas tal como se guardan: recortadas y sin filas vacías (las leyendas vacías se revisan al enviar). */
+export function limpiarFigurasTablas(formato: "figuras" | "tablas", valor: string): string {
+  if (formato === "figuras") {
+    return JSON.stringify(leerFiguras(valor).slice(0, 30).map((f) => ({ id: f.id, leyenda: f.leyenda.trim().slice(0, 300), fuente: f.fuente.trim().slice(0, 300) })));
+  }
+  return JSON.stringify(leerTablas(valor).slice(0, 20).map((t) => ({
+    titulo: t.titulo.trim().slice(0, 300),
+    columnas: t.columnas.slice(0, 12).map((c) => c.trim().slice(0, 120)),
+    filas: t.filas.slice(0, 100).map((f) => f.slice(0, 12).map((x) => x.trim().slice(0, 1000))).filter((f) => f.some(Boolean)),
+  })));
+}
 
 export interface ParteApartado {
   id: string;
@@ -29,9 +74,14 @@ export interface ParteApartado {
   propia?: boolean;
   /** Párrafos citados: cada párrafo debe tener al menos una fuente (por defecto, sí). */
   citaPorParrafo?: boolean;
+  /**
+   * Reglas estrictas de un párrafo (introducción del informe final, como en pasantía): pasar el máximo de palabras impide
+   * enviar, debe ser un solo párrafo y terminar con punto.
+   */
+  parrafoEstricto?: boolean;
 }
 
-export type RevisionEspecial = "pregunta" | "hipotesis" | "objetivos" | "conclusiones" | "referencias";
+export type RevisionEspecial = "pregunta" | "hipotesis" | "objetivos" | "conclusiones" | "referencias" | "agradecimientos" | "objetivos_finales";
 
 export interface TipoApartado {
   clave: string;
@@ -199,6 +249,127 @@ export const TIPOS_APARTADO: Record<string, TipoApartado> = {
     especiales: ["referencias"],
   },
   // ── Informe final ──
+  // Notas del 20-nov-2026 (INFORME_FINAL_INVESTIGACION.md): agradecimientos, introducción en 4 párrafos como en
+  // pasantía, objetivos originales y finales, metodología general y análisis de la información.
+  agradecimientos: {
+    clave: "agradecimientos", nombre: "Agradecimientos", etapa: "informe",
+    proposito: "A diferencia de la pasantía o el proyecto, en una investigación los agradecimientos son para mentores, personas que ayudaron y entidades que prestaron recursos o se involucraron en el desarrollo de la investigación; no para amigos o familia.",
+    partes: [
+      { id: "texto", titulo: "Agradecimientos", ayuda: "Mencione a quién agradece y por qué apoyó la investigación (asesoría, datos, recursos, acceso a la población…). Hasta 4 párrafos, que quepan en una página.", formato: "texto", min: 20, max: 350 },
+    ],
+    citasMinimas: 0,
+    autoevaluacion: ["Cada agradecimiento dice qué aportó esa persona o entidad a la investigación.", "No incluí agradecimientos personales o familiares."],
+    errores: ["Agradecer a familiares, amigos o en términos personales.", "Agradecimientos genéricos sin decir qué aportó cada uno."],
+    ejemplo: "Al Laboratorio de Química de la Universidad, por facilitar los equipos para el análisis de las muestras.",
+    especiales: ["agradecimientos"],
+  },
+  introduccion_informe: {
+    clave: "introduccion_informe", nombre: "Introducción en cuatro párrafos", etapa: "informe",
+    proposito: "Son cuatro párrafos de no más de cinco renglones cada uno: específicos, breves y consistentes, sin retórica y sin autopromoción (la misma estructura del informe final de pasantía).",
+    partes: [
+      { id: "p1", titulo: "Párrafo 1: selección del tema", ayuda: "Conteste por qué seleccionó el tema y la institución o población donde se investigó, y qué los hace idóneos. Redacte en presente.", formato: "texto", min: 20, max: 70, parrafoEstricto: true },
+      { id: "p2", titulo: "Párrafo 2: lo que esperaba lograr", ayuda: "Conteste qué esperaba lograr, conocer u obtener con la investigación. Redacte en futuro, con el enfoque en usted como investigador.", formato: "texto", min: 20, max: 70, parrafoEstricto: true },
+      { id: "p3", titulo: "Párrafo 3: actividades realizadas", ayuda: "Indique, sin describir (para eso está el documento), qué actividades de la investigación realizó y en cuáles participó. Redacción puntual, corrida y en pasado.", formato: "texto", min: 20, max: 70, parrafoEstricto: true },
+      { id: "p4", titulo: "Párrafo 4: cómo se documentó", ayuda: "Describa cómo se documentó la investigación en este informe. No se trata de lo que piensa que obtuvo: fundaméntese en los elementos que se encuentran documentados y en cómo se documentaron.", formato: "texto", min: 20, max: 70, parrafoEstricto: true },
+    ],
+    citasMinimas: 0,
+    autoevaluacion: ["Cada párrafo responde solo a su indicación.", "No adelanté resultados ni conclusiones."],
+    errores: ["Retórica o autopromoción.", "Párrafos de más de cinco renglones."],
+    ejemplo: "Se seleccionó el estudio de los hábitos de estudio de los estudiantes de primer año porque…",
+    especiales: [],
+  },
+  objetivos_informe: {
+    clave: "objetivos_informe", nombre: "Objetivos (originales y finales)", etapa: "informe",
+    proposito: "Presenta los objetivos originales del protocolo y, si cambiaron durante la ejecución, los objetivos con que se terminó y por qué se cambiaron.",
+    partes: [
+      { id: "general", titulo: "Objetivo general", ayuda: "Inicie con un verbo en infinitivo.", formato: "texto", min: 10, max: 60 },
+      { id: "especificos", titulo: "Objetivos específicos originales", ayuda: "Los del protocolo, uno por línea.", formato: "lista", minItems: 3, maxItems: 4 },
+      { id: "especificos_finales", titulo: "Objetivos específicos con los que se terminó", ayuda: "Solo si cambiaron durante la ejecución, uno por línea. Si no cambiaron, deje esta parte vacía.", formato: "lista", opcional: true },
+      { id: "justificacion_cambio", titulo: "Justificación del cambio", ayuda: "Por qué se cambiaron los objetivos (se precarga con lo reportado en la bitácora). Solo si cambiaron.", formato: "texto", min: 0, max: 400, opcional: true },
+    ],
+    citasMinimas: 0,
+    autoevaluacion: ["Los objetivos originales son los del protocolo.", "Si cambiaron, expliqué por qué."],
+    errores: ["Presentar los objetivos finales como si fueran los originales."],
+    ejemplo: "Objetivo original 1.3: Comparar… · Objetivo con que se terminó: Describir…",
+    especiales: ["objetivos", "objetivos_finales"],
+  },
+  // Informe final de proyecto (notas del 20-nov-2026): agradecimientos opcionales, una página por integrante, e
+  // introducción en cuatro párrafos como en pasantía e investigación.
+  agradecimientos_equipo: {
+    clave: "agradecimientos_equipo", nombre: "Agradecimientos (una página por integrante)", etapa: "informe",
+    proposito: "Opcional. Si el trabajo es en grupo, cada integrante puede escribir su propia página de agradecimientos a las personas e instituciones que lo apoyaron.",
+    partes: [
+      { id: "i1", titulo: "Agradecimientos del integrante 1", ayuda: "Una página: a quién agradece este integrante y por qué. Hasta 4 párrafos.", formato: "texto", min: 20, max: 350, opcional: true },
+      { id: "i2", titulo: "Agradecimientos del integrante 2", ayuda: "Una página: a quién agradece este integrante y por qué. Hasta 4 párrafos.", formato: "texto", min: 20, max: 350, opcional: true },
+      { id: "i3", titulo: "Agradecimientos del integrante 3", ayuda: "Una página: a quién agradece este integrante y por qué. Hasta 4 párrafos.", formato: "texto", min: 20, max: 350, opcional: true },
+      { id: "i4", titulo: "Agradecimientos del integrante 4", ayuda: "Una página: a quién agradece este integrante y por qué. Hasta 4 párrafos.", formato: "texto", min: 20, max: 350, opcional: true },
+      { id: "i5", titulo: "Agradecimientos del integrante 5", ayuda: "Una página: a quién agradece este integrante y por qué. Hasta 4 párrafos.", formato: "texto", min: 20, max: 350, opcional: true },
+    ],
+    citasMinimas: 0,
+    autoevaluacion: ["Cada página dice a quién agradece ese integrante y por qué.", "Cada página cabe en una hoja (hasta 4 párrafos)."],
+    errores: ["Agradecimientos genéricos sin decir qué aportó cada uno.", "Más de una página por integrante."],
+    ejemplo: "A la Alcaldía Municipal de Santa Ana, por facilitar la información de los mercados para el desarrollo del sistema.",
+    especiales: [],
+  },
+  introduccion_proyecto: {
+    clave: "introduccion_proyecto", nombre: "Introducción en cuatro párrafos (proyecto)", etapa: "informe",
+    proposito: "Son cuatro párrafos de no más de cinco renglones cada uno: específicos, breves y consistentes, sin retórica y sin autopromoción (la misma estructura del informe final de pasantía y de investigación).",
+    partes: [
+      { id: "p1", titulo: "Párrafo 1: selección del proyecto", ayuda: "Conteste por qué seleccionó el proyecto y la institución o comunidad donde se ejecutó, y qué los hace idóneos. Redacte en presente.", formato: "texto", min: 20, max: 70, parrafoEstricto: true },
+      { id: "p2", titulo: "Párrafo 2: lo que esperaba lograr", ayuda: "Conteste qué esperaba lograr, entregar u obtener con el proyecto. Redacte en futuro, con el enfoque en usted como ejecutor.", formato: "texto", min: 20, max: 70, parrafoEstricto: true },
+      { id: "p3", titulo: "Párrafo 3: actividades realizadas", ayuda: "Indique, sin describir (para eso está el documento), qué actividades del proyecto realizó y en cuáles participó. Redacción puntual, corrida y en pasado.", formato: "texto", min: 20, max: 70, parrafoEstricto: true },
+      { id: "p4", titulo: "Párrafo 4: cómo se documentó", ayuda: "Describa cómo se documentó el proyecto en este informe. No se trata de lo que piensa que obtuvo: fundaméntese en los elementos que se encuentran documentados y en cómo se documentaron.", formato: "texto", min: 20, max: 70, parrafoEstricto: true },
+    ],
+    citasMinimas: 0,
+    autoevaluacion: ["Cada párrafo responde solo a su indicación.", "No adelanté resultados ni conclusiones."],
+    errores: ["Retórica o autopromoción.", "Párrafos de más de cinco renglones."],
+    ejemplo: "Se seleccionó el desarrollo de un sistema de inventario para la cooperativa porque…",
+    especiales: [],
+  },
+  metodologia_informe: {
+    clave: "metodologia_informe", nombre: "Metodología de la investigación", etapa: "informe",
+    proposito: "La metodología general de la investigación y, en ella, el tipo de investigación, la población y la muestra, y las técnicas e instrumentos utilizados. Lo que se hizo por objetivo va en «Desarrollo o ejecución de la investigación».",
+    partes: [
+      { id: "general", titulo: "Metodología general", ayuda: "Cómo se abordó la investigación en conjunto, a partir de la metodología del protocolo.", formato: "texto", min: 40, max: 400 },
+      { id: "tipo", titulo: "Tipo de investigación", ayuda: "Enfoque, alcance y diseño utilizados.", formato: "texto", min: 40, max: 250 },
+      { id: "poblacion", titulo: "Población y muestra", ayuda: "Población real alcanzada y muestra efectiva.", formato: "texto", min: 40, max: 250 },
+      { id: "tecnicas", titulo: "Técnicas e instrumentos utilizados", ayuda: "Instrumentos aplicados y su validación.", formato: "texto", min: 40, max: 250 },
+    ],
+    citasMinimas: 0,
+    autoevaluacion: ["Expliqué las diferencias con lo planificado en el protocolo."],
+    errores: ["Copiar la metodología del protocolo en futuro."],
+    ejemplo: "Se aplicó un cuestionario de 20 ítems a 60 estudiantes…",
+    especiales: [],
+  },
+  // Entrega F4: evidencia de la presentación pública (investigación y proyecto).
+  presentacion_publica: {
+    clave: "presentacion_publica", nombre: "Evidencia de presentación pública", etapa: "informe",
+    proposito: "Deja constancia de que el trabajo se presentó públicamente: cuándo, dónde, ante quiénes y con qué evidencias.",
+    partes: [
+      { id: "descripcion", titulo: "Descripción de la presentación", ayuda: "Fecha, lugar, público asistente y quiénes presentaron.", formato: "texto", min: 20, max: 300 },
+      { id: "fotografias", titulo: "Fotografías", ayuda: "Fotografías de la presentación, cada una con su leyenda.", formato: "figuras" },
+      { id: "constancia", titulo: "Acta o constancia", ayuda: "Imagen del acta, la lista de asistencia o la constancia, si la hay.", formato: "figuras", opcional: true },
+    ],
+    citasMinimas: 0,
+    autoevaluacion: ["Indiqué la fecha, el lugar y el público.", "Cada fotografía tiene su leyenda."],
+    errores: ["Fotografías sin leyenda.", "No indicar cuándo y dónde se presentó."],
+    ejemplo: "El 28 de noviembre de 2026 se presentaron los resultados en el auditorio de la Facultad de Ingeniería ante…",
+    especiales: [],
+  },
+  analisis_informe: {
+    clave: "analisis_informe", nombre: "Análisis estadístico o de información realizado", etapa: "informe",
+    proposito: "Notas de cómo se analizó la información: los elementos estadísticos, las fórmulas, las tablas de la información analizada y los resultados de aplicarlas (por ejemplo, pruebas ANOVA o intervalos de confianza).",
+    partes: [
+      { id: "analisis", titulo: "Análisis realizado", ayuda: "Qué pruebas o procedimientos se aplicaron, con qué fórmulas y qué resultados dieron.", formato: "texto", min: 60, max: 3000 },
+      { id: "figuras", titulo: "Figuras", ayuda: "Fórmulas, gráficos o capturas del análisis, cada una con su leyenda.", formato: "figuras", opcional: true },
+      { id: "tablas", titulo: "Tablas", ayuda: "Tablas de la información analizada y de los resultados de las pruebas.", formato: "tablas", opcional: true },
+    ],
+    citasMinimas: 0,
+    autoevaluacion: ["Cada prueba indica sus datos de entrada y su resultado."],
+    errores: ["Nombrar pruebas sin mostrar sus resultados."],
+    ejemplo: "Se aplicó un ANOVA de un factor (α = 0.05) para comparar el rendimiento de los tres grupos…",
+    especiales: [],
+  },
   introduccion: {
     clave: "introduccion", nombre: "Introducción", etapa: "informe",
     proposito: "Presenta el estudio al lector: el tema, el propósito, cómo se realizó y cómo está organizado el informe.",
@@ -244,7 +415,9 @@ export const TIPOS_APARTADO: Record<string, TipoApartado> = {
     clave: "resultados", nombre: "Resultados obtenidos", etapa: "informe",
     proposito: "Presenta los datos obtenidos de forma objetiva, ordenados por objetivo, sin interpretarlos todavía.",
     partes: [
-      { id: "resultados", titulo: "Resultados por objetivo", ayuda: "Un bloque por objetivo específico, con los datos que lo responden (tablas y figuras en anexos o en el texto).", formato: "texto", min: 300, max: 6000 },
+      { id: "resultados", titulo: "Resultados por objetivo", ayuda: "Un bloque por objetivo específico, con los datos que lo responden.", formato: "texto", min: 300, max: 6000 },
+      { id: "tablas", titulo: "Tablas", ayuda: "Los datos que sustentan los resultados, cada tabla con su título.", formato: "tablas", opcional: true },
+      { id: "figuras", titulo: "Gráficos y fotografías", ayuda: "Gráficos, fotografías o ilustraciones de los resultados, cada uno con su leyenda.", formato: "figuras", opcional: true },
     ],
     citasMinimas: 0,
     autoevaluacion: ["Presenté resultados para cada objetivo específico.", "No mezclé opiniones con los datos."],
@@ -257,6 +430,9 @@ export const TIPOS_APARTADO: Record<string, TipoApartado> = {
     proposito: "Indica si la hipótesis se acepta o se rechaza, con la prueba y los datos que lo sustentan.",
     partes: [
       { id: "prueba", titulo: "Prueba realizada y decisión", ayuda: "Prueba estadística o criterio, valor obtenido y decisión sobre Hi y Ho.", formato: "texto", min: 40, max: 400 },
+      // F2: el cumplimiento de los indicadores del protocolo (se precargan del cuadro de variables).
+      { id: "indicadores", titulo: "Cumplimiento de los indicadores", ayuda: "Por cada indicador del protocolo: el valor esperado, el obtenido y si se cumple.", formato: "tabla", columnas: ["Indicador", "Valor esperado", "Valor obtenido", "¿Se cumple?"], opcional: true },
+      { id: "figuras", titulo: "Fórmulas y figuras", ayuda: "Fórmulas o gráficos de la comprobación, cada uno con su leyenda.", formato: "figuras", opcional: true },
     ],
     citasMinimas: 0,
     autoevaluacion: ["Indiqué con claridad si se acepta o se rechaza la hipótesis nula."],
@@ -344,6 +520,8 @@ export function parteVacia(p: ParteApartado, valor: string | undefined): boolean
   if (!v) return true;
   if (p.formato === "citado") return !leerParrafos(v).some((x) => x.texto.trim());
   if (p.formato === "tabla") return !leerTabla(v, p.columnas?.length ?? 1).some((f) => f.some((x) => x.trim()));
+  if (p.formato === "figuras") return leerFiguras(v).length === 0;
+  if (p.formato === "tablas") return leerTablas(v).length === 0;
   return false;
 }
 
@@ -355,6 +533,8 @@ export function textoParte(tipo: TipoApartado, c: ContenidoApartado, parteId: st
   if (p.formato === "seleccion") return p.opciones?.find((o) => o.valor === v)?.etiqueta ?? v;
   if (p.formato === "citado") return leerParrafos(v).filter((x) => x.texto.trim()).map((x) => parrafoConCita(x)).join("\n\n");
   if (p.formato === "tabla") return leerTabla(v, p.columnas?.length ?? 1).filter((f) => f.some(Boolean)).map((f) => f.join(" · ")).join("\n");
+  if (p.formato === "figuras") return leerFiguras(v).map((f) => `Figura: ${f.leyenda}`).join("\n");
+  if (p.formato === "tablas") return leerTablas(v).map((t) => `Tabla: ${t.titulo}`).join("\n");
   return v;
 }
 
@@ -400,6 +580,15 @@ export interface ContextoRevision {
   rangoObjetivos?: { min: number; max: number };
   /** Integrantes del trabajo (líder incluido): los elementos propios por integrante piden la parte de cada uno (C3). */
   integrantes?: { id: number; nombre: string }[];
+}
+
+/**
+ * Agradecimientos por integrante (proyecto): una parte por cada integrante del trabajo, con su nombre. Sin integrantes
+ * (vista previa del constructor), las partes genéricas.
+ */
+export function conIntegrantes<T extends TipoApartado | undefined>(tipo: T, integrantes?: { id: number; nombre: string }[]): T {
+  if (!tipo || tipo.clave !== "agradecimientos_equipo" || !integrantes?.length) return tipo;
+  return { ...tipo, partes: tipo.partes.slice(0, integrantes.length).map((p, i) => ({ ...p, titulo: `Agradecimientos de ${integrantes[i].nombre}` })) };
 }
 
 /** El tipo «objetivos» con la cantidad de específicos del trabajo (la de la propuesta y el plan), si se conoce. */
@@ -476,7 +665,9 @@ export function revisarApartado(tipoFicha: TipoApartado, c: ContenidoApartado, o
       textos.push(v);
       const n = palabras(v);
       if (p.min && n < p.min) r.push({ id: `min-${p.id}`, nivel: "falta", mensaje: `«${p.titulo}» tiene ${n} palabras; el mínimo es ${p.min}.`, parte: p.id });
-      if (p.max && n > p.max) r.push({ id: `max-${p.id}`, nivel: "aviso", mensaje: `«${p.titulo}» tiene ${n} palabras; se recomiendan hasta ${p.max}.`, parte: p.id });
+      if (p.max && n > p.max) r.push({ id: `max-${p.id}`, nivel: p.parrafoEstricto ? "falta" : "aviso", mensaje: `«${p.titulo}» tiene ${n} palabras; ${p.parrafoEstricto ? "el máximo es" : "se recomiendan hasta"} ${p.max}.`, parte: p.id });
+      if (p.parrafoEstricto && v.split(/\n\s*\n|\n/).filter((x) => x.trim()).length > 1) r.push({ id: `unparrafo-${p.id}`, nivel: "falta", mensaje: `«${p.titulo}» debe ser un solo párrafo, sin saltos de línea.`, parte: p.id });
+      if (p.parrafoEstricto && !/\.["”»)]?$/.test(v.trim())) r.push({ id: `punto-${p.id}`, nivel: "falta", mensaje: `«${p.titulo}» debe terminar con punto.`, parte: p.id });
       const largas = v.split(/(?<=[.!?])\s+/).filter((o) => palabras(o) > 45).length;
       if (largas) r.push({ id: `largas-${p.id}`, nivel: "aviso", mensaje: `«${p.titulo}»: ${largas} oración(es) de más de 45 palabras; conviene dividirlas.`, parte: p.id });
     }
@@ -484,6 +675,18 @@ export function revisarApartado(tipoFicha: TipoApartado, c: ContenidoApartado, o
       r.push({ id: "pregunta-signos", nivel: "aviso", mensaje: "La pregunta de investigación debe ir entre signos de interrogación (¿…?).", parte: p.id });
     }
     if (p.formato === "lista") textos.push(lineas(v).join(". "));
+    // Figuras y tablas (F2): cada figura con su leyenda; cada tabla con título, columnas y al menos una fila.
+    if (p.formato === "figuras") {
+      leerFiguras(v).forEach((f, i) => {
+        if (f.leyenda.trim().length < 3) r.push({ id: `figura-leyenda-${p.id}-${i}`, nivel: "falta", mensaje: `«${p.titulo}»: la figura ${i + 1} necesita su leyenda.`, parte: p.id });
+      });
+    }
+    if (p.formato === "tablas") {
+      leerTablas(v).forEach((t, i) => {
+        if (!t.titulo.trim()) r.push({ id: `tabla-titulo-${p.id}-${i}`, nivel: "falta", mensaje: `«${p.titulo}»: la tabla ${i + 1} necesita un título.`, parte: p.id });
+        if (!t.columnas.some((c) => c.trim()) || !t.filas.some((f) => f.some((x) => x.trim()))) r.push({ id: `tabla-vacia-${p.id}-${i}`, nivel: "falta", mensaje: `«${p.titulo}»: la tabla ${i + 1} necesita columnas y al menos una fila.`, parte: p.id });
+      });
+    }
     // Elementos o filas dentro de los límites de la ficha (por ejemplo, de 1 a 10 variables o de 3 a 5 objetivos).
     if (p.formato === "lista" || p.formato === "tabla" || p.formato === "referencias") {
       const n = p.formato === "tabla" ? leerTabla(v, p.columnas?.length ?? 1).filter((f) => f.some((x) => x.trim())).length : lineas(v).length + delRegistro.length;
@@ -503,7 +706,8 @@ export function revisarApartado(tipoFicha: TipoApartado, c: ContenidoApartado, o
     const pasados = todo.match(PASADO) ?? [];
     if (pasados.length >= 2) r.push({ id: "tiempo", nivel: "aviso", mensaje: `El protocolo se redacta en futuro: aparecen formas en pasado como «${pasados[0]}».` });
   }
-  if (op.tiempo === "pasado" && todo) {
+  // La introducción (párrafo 2 en futuro, como en pasantía) y los agradecimientos no siguen el tiempo del informe.
+  if (op.tiempo === "pasado" && todo && !["introduccion_informe", "introduccion_proyecto", "agradecimientos", "agradecimientos_equipo"].includes(tipo.clave)) {
     const futuros = todo.match(FUTURO) ?? [];
     if (futuros.length >= 2) r.push({ id: "tiempo", nivel: "aviso", mensaje: `El informe final describe lo realizado, en pasado: aparecen formas en futuro como «${futuros[0]}».` });
   }
@@ -538,6 +742,26 @@ export function revisarApartado(tipoFicha: TipoApartado, c: ContenidoApartado, o
     const enRango = (!pe?.minItems || especificos.length >= pe.minItems) && (!pe?.maxItems || especificos.length <= pe.maxItems);
     if (especificos.length && enRango && !noInfinitivo.length && !noMedibles.length) r.push({ id: "obj-ok", nivel: "ok", mensaje: `${especificos.length} objetivos específicos con verbos medibles en infinitivo.` });
   }
+  // Agradecimientos de investigación (notas del 20-nov-2026): para mentores, personas y entidades que apoyaron el estudio.
+  if (tipo.especiales.includes("agradecimientos") && todo) {
+    const personales = [...new Set((sinTildes(todo).match(/\b(familia|familiares|amig[oa]s?|dios|mama|papa|madre|padre|herman[oa]s?|novi[oa]|espos[oa]|abuel[oa]s?)\b/g) ?? []))];
+    if (personales.length) r.push({ id: "agradecimientos-personales", nivel: "aviso", mensaje: `En una investigación, los agradecimientos son para mentores, personas que ayudaron y entidades que prestaron recursos o se involucraron; aparece «${personales.slice(0, 3).join("», «")}».` });
+    const parrafosAg = (c.partes.texto ?? "").split(/\n\s*\n/).filter((x) => x.trim()).length;
+    if (parrafosAg > 4) r.push({ id: "agradecimientos-parrafos", nivel: "aviso", mensaje: `Los agradecimientos deben caber en una página: hasta 4 párrafos (hay ${parrafosAg}).` });
+  }
+  // Objetivos del informe final (notas del 20-nov-2026, Q3): los finales y su justificación solo si cambiaron.
+  if (tipo.especiales.includes("objetivos_finales")) {
+    const originales = lineas(c.partes.especificos ?? "").map(sinTildes);
+    const finales = lineas(c.partes.especificos_finales ?? "").map(sinTildes);
+    const justificacion = (c.partes.justificacion_cambio ?? "").trim();
+    if (finales.length && finales.join("|") === originales.join("|")) {
+      r.push({ id: "finales-iguales", nivel: "aviso", mensaje: "Los objetivos con que se terminó son iguales a los originales: deje vacía esa parte y la justificación.", parte: "especificos_finales" });
+    } else if (finales.length && !justificacion) {
+      r.push({ id: "finales-sin-justificacion", nivel: "falta", mensaje: "Los objetivos cambiaron: explique por qué en «Justificación del cambio».", parte: "justificacion_cambio" });
+    } else if (!finales.length && justificacion) {
+      r.push({ id: "justificacion-sin-finales", nivel: "aviso", mensaje: "Hay una justificación del cambio, pero no los objetivos con que se terminó.", parte: "especificos_finales" });
+    }
+  }
   if (tipo.especiales.includes("hipotesis")) {
     const ho = sinTildes(c.partes.ho ?? "");
     if (ho && !/\bno\b|\bningun|\bni\b/.test(ho)) r.push({ id: "ho-negacion", nivel: "aviso", mensaje: "La hipótesis nula suele ser la negación de la de investigación (no existe relación, no hay diferencia…).", parte: "ho" });
@@ -553,7 +777,8 @@ export function revisarApartado(tipoFicha: TipoApartado, c: ContenidoApartado, o
 
 /** Subapartados completos (con contenido y sobre el mínimo) y total, para el avance. */
 export function avanceApartado(tipo: TipoApartado, c: ContenidoApartado) {
-  const obligatorias = tipo.partes.filter((p) => !p.opcional);
+  // Si todas las partes son opcionales (agradecimientos por integrante), se cuentan todas.
+  const obligatorias = tipo.partes.some((p) => !p.opcional) ? tipo.partes.filter((p) => !p.opcional) : tipo.partes;
   const completas = obligatorias.filter((p) => {
     const v = (c.partes[p.id] ?? "").trim();
     if (parteVacia(p, v)) return false;

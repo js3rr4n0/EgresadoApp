@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { usuarios, carreras, facultades } from "@/lib/schema";
+import { usuarios, carreras, carrerasSedes, facultades } from "@/lib/schema";
+import { sedesPorCarrera } from "@/lib/carrerasSedes";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
@@ -14,8 +15,12 @@ export async function getCarreras() {
         nombre: carreras.nombre,
         facultadId: carreras.facultadId,
       })
-      .from(carreras);
-    return { success: true, data };
+      .from(carreras)
+      .where(eq(carreras.activo, true))
+      .orderBy(carreras.nombre);
+    // Las sedes donde también se ofrece cada carrera (Ilobasco), para filtrarlas por facultad sin duplicarlas.
+    const sedes = sedesPorCarrera(await db.select({ carreraId: carrerasSedes.carreraId, facultadId: carrerasSedes.facultadId }).from(carrerasSedes));
+    return { success: true, data: data.map((c) => ({ ...c, sedes: sedes.get(c.id) ?? [] })) };
   } catch (error) {
     return { success: false, error: "Error al cargar las carreras" };
   }

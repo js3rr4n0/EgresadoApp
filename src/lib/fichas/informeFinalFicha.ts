@@ -5,9 +5,11 @@ import { precargaEspacio, problemasProtocolo, type DatosPropuestaPrecarga } from
 import { PRECARGA_CONCLUSIONES_OBJETIVOS, PRECARGA_MARCO_REGISTROS, type Espacio, type EtapaInformeFinal } from "./tipos";
 import { guardarComoTexto, leerApartado, parteVacia, tipoApartado } from "./apartadosAcademicos";
 import { respuestaVacia } from "./respuestasPropias";
+import { TIPOS_APARTADO, lineas } from "./apartadosAcademicos";
 
 /** Capítulo que genera el sistema (resultados por objetivo): no se redacta, no se envía ni se aprueba aparte. */
-export const capituloGenerado = (e: Pick<Espacio, "elemento">) => e.elemento === "resultados_objetivos" || e.elemento === "reporte_modificaciones";
+export const capituloGenerado = (e: Pick<Espacio, "elemento">) =>
+  ["resultados_objetivos", "reporte_modificaciones", "referencias_citadas", "anexo_involucrados", "anexo_recursos", "derechos_autoria", "cronograma_comparado"].includes(e.elemento);
 
 /** Un capítulo sin contenido: texto vacío, lista vacía o apartado académico con todos sus subapartados vacíos. */
 export function contenidoVacio(e: Espacio, contenido: string | null | undefined): boolean {
@@ -88,6 +90,21 @@ export function precargaCapitulo(
     return tipo ? guardarComoTexto(leerApartado(tipo, texto)) : "";
   }
   return precargaEspacio(e, fuentes, datos);
+}
+
+/**
+ * Objetivos del informe final (notas del 20-nov-2026, Q3): a la precarga de los objetivos del protocolo (los originales)
+ * se agregan los del plan al cierre, solo si son distintos, y la justificación con lo reportado en la bitácora.
+ */
+export function conObjetivosFinales(contenido: string, finales: string[], justificacion: string): string {
+  const tipo = TIPOS_APARTADO.objetivos_informe;
+  const c = leerApartado(tipo, contenido);
+  const norm = (xs: string[]) => xs.map((x) => x.trim().toLowerCase().replace(/\s+/g, " ")).filter(Boolean).join("|");
+  const limpios = finales.map((f) => f.trim()).filter(Boolean);
+  if (!limpios.length || norm(limpios) === norm(lineas(c.partes.especificos ?? ""))) return contenido;
+  const partes: Record<string, string> = { ...c.partes, especificos_finales: limpios.join("\n") };
+  if (!partes.justificacion_cambio?.trim() && justificacion.trim()) partes.justificacion_cambio = justificacion.trim();
+  return guardarComoTexto({ ...c, partes });
 }
 
 /** Pendientes del informe por capítulo (contenido de la última versión de cada uno). */

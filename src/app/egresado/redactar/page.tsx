@@ -547,7 +547,8 @@ export default async function EgresadoPage({
                       isLeader={isLeader} teamMembers={teamMembers} memberInfo={memberInfo} initialTitulo={propuesta.titulo} />
                   )}
                   {paso.tipo === "actores" && (
-                    <ActoresIntervinientesForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={detallesProj} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                    <ActoresIntervinientesForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={detallesProj} isLocked={isFormLocked} isReadOnly={!isLeader}
+                      titulo={fichaProyecto?.version ? e.titulo : undefined} descripcion={fichaProyecto?.version ? e.descripcion : undefined} />
                   )}
                   {paso.tipo === "carta" && (
                     <CartaProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={cartaData} isLocked={isFormLocked} isReadOnly={!isLeader} />
@@ -611,6 +612,7 @@ export default async function EgresadoPage({
                       nombreCompleto: userDetails.nombreCompleto,
                       carnet: userDetails.carnet,
                       carrera: userDetails.carrera,
+                      tituloCarrera: userDetails.tituloCarrera,
                       mesEnvio,
                       titulo: propuesta.titulo,
                     }}

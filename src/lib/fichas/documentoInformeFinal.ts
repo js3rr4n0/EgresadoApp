@@ -3,7 +3,7 @@
 // apartados en mayúsculas y anexos). Módulo puro.
 import { columnasTabla, leerItems, type ArchivoEspacio, type EnlaceEspacio } from "./elementosRecurso";
 import type { EtapaInformeFinal } from "./tipos";
-import { leerApartado, leerTabla, lineas, parteVacia, textoParte, tipoApartado } from "./apartadosAcademicos";
+import { conIntegrantes, leerApartado, leerFiguras, leerTablas, leerTabla, lineas, parteVacia, textoParte, tipoApartado } from "./apartadosAcademicos";
 import { tituloDeCarrera } from "../tituloCarrera";
 import { archivosRespuesta, bloquesRespuesta, respuestaVacia } from "./respuestasPropias";
 import { claveCamposExtra, defCamposExtra, type DefinicionElementoPropio } from "./elementosPropios";
@@ -13,9 +13,26 @@ export type BloqueDocumento =
   | { tipo: "subtitulo"; texto: string }
   /** referencias: con sangría francesa (APA 7) en lugar de viñetas. */
   | { tipo: "lista"; items: string[]; referencias?: boolean }
-  | { tipo: "tabla"; columnas: string[]; filas: string[][] }
+  /** titulo: "Tabla N. …" en los apartados académicos (entrega F2). */
+  | { tipo: "tabla"; columnas: string[]; filas: string[][]; titulo?: string }
+  /** Figura numerada de un apartado académico (entrega F2): la imagen (data URL), su leyenda y su fuente. */
+  | { tipo: "figura"; numero: number; leyenda: string; url: string | null; fuente: string }
   | { tipo: "enlaces"; items: EnlaceEspacio[] }
   | { tipo: "pendiente"; texto: string };
+
+/** Figuras de todo el documento, en orden, para el índice de figuras (entrega F2). */
+export const figurasDe = (apartados: ApartadoDocumento[]) =>
+  apartados.flatMap((a) => a.bloques.flatMap((b) => (b.tipo === "figura" ? [{ numero: b.numero, leyenda: b.leyenda }] : [])));
+
+/** Ids de las figuras de los apartados académicos del documento, para traer sus imágenes. */
+export function idsFigurasDe(espacios: EtapaInformeFinal["espacios"], contenidos: Record<string, string | null | undefined>): number[] {
+  return espacios.flatMap((e) => {
+    const tipo = e.elemento === "apartado" ? tipoApartado(e) : undefined;
+    if (!tipo) return [];
+    const c = leerApartado(tipo, contenidos[e.id]);
+    return tipo.partes.filter((p) => p.formato === "figuras").flatMap((p) => leerFiguras(c.partes[p.id]).map((f) => f.id));
+  });
+}
 
 export interface ApartadoDocumento {
   /** Número del apartado en el índice (null: bibliografía, que va sin número). */
@@ -54,6 +71,8 @@ export interface MetaInformeFinal {
   titulo: string;
   facultad: string | null;
   carrera: string | null;
+  /** Título que otorga la carrera (carreras.titulo); si falta, se deduce del nombre. */
+  tituloCarrera?: string | null;
   integrantes: { nombre: string; carnet: string | null }[];
   asesor: string | null;
   /** Fecha de entrega (ISO) o, si aún no se entrega, la actual. */
@@ -74,7 +93,7 @@ export function portadaInformeFinal(m: MetaInformeFinal, documento = "INFORME FI
         [mayus(m.titulo) || "—"],
         ["PRESENTADO POR:", ...m.integrantes.map((i) => `${mayus(i.nombre)}${i.carnet ? ` (${i.carnet.toUpperCase()})` : ""}`)],
         ["ASESOR:", mayus(m.asesor) || "—"],
-        ["PARA OPTAR AL TÍTULO DE:", mayus(tituloDeCarrera(m.carrera)) || "—"],
+        ["PARA OPTAR AL TÍTULO DE:", mayus(tituloDeCarrera(m.carrera, m.tituloCarrera)) || "—"],
         [lugarFecha],
       ],
     },
@@ -95,11 +114,25 @@ export function apartadosInformeFinal(
   etapa: Pick<EtapaInformeFinal, "espacios">,
   contenidos: Record<string, string | null | undefined>,
   generar: (e: EtapaInformeFinal["espacios"][number], numero: number | null) => BloqueDocumento[] = () => [],
-  opciones: { referencias?: string[]; insertar?: { antesDe: string; titulo: string; bloques: (numero: number) => BloqueDocumento[] }[]; integrantes?: { id: number; nombre: string }[] } = {}
+  opciones: {
+    referencias?: string[];
+    insertar?: { antesDe: string; titulo: string; bloques: (numero: number) => BloqueDocumento[] }[];
+    integrantes?: { id: number; nombre: string }[];
+    /** Imágenes de las figuras de los apartados (id → data URL), entrega F2. */
+    figuras?: Map<number, string>;
+    /**
+     * Entrega F3: la bibliografía (consultadas no citadas) ya separada de las citas y referencias. Si viene, el apartado
+     * de referencias muestra solo esta lista en lugar de sumar el registro de fuentes.
+     */
+    bibliografia?: string[];
+  } = {}
 ): { apartados: ApartadoDocumento[]; anexosCapitulo: ArchivoEspacio[] } {
   const apartados: ApartadoDocumento[] = [];
   let anexosCapitulo: ArchivoEspacio[] = [];
   let n = 0;
+  // Figuras y tablas numeradas en todo el documento (entrega F2).
+  let nFigura = 0;
+  let nTabla = 0;
   const insertados = new Set<number>();
   const insertar = (antesDe: string | null) => {
     (opciones.insertar ?? []).forEach((x, k) => {
@@ -131,34 +164,55 @@ export function apartadosInformeFinal(
     const def = defCamposExtra(e);
     return respuestaVacia(def, valor) ? [] : [{ tipo: "subtitulo", texto: "Datos adicionales" }, ...deRespuesta(def, valor)];
   };
-  for (const e of etapa.espacios) {
+  // Proyecto (notas del 20-nov-2026): los involucrados son un capítulo del cuerpo, con número, si van antes de las
+  // conclusiones; en investigación son un anexo, sin número.
+  const iConclusiones = etapa.espacios.findIndex((e) => e.elemento === "apartado" && tipoApartado(e)?.clave === "conclusiones");
+  for (const [i, e] of etapa.espacios.entries()) {
     insertar(e.id);
     const valor = contenidos[e.id] ?? "";
+    if (e.elemento === "anexo_involucrados" && iConclusiones > i) {
+      const numero = ++n;
+      apartados.push({ numero, titulo: e.titulo, bloques: generar(e, numero) });
+      continue;
+    }
     if (e.elemento === "recursos_presupuesto") {
       const numero = ++n;
       apartados.push({ numero, titulo: e.titulo, bloques: [...generar(e, numero), ...extras(e)] });
       continue;
     }
-    if (e.elemento === "resultados_objetivos") {
+    // El cronograma original y el ejecutado como capítulo propio (proyecto), con número.
+    if (e.elemento === "resultados_objetivos" || e.elemento === "cronograma_comparado") {
       const numero = ++n;
       apartados.push({ numero, titulo: e.titulo, bloques: generar(e, numero) });
       continue;
     }
-    // El reporte de modificaciones va sin número, como la bibliografía: es un anexo del informe.
-    if (e.elemento === "reporte_modificaciones") {
+    // El reporte de modificaciones y las citas y referencias (F3) van sin número, como la bibliografía.
+    if (["reporte_modificaciones", "referencias_citadas", "anexo_involucrados", "anexo_recursos", "derechos_autoria"].includes(e.elemento)) {
       apartados.push({ numero: null, titulo: e.titulo, bloques: generar(e, null) });
       continue;
     }
     // Los archivos de un capítulo de anexos se suman a los anexos del documento.
     if (e.elemento === "archivo") {
-      anexosCapitulo = [...anexosCapitulo, ...(leerItems("archivo", valor) as ArchivoEspacio[])];
+      // Un capítulo de archivos que no es «Anexos» (por ejemplo, la carta de finalización): el anexo lleva su nombre.
+      const generico = /^anexos?$/i.test(e.titulo.trim());
+      anexosCapitulo = [...anexosCapitulo, ...(leerItems("archivo", valor) as ArchivoEspacio[]).map((a) => (generico ? a : { ...a, nombre: `${e.titulo} (${a.nombre})` }))];
       continue;
     }
-    const tipo = e.elemento === "apartado" ? tipoApartado(e) : undefined;
+    const tipo = e.elemento === "apartado" ? conIntegrantes(tipoApartado(e), opciones.integrantes) : undefined;
     const ap = tipo ? leerApartado(tipo, valor) : null;
+    // Agradecimientos por integrante (proyecto): una página sin número por cada integrante que escribió la suya.
+    if (tipo?.clave === "agradecimientos_equipo" && ap) {
+      const llenas = tipo.partes.filter((p) => !parteVacia(p, ap.partes[p.id]));
+      if (!llenas.length && e.obligatorio) apartados.push({ numero: null, titulo: e.titulo, bloques: [{ tipo: "pendiente", texto: `Pendiente: "${e.titulo}" todavía no tiene contenido.` }] });
+      for (const p of llenas) apartados.push({ numero: null, titulo: p.titulo, bloques: [{ tipo: "parrafos", parrafos: parrafosDe(ap.partes[p.id] ?? "") }] });
+      continue;
+    }
     // Referencias del registro de fuentes: se suman a las escritas a mano del apartado de referencias.
     const extra = tipo?.especiales.includes("referencias") ? (opciones.referencias ?? []) : [];
-    if (ap && extra.length) {
+    if (ap && tipo?.especiales.includes("referencias") && opciones.bibliografia) {
+      const parte = tipo.partes.find((p) => p.formato === "referencias");
+      if (parte) ap.partes[parte.id] = opciones.bibliografia.join("\n");
+    } else if (ap && extra.length) {
       const parte = tipo!.partes.find((p) => p.formato === "referencias");
       if (parte) ap.partes[parte.id] = [...new Set([...lineas(ap.partes[parte.id] ?? ""), ...extra])].join("\n");
     }
@@ -166,7 +220,8 @@ export function apartadosInformeFinal(
       : tipo && ap ? tipo.partes.every((p) => parteVacia(p, ap.partes[p.id])) : !valor.trim() || valor.trim() === "[]";
     if (vacio && !e.obligatorio) continue;
     const bibliografia = (e.elemento === "lista" && esBibliografia(e.titulo)) || !!tipo?.especiales.includes("referencias");
-    const numero = bibliografia ? null : ++n;
+    // Bibliografía y agradecimientos (página preliminar, notas del 20-nov-2026) van sin número.
+    const numero = bibliografia || tipo?.clave === "agradecimientos" ? null : ++n;
     const bloques: BloqueDocumento[] = [];
     // La bibliografía va en orden alfabético (APA 7).
     const ordenar = (items: string[]) => (bibliografia ? [...items].sort((a, b) => a.localeCompare(b, "es")) : items);
@@ -178,7 +233,12 @@ export function apartadosInformeFinal(
         if (tipo.partes.length > 1) bloques.push({ tipo: "subtitulo", texto: `${numero ? `${numero}.${k + 1} ` : ""}${p.titulo}` });
         const v = ap.partes[p.id] ?? "";
         if (p.formato === "lista" || p.formato === "referencias") bloques.push({ tipo: "lista", items: ordenar(lineas(v)), referencias: p.formato === "referencias" });
-        else if (p.formato === "tabla") bloques.push({ tipo: "tabla", columnas: p.columnas ?? [], filas: leerTabla(v, p.columnas?.length ?? 1).filter((f) => f.some(Boolean)) });
+        else if (p.formato === "tabla") bloques.push({ tipo: "tabla", titulo: `Tabla ${++nTabla}. ${p.titulo}`, columnas: p.columnas ?? [], filas: leerTabla(v, p.columnas?.length ?? 1).filter((f) => f.some(Boolean)) });
+        else if (p.formato === "figuras") {
+          for (const f of leerFiguras(v)) bloques.push({ tipo: "figura", numero: ++nFigura, leyenda: f.leyenda, url: opciones.figuras?.get(f.id) ?? null, fuente: f.fuente });
+        } else if (p.formato === "tablas") {
+          for (const t of leerTablas(v)) bloques.push({ tipo: "tabla", titulo: `Tabla ${++nTabla}. ${t.titulo}`, columnas: t.columnas, filas: t.filas.filter((f) => f.some(Boolean)) });
+        }
         else bloques.push({ tipo: "parrafos", parrafos: parrafosDe(textoParte(tipo, ap, p.id)) });
       });
     } else if (e.elemento === "texto") bloques.push({ tipo: "parrafos", parrafos: parrafosDe(valor) });

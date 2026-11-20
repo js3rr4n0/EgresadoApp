@@ -103,6 +103,7 @@ export async function getActivePropuesta(targetPropuestaId?: number) {
       nombreCompleto: usuarios.nombreCompleto,
       carnet: usuarios.carnet,
       carrera: carreras.nombre,
+      tituloCarrera: carreras.titulo,
       facultad: facultades.nombre,
     })
     .from(usuarios)

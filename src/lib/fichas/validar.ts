@@ -202,6 +202,10 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
       if (minEspecificos > maxEspecificos) p("el mínimo de objetivos específicos es mayor que el máximo.");
     }
     if (esp.elemento === "resultados_objetivos" && !def.etapas.some(esEtapaPlan)) p("los resultados por objetivo salen del plan de trabajo: la ficha necesita uno.");
+    if (esp.elemento === "cronograma_comparado" && !def.etapas.some(esEtapaPlan)) p("el cronograma sale del plan de trabajo: la ficha necesita uno.");
+    if (esp.elemento === "anexo_recursos" && !def.etapas.find(esEtapaProtocolo)?.espacios.some((x) => x.elemento === "recursos_presupuesto")) {
+      p("el anexo de recursos sale de los recursos del protocolo: la ficha necesita ese espacio.");
+    }
     if (esp.elemento === "reporte_modificaciones" && !def.etapas.filter(esEtapaEjecucion).some((x) => x.registro.modificaciones)) {
       p("el reporte de modificaciones sale de la bitácora: la ejecución debe pedirla.");
     }

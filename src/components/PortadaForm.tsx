@@ -11,6 +11,7 @@ interface PortadaFormProps {
     nombreCompleto: string | null;
     carnet: string | null;
     carrera: string | null;
+    tituloCarrera?: string | null;
     mesEnvio: string;
     titulo?: string | null;
   };
@@ -155,7 +156,7 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
               <input 
                 type="text" 
                 readOnly 
-                value={tituloDeCarrera(initialData.carrera) || "Carrera no asignada"} 
+                value={tituloDeCarrera(initialData.carrera, initialData.tituloCarrera) || "Carrera no asignada"} 
                 className="w-full px-4 py-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-700 cursor-not-allowed focus:outline-none" 
               />
               <InputLock />
@@ -269,7 +270,7 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
                 <input 
                   type="text" 
                   readOnly
-                  value={tituloDeCarrera(formData.carrera) ?? ""}
+                  value={tituloDeCarrera(formData.carrera, initialData.tituloCarrera) ?? ""}
                   className="w-full px-3 py-2 border border-border rounded-lg bg-slate-100 text-slate-500 font-medium cursor-not-allowed outline-none"
                   title="Este campo no se puede modificar desde la solicitud de datos erróneos."
                 />

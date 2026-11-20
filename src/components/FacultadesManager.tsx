@@ -17,6 +17,10 @@ type Carrera = {
   activo: boolean;
   facultadId: number;
   facultadNombre: string;
+  /** Título que otorga (portadas). */
+  titulo: string | null;
+  /** Otras sedes donde también se ofrece (Ilobasco), sin duplicar la carrera. */
+  sedes: number[];
 };
 
 export default function FacultadesManager({
@@ -30,6 +34,18 @@ export default function FacultadesManager({
   const [carreras, setCarreras] = useState(initialCarreras);
   const [pending, setPending] = useState(false);
   const [editingFacultadId, setEditingFacultadId] = useState<number | null>(null);
+  const nombreFacultad = (id: number) => facultades.find((f) => f.id === id)?.nombre ?? "";
+  // Casillas de las otras sedes donde se ofrece la carrera (su propia facultad no se marca).
+  const casillasSedes = (marcadas: number[]) => (
+    <fieldset className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-card-dark">
+      <legend className="block text-[10px] font-bold text-card-dark uppercase tracking-widest mb-1">También se ofrece en</legend>
+      {facultades.filter((f) => f.activo).map((f) => (
+        <label key={f.id} className="flex items-center gap-1">
+          <input type="checkbox" name="sedes" value={f.id} defaultChecked={marcadas.includes(f.id)} className="rounded" /> {f.nombre}
+        </label>
+      ))}
+    </fieldset>
+  );
 
   const handleCreateFacultad = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -137,7 +153,7 @@ export default function FacultadesManager({
         </form>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
+          <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border">
                 <th className="pb-3 font-bold text-[10px] text-card-dark uppercase tracking-widest">Código</th>
@@ -205,6 +221,11 @@ export default function FacultadesManager({
               <input name="codigo" type="text" placeholder="IINF" className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:ring-2 focus:ring-blue-600/20 outline-none uppercase" />
             </div>
           </div>
+          <div>
+            <label className="block text-[10px] font-bold text-card-dark uppercase tracking-widest mb-1.5">Título a otorgar</label>
+            <input name="titulo" type="text" placeholder="Ej: Ingeniero o Ingeniera en Sistemas Informáticos" className="w-full px-3 py-2 rounded-lg border border-border text-sm focus:ring-2 focus:ring-blue-600/20 outline-none" />
+          </div>
+          {casillasSedes([])}
           
           <div className="flex flex-col sm:flex-row gap-3 items-end">
             <div className="flex-1 w-full">
@@ -248,6 +269,8 @@ export default function FacultadesManager({
                             ))}
                           </select>
                         </div>
+                        <input name="titulo" defaultValue={c.titulo || ""} placeholder="Título a otorgar" className="px-2 py-1 border border-border rounded text-sm outline-none focus:ring-2 focus:ring-blue-600/20" />
+                        {casillasSedes(c.sedes)}
                         <div className="flex items-center justify-between">
                           <label className="flex items-center gap-1 text-xs">
                             <input type="checkbox" name="activo" defaultChecked={c.activo} className="rounded" /> Activo
@@ -264,7 +287,9 @@ export default function FacultadesManager({
                       <td className="py-3 font-bold text-card-dark">{c.codigo || "-"}</td>
                       <td className="py-3">
                         <div className="text-muted text-sm">{c.nombre}</div>
+                        {c.titulo && <div className="text-xs text-card-dark mt-0.5">Título: {c.titulo}</div>}
                         <div className="text-[10px] text-brand-red font-bold mt-0.5">{c.facultadNombre}</div>
+                        {c.sedes.length > 0 && <div className="text-[10px] text-blue-700 font-bold mt-0.5">También en: {c.sedes.map(nombreFacultad).join(", ")}</div>}
                       </td>
                       <td className="py-3 text-center">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase ${c.activo ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'}`}>

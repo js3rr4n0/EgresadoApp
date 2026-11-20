@@ -78,6 +78,11 @@ export const CAMPOS_ELEMENTO: Record<ClaveElemento, CampoElemento[]> = {
   tabla: [{ nombre: "Filas (una celda de texto por columna)", tipo: "lista", obligatorio: true }],
   resultados_objetivos: [],
   reporte_modificaciones: [],
+  referencias_citadas: [],
+  anexo_involucrados: [],
+  anexo_recursos: [],
+  cronograma_comparado: [],
+  derechos_autoria: [],
   recursos_presupuesto: [
     { nombre: "Categoría", tipo: "selección", obligatorio: true },
     { nombre: "Descripción del recurso", tipo: "texto", obligatorio: true },
@@ -127,7 +132,7 @@ export const ACCIONES_PROCESO: { clave: string; nombre: string; etapa: string; r
   { clave: "cambios", nombre: "Autorizar cambios al cronograma", etapa: "Ejecución", rol: "asesor" },
   { clave: "informe", nombre: "Aprobar el informe de período", etapa: "Ejecución", rol: "asesor" },
   { clave: "comentarios", nombre: "Recibir los comentarios del asesor", etapa: "Ejecución", rol: "admin_dec" },
-  { clave: "final", nombre: "Aprobar el informe final", etapa: "Cierre", rol: "asesor" },
+  { clave: "final", nombre: "Aprobar el informe final", etapa: "Informe final", rol: "asesor" },
 ];
 
 export interface DisenoPresentacion {

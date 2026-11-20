@@ -33,7 +33,27 @@ export const carreras = pgTable("carreras", {
   nombre: varchar("nombre", { length: 255 }).notNull(),
   codigo: varchar("codigo", { length: 50 }),
   activo: boolean("activo").notNull().default(true),
+  // Título que otorga la carrera, como va en la portada ("Ingeniero o Ingeniera en Sistemas Informáticos").
+  // Script: scripts/cargar_facultades_carreras.ts
+  titulo: varchar("titulo", { length: 255 }),
 });
+
+// Otras facultades o sedes donde también se ofrece una carrera (por ejemplo, la Facultad Multidisciplinaria de
+// Ilobasco). La carrera es una sola: no se duplica por ofrecerse en otra sede. El egresado lleva su carrera y la
+// facultad donde la cursa (usuarios.facultad_id).
+export const carrerasSedes = pgTable(
+  "carreras_sedes",
+  {
+    id: serial("id").primaryKey(),
+    carreraId: integer("carrera_id")
+      .notNull()
+      .references(() => carreras.id, { onDelete: "cascade" }),
+    facultadId: integer("facultad_id")
+      .notNull()
+      .references(() => facultades.id, { onDelete: "cascade" }),
+  },
+  (table) => [unique("carreras_sedes_unique").on(table.carreraId, table.facultadId)]
+);
 
 // ─────────────────────────── Usuarios ───────────────────────────
 
@@ -971,6 +991,20 @@ export const fichasVersiones = pgTable(
     check("fichas_versiones_estado_check", sql`${table.estado} IN ('borrador', 'habilitada', 'retirada')`),
   ]
 );
+
+// Figuras de los apartados académicos (informe final, entrega F2): imágenes con leyenda en el análisis, los resultados
+// o la comprobación de hipótesis. El contenido del capítulo guarda solo el id, así cada versión no repite la imagen.
+// Script: scripts/fichas/crear_figuras_documento.ts
+export const figurasDocumento = pgTable("figuras_documento", {
+  id: serial("id").primaryKey(),
+  propuestaId: integer("propuesta_id")
+    .notNull()
+    .references(() => propuestas.id, { onDelete: "cascade" }),
+  url: text("url").notNull(), // data URL (PNG o JPG)
+  nombre: varchar("nombre", { length: 255 }),
+  subidoPor: integer("subido_por").references(() => usuarios.id),
+  subidoEn: timestamp("subido_en", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // Cohortes que usan cada versión de ficha (H1, la "entrega 3"): se marcan al habilitar la versión. Una cohorte queda en
 // una sola versión de cada ficha; las propuestas ya creadas conservan la suya (propuestas.ficha_version_id).

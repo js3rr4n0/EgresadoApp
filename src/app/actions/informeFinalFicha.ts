@@ -18,24 +18,31 @@ import { revalidatePath } from "next/cache";
 import { fichaDePropuesta, espaciosPropuesta } from "@/lib/fichas/fichaDePropuesta";
 import { esCronogramaInvestigacion, esEtapaInformeFinal, esEtapaProtocolo, productosObjetivo, type Espacio, type EtapaInformeFinal } from "@/lib/fichas/tipos";
 import { hojasElemento, procesoPorObjetivo } from "@/lib/fichas/elementosEjecucion";
-import { aplanar, type NodoPlan } from "@/lib/fichas/planTrabajo";
+import { aplanar, objetivosEspecificos, type NodoPlan } from "@/lib/fichas/planTrabajo";
 import { columnasTabla, enlaceValido, limitesRecurso, TIPOS_ARCHIVO, type ArchivoEspacio } from "@/lib/fichas/elementosRecurso";
 import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
-import { guardarComoTexto, leerApartado, leerTabla, parteVacia, tipoApartado } from "@/lib/fichas/apartadosAcademicos";
+import { guardarComoTexto, leerApartado, leerTabla, limpiarFigurasTablas, lineas, parteVacia, tipoApartado } from "@/lib/fichas/apartadosAcademicos";
+import { separarReferencias } from "@/lib/fichas/referenciasInforme";
+import { bloquesDerechos, bloquesInvolucrados, bloquesRecursosInforme, type DatosInvolucrados } from "@/lib/fichas/anexosInforme";
+import { leerRespuestaPropia } from "@/lib/fichas/respuestasPropias";
+import { claveCamposExtra } from "@/lib/fichas/elementosPropios";
+import { fuentesCitadasPlan } from "@/lib/fichas/metodologiaPlan";
 import {
-  CAPITULO_NUEVO, capituloEditable, capituloGenerado, capitulosPendientes, editandoOtro, leerCapitulos, precargaCapitulo, problemasInformeFinal,
+  CAPITULO_NUEVO, capituloEditable, capituloGenerado, capitulosPendientes, conObjetivosFinales, editandoOtro, leerCapitulos, precargaCapitulo, problemasInformeFinal,
   textoConclusionesObjetivos, textoMarcoRegistros, type EstadoDeCapitulo, type EstadoInformeFinal,
 } from "@/lib/fichas/informeFinalFicha";
 import { getPlanTrabajo, type DatosPlan } from "./planTrabajo";
 import { notificarEquipo } from "@/lib/notificarEquipo";
 import { AUTORIDADES_ACADEMICAS } from "@/lib/informeFinal";
 import { resultadosPorObjetivo } from "@/lib/fichas/resultadosObjetivos";
+import { bloquesCronogramaComparado } from "@/lib/fichas/documentoProtocolo";
 import { bloquesBitacora, entradasBitacora } from "@/lib/fichas/bitacora";
-import { referenciasOrdenadas } from "@/lib/fichas/fuentes";
+import { fuentesCitadas, referenciasOrdenadas } from "@/lib/fichas/fuentes";
 import { fuentesDePropuesta } from "./fuentesTrabajo";
 import { notaImagen } from "@/lib/fuenteImagen";
 import { limpiarRespuesta } from "@/lib/fichas/respuestasPropias";
-import { apartadosInformeFinal, portadaInformeFinal, type AnexoDocumento, type BloqueDocumento, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
+import { apartadosInformeFinal, idsFigurasDe, portadaInformeFinal, type AnexoDocumento, type BloqueDocumento, type DocumentoInformeFinal } from "@/lib/fichas/documentoInformeFinal";
+import { urlsFiguras } from "@/lib/fichas/figurasServidor";
 
 const MAX_TEXTO = 200_000;
 const ESTADOS_PROPUESTA = ["en_ejecucion", "finalizada"];
@@ -136,6 +143,86 @@ function refrescar(propuestaId: number) {
 }
 
 /** Contenidos vigentes (última versión) y su huella, en el orden de la ficha. */
+/**
+ * Entrega F3: las fuentes citadas en el informe y las consultadas que no se citaron. Las citas se buscan en los capítulos
+ * (sin los de referencias), en los registros de la ejecución y en la metodología del plan.
+ */
+async function referenciasDelInforme(propuestaId: number, ctx: Contexto, contenidos: Record<string, string>, textosEjecucion: string[]) {
+  const registro = referenciasOrdenadas(await fuentesDePropuesta(propuestaId)).map((f) => ({ id: f.id, referencia: f.referencia }));
+  const deReferencias = ctx.etapa.espacios.filter((e) => e.elemento === "apartado" && tipoApartado(e)?.especiales.includes("referencias"));
+  const manuales = deReferencias.flatMap((e) => {
+    const tipo = tipoApartado(e)!;
+    const parte = tipo.partes.find((p) => p.formato === "referencias");
+    return parte ? lineas(leerApartado(tipo, contenidos[e.id]).partes[parte.id] ?? "") : [];
+  });
+  const textos = [...ctx.etapa.espacios.filter((e) => !deReferencias.includes(e)).map((e) => contenidos[e.id] ?? ""), ...textosEjecucion];
+  const idsCitados = [...fuentesCitadas(ctx.etapa.espacios, contenidos), ...fuentesCitadasPlan(ctx.plan.plan.arbol as NodoPlan)];
+  return separarReferencias({ textos, idsCitados, registro, manuales });
+}
+
+/**
+ * Datos de los anexos que genera el sistema (entrega F4): los involucrados (sección de la propuesta, equipo y asesor) y
+ * los recursos del protocolo.
+ */
+async function datosAnexos(propuestaId: number, ctx: Contexto) {
+  const ficha = await fichaDePropuesta(propuestaId);
+  const def = ficha!.definicion;
+  const investigacion = def.modalidad === "investigacion";
+  const [det] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
+  const resp = Object.fromEntries((await db.select({ id: respuestasEspacios.espacioId, c: respuestasEspacios.contenido }).from(respuestasEspacios)
+    .where(eq(respuestasEspacios.propuestaId, propuestaId))).map((r) => [r.id, r.c ?? ""]));
+  // "Otras personas o entidades involucradas": las listas de los campos adicionales del paso de actores.
+  const actores = espaciosPropuesta(def).find((e) => e.elemento === "actores");
+  const extra = actores?.camposExtra?.length ? leerRespuestaPropia(resp[claveCamposExtra(actores.id)]).valores ?? {} : {};
+  const otros = (actores?.camposExtra ?? []).filter((c) => c.tipo === "lista").flatMap((c) => (Array.isArray(extra[c.id]) ? (extra[c.id] as string[]) : []));
+  const [prop] = await db.select({ asesorId: propuestas.asesorId }).from(propuestas).where(eq(propuestas.id, propuestaId));
+  const [asesor] = prop?.asesorId ? await db.select({ nombre: usuarios.nombreCompleto }).from(usuarios).where(eq(usuarios.id, prop.asesorId)) : [];
+  const involucrados: DatosInvolucrados = {
+    actores: [
+      { papel: investigacion ? "Solicita o patrocina la investigación" : "Patrocinador", nombre: det?.actorPatrocinador },
+      { papel: investigacion ? "Investigador" : "Beneficiario", nombre: det?.actorBeneficiario },
+      { papel: "Ejecutor", nombre: det?.actorEjecutor },
+      { papel: "Financista", nombre: det?.actorFinancista },
+    ],
+    otros,
+    equipo: ctx.plan.equipo.map((i) => i.nombre),
+    asesor: asesor?.nombre ?? null,
+    trabajo: investigacion ? "investigacion" : "proyecto",
+  };
+  const recursos = def.etapas.find(esEtapaProtocolo)?.espacios.find((e) => e.elemento === "recursos_presupuesto") ?? null;
+  return { involucrados, recursos, valorRecursos: recursos ? resp[recursos.id] : null };
+}
+
+/** Bloques de un anexo o página generada (F4), o null si el elemento no es de esos. */
+function bloquesAnexo(e: Espacio, anexos: Awaited<ReturnType<typeof datosAnexos>> | null, bitacora: ReturnType<typeof entradasBitacora>): BloqueDocumento[] | null {
+  if (e.elemento === "derechos_autoria") return bloquesDerechos(e);
+  if (!anexos) return null;
+  if (e.elemento === "anexo_involucrados") return bloquesInvolucrados(anexos.involucrados);
+  if (e.elemento === "anexo_recursos") return bloquesRecursosInforme(anexos.recursos, anexos.valorRecursos, bitacora);
+  return null;
+}
+
+/**
+ * Proyecto (notas del 20-nov-2026): si el informe tiene el capítulo «Cronograma original y ejecutado», el desarrollo
+ * por objetivo ya no lo repite al final.
+ */
+const columnasDesarrollo = (ctx: Contexto) => (ctx.etapa.espacios.some((e) => e.elemento === "cronograma_comparado") ? undefined : ctx.plan.columnas);
+
+function bloquesCronograma(datos: Awaited<ReturnType<typeof datosResultados>>, ctx: Contexto): BloqueDocumento[] {
+  const b = bloquesCronogramaComparado(datos.arbol, ctx.plan.columnas, datos.registros);
+  return b.length ? b : [{ tipo: "pendiente", texto: "Pendiente: el plan de trabajo todavía no tiene actividades en el cronograma." }];
+}
+
+const conAnexos = (ctx: Contexto) => ctx.etapa.espacios.some((e) => e.elemento === "anexo_involucrados" || e.elemento === "anexo_recursos");
+
+/** Lo que se escribió en los registros de la ejecución (para buscar citas). */
+const textosEjecucion = (datos: { registros: { acciones?: string | null; resultado: string | null }[] }) =>
+  datos.registros.flatMap((r) => [r.acciones ?? "", r.resultado ?? ""]);
+
+/** Bloques del capítulo «Citas y referencias». */
+const bloquesCitadas = (citadas: string[]): BloqueDocumento[] =>
+  citadas.length ? [{ tipo: "lista", items: citadas, referencias: true }] : [{ tipo: "pendiente", texto: "Todavía no hay fuentes citadas en el informe." }];
+
 function vigentes(ctx: Contexto) {
   const contenidos: Record<string, string> = {};
   const partes: [string, number | null, string][] = [];
@@ -166,7 +253,24 @@ async function precargas(propuestaId: number, ctx: Contexto): Promise<Record<str
   const entregas = await db.select({ nodoId: entregasObjetivo.nodoId, estado: entregasObjetivo.estado, conclusion: entregasObjetivo.conclusion })
     .from(entregasObjetivo).where(eq(entregasObjetivo.propuestaId, propuestaId));
   const conclusiones = textoConclusionesObjetivos((ctx.plan.plan.arbol as NodoPlan).hijos, entregas);
-  return Object.fromEntries(sin.map((e) => [e.id, precargaCapitulo(e, fuentes, datos, marco, conclusiones)]).filter(([, t]) => t));
+  const resultado: Record<string, string> = Object.fromEntries(sin.map((e) => [e.id, precargaCapitulo(e, fuentes, datos, marco, conclusiones)]).filter(([, t]) => t));
+  // Objetivos del informe (notas del 20-nov-2026): los del plan al cierre y, como justificación, lo reportado en la
+  // bitácora sobre los objetivos o el alcance.
+  const conFinales = sin.filter((e) => e.elemento === "apartado" && e.parametros.tipo === "objetivos_informe");
+  if (conFinales.length) {
+    const arbol = ctx.plan.plan.arbol as NodoPlan;
+    const finales = objetivosEspecificos(arbol).map((o) => o.titulo);
+    const res = await datosResultados(propuestaId, ctx, false);
+    const justificacion = entradasBitacora({ arbol, registros: res.registros, entregas: res.entregas })
+      .filter((x) => x.origen === "objetivo" || x.tipo === "alcance")
+      .map((x) => `${x.codigo} ${x.titulo}: ${x.texto}`)
+      .join("\n\n");
+    for (const e of conFinales) {
+      const nuevo = conObjetivosFinales(resultado[e.id] ?? "", finales, justificacion);
+      if (nuevo) resultado[e.id] = nuevo;
+    }
+  }
+  return resultado;
 }
 
 /**
@@ -272,6 +376,7 @@ function limpiar(e: Espacio, contenido: string): { ok: true; valor: string } | {
       if (typeof v !== "string" || parteVacia(p, v)) continue;
       if (p.formato === "tabla") partes[p.id] = JSON.stringify(leerTabla(v, p.columnas?.length ?? 1).map((f) => f.map((x) => x.trim().slice(0, 2000))).filter((f) => f.some(Boolean)).slice(0, 50));
       else if (p.formato === "seleccion") { if (p.opciones?.some((o) => o.valor === v)) partes[p.id] = v; }
+      else if (p.formato === "figuras" || p.formato === "tablas") { const l = limpiarFigurasTablas(p.formato, v); if (l !== "[]") partes[p.id] = l; }
       else partes[p.id] = v.replace(/\r\n/g, "\n").slice(0, MAX_TEXTO);
     }
     const autoevaluacion = [...new Set(c.autoevaluacion.filter((n) => n >= 0 && n < tipo.autoevaluacion.length))];
@@ -584,8 +689,16 @@ async function capitulosGenerados(propuestaId: number, ctx: Contexto): Promise<R
   const espacios = ctx.etapa.espacios.filter(capituloGenerado);
   if (espacios.length === 0) return {};
   const datos = await datosResultados(propuestaId, ctx, false);
+  const separadas = espacios.some((e) => e.elemento === "referencias_citadas")
+    ? await referenciasDelInforme(propuestaId, ctx, vigentes(ctx).contenidos, textosEjecucion(datos))
+    : null;
+  const anexos = conAnexos(ctx) ? await datosAnexos(propuestaId, ctx) : null;
+  const bitacora = entradasBitacora(datos);
   return Object.fromEntries(espacios.map((e) => [e.id,
-    e.elemento === "reporte_modificaciones" ? bloquesBitacora(entradasBitacora(datos)) : resultadosPorObjetivo({ ...datos, numero: null }).bloques]));
+    e.elemento === "reporte_modificaciones" ? bloquesBitacora(bitacora)
+      : e.elemento === "referencias_citadas" ? bloquesCitadas(separadas?.citadas ?? [])
+      : e.elemento === "cronograma_comparado" ? bloquesCronograma(datos, ctx)
+      : bloquesAnexo(e, anexos, bitacora) ?? resultadosPorObjetivo({ ...datos, numero: null, columnas: columnasDesarrollo(ctx) }).bloques]));
 }
 
 export async function getDocumentoInformeFinal(propuestaId: number): Promise<Resultado<{ documento: DocumentoInformeFinal }>> {
@@ -594,14 +707,16 @@ export async function getDocumentoInformeFinal(propuestaId: number): Promise<Res
   const { ctx } = r;
   const { contenidos } = vigentes(ctx);
   const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId));
-  const [lider] = await db.select({ carrera: carreras.nombre, facultad: facultades.nombre })
-    .from(usuarios).leftJoin(carreras, eq(usuarios.carreraId, carreras.id)).leftJoin(facultades, eq(carreras.facultadId, facultades.id))
+  const [lider] = await db.select({ carrera: carreras.nombre, tituloCarrera: carreras.titulo, facultad: facultades.nombre })
+    .from(usuarios).leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
+    .leftJoin(facultades, eq(facultades.id, sql`coalesce(${usuarios.facultadId}, ${carreras.facultadId})`))
     .where(eq(usuarios.id, prop.egresadoId));
   const [asesor] = prop.asesorId ? await db.select({ nombre: usuarios.nombreCompleto }).from(usuarios).where(eq(usuarios.id, prop.asesorId)) : [];
   const { portada, lugarFecha } = portadaInformeFinal({
     titulo: prop.titulo ?? "",
     facultad: lider?.facultad ?? null,
     carrera: lider?.carrera ?? null,
+    tituloCarrera: lider?.tituloCarrera ?? null,
     integrantes: ctx.plan.equipo.map((i) => ({ nombre: i.nombre, carnet: i.carnet })),
     asesor: asesor?.nombre ?? null,
     fecha: (ctx.fila.entregadoEn ?? new Date()).toISOString(),
@@ -609,12 +724,27 @@ export async function getDocumentoInformeFinal(propuestaId: number): Promise<Res
   // Resultados por objetivo: el capítulo que genera el sistema y los anexos de productos y evidencias, en el orden del
   // plan (objetivo → productos → actividades). Sin ese capítulo en la ficha, los anexos salen en el mismo orden.
   const datosRes = await datosResultados(propuestaId, ctx, true);
-  let generados = resultadosPorObjetivo({ ...datosRes, numero: null });
+  let generados = resultadosPorObjetivo({ ...datosRes, numero: null, columnas: columnasDesarrollo(ctx) });
+  const separadas = ctx.etapa.espacios.some((e) => e.elemento === "referencias_citadas")
+    ? await referenciasDelInforme(propuestaId, ctx, contenidos, textosEjecucion(datosRes))
+    : null;
+  const datosDeAnexos = conAnexos(ctx) ? await datosAnexos(propuestaId, ctx) : null;
   const { apartados, anexosCapitulo } = apartadosInformeFinal(ctx.etapa, contenidos, (e, numero) => {
     if (e.elemento === "reporte_modificaciones") return bloquesBitacora(entradasBitacora(datosRes));
-    generados = resultadosPorObjetivo({ ...datosRes, numero });
+    if (e.elemento === "referencias_citadas") return bloquesCitadas(separadas?.citadas ?? []);
+    if (e.elemento === "cronograma_comparado") return bloquesCronograma(datosRes, ctx);
+    const anexo = bloquesAnexo(e, datosDeAnexos, entradasBitacora(datosRes));
+    if (anexo) return anexo;
+    generados = resultadosPorObjetivo({ ...datosRes, numero, columnas: columnasDesarrollo(ctx) });
     return generados.bloques;
-  }, { referencias: referenciasOrdenadas(await fuentesDePropuesta(propuestaId)).map((x) => x.referencia), integrantes: integrantesDe(ctx) });
+  }, {
+    referencias: referenciasOrdenadas(await fuentesDePropuesta(propuestaId)).map((x) => x.referencia),
+    integrantes: integrantesDe(ctx),
+    // Entrega F2: las imágenes de las figuras de los capítulos.
+    figuras: await urlsFiguras(propuestaId, idsFigurasDe(ctx.etapa.espacios, contenidos)),
+    // Entrega F3: si la ficha tiene «Citas y referencias», la bibliografía lleva solo lo consultado y no citado.
+    ...(separadas ? { bibliografia: separadas.bibliografia } : {}),
+  });
 
   const anexos: AnexoDocumento[] = [
     ...generados.anexos,

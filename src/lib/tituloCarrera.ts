@@ -1,6 +1,7 @@
-// Título académico al que se opta, a partir del nombre de la carrera (recorrido integral, H13). La tabla de carreras no
-// guarda el título, así que se deduce del grado: "Ingeniería en Sistemas" → "Ingeniero(a) en Sistemas". Si el nombre no
-// empieza con un grado conocido, se muestra tal cual. Módulo puro.
+// Título académico al que se opta (recorrido integral, H13). Es el título que la carrera tiene registrado
+// (carreras.titulo, cargado con scripts/cargar_facultades_carreras.ts). Si una carrera aún no lo tiene, se deduce del
+// grado: "Ingeniería en Sistemas" → "Ingeniero(a) en Sistemas"; si el nombre no empieza con un grado conocido, se
+// muestra tal cual. Módulo puro.
 
 const GRADOS: [RegExp, string][] = [
   [/^ingenier[ií]a\b/i, "Ingeniero(a)"],
@@ -12,7 +13,8 @@ const GRADOS: [RegExp, string][] = [
   [/^t[eé]cnico\b/i, "Técnico(a)"],
 ];
 
-export function tituloDeCarrera(carrera: string | null | undefined): string | null {
+export function tituloDeCarrera(carrera: string | null | undefined, registrado?: string | null): string | null {
+  if (registrado?.trim()) return registrado.trim();
   const nombre = carrera?.trim();
   if (!nombre) return null;
   for (const [patron, titulo] of GRADOS) {

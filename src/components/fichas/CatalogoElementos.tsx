@@ -207,6 +207,8 @@ const REVISION_ESPECIAL = {
   objetivos: "verbos en infinitivo medibles, de 3 a 4 específicos por integrante (como la propuesta y el plan)",
   conclusiones: "una conclusión por objetivo",
   referencias: "forma APA 7, orden alfabético, duplicados y antigüedad",
+  agradecimientos: "avisa agradecimientos personales o familiares y más de 4 párrafos",
+  objetivos_finales: "si los objetivos cambiaron, pide la justificación",
 } as const;
 
 /** Tipos de apartado académico: subapartados, extensión y revisiones (guía de UNICAES, 2024). */

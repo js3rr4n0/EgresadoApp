@@ -17,9 +17,9 @@ import EditorEjecucion from "./EditorEjecucion";
 import EditorPlan from "./EditorPlan";
 import { CalendarioEjecucion, PasosEgresado, PlanEgresado } from "./VistaPrevia";
 import { EjemploPlan } from "./EditorPlan";
-import { EditorCierre, EditorPresentacion, EditorRoles } from "./PestanasDiseno";
+import { EditorPresentacion, EditorRoles } from "./PestanasDiseno";
 
-type Pestana = "propuesta" | "protocolo" | "plan" | "ejecucion" | "informe_final" | "cierre" | "revision" | "publica" | "roles" | "cambios" | "versiones";
+type Pestana = "propuesta" | "protocolo" | "plan" | "ejecucion" | "informe_final" | "revision" | "publica" | "roles" | "cambios" | "versiones";
 
 interface Props {
   ficha: { id: number; codigo: string | null; nombre: string; modalidad: Modalidad; esBase: boolean; alcance: string };
@@ -117,7 +117,6 @@ export default function EditorFicha({ ficha, versiones, version, referencia, pro
     ...(ficha.modalidad === "pasantia" ? [] : [{ id: "plan" as const, texto: "Plan de trabajo", marca: enPlan }]),
     { id: "ejecucion", texto: "Ejecución", marca: enEjecucion },
     ...(ficha.modalidad !== "pasantia" || informeFinalActual ? [{ id: "informe_final" as const, texto: "Informe final", marca: enInforme }] : []),
-    { id: "cierre", texto: "Cierre", diseno: true },
     { id: "revision", texto: "Presentación de revisión", diseno: true },
     { id: "publica", texto: "Presentación pública", diseno: true },
     { id: "roles", texto: "Roles", diseno: true },
@@ -249,7 +248,6 @@ export default function EditorFicha({ ficha, versiones, version, referencia, pro
           {pestana === "plan" && <EditorPlan definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "informe_final" && <EditorInformeFinal definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
           {pestana === "ejecucion" && <EditorEjecucion definicion={definicion} editable={editable} problemas={problemas} onChange={cambiar} />}
-          {pestana === "cierre" && <EditorCierre modalidad={ficha.modalidad} />}
           {pestana === "revision" && <EditorPresentacion key="revision" tipo="revision" modalidad={ficha.modalidad} />}
           {pestana === "publica" && <EditorPresentacion key="publica" tipo="publica" modalidad={ficha.modalidad} />}
           {pestana === "roles" && <EditorRoles />}
