@@ -89,7 +89,8 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Datos empresariales",
     grupo: "Institución",
     descripcion: "Empresa o sucursal del catálogo. Si no existe o sus datos cambian, se solicita su registro.",
-    formularioEn: ["pasantia"],
+    // Recorrido (23-nov-2026): el mismo formulario de pasantía, también en proyecto e investigación.
+    formularioEn: ["pasantia", "proyecto", "investigacion"],
     repetible: false,
     alcance: "equipo",
     requiere: [],
@@ -103,7 +104,7 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     nombre: "Datos del supervisor",
     grupo: "Institución",
     descripcion: "Supervisor de la empresa que acompaña el proceso.",
-    formularioEn: ["pasantia"],
+    formularioEn: ["pasantia", "proyecto", "investigacion"],
     repetible: false,
     alcance: "equipo",
     requiere: ["empresa"],

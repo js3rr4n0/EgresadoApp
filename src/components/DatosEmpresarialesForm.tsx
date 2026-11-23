@@ -36,6 +36,8 @@ interface DatosEmpresarialesFormProps {
   initialSucursalId?: number | null;
   empresas: Empresa[];
   sucursales?: Sucursal[];
+  /** Paso al que se continúa (pasantía: 3; en proyecto e investigación, el que sigue en la ficha). */
+  pasoSiguiente?: number;
 }
 
 export default function DatosEmpresarialesForm({
@@ -44,6 +46,7 @@ export default function DatosEmpresarialesForm({
   initialSucursalId,
   empresas,
   sucursales = [],
+  pasoSiguiente = 3,
 }: DatosEmpresarialesFormProps) {
   const router = useRouter();
   
@@ -174,7 +177,7 @@ export default function DatosEmpresarialesForm({
           alert("Por favor selecciona una empresa antes de continuar.");
           return;
         }
-        router.push(`?id=${propuestaId}&step=3`);
+        router.push(`?id=${propuestaId}&step=${pasoSiguiente}`);
       } else {
         alert("Borrador guardado exitosamente.");
         router.refresh();

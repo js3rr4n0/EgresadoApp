@@ -51,6 +51,7 @@ import { elementoDe, estadoElemento, procesoPorObjetivo, TEXTOS_ELEMENTO } from 
 import { arbolConCitas, fuentesCitadasPlan, leerMetodologia, metodologiaValida, pideMetodologia, textoMetodologia } from "../../src/lib/fichas/metodologiaPlan";
 import { cierreDe, componentesDe, esCronogramaInvestigacion, estructuraPlan } from "../../src/lib/fichas/tipos";
 import { objetivosDelPlan } from "../../src/lib/fichas/entregasObjetivo";
+import { aCsv, calcularPreEjecucion, calcularSeguimiento, corteAutomatico, cumplimientoPorDia, disponibilidadAsesor, faseCohorte, grupoFase } from "../../src/lib/seguimientoCohortes";
 import { seOfreceEn, sedesPorCarrera } from "../../src/lib/carrerasSedes";
 import { adelantable, periodosPlanificados, ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, faltaParaAvance, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, productosDe, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
@@ -1817,6 +1818,56 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
   comprobar("Investigación: los involucrados siguen siendo un anexo sin número", apInv.find((a) => a.titulo === "Involucrados")?.numero === null);
   comprobar("Involucrados de proyecto: se nombra el proyecto", JSON.stringify(bloquesInvolucrados({ actores: [], otros: [], equipo: ["Ana"], asesor: null, trabajo: "proyecto" })).includes("equipo del proyecto"));
   comprobar("Un cronograma sin plan de trabajo es un problema", validarDefinicion({ ...pro, etapas: pro.etapas.filter((e) => !esEtapaPlan(e)) }).some((p) => p.mensaje.includes("el cronograma sale del plan de trabajo")));
+}
+
+// 43. Datos empresariales y supervisor en proyecto e investigación (recorrido del 23-nov-2026)
+{
+  comprobar("Empresa y supervisor tienen formulario en las tres modalidades",
+    (["empresa", "supervisor"] as const).every((k) => ["pasantia", "proyecto", "investigacion"].every((m) => CATALOGO[k].formularioEn.includes(m as Modalidad))));
+}
+
+// 44. Seguimiento de cohortes (K1, specs/SEGUIMIENTO_COHORTES.md)
+{
+  const c = { inicioRecepcion: "2026-11-01", finRecepcion: "2026-11-30", maxInicioProceso: "2026-12-21", maxInformeFinal: "2027-05-21", maxAprobacionFinal: "2027-06-21" };
+  comprobar("Fases de la cohorte según la fecha",
+    faseCohorte(c, "2026-11-10") === "recepcion" && faseCohorte(c, "2026-12-10") === "pre_ejecucion" && faseCohorte(c, "2027-02-01") === "ejecucion"
+    && faseCohorte(c, "2027-05-01") === "ultimo_mes" && faseCohorte(c, "2027-06-01") === "cierre" && faseCohorte(c, "2027-07-01") === "finalizada");
+  comprobar("Comenzando y finalizando", grupoFase("pre_ejecucion") === "comenzando" && grupoFase("ultimo_mes") === "finalizando" && grupoFase("finalizada") === null);
+  const base = { fechaAprobacion: "2026-12-01", inicioEjecucion: null, cohorte: c };
+  const pendiente = calcularPreEjecucion({ ...base, requisitos: { plan: "2026-12-05", dictamen_propuesta: null, dictamen_plan: null, primer_contacto: "no_aplica" } }, "2026-12-11");
+  comprobar("Pre-ejecución: días, faltantes y requisitos (sin contar los que no aplican)",
+    pendiente.diasTranscurridos === 10 && pendiente.diasRestantes === 11 && pendiente.entregados.join() === "plan" && pendiente.pendientes.length === 2 && pendiente.diaCompleto === null);
+  const tarde = calcularPreEjecucion({ ...base, requisitos: { plan: "2026-12-05", dictamen_propuesta: null, dictamen_plan: null, primer_contacto: null } }, "2026-12-31");
+  comprobar("Pasados los 21 días: retraso y el fin estimado se corre", tarde.diasRetraso === 9 && tarde.finEstimado > pendiente.finEstimado);
+  const lejos = calcularPreEjecucion({ ...base, requisitos: { plan: null, dictamen_propuesta: null, dictamen_plan: null, primer_contacto: null } }, "2027-03-01");
+  comprobar("Si el fin estimado pasa del período técnico, riesgo de baja", lejos.riesgoBaja && !pendiente.riesgoBaja);
+  const rapido = calcularPreEjecucion({ ...base, requisitos: { plan: "2026-12-03", dictamen_propuesta: "2026-12-06", dictamen_plan: "2026-12-06", primer_contacto: "2026-12-07" } }, "2026-12-20");
+  const cumpl = cumplimientoPorDia([rapido, pendiente, tarde]);
+  comprobar("Cumplimiento al día 7, 14 y pasados de 21", rapido.diaCompleto === 6 && cumpl.dia7 === 1 && cumpl.dia14 === 1 && cumpl.pasaron21 === 1);
+  comprobar("CSV para Excel: BOM, punto y coma y comillas", aCsv([["a;b", 'di "x"'], [1, null]]) === String.fromCharCode(0xfeff) + '"a;b";"di ""x"""' + String.fromCharCode(13, 10) + "1;");
+}
+
+// 45. Seguimiento de la cohorte que finaliza (K2)
+{
+  const entregas = [
+    { nombre: "Informe 1", limite: "2026-10-10", enviado: "2026-10-08", observado: false },
+    { nombre: "Informe 2", limite: "2026-11-10", enviado: "2026-11-15", observado: true },
+    { nombre: "Informe 3", limite: "2026-12-10", enviado: null, observado: false },
+  ];
+  const alDia = calcularSeguimiento(entregas, false, "2026-11-09");
+  comprobar("Seguimiento a un corte pasado: al día si nada vencido falta", alDia.estado === "al_dia" && alDia.entregados === 1 && alDia.vencidos === 1);
+  const tarde = calcularSeguimiento(entregas, false, "2026-12-20");
+  comprobar("Seguimiento: retrasado con días y en qué; entregados tarde y observados",
+    tarde.estado === "retrasado" && tarde.diasRetraso === 10 && tarde.atrasadoEn.join() === "Informe 3 (10 días)" && tarde.entregadosTarde === 1 && tarde.observados === 1);
+  comprobar("Un trabajo terminado no cuenta retraso", calcularSeguimiento(entregas, true, "2026-12-20").estado === "terminado");
+  const c = { inicioRecepcion: "2026-07-01", finRecepcion: "2026-08-01", maxInicioProceso: "2026-09-10", maxInformeFinal: "2027-02-10", maxAprobacionFinal: "2027-03-10" };
+  const a = corteAutomatico(c, "2026-11-23");
+  comprobar("Corte automático cada 30 días desde el inicio del proceso", a.corte === "2026-11-09" && a.proximo === "2026-12-09" && !a.diario);
+  comprobar("En el último mes el corte es diario", corteAutomatico(c, "2027-01-20").diario && corteAutomatico(c, "2027-01-20").corte === "2027-01-20");
+  comprobar("Asesor disponible, terminando u ocupado",
+    disponibilidadAsesor([{ estado: "terminado", soloFalta: "mas" }]) === "disponible"
+    && disponibilidadAsesor([{ estado: "terminado", soloFalta: "mas" }, { estado: "al_dia", soloFalta: "final" }]) === "terminando"
+    && disponibilidadAsesor([{ estado: "retrasado", soloFalta: "mas" }]) === "ocupado");
 }
 
 // 41. Facultades, carreras y título a otorgar (datos oficiales, 20-nov-2026)

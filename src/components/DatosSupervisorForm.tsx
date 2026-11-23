@@ -27,6 +27,9 @@ interface DatosSupervisorFormProps {
   initialSupervisorId: number | null;
   supervisores: Supervisor[];
   sucursales: Sucursal[];
+  /** Pasos de la empresa y del siguiente (pasantía: 2 y 4; en proyecto e investigación, los de la ficha). */
+  pasoEmpresa?: number;
+  pasoSiguiente?: number;
 }
 
 export default function DatosSupervisorForm({
@@ -35,6 +38,8 @@ export default function DatosSupervisorForm({
   initialSupervisorId,
   supervisores,
   sucursales,
+  pasoEmpresa = 2,
+  pasoSiguiente = 4,
 }: DatosSupervisorFormProps) {
   const router = useRouter();
   const [selectedSupervisorId, setSelectedSupervisorId] = useState<number | null>(initialSupervisorId || null);
@@ -151,7 +156,7 @@ export default function DatosSupervisorForm({
       
       if (data.success) {
         if (proceed) {
-          router.push(`?id=${propuestaId}&step=4`);
+          router.push(`?id=${propuestaId}&step=${pasoSiguiente}`);
         } else {
           alert("Borrador guardado correctamente.");
         }
@@ -197,12 +202,12 @@ export default function DatosSupervisorForm({
       <div className="bg-amber-50 border border-amber-200 text-amber-800 p-6 rounded-xl text-center">
         <svg className="w-12 h-12 text-amber-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
         <h3 className="font-bold text-lg mb-2">Empresa no seleccionada</h3>
-        <p className="max-w-md mx-auto">Debes completar el Paso 2 seleccionando una empresa antes de poder elegir un supervisor.</p>
+        <p className="max-w-md mx-auto">Debes completar el paso de datos empresariales seleccionando una empresa antes de poder elegir un supervisor.</p>
         <button 
-          onClick={() => router.push(`?id=${propuestaId}&step=2`)}
+          onClick={() => router.push(`?id=${propuestaId}&step=${pasoEmpresa}`)}
           className="mt-6 px-6 py-2.5 bg-brand-red text-white font-bold rounded-lg hover:bg-red-700 transition-colors"
         >
-          Ir al Paso 2
+          Ir al paso de la empresa
         </button>
       </div>
     );

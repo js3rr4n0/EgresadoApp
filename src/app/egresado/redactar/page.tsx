@@ -34,10 +34,12 @@ import { esRecurso, recursoCompleto } from "@/lib/fichas/elementosRecurso";
 import RecursoEspacioForm from "@/components/proyecto/RecursoEspacioForm";
 
 /** Formulario de la fase 1 que atiende cada espacio de la ficha de proyecto (entrega P2). */
-type TipoPasoProyecto = "portada" | "actores" | "carta" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "recurso" | "propio" | "no_disponible";
+type TipoPasoProyecto = "portada" | "empresa" | "supervisor" | "actores" | "carta" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "recurso" | "propio" | "no_disponible";
 function tipoPasoProyecto(e: Espacio): TipoPasoProyecto {
   switch (e.elemento) {
     case "portada":
+    case "empresa":
+    case "supervisor":
     case "actores":
     case "carta":
     case "objetivos":
@@ -139,6 +141,25 @@ export default async function EgresadoPage({
     respuestasProyecto = await getRespuestasEspacios(propuesta.id);
     cartaData = await getCartaAceptacion(propuesta.id);
 
+    // Datos empresariales y supervisor (recorrido del 23-nov-2026): los mismos formularios y datos que en pasantía.
+    const pasoEmpresa = pasosProyecto.find((p) => p.tipo === "empresa")?.num;
+    const pasoSupervisor = pasosProyecto.find((p) => p.tipo === "supervisor")?.num;
+    if (currentStep === pasoEmpresa) {
+      const { sucursales, organigramasEmpresa } = await import("@/lib/schema");
+      empresasList = await db.select().from(empresas).orderBy(asc(empresas.nombre));
+      sucursalesList = await db.select().from(sucursales).orderBy(asc(sucursales.nombre));
+      const orgs = await db.select().from(organigramasEmpresa).orderBy(desc(organigramasEmpresa.subidoEn));
+      empresasList = empresasList.map((emp) => {
+        const latestOrg = orgs.find((o) => o.empresaId === emp.id);
+        return latestOrg ? { ...emp, organigramaUrl: latestOrg.url } : emp;
+      });
+    }
+    if (currentStep === pasoSupervisor && propuesta.empresaId) {
+      const { supervisores, sucursales } = await import("@/lib/schema");
+      supervisoresList = await db.select().from(supervisores).where(eq(supervisores.empresaId, propuesta.empresaId)).orderBy(asc(supervisores.nombres));
+      sucursalesList = await db.select().from(sucursales).where(eq(sucursales.empresaId, propuesta.empresaId)).orderBy(asc(sucursales.nombre));
+    }
+
     const docStepNumber = numPasoProyecto("documentos", isInvestigacion ? 7 : 8);
     if (currentStep === docStepNumber) {
       const { documentosEgresado } = await import("@/lib/schema");
@@ -209,6 +230,11 @@ export default async function EgresadoPage({
       switch (p.tipo) {
         case "portada":
           return true;
+        // Como en pasantía: empresa elegida y sin una solicitud de empresa pendiente o rechazada.
+        case "empresa":
+          return propuesta.empresaId !== null && !["pend_empresa_nueva", "pend_revision_datos", "empresa_rechazada"].includes(propuesta.estado);
+        case "supervisor":
+          return propuesta.supervisorId !== null && !["pend_empresa_nueva", "pend_revision_datos"].includes(propuesta.estado);
         case "actores": {
           // Solo los actores que pide la ficha (investigación no pide el ejecutor).
           const pedidos = Array.isArray(p.espacio.parametros.actores) ? p.espacio.parametros.actores : ["patrocinador", "beneficiario", "ejecutor", "financista"];
@@ -582,6 +608,29 @@ export default async function EgresadoPage({
                     <PropioEspacioForm key={e.id} propuestaId={propuesta.id} espacio={e} initialData={respuestasProyecto[e.id]} miId={miId}
                       integrantes={integrantesPropios} esLider={isLeader} isLocked={isFormLocked}
                       pasoSiguiente={currentStep + 1} pasoAnterior={currentStep > 1 ? currentStep - 1 : null} />
+                  )}
+                  {(paso.tipo === "empresa" || paso.tipo === "supervisor") && !isLeader && (
+                    <div className="bg-white border border-border rounded-xl p-6 text-sm text-muted">
+                      <h2 className="text-xl font-bold text-card-dark mb-2">{e.titulo}</h2>
+                      Este paso lo completa el líder del equipo.
+                    </div>
+                  )}
+                  {paso.tipo === "empresa" && isLeader && (
+                    <div className="bg-white border border-border rounded-xl p-8 shadow-sm">
+                      <h2 className="text-xl font-bold text-foreground mb-2">{e.titulo}</h2>
+                      <p className="text-sm text-muted mb-8">{e.descripcion || "Selecciona la empresa o institución donde se realizará el trabajo. Si no existe, solicita su registro."}</p>
+                      <DatosEmpresarialesForm propuestaId={propuesta.id} initialEmpresaId={propuesta.empresaId} initialSucursalId={propuesta.sucursalId}
+                        empresas={empresasList} sucursales={sucursalesList} pasoSiguiente={currentStep + 1} />
+                    </div>
+                  )}
+                  {paso.tipo === "supervisor" && isLeader && (
+                    <div className="bg-white border border-border rounded-xl p-8 shadow-sm">
+                      <h2 className="text-xl font-bold text-foreground mb-2">{e.titulo}</h2>
+                      <p className="text-sm text-muted mb-8">{e.descripcion || "Selecciona tu supervisor dentro de la empresa elegida."}</p>
+                      <DatosSupervisorForm propuestaId={propuesta.id} empresaId={propuesta.empresaId} initialSupervisorId={propuesta.supervisorId}
+                        supervisores={supervisoresList} sucursales={sucursalesList}
+                        pasoEmpresa={pasosProyecto.find((p) => p.tipo === "empresa")?.num ?? 1} pasoSiguiente={currentStep + 1} />
+                    </div>
                   )}
                   {paso.tipo === "documentos" && (
                     <DocumentosEstudianteForm propuestaId={propuesta.id} isLocked={isFormLocked || !isLeader} documentosSubidos={documentosSubidos} prevStep={currentStep - 1} />
