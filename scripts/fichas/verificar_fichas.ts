@@ -52,6 +52,12 @@ import { arbolConCitas, fuentesCitadasPlan, leerMetodologia, metodologiaValida, 
 import { cierreDe, componentesDe, esCronogramaInvestigacion, estructuraPlan } from "../../src/lib/fichas/tipos";
 import { objetivosDelPlan } from "../../src/lib/fichas/entregasObjetivo";
 import { aCsv, calcularPreEjecucion, calcularSeguimiento, corteAutomatico, cumplimientoPorDia, disponibilidadAsesor, faseCohorte, grupoFase } from "../../src/lib/seguimientoCohortes";
+import { MODALIDADES_CON_FICHA } from "../../src/lib/fichas/fichaDePropuesta";
+import { REGLAS_FASE1, calendarioFase1, reglasDeDefinicion } from "../../src/lib/reglasPasantia";
+import { esInformeFinal, generarPeriodosPasantia, nombreInforme } from "../../src/lib/periodosPasantia";
+import { validarContenidoRegistro } from "../../src/lib/reglasRegistroActividad";
+import { configFinalFase1, estructuraFinal, leerConfigFinal, leerConfigPeriodo, problemasCapituloExtra, problemasConfigFinal } from "../../src/lib/fichas/documentoFinalPasantia";
+import { anexosFinal } from "../../src/lib/informeFinal";
 import { seOfreceEn, sedesPorCarrera } from "../../src/lib/carrerasSedes";
 import { adelantable, periodosPlanificados, ganttPlan, responsables, actividadesDelPeriodo, arrastradasAlPeriodo, avancePorNodo, validarRegistroProyecto, faltaParaAvance, aplanar, cambioNoPermitido, cargaPorIntegrante, numerar, planEjemplo, planIndividual, productosDe, totalesNodo, validarPlanEquipo, type NodoPlan } from "../../src/lib/fichas/planTrabajo";
 
@@ -1498,7 +1504,7 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
   comprobar("Comparar copias no depende del orden de las claves", mismaDefinicion(el, reordenado) && !mismaDefinicion(el, cambiado));
   comprobar("Solo cambiar la ayuda se informa sin repetir las reglas",
     cambiosElementoPropio(el, { ...el, campos: [{ ...el.campos[0], ayuda: "Nueva" }] })[0] === "«Descripción»: cambió la ayuda o una opción");
-  comprobar("El genérico de los elementos propios no aparece entre los del sistema", !Object.values(CATALOGO).filter((e) => e.clave !== "propio").some((e) => e.clave === "propio") && CATALOGO.propio.formularioEn.join() === "proyecto,investigacion");
+  comprobar("El genérico de los elementos propios no aparece entre los del sistema", !Object.values(CATALOGO).filter((e) => e.clave !== "propio").some((e) => e.clave === "propio") && CATALOGO.propio.formularioEn.join() === "pasantia,proyecto,investigacion");
 }
 
 // 34. Respuestas de los elementos propios (catálogo editable, entrega C3)
@@ -1572,7 +1578,7 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
   const pas = definicionBase("pasantia");
   const pasEsp = pas.etapas.find(esEtapaPropuesta)!.espacios.find((x) => x.elemento === "portada")!;
   pasEsp.camposExtra = extra;
-  comprobar("La pasantía todavía no muestra campos adicionales", validarDefinicion(pas).some((p) => p.mensaje.includes("pasantía todavía no muestra")));
+  comprobar("W1: la pasantía con ficha también admite campos adicionales", !validarDefinicion(pas).some((p) => p.mensaje.includes("campos adicionales")));
   const repetidos = conExtra((d) => { d.etapas.find(esEtapaPropuesta)!.espacios.find((e) => e.elemento === "objetivos")!.camposExtra = [extra[0], { ...extra[0], id: "otro" }]; });
   comprobar("Detecta campos adicionales con la misma etiqueta", validarDefinicion(repetidos).some((p) => p.mensaje.includes("campos adicionales: Hay 2 campos")));
   const mala = JSON.parse(JSON.stringify(enObjetivos));
@@ -1868,6 +1874,82 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
     disponibilidadAsesor([{ estado: "terminado", soloFalta: "mas" }]) === "disponible"
     && disponibilidadAsesor([{ estado: "terminado", soloFalta: "mas" }, { estado: "al_dia", soloFalta: "final" }]) === "terminando"
     && disponibilidadAsesor([{ estado: "retrasado", soloFalta: "mas" }]) === "ocupado");
+}
+
+// 46. Pasantía con ficha (entrega W1)
+{
+  comprobar("W1: la pasantía toma su versión de ficha al crear la propuesta", MODALIDADES_CON_FICHA.includes("pasantia"));
+  const pas = definicionBase("pasantia");
+  const prop = pas.etapas.find(esEtapaPropuesta)!;
+  const conTexto = JSON.parse(JSON.stringify(pas)) as DefinicionFicha;
+  const propTexto = conTexto.etapas.find(esEtapaPropuesta)!;
+  propTexto.espacios.splice(6, 0, { ...prop.espacios.find((e) => e.elemento === "texto")!, id: "objetivos_pasantia", titulo: "Objetivos de la pasantía", origenFase1: undefined });
+  comprobar("W1: una ficha de pasantía con un paso nuevo es válida", validarDefinicion(conTexto).length === 0, validarDefinicion(conTexto).map((x) => x.mensaje).join(" | "));
+  const desordenada = JSON.parse(JSON.stringify(pas)) as DefinicionFicha;
+  const esp = desordenada.etapas.find(esEtapaPropuesta)!.espacios;
+  const iCron = esp.findIndex((e) => e.elemento === "cronograma");
+  const [cron] = esp.splice(iCron, 1);
+  esp.splice(1, 0, cron);
+  comprobar("W1: el cronograma no puede ir antes de la carta (necesita sus fechas)", validarDefinicion(desordenada).some((x) => x.mensaje.includes("debe ir después")));
+  comprobar("W1: imagen, archivo, enlace, lista y elementos propios tienen formulario en pasantía",
+    (["imagen", "archivo", "enlace", "lista", "propio"] as const).every((k) => CATALOGO[k].formularioEn.includes("pasantia")));
+}
+
+// 47. Ejecución de pasantía desde la ficha (entrega W2)
+{
+  const base = reglasDeDefinicion(definicionBase("pasantia"));
+  comprobar("W2: la ficha base de pasantía da las reglas de la fase 1",
+    base.duracionDias === 150 && base.periodos === 5 && base.diasPorPeriodo === 30 && base.semanasPorPeriodo === 4 && base.paginasMinimas === REGLAS_FASE1.paginasMinimas && calendarioFase1(base));
+  comprobar("W2: sin ficha, las de la fase 1", !reglasDeDefinicion(null).deFicha && reglasDeDefinicion(null).duracionDias === 150);
+  const especial = definicionBase("pasantia");
+  const ej = especial.etapas.find(esEtapaEjecucion)!;
+  ej.periodos = 6; ej.duracionPeriodo = 25; ej.subperiodos = 5;
+  ej.registro.descripcion = { min: 120, max: 200 };
+  ej.informe.paginasMinimas = 12;
+  const r = reglasDeDefinicion(especial);
+  comprobar("W2: una pasantía especial cambia duración, períodos, semanas y límites",
+    r.duracionDias === 150 && r.periodos === 6 && r.diasPorPeriodo === 25 && r.semanasPorPeriodo === 5 && r.descripcion.min === 120 && r.paginasMinimas === 12 && !calendarioFase1(r));
+  const periodos = generarPeriodosPasantia(new Date(2027, 0, 1), r.duracionDias, r.diasPorPeriodo, r.semanasPorPeriodo);
+  comprobar("W2: el cronograma tiene los períodos y semanas de la ficha", periodos.length === 6 && periodos.every((p) => p.semanas === 5) && periodos[1].rango.startsWith("26/01"));
+  comprobar("W2: el informe final es el del último período de la ficha", esInformeFinal(6, 6) && !esInformeFinal(5, 6) && nombreInforme(5, 6) === "Informe del período 5" && esInformeFinal(5));
+  const registro = { descriptor: Array.from({ length: 150 }, () => "palabra").join(" ") + "." };
+  comprobar("W2: los límites de palabras de la ficha valen al registrar",
+    validarContenidoRegistro(registro).some((x) => x.startsWith("La descripción debe tener entre 200"))
+    && !validarContenidoRegistro(registro, r).some((x) => x.startsWith("La descripción debe tener")));
+}
+
+// 48. Documento final e informe de período de pasantía desde la ficha (entrega W3)
+{
+  const fase1 = estructuraFinal(configFinalFase1(), true);
+  comprobar("W3: sin configuración, la estructura de la fase 1 (capítulos y anexos)",
+    fase1.capitulos.map((c) => c.clave).join() === "introduccion,empresa,actividades,conclusiones"
+    && JSON.stringify(fase1.anexos.map((a) => a.titulo)) === JSON.stringify(anexosFinal(true).map((a) => a.titulo))
+    && JSON.stringify(estructuraFinal(configFinalFase1(), false).anexos.map((a) => a.titulo)) === JSON.stringify(anexosFinal(false).map((a) => a.titulo)));
+  const c = configFinalFase1();
+  c.capitulos[3].titulo = "CONCLUSIONES Y RECOMENDACIONES";
+  c.capitulos.splice(3, 0, { clave: "extra:rec", titulo: "RECOMENDACIONES", activo: true, ayuda: "", minPalabras: 5, maxPalabras: 20 });
+  c.capitulos.find((x) => x.clave === "empresa")!.activo = false;
+  c.anexos.find((a) => a.clave === "glosario")!.activo = false;
+  const e = estructuraFinal(leerConfigFinal(JSON.parse(JSON.stringify(c))), true);
+  comprobar("W3: orden, títulos, capítulos quitados y capítulos de texto de la ficha",
+    e.capitulos.map((x) => x.clave).join() === "introduccion,actividades,extra:rec,conclusiones" && e.capitulos[3].titulo === "CONCLUSIONES Y RECOMENDACIONES");
+  comprobar("W3: sin el glosario, los anexos se renumeran", e.anexos.length === 6 && e.anexos[5].titulo === "Anexo 6. Carta de finalización satisfactoria");
+  const sinActividades = configFinalFase1();
+  sinActividades.capitulos.find((x) => x.clave === "actividades")!.activo = false;
+  comprobar("W3: el capítulo de actividades no se puede quitar", leerConfigFinal(sinActividades).capitulos.find((x) => x.clave === "actividades")!.activo
+    && problemasConfigFinal({ ...sinActividades, capitulos: sinActividades.capitulos }).some((m) => m.includes("actividades es obligatorio")));
+  const contar = (t: string) => t.split(/\s+/).filter(Boolean).length;
+  const cap = c.capitulos.find((x) => x.clave === "extra:rec")!;
+  comprobar("W3: el capítulo de texto revisa sus palabras", problemasCapituloExtra(cap, "", contar).length === 1
+    && problemasCapituloExtra(cap, "uno dos", contar)[0].includes("al menos 5") && problemasCapituloExtra(cap, "uno dos tres cuatro cinco seis", contar).length === 0);
+  const per = leerConfigPeriodo({ cronograma: { activo: true, titulo: "Plan del período" }, cambios: { activo: false } });
+  comprobar("W3: partes del informe de período", per.cronograma.titulo === "Plan del período" && !per.cambios.activo && per.cambios.titulo === "Cambios al cronograma");
+  const pas = definicionBase("pasantia");
+  const ej = pas.etapas.find(esEtapaEjecucion)!;
+  const sinTitulo = configFinalFase1();
+  sinTitulo.capitulos.push({ clave: "extra:x", titulo: "   ", activo: true, minPalabras: 50, maxPalabras: 10 });
+  ej.informe.documentoFinal = sinTitulo;
+  comprobar("W3: el constructor avisa los problemas del documento final", validarDefinicion(pas).some((p) => p.mensaje.startsWith("Documento final:")));
 }
 
 // 41. Facultades, carreras y título a otorgar (datos oficiales, 20-nov-2026)

@@ -40,13 +40,19 @@ export interface Posicion {
  * (ActividadesForm) y del seguimiento de actividades.
  * Trabaja con getters locales: en servidor, construir `start` con fechaLocalDesdeISO().
  */
-export function generarPeriodosPasantia(start: Date, duracionDias = DURACION_PASANTIA_DIAS): PeriodoPasantia[] {
+export function generarPeriodosPasantia(
+  start: Date,
+  duracionDias = DURACION_PASANTIA_DIAS,
+  // Entrega W2: con ficha, sus días por período y semanas por período (reglasPasantia.ts).
+  diasPorPeriodo = DIAS_POR_PERIODO,
+  semanasPorPeriodo = SEMANAS_POR_PERIODO
+): PeriodoPasantia[] {
   const formatStr = (d: Date) => `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
-  const total = Math.ceil(duracionDias / DIAS_POR_PERIODO);
+  const total = Math.ceil(duracionDias / diasPorPeriodo);
 
   return Array.from({ length: total }, (_, i) => {
-    const inicio = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i * DIAS_POR_PERIODO);
-    const dias = Math.min(DIAS_POR_PERIODO, duracionDias - i * DIAS_POR_PERIODO);
+    const inicio = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i * diasPorPeriodo);
+    const dias = Math.min(diasPorPeriodo, duracionDias - i * diasPorPeriodo);
     const fin = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate() + dias - 1);
     return {
       num: i + 1,
@@ -54,7 +60,7 @@ export function generarPeriodosPasantia(start: Date, duracionDias = DURACION_PAS
       inicio,
       fin,
       rango: `${formatStr(inicio)} al ${formatStr(fin)}`,
-      semanas: SEMANAS_POR_PERIODO,
+      semanas: semanasPorPeriodo,
     };
   });
 }
@@ -130,22 +136,25 @@ export function formatearFechaLarga(iso: string | null | undefined): string {
   });
 }
 
-/** El informe del último período es el informe final: consolida los cinco períodos (no hay un informe final aparte). */
-export function esInformeFinal(numero: number) {
-  return numero === NUM_INFORMES_MENSUALES;
+/**
+ * El informe del último período es el informe final: consolida todos los períodos (no hay un informe final aparte).
+ * `total`: informes de la pasantía (fase 1: 5; con ficha, sus períodos; entrega W2).
+ */
+export function esInformeFinal(numero: number, total = NUM_INFORMES_MENSUALES) {
+  return numero === total;
 }
 
 /** Nombre corto del informe para tarjetas y encabezados: "Informe del período 2" o "Informe final". */
-export function nombreInforme(numero: number) {
-  return esInformeFinal(numero) ? "Informe final" : `Informe del período ${numero}`;
+export function nombreInforme(numero: number, total = NUM_INFORMES_MENSUALES) {
+  return esInformeFinal(numero, total) ? "Informe final" : `Informe del período ${numero}`;
 }
 
 /** Título del documento en la portada institucional: "INFORME FINAL DE PASANTÍA" o "INFORME DEL PERÍODO N DE PASANTÍA". */
-export function tituloDocumentoInforme(numero: number) {
-  return esInformeFinal(numero) ? "INFORME FINAL DE PASANTÍA" : `INFORME DEL PERÍODO ${numero} DE PASANTÍA`;
+export function tituloDocumentoInforme(numero: number, total = NUM_INFORMES_MENSUALES) {
+  return esInformeFinal(numero, total) ? "INFORME FINAL DE PASANTÍA" : `INFORME DEL PERÍODO ${numero} DE PASANTÍA`;
 }
 
 /** Nombre breve para tarjetas: "Informe #2" o "Informe final". */
-export function nombreCortoInforme(numero: number) {
-  return esInformeFinal(numero) ? "Informe final" : `Informe #${numero}`;
+export function nombreCortoInforme(numero: number, total = NUM_INFORMES_MENSUALES) {
+  return esInformeFinal(numero, total) ? "Informe final" : `Informe #${numero}`;
 }

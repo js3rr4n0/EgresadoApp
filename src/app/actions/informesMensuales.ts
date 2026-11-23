@@ -1,5 +1,6 @@
 "use server";
 
+import { contarPalabras } from "@/lib/reglasRegistroActividad";
 import { db } from "@/lib/db";
 import {
   informesMensuales,
@@ -24,7 +25,7 @@ import {
   conImagenesAdicionales,
   ESTADOS_REGISTRADOS,
 } from "@/lib/habilitacionActividades";
-import { estimarPaginas, PAGINAS_MINIMAS_INFORME } from "@/lib/metricaPaginas";
+import { estimarPaginas } from "@/lib/metricaPaginas";
 import { leerComentarios, validarComentariosCompletos } from "@/lib/comentariosAsesor";
 import { registrarEvento } from "@/lib/bitacora";
 import { palabrasDudosas } from "@/lib/ortografia";
@@ -32,7 +33,10 @@ import { leerComentariosSecciones } from "@/lib/comentariosRevision";
 
 /** El informe del tercer período (alrededor de los 90 días) incluye la visita del asesor a la empresa. */
 const NUMERO_INFORME_VISITA = 3;
-import { hoyISOElSalvador, formatearFechaLarga, NUM_INFORMES_MENSUALES, esInformeFinal, nombreInforme } from "@/lib/periodosPasantia";
+import { hoyISOElSalvador, formatearFechaLarga, esInformeFinal, nombreInforme, sumarDiasISO } from "@/lib/periodosPasantia";
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
+import { calendarioFase1 } from "@/lib/reglasPasantia";
+import { esCapituloExtra, leerApartadosExtra, problemasCapituloExtra } from "@/lib/fichas/documentoFinalPasantia";
 import { leerCartaFinalizacion, validarAgradecimientos, leerIntroduccion, validarIntroduccion } from "@/lib/informeFinal";
 
 async function assertAccesoPropuesta(propuestaId: number) {
@@ -73,13 +77,12 @@ export async function ensureInformesMensuales(propuestaId: number) {
   const [periodo] = await db.select().from(periodos).where(eq(periodos.id, prop.periodoId)).limit(1);
   if (!periodo) return { error: "Periodo académico no encontrado." as const };
 
-  const deadlines = [
-    periodo.maxPrimerInforme,
-    periodo.maxSegundoInforme,
-    periodo.maxTercerInforme,
-    periodo.maxCuartoInforme,
-    periodo.maxInformeFinal,
-  ];
+  // Entrega W2: un informe por período de la ficha. Con la forma de la fase 1 (5 períodos de 30 días), los límites
+  // de la cohorte; en una pasantía especial, el inicio del proceso de la cohorte más los días de cada período.
+  const reglas = await reglasPasantiaDePropuesta(propuestaId);
+  const deadlines = calendarioFase1(reglas)
+    ? [periodo.maxPrimerInforme, periodo.maxSegundoInforme, periodo.maxTercerInforme, periodo.maxCuartoInforme, periodo.maxInformeFinal]
+    : Array.from({ length: reglas.periodos }, (_, i) => sumarDiasISO(periodo.maxInicioProceso, (i + 1) * reglas.diasPorPeriodo));
 
   let existentes = await db
     .select()
@@ -88,7 +91,7 @@ export async function ensureInformesMensuales(propuestaId: number) {
     .orderBy(asc(informesMensuales.numero));
 
   const existentesPorNumero = new Set(existentes.map((i) => i.numero));
-  const faltantes = Array.from({ length: NUM_INFORMES_MENSUALES }, (_, i) => i + 1).filter((n) => !existentesPorNumero.has(n));
+  const faltantes = Array.from({ length: reglas.periodos }, (_, i) => i + 1).filter((n) => !existentesPorNumero.has(n));
 
   if (faltantes.length > 0) {
     await db.insert(informesMensuales).values(
@@ -318,6 +321,7 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   // la fecha de entrega esperada es el último día del período (día 30).
   const periodosProp = await getPeriodosPropuesta(prop.id);
   const periodo = periodosProp.find((p) => p.num === informe.numero) || null;
+  const reglas = await reglasPasantiaDePropuesta(prop.id);
 
   // 1. Datos generales de la portada
   const faltantesPortada: string[] = [];
@@ -355,7 +359,7 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
     }
     // El contenido se valida en toda actividad ya enviada a revisión (enviada o aprobada).
     if (r && (estado === "enviado" || estado === "aprobado")) {
-      for (const problema of validarContenidoRegistro(r)) {
+      for (const problema of validarContenidoRegistro(r, reglas)) {
         problemasContenido.push(`${codigoActividad(a)}: ${problema}`);
       }
     }
@@ -403,10 +407,10 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   const paginasEstimadas = estimarPaginas(await conImagenesAdicionales(registrosRegistrados));
   requisitos.push({
     id: "extension",
-    titulo: `Extensión mínima de ${PAGINAS_MINIMAS_INFORME} páginas`,
-    cumplido: paginasEstimadas >= PAGINAS_MINIMAS_INFORME,
+    titulo: `Extensión mínima de ${reglas.paginasMinimas} páginas`,
+    cumplido: paginasEstimadas >= reglas.paginasMinimas,
     detalles:
-      paginasEstimadas >= PAGINAS_MINIMAS_INFORME
+      paginasEstimadas >= reglas.paginasMinimas
         ? []
         : [
             `La extensión estimada es de ${Math.round(paginasEstimadas)} páginas. Complete el período con actividades adicionales mediante una solicitud de cambio al cronograma.`,
@@ -414,23 +418,32 @@ async function evaluarRequisitosInforme(informe: InformeMensual, prop: Propuesta
   });
 
   // 5. Elementos propios del informe final: agradecimientos (opcionales) y carta de finalización satisfactoria.
-  if (esInformeFinal(informe.numero)) {
-    const problemasIntroduccion = validarIntroduccion(leerIntroduccion(informe.introduccion));
-    requisitos.push({
+  if (esInformeFinal(informe.numero, reglas.periodos)) {
+    // Entrega W3: lo que pide el documento final de la ficha (fase 1: todo).
+    const doc = reglas.documentoFinal;
+    const conIntroduccion = doc.capitulos.some((c) => c.clave === "introduccion" && c.activo);
+    const conCarta = doc.anexos.some((a) => a.clave === "carta" && a.activo);
+    const problemasIntroduccion = conIntroduccion ? validarIntroduccion(leerIntroduccion(informe.introduccion)) : [];
+    if (conIntroduccion) requisitos.push({
       id: "introduccion",
       titulo: "Introducción: cuatro párrafos de no más de cinco renglones",
       cumplido: problemasIntroduccion.length === 0,
       detalles: problemasIntroduccion,
     });
-    const problemasAgradecimientos = validarAgradecimientos(informe.agradecimientos || "");
-    requisitos.push({
+    const extras = leerApartadosExtra(informe.apartadosExtra);
+    for (const cap of doc.capitulos.filter((c) => c.activo && esCapituloExtra(c.clave))) {
+      const problemasCap = problemasCapituloExtra(cap, extras[cap.clave] ?? "", contarPalabras);
+      requisitos.push({ id: `capitulo-${cap.clave}`, titulo: cap.titulo, cumplido: problemasCap.length === 0, detalles: problemasCap });
+    }
+    const problemasAgradecimientos = doc.agradecimientos ? validarAgradecimientos(informe.agradecimientos || "") : [];
+    if (doc.agradecimientos) requisitos.push({
       id: "agradecimientos",
       titulo: "Agradecimientos (opcionales): una página, máximo 4 párrafos",
       cumplido: problemasAgradecimientos.length === 0,
       detalles: problemasAgradecimientos,
     });
     const carta = leerCartaFinalizacion(informe.cartaFinalizacion);
-    requisitos.push({
+    if (conCarta) requisitos.push({
       id: "carta",
       titulo: "Carta de finalización satisfactoria emitida por la empresa",
       cumplido: !!carta,
@@ -698,7 +711,9 @@ async function requisitosAprobacionAsesor(informe: InformeMensual) {
   if (validarComentariosCompletos(leerComentarios(informe.comentariosDecanato)).length > 0) {
     pendientes.push("Debe completar los comentarios del asesor para el decanato antes de aprobar el informe.");
   }
-  if (esInformeFinal(informe.numero) && !informe.cartaFinalizacionVerificadaEn) {
+  const reglasAprobacion = await reglasPasantiaDePropuesta(informe.propuestaId);
+  // Entrega W3: sin el anexo de la carta en la ficha, no hay carta que verificar.
+  if (esInformeFinal(informe.numero, reglasAprobacion.periodos) && reglasAprobacion.documentoFinal.anexos.some((a) => a.clave === "carta" && a.activo) && !informe.cartaFinalizacionVerificadaEn) {
     pendientes.push("Debe verificar la carta de finalización satisfactoria antes de aprobar el informe final.");
   }
   if (informe.numero === NUMERO_INFORME_VISITA) {
@@ -781,7 +796,8 @@ export async function solicitarCorreccionInformeMensual(informeId: number, comen
     const ctx = await cargarInformeParaAsesor(informeId);
     if ("error" in ctx) return { success: false, error: ctx.error };
     const { session, informe, prop } = ctx;
-    if (!esInformeFinal(informe.numero)) {
+    const totalInformes = (await reglasPasantiaDePropuesta(prop.id)).periodos;
+    if (!esInformeFinal(informe.numero, totalInformes)) {
       return {
         success: false,
         error: "Las actividades de este informe ya fueron aprobadas en la revisión de cada subperíodo; el informe de período solo se aprueba.",
@@ -800,7 +816,7 @@ export async function solicitarCorreccionInformeMensual(informeId: number, comen
       })
       .where(eq(informesMensuales.id, informeId));
 
-    const nombre = nombreInforme(informe.numero);
+    const nombre = nombreInforme(informe.numero, totalInformes);
     await db.insert(notificaciones).values({
       usuarioId: prop.egresadoId,
       tipo: "informe_mensual_observado",

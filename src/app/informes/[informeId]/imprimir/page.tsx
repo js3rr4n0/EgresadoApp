@@ -245,7 +245,10 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
                     {rangoPeriodo ? ` (${rangoPeriodo})` : ""}
                   </h2>
                 )}
-                <h2 className={esFinal ? "doc-subtitulo-1" : "doc-titulo-seccion"}>Cronograma de actividades del período</h2>
+                {/* Entrega W3: la ficha puede quitar o renombrar el cronograma del período. */}
+                {d.partesPeriodo.cronograma.activo && (
+                <>
+                <h2 className={esFinal ? "doc-subtitulo-1" : "doc-titulo-seccion"}>{d.partesPeriodo.cronograma.titulo}</h2>
                 <p style={{ textAlign: "justify" }}>
                   Porción del cronograma individual correspondiente al período {seccion.numero} de la pasantía
                   {rangoPeriodo ? `, ${rangoPeriodo}` : ""}.
@@ -280,6 +283,8 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
                   </>
                 ) : (
                   <p>El período no tiene actividades registradas en el cronograma.</p>
+                )}
+                </>
                 )}
 
                 {/* ────────────── Actividades realizadas durante el mes ────────────── */}
@@ -378,7 +383,7 @@ export default async function InformeCompiladoPrintPage({ params }: { params: Pr
             {/* ────────────── Cambios al cronograma del período ────────────── */}
             {d.cambiosPeriodo && (
               <section>
-                <h2 className="doc-titulo-seccion">Cambios al cronograma</h2>
+                <h2 className="doc-titulo-seccion">{d.partesPeriodo.cambios.titulo}</h2>
                 <p style={{ textAlign: "justify" }}>
                   Actividades ejecutadas durante el período {informe.numero}, con los cambios autorizados al cronograma original
                   (actividades agregadas, pospuestas, reubicadas y eliminadas).

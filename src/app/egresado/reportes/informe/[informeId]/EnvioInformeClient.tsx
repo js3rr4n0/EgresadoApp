@@ -8,6 +8,7 @@ import { nombreInforme } from "@/lib/periodosPasantia";
 import ElementosInformeFinal from "./ElementosInformeFinal";
 import IntroduccionInformeFinal from "./IntroduccionInformeFinal";
 import GlosarioInformeFinal from "./GlosarioInformeFinal";
+import type { CapituloExtraEgresado } from "./ElementosInformeFinal";
 import type { TerminoGlosario } from "@/lib/informeFinal";
 import EncabezadoInforme from "@/components/EncabezadoInforme";
 import { PAGINAS_MINIMAS_INFORME } from "@/lib/metricaPaginas";
@@ -20,6 +21,9 @@ interface InformeResumen {
   enviadoEn: string | null;
   cumplimiento: string | null;
   comentarioAsesor: string | null;
+  /** Entrega W2: informes de la pasantía y páginas mínimas (con ficha, los suyos). */
+  totalInformes?: number;
+  paginasMinimas?: number;
 }
 
 function formatFechaHora(texto: string | null) {
@@ -37,7 +41,12 @@ export default function EnvioInformeClient({
 }: {
   informe: InformeResumen;
   /** Solo en el informe final: elementos que aporta el egresado. */
-  final: { agradecimientos: string; introduccion: string[]; glosario: TerminoGlosario[]; carta: { nombre: string; url: string } | null; cartaVerificada: boolean } | null;
+  final: {
+    agradecimientos: string; introduccion: string[]; glosario: TerminoGlosario[]; carta: { nombre: string; url: string } | null; cartaVerificada: boolean;
+    /** Entrega W3: lo que pide la ficha (fase 1: todo) y los capítulos de texto que agrega. */
+    conIntroduccion?: boolean; conAgradecimientos?: boolean; conGlosario?: boolean; conCarta?: boolean;
+    extras?: CapituloExtraEgresado[];
+  } | null;
   periodo: { inicio: string | null; fin: string | null } | null;
   requisitos: RequisitoInforme[];
   advertencias: string[];
@@ -73,7 +82,7 @@ export default function EnvioInformeClient({
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <h1 className="text-xl font-extrabold text-slate-900">{nombreInforme(informe.numero)}</h1>
+          <h1 className="text-xl font-extrabold text-slate-900">{nombreInforme(informe.numero, informe.totalInformes)}</h1>
           <p className="text-xs text-slate-500 font-medium mt-1">Pasantía como Trabajo de Graduación</p>
         </div>
         <Link
@@ -109,7 +118,7 @@ export default function EnvioInformeClient({
         informe={informe}
         periodo={periodo}
         paginasEstimadas={paginasEstimadas}
-        paginasMinimas={PAGINAS_MINIMAS_INFORME}
+        paginasMinimas={informe.paginasMinimas ?? PAGINAS_MINIMAS_INFORME}
       />
 
       {advertencias.length > 0 && (
@@ -124,19 +133,22 @@ export default function EnvioInformeClient({
         </div>
       )}
 
-      {final && <IntroduccionInformeFinal informeId={informe.id} editable={estadoPermiteEnvio} parrafos={final.introduccion} />}
+      {final && final.conIntroduccion !== false && <IntroduccionInformeFinal informeId={informe.id} editable={estadoPermiteEnvio} parrafos={final.introduccion} />}
 
       {final && (
         <ElementosInformeFinal
           informeId={informe.id}
           editable={estadoPermiteEnvio}
           agradecimientos={final.agradecimientos}
+          conAgradecimientos={final.conAgradecimientos !== false}
+          conCarta={final.conCarta !== false}
+          extras={final.extras ?? []}
           carta={final.carta}
           cartaVerificada={final.cartaVerificada}
         />
       )}
 
-      {final && <GlosarioInformeFinal informeId={informe.id} editable={estadoPermiteEnvio} terminos={final.glosario} />}
+      {final && final.conGlosario !== false && <GlosarioInformeFinal informeId={informe.id} editable={estadoPermiteEnvio} terminos={final.glosario} />}
 
       <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
         <div>
@@ -202,7 +214,7 @@ export default function EnvioInformeClient({
       {confirmando && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-extrabold text-slate-900">Confirmar envío del {nombreInforme(informe.numero).toLowerCase()}</h3>
+            <h3 className="text-base font-extrabold text-slate-900">Confirmar envío del {nombreInforme(informe.numero, informe.totalInformes).toLowerCase()}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
               Una vez enviado, el informe quedará en revisión por su asesor designado y no podrá modificar las actividades de este período
               salvo que el asesor solicite correcciones. La fecha y hora de envío quedarán registradas.

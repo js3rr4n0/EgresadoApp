@@ -798,6 +798,9 @@ export const informesMensuales = pgTable(
     agradecimientos: text("agradecimientos"), // opcional; una página, máximo 4 párrafos
     glosario: jsonb("glosario"), // términos opcionales del anexo «Glosario de términos» ({ termino, definicion }[])
     introduccion: jsonb("introduccion"), // cuatro párrafos (string[]) redactados por el egresado según los criterios de la métrica
+    // Pasantía con ficha (entrega W3): texto de los capítulos que agrega la ficha al documento final ({ [clave]: texto }).
+    // Script: scripts/fichas/crear_apartados_extra_informe.ts
+    apartadosExtra: jsonb("apartados_extra"),
     cartaFinalizacion: jsonb("carta_finalizacion"), // { url, nombre, subidaEn }: imagen de la carta emitida por la empresa
     cartaFinalizacionVerificadaEn: timestamp("carta_finalizacion_verificada_en", { withTimezone: true }),
     cartaFinalizacionVerificadaPor: integer("carta_finalizacion_verificada_por").references(() => usuarios.id),

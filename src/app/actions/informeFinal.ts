@@ -1,5 +1,6 @@
 "use server";
 
+import { esCapituloExtra, leerApartadosExtra } from "@/lib/fichas/documentoFinalPasantia";
 import { db } from "@/lib/db";
 import { informesMensuales, propuestas } from "@/lib/schema";
 import { getSession } from "@/lib/session";
@@ -7,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { registrarEvento } from "@/lib/bitacora";
 import { esInformeFinal } from "@/lib/periodosPasantia";
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import { contarPalabras, normalizarTexto } from "@/lib/reglasRegistroActividad";
 import {
   leerCartaFinalizacion,
@@ -30,7 +32,7 @@ async function cargarParaEgresado(informeId: number) {
   if (!informe) return { error: "Informe no encontrado" as const };
   const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, informe.propuestaId)).limit(1);
   if (!prop || prop.egresadoId !== session.userId) return { error: "No tiene permisos sobre este informe." as const };
-  if (!esInformeFinal(informe.numero)) return { error: "Este apartado corresponde únicamente al informe final." as const };
+  if (!esInformeFinal(informe.numero, (await reglasPasantiaDePropuesta(informe.propuestaId)).periodos)) return { error: "Este apartado corresponde únicamente al informe final." as const };
   if (informe.estado !== "redactando" && informe.estado !== "observado") {
     return { error: "El informe final ya fue enviado; no admite cambios salvo que el asesor solicite correcciones." as const };
   }
@@ -205,7 +207,7 @@ export async function verificarCartaFinalizacion(informeId: number) {
     const session = await getSession();
     if (!session?.userId || session.rol !== "asesor") return { success: false, error: "No autorizado" };
     const [informe] = await db.select().from(informesMensuales).where(eq(informesMensuales.id, informeId)).limit(1);
-    if (!informe || !esInformeFinal(informe.numero)) return { success: false, error: "Informe final no encontrado." };
+    if (!informe || !esInformeFinal(informe.numero, (await reglasPasantiaDePropuesta(informe.propuestaId)).periodos)) return { success: false, error: "Informe final no encontrado." };
     const [prop] = await db.select().from(propuestas).where(eq(propuestas.id, informe.propuestaId)).limit(1);
     if (!prop || prop.asesorId !== session.userId) return { success: false, error: "No tiene permisos sobre este informe." };
     if (informe.estado !== "enviado") return { success: false, error: "La carta se verifica cuando el informe final está en revisión." };
@@ -229,5 +231,26 @@ export async function verificarCartaFinalizacion(informeId: number) {
   } catch (err) {
     console.error("Error al verificar la carta de finalización:", err);
     return { success: false, error: err instanceof Error ? err.message : "Error al verificar la carta" };
+  }
+}
+
+/**
+ * Pasantía con ficha (entrega W3): texto de un capítulo que la ficha agrega al documento final. Solo los capítulos de
+ * texto activos de la ficha; se guarda normalizado.
+ */
+export async function guardarApartadoExtra(informeId: number, clave: string, textoCap: string) {
+  try {
+    const ctx = await cargarParaEgresado(informeId);
+    if ("error" in ctx) return { success: false, error: ctx.error };
+    const reglas = await reglasPasantiaDePropuesta(ctx.prop.id);
+    const cap = reglas.documentoFinal.capitulos.find((c) => c.clave === clave && c.activo && esCapituloExtra(c.clave));
+    if (!cap) return { success: false, error: "Este capítulo no existe en el documento final de la pasantía." };
+    const limpio = normalizarTexto(textoCap);
+    const extras = { ...leerApartadosExtra(ctx.informe.apartadosExtra), [clave]: limpio };
+    await db.update(informesMensuales).set({ apartadosExtra: extras, actualizadoEn: new Date() }).where(eq(informesMensuales.id, informeId));
+    revalidar(informeId, ctx.prop.id);
+    return { success: true, texto: limpio };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "No se pudo guardar el capítulo." };
   }
 }

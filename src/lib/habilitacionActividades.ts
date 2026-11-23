@@ -3,15 +3,15 @@ import { db } from "@/lib/db";
 import { actividades, registrosActividad, cartasAceptacion, solicitudesCambioActividad, imagenesActividad } from "@/lib/schema";
 import { eq, and, asc, inArray, max } from "drizzle-orm";
 import { limiteImagenesSemana } from "@/lib/fuenteImagen";
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import {
   generarPeriodosPasantia,
   fechaLocalDesdeISO,
   aISOLocal,
   hoyISOElSalvador,
-  NUM_INFORMES_MENSUALES,
   type Posicion,
 } from "@/lib/periodosPasantia";
-import { estimarPaginas, nivelRitmo, PAGINAS_MINIMAS_INFORME } from "@/lib/metricaPaginas";
+import { estimarPaginas, nivelRitmo } from "@/lib/metricaPaginas";
 
 export {
   DESCRIPTOR_MIN_PALABRAS,
@@ -236,7 +236,9 @@ export async function getPeriodosPropuesta(propuestaId: number): Promise<Periodo
     .limit(1);
 
   if (carta?.fechaInicio) {
-    return generarPeriodosPasantia(fechaLocalDesdeISO(carta.fechaInicio)).map((p) => ({
+    // Entrega W2: con ficha, la duración, los días por período y las semanas de su ejecución.
+    const r = await reglasPasantiaDePropuesta(propuestaId);
+    return generarPeriodosPasantia(fechaLocalDesdeISO(carta.fechaInicio), r.duracionDias, r.diasPorPeriodo, r.semanasPorPeriodo).map((p) => ({
       num: p.num,
       nombre: p.nombre,
       inicio: aISOLocal(p.inicio),
@@ -268,10 +270,11 @@ export async function calcularMetricaPaginas(
   acts: Actividad[],
   registros: RegistroActividad[]
 ): Promise<MetricaPaginas> {
-  const periodos = (await getPeriodosPropuesta(propuestaId)).filter((p) => p.num <= NUM_INFORMES_MENSUALES);
+  const reglas = await reglasPasantiaDePropuesta(propuestaId);
+  const periodos = (await getPeriodosPropuesta(propuestaId)).filter((p) => p.num <= reglas.periodos);
   const registroPorActividad = new Map((await conImagenesAdicionales(registros)).map((r) => [r.actividadId, r]));
 
-  const porInforme = Array.from({ length: NUM_INFORMES_MENSUALES }, (_, i) => {
+  const porInforme = Array.from({ length: reglas.periodos }, (_, i) => {
     const numero = i + 1;
     const registrosMes = acts
       .filter((a) => a.periodo === numero)
@@ -281,14 +284,14 @@ export async function calcularMetricaPaginas(
     return {
       numero,
       paginas: estimarPaginas(registrosMes),
-      minimo: PAGINAS_MINIMAS_INFORME,
+      minimo: reglas.paginasMinimas,
       inicio: periodo?.inicio ?? null,
       fin: periodo?.fin ?? null,
     };
   });
 
   const paginasTotales = Math.round(porInforme.reduce((t, i) => t + i.paginas, 0) * 10) / 10;
-  const minimoTotal = PAGINAS_MINIMAS_INFORME * NUM_INFORMES_MENSUALES;
+  const minimoTotal = reglas.paginasMinimas * reglas.periodos;
 
   // Ritmo esperado: proporción del tiempo transcurrido entre el inicio del primer período y el fin del último.
   const inicioPasantia = periodos[0]?.inicio;
@@ -302,7 +305,7 @@ export async function calcularMetricaPaginas(
   const paginasEsperadasHoy = Math.round(minimoTotal * fraccion * 10) / 10;
 
   return {
-    minimoPorInforme: PAGINAS_MINIMAS_INFORME,
+    minimoPorInforme: reglas.paginasMinimas,
     porInforme,
     paginasTotales,
     minimoTotal,

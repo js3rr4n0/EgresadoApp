@@ -1,3 +1,4 @@
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getRegistroActividadDetalle } from "@/app/actions/registrosActividad";
@@ -30,5 +31,6 @@ export default async function RegistroActividadPage({
     redirect("/login");
   }
 
-  return <RegistroActividadClient data={res as any} />;
+  const reglas = await reglasPasantiaDePropuesta(res.actividad.propuestaId);
+  return <RegistroActividadClient data={res as any} reglas={reglas} />;
 }

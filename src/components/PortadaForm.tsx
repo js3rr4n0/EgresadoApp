@@ -15,9 +15,11 @@ interface PortadaFormProps {
     mesEnvio: string;
     titulo?: string | null;
   };
+  /** Paso al que se continúa (fase 1: 2; con ficha, el que sigue en la ficha). */
+  pasoSiguiente?: number;
 }
 
-export default function PortadaForm({ propuestaId, initialData }: PortadaFormProps) {
+export default function PortadaForm({ propuestaId, initialData, pasoSiguiente = 2 }: PortadaFormProps) {
   const router = useRouter();
 
   // Split full name into names and surnames approximately for display
@@ -73,7 +75,7 @@ export default function PortadaForm({ propuestaId, initialData }: PortadaFormPro
     setIsSaving(false);
 
     if (res.success) {
-      router.push(`?id=${propuestaId}&step=2`);
+      router.push(`?id=${propuestaId}&step=${pasoSiguiente}`);
     } else {
       alert(res.error || "Error al guardar el título.");
     }

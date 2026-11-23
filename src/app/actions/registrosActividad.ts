@@ -32,6 +32,7 @@ import {
   ESTADOS_REGISTRADOS,
 } from "@/lib/habilitacionActividades";
 import { hoyISOElSalvador, rangoSemanaISO, nombreInforme } from "@/lib/periodosPasantia";
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import { registrarEvento } from "@/lib/bitacora";
 import { normalizarTexto, mencionaPasante, MAX_CARACTERES_LEYENDA } from "@/lib/reglasRegistroActividad";
 import { palabrasDudosas } from "@/lib/ortografia";
@@ -50,7 +51,6 @@ import {
   leerFuenteImagen,
   validarOrigenImagen,
   type FuenteImagen,
-  MAX_IMAGENES_ACTIVIDAD,
 } from "@/lib/fuenteImagen";
 
 const MAX_ANEXOS_ACTIVIDAD = 10;
@@ -369,8 +369,9 @@ export async function enviarSemanaActividades(propuestaId: number, declaraAutori
     }
 
     const problemas: string[] = [];
+    const reglas = await reglasPasantiaDePropuesta(propuestaId);
     for (const x of porEnviar) {
-      for (const p of validarContenidoRegistro(x.registro || {})) {
+      for (const p of validarContenidoRegistro(x.registro || {}, reglas)) {
         problemas.push(`${codigoActividad(x.actividad)}: ${p}`);
       }
     }
@@ -582,11 +583,12 @@ export async function subirImagenAdicional(actividadId: number, formData: FormDa
       if (!registro.imagenUrl) {
         return { success: false, error: "Primero adjunte la imagen de soporte principal de la actividad." };
       }
-      // Máximo dos imágenes de soporte por actividad: la principal y una adicional.
-      if (existentes.filter((i) => i.tipo === "soporte").length >= MAX_IMAGENES_ACTIVIDAD - 1) {
+      // Imágenes de soporte por actividad: la principal y las adicionales (fase 1: 2; con ficha, las de su ejecución).
+      const maxImagenes = (await reglasPasantiaDePropuesta(actividad.propuestaId)).imagenes;
+      if (existentes.filter((i) => i.tipo === "soporte").length >= maxImagenes - 1) {
         return {
           success: false,
-          error: `Cada actividad admite como máximo ${MAX_IMAGENES_ACTIVIDAD} imágenes de soporte: la principal y una adicional. Puede agregar esta imagen como anexo.`,
+          error: `Cada actividad admite como máximo ${maxImagenes} imágenes de soporte: la principal y ${maxImagenes - 1 === 1 ? "una adicional" : `${maxImagenes - 1} adicionales`}. Puede agregar esta imagen como anexo.`,
         };
       }
     } else if (existentes.filter((i) => i.tipo === "anexo").length >= MAX_ANEXOS_ACTIVIDAD) {
@@ -709,6 +711,7 @@ export async function getResumenSeguimientoAsesor() {
 
         const [egresado] = await db.select().from(usuarios).where(eq(usuarios.id, prop.egresadoId)).limit(1);
         const infResult = await ensureInformesMensuales(prop.id);
+        const totalInformes = (await reglasPasantiaDePropuesta(prop.id)).periodos;
         const informes = "informes" in infResult && infResult.informes ? infResult.informes : [];
         const datosEgresado = { nombreCompleto: egresado?.nombreCompleto ?? "", carnet: egresado?.carnet ?? "" };
 
@@ -741,7 +744,7 @@ export async function getResumenSeguimientoAsesor() {
               tipo: "informe" as const,
               propuestaId: prop.id,
               egresado: datosEgresado,
-              titulo: nombreInforme(i.numero),
+              titulo: nombreInforme(i.numero, totalInformes),
               detalle: i.cumplimiento === "fuera_de_tiempo" ? "Entregado fuera de tiempo" : "Por aprobar",
               enviadoEn: i.enviadoEn,
               diasEsperando: dias,

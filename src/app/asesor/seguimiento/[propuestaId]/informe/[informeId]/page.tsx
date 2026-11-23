@@ -1,3 +1,4 @@
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { formatearFechaHoraElSalvador, esInformeFinal } from "@/lib/periodosPasantia";
@@ -45,11 +46,13 @@ export default async function RevisionInformePage({
       ? { requerida: true, completada: !!(visitaRes && visitaRes.success && visitaRes.visita?.estado === "completado") }
       : { requerida: false, completada: true };
 
+  // Entrega W2: informes y páginas mínimas de la ficha de la pasantía (fase 1: 5 y 20).
+  const reglas = await reglasPasantiaDePropuesta(res.informe.propuestaId);
   const carta = leerCartaFinalizacion(res.informe.cartaFinalizacion);
   return (
     <RevisionInformeClient
       cartaFinal={
-        esInformeFinal(res.informe.numero)
+        esInformeFinal(res.informe.numero, reglas.periodos) && reglas.documentoFinal.anexos.some((a) => a.clave === "carta" && a.activo)
           ? { carta: carta ? { nombre: carta.nombre, url: carta.url } : null, verificada: !!res.informe.cartaFinalizacionVerificadaEn }
           : null
       }
@@ -62,6 +65,7 @@ export default async function RevisionInformePage({
         enviadoEn: formatearFechaHoraElSalvador(res.informe.enviadoEn),
         cumplimiento: res.informe.cumplimiento,
         comentarioAsesor: res.informe.comentarioAsesor,
+        totalInformes: reglas.periodos,
       }}
       periodo={res.periodo ? { inicio: res.periodo.inicio, fin: res.periodo.fin } : null}
       actividades={res.actividadesMes}

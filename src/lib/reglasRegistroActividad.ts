@@ -65,7 +65,14 @@ export interface ContenidoRegistro {
 }
 
 /** Reglas de contenido obligatorio de una actividad; devuelve la lista de problemas (vacía si es válida). */
-export function validarContenidoRegistro(r: ContenidoRegistro): string[] {
+export function validarContenidoRegistro(
+  r: ContenidoRegistro,
+  // Entrega W2: con ficha, sus límites de palabras (reglasPasantia.ts); sin ficha, los de la fase 1.
+  limites: { descripcion: { min: number; max: number }; conclusion: { min: number; max: number } } = {
+    descripcion: { min: DESCRIPTOR_MIN_PALABRAS, max: DESCRIPTOR_MAX_PALABRAS },
+    conclusion: { min: CONCLUSION_MIN_PALABRAS, max: CONCLUSION_MAX_PALABRAS },
+  }
+): string[] {
   const problemas: string[] = [];
   if (!r.marcoTeorico || r.marcoTeorico.trim().length < 10) {
     problemas.push("Debe redactar el marco teórico correspondiente a la actividad realizada.");
@@ -85,9 +92,9 @@ export function validarContenidoRegistro(r: ContenidoRegistro): string[] {
     problemas.push("Debe describir la actividad realizada por el pasante.");
   } else {
     const n = contarPalabras(r.descriptor);
-    if (n < DESCRIPTOR_MIN_PALABRAS || n > DESCRIPTOR_MAX_PALABRAS) {
+    if (n < limites.descripcion.min || n > limites.descripcion.max) {
       problemas.push(
-        `La descripción debe tener entre ${DESCRIPTOR_MIN_PALABRAS} y ${DESCRIPTOR_MAX_PALABRAS} palabras (actualmente tiene ${n}).`
+        `La descripción debe tener entre ${limites.descripcion.min} y ${limites.descripcion.max} palabras (actualmente tiene ${n}).`
       );
     } else if (!terminaEnPunto(r.descriptor)) {
       problemas.push("La descripción debe terminar con punto.");
@@ -107,9 +114,9 @@ export function validarContenidoRegistro(r: ContenidoRegistro): string[] {
     problemas.push("Debe redactar la conclusión técnica de la actividad.");
   } else {
     const n = contarPalabras(r.conclusionTecnica);
-    if (n < CONCLUSION_MIN_PALABRAS || n > CONCLUSION_MAX_PALABRAS) {
+    if (n < limites.conclusion.min || n > limites.conclusion.max) {
       problemas.push(
-        `La conclusión técnica debe tener entre ${CONCLUSION_MIN_PALABRAS} y ${CONCLUSION_MAX_PALABRAS} palabras (actualmente tiene ${n}).`
+        `La conclusión técnica debe tener entre ${limites.conclusion.min} y ${limites.conclusion.max} palabras (actualmente tiene ${n}).`
       );
     } else if (!terminaEnPunto(r.conclusionTecnica)) {
       problemas.push("La conclusión técnica debe terminar con punto.");

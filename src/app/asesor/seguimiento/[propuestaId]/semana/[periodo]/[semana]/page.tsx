@@ -2,6 +2,7 @@ import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { getSemanaRevision } from "@/app/actions/registrosActividad";
 import RevisionSemanaClient from "./RevisionSemanaClient";
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 
 export default async function RevisionSemanaPage({
   params,
@@ -27,5 +28,6 @@ export default async function RevisionSemanaPage({
   }
 
   const actividadInicial = Number((await searchParams).actividad) || undefined;
-  return <RevisionSemanaClient key={`${periodo}.${semana}`} data={res} actividadInicial={actividadInicial} />;
+  const reglas = await reglasPasantiaDePropuesta(propuestaId);
+  return <RevisionSemanaClient key={`${periodo}.${semana}`} data={res} actividadInicial={actividadInicial} reglas={reglas} />;
 }

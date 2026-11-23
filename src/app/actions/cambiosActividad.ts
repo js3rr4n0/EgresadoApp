@@ -13,7 +13,8 @@ import {
   codigoActividad,
   getPeriodosPropuesta,
 } from "@/lib/habilitacionActividades";
-import { NUM_INFORMES_MENSUALES, compararPosicion, type Posicion } from "@/lib/periodosPasantia";
+import { compararPosicion, type Posicion } from "@/lib/periodosPasantia";
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import { registrarEvento } from "@/lib/bitacora";
 
 function textoSolicitud(tipo: TipoCambio, codigo: string | null, destino: { periodo: number | null; semana: number | null }) {
@@ -101,7 +102,8 @@ async function siguienteNumero(propuestaId: number, periodo: number, semana: num
 
 /** Estado del cronograma necesario para validar cambios: meses/semanas válidos, semana actual y meses ya entregados. */
 async function cargarContextoCronograma(propuestaId: number) {
-  const periodos = (await getPeriodosPropuesta(propuestaId)).filter((p) => p.num <= NUM_INFORMES_MENSUALES);
+  const totalPeriodos = (await reglasPasantiaDePropuesta(propuestaId)).periodos;
+  const periodos = (await getPeriodosPropuesta(propuestaId)).filter((p) => p.num <= totalPeriodos);
 
   const { actividades: acts, registros } = await ensureRegistros(propuestaId);
   const registroPorActividad = new Map(registros.map((r) => [r.actividadId, r]));

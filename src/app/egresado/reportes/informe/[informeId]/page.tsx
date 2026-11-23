@@ -1,3 +1,5 @@
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
+import { esCapituloExtra, leerApartadosExtra } from "@/lib/fichas/documentoFinalPasantia";
 import { redirect, notFound } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { formatearFechaHoraElSalvador, esInformeFinal } from "@/lib/periodosPasantia";
@@ -24,17 +26,28 @@ export default async function EnvioInformePage({ params }: { params: Promise<{ i
     );
   }
 
+  // Entrega W2: informes y páginas mínimas de la ficha de la pasantía (fase 1: 5 y 20).
+  const reglas = await reglasPasantiaDePropuesta(res.informe.propuestaId);
   const carta = leerCartaFinalizacion(res.informe.cartaFinalizacion);
   return (
     <EnvioInformeClient
       final={
-        esInformeFinal(res.informe.numero)
+        esInformeFinal(res.informe.numero, reglas.periodos)
           ? {
               agradecimientos: res.informe.agradecimientos ?? "",
               introduccion: leerIntroduccion(res.informe.introduccion),
               glosario: glosarioOrdenado(leerGlosario(res.informe.glosario)),
               carta: carta ? { nombre: carta.nombre, url: carta.url } : null,
               cartaVerificada: !!res.informe.cartaFinalizacionVerificadaEn,
+              // Entrega W3: partes del documento final que pide la ficha y los capítulos de texto que agrega.
+              conIntroduccion: reglas.documentoFinal.capitulos.some((c) => c.clave === "introduccion" && c.activo),
+              conAgradecimientos: reglas.documentoFinal.agradecimientos,
+              conGlosario: reglas.documentoFinal.anexos.some((a) => a.clave === "glosario" && a.activo),
+              conCarta: reglas.documentoFinal.anexos.some((a) => a.clave === "carta" && a.activo),
+              extras: reglas.documentoFinal.capitulos.filter((c) => c.activo && esCapituloExtra(c.clave)).map((c) => ({
+                clave: c.clave, titulo: c.titulo, ayuda: c.ayuda ?? "", minPalabras: c.minPalabras ?? 0, maxPalabras: c.maxPalabras ?? 0,
+                texto: leerApartadosExtra(res.informe.apartadosExtra)[c.clave] ?? "",
+              })),
             }
           : null
       }
@@ -46,6 +59,8 @@ export default async function EnvioInformePage({ params }: { params: Promise<{ i
         enviadoEn: formatearFechaHoraElSalvador(res.informe.enviadoEn),
         cumplimiento: res.informe.cumplimiento,
         comentarioAsesor: res.informe.comentarioAsesor,
+        totalInformes: reglas.periodos,
+        paginasMinimas: reglas.paginasMinimas,
       }}
       periodo={res.periodo ? { inicio: res.periodo.inicio, fin: res.periodo.fin } : null}
       requisitos={res.requisitos}

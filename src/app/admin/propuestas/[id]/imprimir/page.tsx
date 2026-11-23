@@ -17,10 +17,8 @@ import { eq, asc } from "drizzle-orm";
 import { redirect, notFound } from "next/navigation";
 import PrintButton from "@/app/egresado/redactar/imprimir/PrintButton";
 import PdfToImagesViewer from "@/components/PdfToImagesViewer";
-import { espaciosPropuesta, fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
-import { bloquesRespuesta } from "@/lib/fichas/respuestasPropias";
-import { claveCamposExtra, defCamposExtra } from "@/lib/fichas/elementosPropios";
-import { respuestasEspacios } from "@/lib/schema";
+import { espaciosExtraDePropuesta } from "@/lib/fichas/espaciosExtraPropuesta";
+import OtrosApartadosPropuesta from "@/components/OtrosApartadosPropuesta";
 
 const getStaticMapUrl = (coords: string | null) => {
   if (!coords || !coords.includes(",")) return null;
@@ -135,31 +133,12 @@ export default async function AdminPrintPropuestaPage({
 
   // Espacios de la ficha sin columna de la fase 1 (catálogo editable, C3): bloques de texto y elementos propios, para
   // que el asesor y la coordinación los revisen en la propuesta.
-  const espaciosExtra = isMultiUserFlow
-    ? await (async () => {
-        const ficha = await fichaDePropuesta(propuesta.id);
-        if (!ficha?.version) return [];
-        const resp = await db.select().from(respuestasEspacios).where(eq(respuestasEspacios.propuestaId, propuesta.id));
-        const contenido = (id: string) => resp.find((r) => r.espacioId === id)?.contenido ?? "";
-        const integrantes = [
-          { id: propuesta.egresadoId, nombre: studentName },
-          ...teamMembers.filter((m) => m.estado === "aceptado").map((m) => ({ id: m.egresadoId, nombre: m.nombreCompleto })),
-        ];
-        return espaciosPropuesta(ficha.definicion).flatMap((e) => [
-          ...((e.elemento === "texto" && !e.origenFase1) || (e.elemento === "propio" && e.propio)
-            ? [{
-                id: e.id,
-                titulo: e.titulo,
-                texto: e.elemento === "texto" ? contenido(e.id) : "",
-                bloques: e.propio ? bloquesRespuesta(e.propio.definicion, contenido(e.id), integrantes) : [],
-              }]
-            : []),
-          // Campos adicionales del paso (C4).
-          ...(e.camposExtra?.length
-            ? [{ id: claveCamposExtra(e.id), titulo: `${e.titulo}: datos adicionales`, texto: "", bloques: bloquesRespuesta(defCamposExtra(e), contenido(claveCamposExtra(e.id))) }]
-            : []),
-        ]);
-      })()
+  // Pasantía con ficha (W1): también sus pasos nuevos.
+  const espaciosExtra = isMultiUserFlow || propuesta.fichaVersionId
+    ? await espaciosExtraDePropuesta(propuesta.id, [
+        { id: propuesta.egresadoId, nombre: studentName },
+        ...teamMembers.filter((m) => m.estado === "aceptado").map((m) => ({ id: m.egresadoId, nombre: m.nombreCompleto })),
+      ])
     : [];
 
   const [carta] = await db.select().from(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuesta.id)).limit(1);
@@ -172,7 +151,7 @@ export default async function AdminPrintPropuestaPage({
 
   if (isGanttOnly) {
     const allPeriods = Array.from(new Set(actividadesList.map((act) => act.periodo)));
-    return (
+  return (
       <div className="bg-white min-h-screen text-slate-900 font-sans p-4 print:p-0 print:m-0">
         <style>{`
           @page {
@@ -446,6 +425,8 @@ export default async function AdminPrintPropuestaPage({
     );
   }
 
+  const seccionOtros = <OtrosApartadosPropuesta espacios={espaciosExtra} />;
+
   return (
     <div className="bg-white min-h-screen text-black">
       <style>{`
@@ -673,33 +654,7 @@ export default async function AdminPrintPropuestaPage({
               </div>
             </div>
 
-            {espaciosExtra.length > 0 && (
-              <div style={{ pageBreakAfter: "always" }} className="pt-8">
-                <h2 className="text-xl font-bold uppercase mb-6 border-b-2 border-brand-red pb-2">Otros apartados de la propuesta</h2>
-                <div className="space-y-6">
-                  {espaciosExtra.map((x) => (
-                    <section key={x.id} className="print:break-inside-avoid border p-4 rounded bg-gray-50">
-                      <h3 className="text-md font-bold text-gray-900 mb-2 uppercase">{x.titulo}</h3>
-                      {x.texto ? <p className="text-sm leading-relaxed text-gray-800 whitespace-pre-line">{x.texto}</p> : null}
-                      {x.bloques.map((b, k) => (
-                        <div key={k} className="mt-2">
-                          {b.persona && <p className="text-sm font-bold text-gray-700 mb-1">{b.persona}</p>}
-                          <dl className="space-y-1.5 text-sm">
-                            {b.campos.map((c) => (
-                              <div key={c.etiqueta}>
-                                <dt className="font-bold text-gray-700">{c.etiqueta}</dt>
-                                <dd className="text-gray-800 whitespace-pre-line">{c.texto}{c.tipo === "archivo" || c.tipo === "imagen" ? " (adjunto en el sistema)" : ""}</dd>
-                              </div>
-                            ))}
-                          </dl>
-                        </div>
-                      ))}
-                      {!x.texto && x.bloques.every((b) => b.campos.length === 0) && <p className="text-sm italic text-gray-400">Sin respuesta.</p>}
-                    </section>
-                  ))}
-                </div>
-              </div>
-            )}
+            {seccionOtros}
           </>
         ) : (
           /* PASANTÍA */
@@ -934,6 +889,7 @@ export default async function AdminPrintPropuestaPage({
                 </div>
               </div>
             )}
+            {seccionOtros}
           </>
         )}
 

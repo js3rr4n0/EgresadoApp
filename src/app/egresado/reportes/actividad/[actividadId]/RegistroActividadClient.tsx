@@ -1,4 +1,5 @@
 "use client";
+import { REGLAS_FASE1, type ReglasPasantia } from "@/lib/reglasPasantia";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -6,10 +7,6 @@ import { useRouter } from "next/navigation";
 import { guardarRegistroActividad, enviarSemanaActividades } from "@/app/actions/registrosActividad";
 import { leerFuenteImagen, leerOrigenImagen } from "@/lib/fuenteImagen";
 import {
-  DESCRIPTOR_MIN_PALABRAS,
-  DESCRIPTOR_MAX_PALABRAS,
-  CONCLUSION_MIN_PALABRAS,
-  CONCLUSION_MAX_PALABRAS,
 } from "@/lib/reglasRegistroActividad";
 import { datosCitaVacios, leerDatosCita, type DatosCitaApa } from "@/lib/citaApa";
 import { EJEMPLOS_REGISTRO, AVISO_EJEMPLOS } from "@/lib/ejemplosInforme";
@@ -41,7 +38,9 @@ const ESTADO_BANNER: Record<string, { className: string; title: string }> = {
 const tarjeta = "bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-3";
 const tituloTarjeta = "text-sm font-extrabold text-slate-900 uppercase tracking-wide";
 
-export default function RegistroActividadClient({ data }: { data: any }) {
+export default function RegistroActividadClient({ data, reglas }: { data: any; reglas?: ReglasPasantia }) {
+  // Entrega W2: límites de palabras e imágenes de la ficha de la pasantía (fase 1: los de siempre).
+  const lim = reglas ?? REGLAS_FASE1;
   const router = useRouter();
   const { actividad, registro, estadoGrupo, semana } = data;
 
@@ -256,13 +255,14 @@ export default function RegistroActividadClient({ data }: { data: any }) {
           onChange={setDescriptor}
           deshabilitado={isLocked}
           filas={16}
-          placeholder={`Describa lo que usted realizó en esta actividad, en tiempo pasado (${DESCRIPTOR_MIN_PALABRAS} a ${DESCRIPTOR_MAX_PALABRAS} palabras).`}
-          minimo={DESCRIPTOR_MIN_PALABRAS}
-          maximo={DESCRIPTOR_MAX_PALABRAS}
+          placeholder={`Describa lo que usted realizó en esta actividad, en tiempo pasado (${lim.descripcion.min} a ${lim.descripcion.max} palabras).`}
+          minimo={lim.descripcion.min}
+          maximo={lim.descripcion.max}
         />
       </div>
 
       <ImagenesActividad
+        maxImagenes={lim.imagenes}
         actividadId={actividad.id}
         imagenUrl={registro.imagenUrl}
         numeroImagen={registro.numeroImagen}
@@ -292,9 +292,9 @@ export default function RegistroActividadClient({ data }: { data: any }) {
           onChange={setConclusionTecnica}
           deshabilitado={isLocked}
           filas={4}
-          placeholder={`Conclusión técnica derivada de la actividad realizada (${CONCLUSION_MIN_PALABRAS} a ${CONCLUSION_MAX_PALABRAS} palabras).`}
-          minimo={CONCLUSION_MIN_PALABRAS}
-          maximo={CONCLUSION_MAX_PALABRAS}
+          placeholder={`Conclusión técnica derivada de la actividad realizada (${lim.conclusion.min} a ${lim.conclusion.max} palabras).`}
+          minimo={lim.conclusion.min}
+          maximo={lim.conclusion.max}
         />
       </div>
 

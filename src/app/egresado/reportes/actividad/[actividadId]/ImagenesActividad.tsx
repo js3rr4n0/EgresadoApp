@@ -57,7 +57,10 @@ export default function ImagenesActividad({
   bloqueado,
   onError,
   comentario,
+  maxImagenes = MAX_IMAGENES_ACTIVIDAD,
 }: {
+  /** Imágenes de soporte por actividad (fase 1: 2; con ficha, las de su ejecución; W2). */
+  maxImagenes?: number;
   actividadId: number;
   imagenUrl: string | null;
   numeroImagen: number | null;
@@ -80,7 +83,7 @@ export default function ImagenesActividad({
   const anexos = imagenes.filter((i) => i.tipo === "anexo");
   const { usadas, limite } = imagenesSemana;
   // Máximo dos imágenes de soporte por actividad: la principal (A) y una adicional (B).
-  const hayEspacioAdicional = adicionales.length < MAX_IMAGENES_ACTIVIDAD - 1;
+  const hayEspacioAdicional = adicionales.length < maxImagenes - 1;
 
   const elegirArchivo = (tipo: Carga["tipo"]) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const archivo = e.target.files?.[0];
@@ -246,7 +249,7 @@ export default function ImagenesActividad({
       <div className="pt-4 border-t border-slate-100 space-y-2">
         <h3 className={subtitulo}>Imagen de soporte adicional (opcional)</h3>
         <p className="text-[11px] text-slate-500 font-semibold">
-          Aparece en el informe junto a la imagen principal. Cada actividad admite como máximo {MAX_IMAGENES_ACTIVIDAD} imágenes de soporte: la
+          Aparece en el informe junto a la imagen principal. Cada actividad admite como máximo {maxImagenes} imágenes de soporte: la
           principal y una adicional.
         </p>
         {adicionales.length > 0 && <ul className="space-y-2">{adicionales.map(miniatura)}</ul>}
@@ -255,7 +258,7 @@ export default function ImagenesActividad({
             botonArchivo("soporte", "Agregar imagen de soporte", !imagenUrl)
           ) : (
             <p className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-[11px] text-amber-900 font-semibold">
-              Esta actividad ya tiene sus {MAX_IMAGENES_ACTIVIDAD} imágenes de soporte. Si desea incluir otra imagen, agréguela como anexo.
+              Esta actividad ya tiene sus {maxImagenes} imágenes de soporte. Si desea incluir otra imagen, agréguela como anexo.
             </p>
           ))}
         {!bloqueado && !imagenUrl && hayEspacioAdicional && (

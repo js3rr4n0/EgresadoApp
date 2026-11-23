@@ -1,4 +1,5 @@
 "use client";
+import { REGLAS_FASE1, type ReglasPasantia } from "@/lib/reglasPasantia";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -7,10 +8,6 @@ import { revisarSemanaActividades, guardarBorradorRevision, type getSemanaRevisi
 import {
   contarPalabras,
   validarContenidoRegistro,
-  DESCRIPTOR_MIN_PALABRAS,
-  DESCRIPTOR_MAX_PALABRAS,
-  CONCLUSION_MIN_PALABRAS,
-  CONCLUSION_MAX_PALABRAS,
 } from "@/lib/reglasRegistroActividad";
 import { leerDatosCita, segmentosCitaApa } from "@/lib/citaApa";
 import { notaImagen } from "@/lib/fuenteImagen";
@@ -105,7 +102,9 @@ function ConteoPalabras({ texto, minimo, maximo }: { texto: string | null; minim
   );
 }
 
-export default function RevisionSemanaClient({ data, actividadInicial }: { data: DatosSemana; actividadInicial?: number }) {
+export default function RevisionSemanaClient({ data, actividadInicial, reglas }: { data: DatosSemana; actividadInicial?: number; reglas?: ReglasPasantia }) {
+  // Entrega W2: límites de palabras de la ficha de la pasantía (fase 1: los de siempre).
+  const lim = reglas ?? REGLAS_FASE1;
   const router = useRouter();
   const { propuestaId, periodo, semana, actividades, estadoSemana } = data;
   const base = `/asesor/seguimiento/${propuestaId}`;
@@ -453,7 +452,7 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
         ]
       : [];
     const anexos = a.imagenes.filter((i) => i.tipo === "anexo");
-    const problemas = a.estado === "pendiente" ? [] : validarContenidoRegistro(a);
+    const problemas = a.estado === "pendiente" ? [] : validarContenidoRegistro(a, lim);
     const sinContenido = !a.marcoTeorico && !a.descriptor && !a.conclusionTecnica && !a.imagenUrl;
 
     return (
@@ -626,7 +625,7 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
               a,
               "descripcion",
               "Descripción de la actividad",
-              <ConteoPalabras texto={a.descriptor} minimo={DESCRIPTOR_MIN_PALABRAS} maximo={DESCRIPTOR_MAX_PALABRAS} />,
+              <ConteoPalabras texto={a.descriptor} minimo={lim.descripcion.min} maximo={lim.descripcion.max} />,
               textoRevisable(a, "descripcion", a.descriptor, a.versionAnterior?.descriptor),
               a.versionAnterior ? hayCambios(a.versionAnterior.descriptor, a.descriptor) : null
             )}
@@ -700,7 +699,7 @@ export default function RevisionSemanaClient({ data, actividadInicial }: { data:
               a,
               "conclusion",
               "Conclusión técnica",
-              <ConteoPalabras texto={a.conclusionTecnica} minimo={CONCLUSION_MIN_PALABRAS} maximo={CONCLUSION_MAX_PALABRAS} />,
+              <ConteoPalabras texto={a.conclusionTecnica} minimo={lim.conclusion.min} maximo={lim.conclusion.max} />,
               textoRevisable(a, "conclusion", a.conclusionTecnica, a.versionAnterior?.conclusionTecnica),
               a.versionAnterior ? hayCambios(a.versionAnterior.conclusionTecnica, a.conclusionTecnica) : null
             )}

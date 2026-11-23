@@ -12,7 +12,9 @@ import { esEtapaPropuesta, type DefinicionFicha, type Espacio, type Modalidad } 
 import { objetivosPorIntegranteDe, rangoObjetivos, type RangoObjetivos } from "./objetivos";
 
 /** Modalidades cuyo asistente ya lee la ficha. */
-export const MODALIDADES_CON_FICHA: Modalidad[] = ["proyecto", "investigacion"];
+// Pasantía (entrega W1, 23-nov-2026): las propuestas nuevas toman la versión habilitada de su ficha; las que ya existían
+// (sin versión) siguen con el asistente de la fase 1.
+export const MODALIDADES_CON_FICHA: Modalidad[] = ["pasantia", "proyecto", "investigacion"];
 
 export interface FichaDePropuesta {
   definicion: DefinicionFicha;

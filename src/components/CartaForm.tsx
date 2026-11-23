@@ -6,13 +6,18 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { openDocument } from "@/lib/pdfViewer";
 
 interface CartaFormProps {
+  /** Pasos siguiente y anterior (por defecto, los de la fase 1; con ficha, los de la ficha). */
+  pasoSiguiente?: number;
+  pasoAnterior?: number;
+  /** Duración de la pasantía en días (fase 1: 150; con ficha, la de su ejecución; W2). */
+  duracionDias?: number;
   propuestaId: number;
   initialData: any; // data from DB if it exists
   empresaInfo: any;
   isLocked: boolean;
 }
 
-export default function CartaForm({ propuestaId, initialData, empresaInfo, isLocked }: CartaFormProps) {
+export default function CartaForm({ propuestaId, initialData, empresaInfo, isLocked, pasoSiguiente = 5, pasoAnterior = 3, duracionDias = 150 }: CartaFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -59,18 +64,18 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
         setMinInicioStrDyn(minInicioStrNew);
         setFechaInicio(minInicioStrNew);
 
-        const finStr = addDays(minInicioStrNew, 150);
+        const finStr = addDays(minInicioStrNew, duracionDias);
         setFechaFin(finStr);
-        setDiasDiff(150);
+        setDiasDiff(duracionDias);
       } else {
         setMinInicioStrDyn(defaultMinInicio);
       }
     } else if (type === "inicio") {
       setFechaInicio(val);
       if (val) {
-        const endStr = addDays(val, 150);
+        const endStr = addDays(val, duracionDias);
         setFechaFin(endStr);
-        setDiasDiff(150);
+        setDiasDiff(duracionDias);
       } else {
         setFechaFin("");
         setDiasDiff(null);
@@ -150,7 +155,7 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
       // Proceed to step 5
       const params = new URLSearchParams(searchParams.toString());
       params.set("id", propuestaId.toString());
-      params.set("step", "5");
+      params.set("step", String(pasoSiguiente));
       router.push(`?${params.toString()}`);
     } else {
       setError(result.error || "Error desconocido");
@@ -236,15 +241,15 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
               <input type="date" name="fechaInicio" min={minInicioStrDyn} value={fechaInicio} onChange={(e) => handleDateChange("inicio", e.target.value)} required disabled={isLocked} className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm disabled:bg-slate-100" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-foreground mb-1">Fin de Pasantía (150 días)</label>
+              <label className="block text-xs font-bold text-foreground mb-1">Fin de Pasantía ({duracionDias} días)</label>
               <input type="date" name="fechaFin" value={fechaFin} onChange={(e) => handleDateChange("fin", e.target.value)} required disabled={isLocked} readOnly className="w-full px-3 py-2 rounded-lg border border-border focus:ring-2 focus:ring-brand-red/20 outline-none text-sm bg-slate-50 cursor-not-allowed" title="Se calcula automáticamente" />
             </div>
           </div>
           
           {/* Visual Date Feedback */}
           {diasDiff !== null && (
-            <p className={`mt-2 text-xs font-bold ${diasDiff >= 150 && diasDiff <= 155 ? 'text-emerald-600' : 'text-red-500'}`}>
-              Duración calculada: {diasDiff} días {diasDiff >= 150 && diasDiff <= 155 ? '(Válida)' : '(Invalida)'}
+            <p className={`mt-2 text-xs font-bold ${diasDiff >= duracionDias && diasDiff <= duracionDias + 5 ? 'text-emerald-600' : 'text-red-500'}`}>
+              Duración calculada: {diasDiff} días {diasDiff >= duracionDias && diasDiff <= duracionDias + 5 ? '(Válida)' : '(Invalida)'}
             </p>
           )}
         </div>
@@ -302,8 +307,8 @@ export default function CartaForm({ propuestaId, initialData, empresaInfo, isLoc
       </div>
 
       <div className="flex justify-between items-center pt-6 border-t border-border">
-        <button type="button" onClick={() => router.push('?step=2')} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors">
-          ← Volver a Datos Empresariales
+        <button type="button" onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior}`)} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors">
+          ← Volver al paso anterior
         </button>
         <button 
           type="submit" 

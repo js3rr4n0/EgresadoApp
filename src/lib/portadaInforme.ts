@@ -35,6 +35,8 @@ export interface DatosPortada {
 
 export interface EntradaPortada {
   numeroInforme: number;
+  /** Informes de la pasantía (fase 1: 5; con ficha, sus períodos). */
+  totalInformes?: number;
   facultad: string | null | undefined;
   carrera: string | null | undefined;
   /** Título que otorga la carrera (carreras.titulo); si falta, se deduce del nombre. */
@@ -55,7 +57,7 @@ export function datosPortada(e: EntradaPortada): DatosPortada {
   return {
     encabezado: ["UNIVERSIDAD CATÓLICA DE EL SALVADOR", ...(e.facultad ? [mayus(e.facultad)] : [])],
     grupos: [
-      [tituloDocumentoInforme(e.numeroInforme)],
+      [tituloDocumentoInforme(e.numeroInforme, e.totalInformes)],
       ["REALIZADA EN:", mayus(e.empresa) || "—"],
       ["PERÍODO DE REALIZACIÓN:", e.desde && e.hasta ? `DEL ${fechaPortada(e.desde)} AL ${fechaPortada(e.hasta)}` : "—"],
       ["PRESENTADO POR:", mayus(e.estudiante) || "—", ...(e.carnet ? [e.carnet.toUpperCase()] : [])],

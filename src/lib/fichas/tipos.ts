@@ -5,6 +5,7 @@
 // instancia de un elemento del catálogo con sus parámetros. La etapa de ejecución tiene períodos, subperíodos e hitos.
 
 import type { CampoPropio, CopiaElementoPropio } from "./elementosPropios";
+import type { ConfigDocumentoFinal, ConfigInformePeriodo } from "./documentoFinalPasantia";
 
 /** Versión del formato del JSON. Se incrementa si cambia la forma de la definición, no por cada ficha. */
 export const FORMATO_DEFINICION = 1;
@@ -194,6 +195,10 @@ export interface EtapaEjecucion {
     comentariosDecanato: { activo: boolean; minPalabras: number };
     /** Opcional en el formato 1; si falta se lee "unico". */
     modo?: ModoInforme;
+    /** Pasantía (entrega W3): capítulos y anexos del documento final; falta = la estructura de la fase 1. */
+    documentoFinal?: ConfigDocumentoFinal;
+    /** Pasantía (entrega W3): partes opcionales del informe de cada período; falta = la fase 1. */
+    periodo?: ConfigInformePeriodo;
   };
   /** Plazo, en días desde que el asesor lo crea, del informe de primer contacto; null si la etapa no lo pide. */
   diasPrimerContacto: number | null;

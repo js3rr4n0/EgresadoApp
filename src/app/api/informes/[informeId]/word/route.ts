@@ -18,7 +18,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ info
   const informe = res as InformeCompilado;
   const archivo = await generarInformeWord(informe, { origen: new URL(request.url).origin });
   const carnet = (informe.egresado?.carnet || "egresado").replace(/[^A-Za-z0-9-]/g, "");
-  const nombre = `${esInformeFinal(informe.informe.numero) ? "Informe_Final" : `Informe_Periodo_${informe.informe.numero}`}_${carnet}.docx`;
+  const nombre = `${esInformeFinal(informe.informe.numero, informe.totalInformes) ? "Informe_Final" : `Informe_Periodo_${informe.informe.numero}`}_${carnet}.docx`;
 
   return new Response(new Uint8Array(archivo), {
     headers: {

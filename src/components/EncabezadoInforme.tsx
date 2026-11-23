@@ -25,13 +25,13 @@ export default function EncabezadoInforme({
   paginasEstimadas,
   paginasMinimas,
 }: {
-  informe: { id: number; numero: number; estado: string; fechaLimite: string; enviadoEn: string | null; cumplimiento: string | null };
+  informe: { id: number; numero: number; estado: string; fechaLimite: string; enviadoEn: string | null; cumplimiento: string | null; totalInformes?: number };
   periodo: { inicio: string | null; fin: string | null } | null;
   paginasEstimadas?: number;
   paginasMinimas?: number;
 }) {
   const estado = ESTADO_INFORME[informe.estado] || ESTADO_INFORME.redactando;
-  const final = esInformeFinal(informe.numero);
+  const final = esInformeFinal(informe.numero, informe.totalInformes);
   const cumpleExtension = paginasEstimadas !== undefined && paginasMinimas !== undefined && paginasEstimadas >= paginasMinimas;
 
   return (

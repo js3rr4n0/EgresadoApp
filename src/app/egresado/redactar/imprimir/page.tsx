@@ -17,6 +17,8 @@ import { eq, asc } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import PrintButton from "./PrintButton";
 import PdfToImagesViewer from "@/components/PdfToImagesViewer";
+import { espaciosExtraDePropuesta } from "@/lib/fichas/espaciosExtraPropuesta";
+import OtrosApartadosPropuesta from "@/components/OtrosApartadosPropuesta";
 
 const getStaticMapUrl = (coords: string | null) => {
   if (!coords || !coords.includes(",")) return null;
@@ -84,7 +86,15 @@ export default async function PrintPropuestaPage({
   if (isMultiUserFlow) {
     teamMembers = await getEquipoProyecto(propuesta.id);
     detallesProj = await getDetallesProyecto(propuesta.id);
-  } else {
+  }
+  // Pasos de la ficha sin columna de la fase 1 (bloques de texto, elementos propios y campos adicionales).
+  const espaciosExtra = propuesta.fichaVersionId
+    ? await espaciosExtraDePropuesta(propuesta.id, [
+        { id: propuesta.egresadoId, nombre: studentName },
+        ...teamMembers.filter((m: { estado?: string }) => m.estado === "aceptado").map((m: { egresadoId: number; nombreCompleto: string }) => ({ id: m.egresadoId, nombre: m.nombreCompleto })),
+      ])
+    : [];
+  if (!isMultiUserFlow) {
     if (propuesta.empresaId) {
       const res = await db.select().from(empresas).where(eq(empresas.id, propuesta.empresaId)).limit(1);
       empresa = res[0];
@@ -648,6 +658,8 @@ export default async function PrintPropuestaPage({
             </div>
           </>
         )}
+
+        <OtrosApartadosPropuesta espacios={espaciosExtra} />
 
         {/* ────────────────── ADJUNTOS Y DOCUMENTOS ────────────────── */}
         {docs.length > 0 &&

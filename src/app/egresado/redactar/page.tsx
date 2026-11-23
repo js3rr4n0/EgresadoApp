@@ -32,9 +32,10 @@ import { leerRespuestaPropia, problemasRespuestaPropia, problemasValores, valore
 import { getRespuestasEspacios } from "@/app/actions/respuestasEspacios";
 import { esRecurso, recursoCompleto } from "@/lib/fichas/elementosRecurso";
 import RecursoEspacioForm from "@/components/proyecto/RecursoEspacioForm";
+import { reglasDeDefinicion } from "@/lib/reglasPasantia";
 
 /** Formulario de la fase 1 que atiende cada espacio de la ficha de proyecto (entrega P2). */
-type TipoPasoProyecto = "portada" | "empresa" | "supervisor" | "actores" | "carta" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "recurso" | "propio" | "no_disponible";
+type TipoPasoProyecto = "portada" | "empresa" | "supervisor" | "actores" | "carta" | "cronograma" | "justificacion_pasantia" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "recurso" | "propio" | "no_disponible";
 function tipoPasoProyecto(e: Espacio): TipoPasoProyecto {
   switch (e.elemento) {
     case "portada":
@@ -44,8 +45,10 @@ function tipoPasoProyecto(e: Espacio): TipoPasoProyecto {
     case "carta":
     case "objetivos":
     case "documentos":
+    case "cronograma":
       return e.elemento;
     case "texto":
+      if (e.origenFase1 === "propuestas.justificacion_proceso") return "justificacion_pasantia";
       if (e.origenFase1 === "detalles_proyecto.descripcion_problema") return "problema";
       if (e.origenFase1 === "detalles_proyecto.justificacion") return "justificacion";
       if (e.origenFase1 === "detalles_proyecto.alcance") return "alcance";
@@ -107,15 +110,21 @@ export default async function EgresadoPage({
   const isProyecto = propuesta?.tipo === "proyecto";
   const isInvestigacion = propuesta?.tipo === "investigacion";
   const isMultiUserFlow = isProyecto || isInvestigacion;
+  // Pasantía con ficha (entrega W1): sus pasos salen de la ficha, con los formularios de la fase 1. Sin versión de ficha
+  // (las propuestas anteriores), sigue el asistente de la fase 1 con sus pasos fijos.
+  const isPasantiaFicha = propuesta?.tipo === "pasantia" && !!propuesta.fichaVersionId;
+  const usaFicha = isMultiUserFlow || isPasantiaFicha;
 
   // Proyecto e investigación: los pasos salen de la ficha ligada a la propuesta (o de la ficha base, que es la fase 1 tal cual).
-  const fichaProyecto = isMultiUserFlow ? await fichaDePropuesta(propuesta.id) : null;
+  const fichaProyecto = usaFicha ? await fichaDePropuesta(propuesta.id) : null;
   const pasosProyecto = fichaProyecto
     ? espaciosPropuesta(fichaProyecto.definicion).map((espacio, i) => ({ num: i + 1, espacio, tipo: tipoPasoProyecto(espacio) }))
     : [];
+  // Entrega W2: duración, períodos y semanas de la ejecución de la ficha de pasantía.
+  const reglasPasantia = reglasDeDefinicion(isPasantiaFicha ? fichaProyecto?.definicion : null);
   const numPasoProyecto = (tipo: TipoPasoProyecto, porDefecto: number) => pasosProyecto.find((p) => p.tipo === tipo)?.num ?? porDefecto;
 
-  const defaultStepForAdjustments = isMultiUserFlow ? numPasoProyecto("objetivos", isInvestigacion ? 6 : 7) : 5;
+  const defaultStepForAdjustments = isMultiUserFlow ? numPasoProyecto("objetivos", isInvestigacion ? 6 : 7) : isPasantiaFicha ? numPasoProyecto("cronograma", 1) : 5;
   const currentStep = hasAdvisorObservations
     ? defaultStepForAdjustments
     : parseInt(params.step || "1", 10);
@@ -134,7 +143,7 @@ export default async function EgresadoPage({
   const porIntegrante = objetivosPorIntegranteDe(fichaProyecto?.version ? fichaProyecto.definicion : null);
   let integrantesTrabajo = 1;
 
-  if (isMultiUserFlow) {
+  if (usaFicha) {
     teamMembers = await getEquipoProyecto(propuesta.id);
     integrantesTrabajo = 1 + teamMembers.filter((m: { estado?: string }) => m.estado === "aceptado").length;
     detallesProj = await getDetallesProyecto(propuesta.id);
@@ -158,6 +167,17 @@ export default async function EgresadoPage({
       const { supervisores, sucursales } = await import("@/lib/schema");
       supervisoresList = await db.select().from(supervisores).where(eq(supervisores.empresaId, propuesta.empresaId)).orderBy(asc(supervisores.nombres));
       sucursalesList = await db.select().from(sucursales).where(eq(sucursales.empresaId, propuesta.empresaId)).orderBy(asc(sucursales.nombre));
+    }
+
+    // Pasantía con ficha: la carta (con la empresa y el supervisor) y el cronograma, como en la fase 1.
+    if (isPasantiaFicha) {
+      actividadesList = await getActividades(propuesta.id);
+      if (currentStep === numPasoProyecto("carta", -1) && propuesta.empresaId && propuesta.supervisorId) {
+        const { supervisores } = await import("@/lib/schema");
+        const [emp] = await db.select().from(empresas).where(eq(empresas.id, propuesta.empresaId));
+        const [sup] = await db.select().from(supervisores).where(eq(supervisores.id, propuesta.supervisorId));
+        if (emp && sup) empresaInfo = { nombre: emp.nombre, supervisor: `${sup.nombres} ${sup.apellidos}`, supervisorCargo: sup.cargo };
+      }
     }
 
     const docStepNumber = numPasoProyecto("documentos", isInvestigacion ? 7 : 8);
@@ -224,7 +244,7 @@ export default async function EgresadoPage({
   // Calculate max allowed step
   let maxAllowedStep = 1;
 
-  if (isMultiUserFlow) {
+  if (usaFicha) {
     // Cada paso se desbloquea al completar el anterior, en el orden de la ficha. Mismas condiciones que la fase 1.
     const completo = (p: (typeof pasosProyecto)[number]): boolean => {
       switch (p.tipo) {
@@ -244,7 +264,13 @@ export default async function EgresadoPage({
           };
           return pedidos.every((a) => !!campo[a]);
         }
+        // Pasantía (fase 1): el cronograma con actividades, la justificación escrita y la carta registrada.
+        case "cronograma":
+          return actividadesList.length > 0;
+        case "justificacion_pasantia":
+          return !!propuesta.justificacionProceso;
         case "carta":
+          if (isPasantiaFicha) return cartaData !== null;
           return !!(cartaData?.archivoUrl && cartaData?.fechaEmision && cartaData?.fechaInicio && cartaData?.fechaFin && cartaData?.supNombres);
         case "problema":
           return !!detallesProj?.descripcionProblema;
@@ -304,7 +330,7 @@ export default async function EgresadoPage({
     datos_rechazados: "Datos Rechazados",
   };
 
-  const steps = isMultiUserFlow
+  const steps = usaFicha
     ? pasosProyecto.map((p) => ({ num: p.num, title: p.espacio.titulo, desc: p.espacio.descripcion }))
     : [
         { num: 1, title: "Portada", desc: "Información general del trabajo" },
@@ -551,8 +577,8 @@ export default async function EgresadoPage({
                 Has enviado una solicitud para registrar o actualizar datos empresariales o de supervisor. No puedes avanzar en la redacción de tu propuesta hasta que la administración apruebe los datos.
               </p>
             </div>
-          ) : isMultiUserFlow ? (
-            /* RENDER PROYECTO E INVESTIGACIÓN: en el orden de la ficha (P2, I2). Sin ficha, la base reproduce los pasos de la fase 1. */
+          ) : usaFicha ? (
+            /* RENDER PROYECTO, INVESTIGACIÓN Y PASANTÍA CON FICHA: en el orden de la ficha (P2, I2). Sin ficha, la base reproduce los pasos de la fase 1. */
             (() => {
               const paso = pasosProyecto[currentStep - 1];
               if (!paso) return null;
@@ -568,7 +594,15 @@ export default async function EgresadoPage({
                   {e.ayuda?.trim() && (
                     <div className="p-4 bg-blue-50 border border-blue-100 text-blue-900 rounded-xl text-sm whitespace-pre-wrap">{e.ayuda}</div>
                   )}
-                  {paso.tipo === "portada" && (
+                  {paso.tipo === "portada" && isPasantiaFicha && (
+                    <div className="bg-white border border-border rounded-xl p-8 shadow-sm">
+                      <h2 className="text-xl font-bold text-foreground mb-2">{e.titulo}</h2>
+                      <p className="text-sm text-muted mb-8">{e.descripcion || "Verifica tus datos personales para pasar a la siguiente etapa."}</p>
+                      <PortadaForm propuestaId={propuesta.id} pasoSiguiente={currentStep + 1}
+                        initialData={{ nombreCompleto: userDetails.nombreCompleto, carnet: userDetails.carnet, carrera: userDetails.carrera, tituloCarrera: userDetails.tituloCarrera, mesEnvio, titulo: propuesta.titulo }} />
+                    </div>
+                  )}
+                  {paso.tipo === "portada" && !isPasantiaFicha && (
                     <ProyectoPortadaForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} userDetails={userDetails} mesEnvio={mesEnvio} isLocked={isFormLocked}
                       isLeader={isLeader} teamMembers={teamMembers} memberInfo={memberInfo} initialTitulo={propuesta.titulo} />
                   )}
@@ -576,7 +610,31 @@ export default async function EgresadoPage({
                     <ActoresIntervinientesForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={detallesProj} isLocked={isFormLocked} isReadOnly={!isLeader}
                       titulo={fichaProyecto?.version ? e.titulo : undefined} descripcion={fichaProyecto?.version ? e.descripcion : undefined} />
                   )}
-                  {paso.tipo === "carta" && (
+                  {paso.tipo === "carta" && isPasantiaFicha && (
+                    <div className="bg-white border border-border rounded-xl p-8 shadow-sm">
+                      <h2 className="text-xl font-bold text-foreground mb-2">{e.titulo}</h2>
+                      <p className="text-sm text-muted mb-8">{e.descripcion || "Digita los datos de la carta emitida por la empresa para validar tu pasantía."}</p>
+                      <CartaForm propuestaId={propuesta.id} initialData={cartaData} empresaInfo={empresaInfo} isLocked={isFormLocked}
+                        duracionDias={reglasPasantia.duracionDias} pasoSiguiente={currentStep + 1} pasoAnterior={Math.max(1, currentStep - 1)} />
+                    </div>
+                  )}
+                  {paso.tipo === "cronograma" && (
+                    <div className="bg-white border border-border rounded-xl p-8 shadow-sm">
+                      <h2 className="text-xl font-bold text-foreground mb-2">{e.titulo}</h2>
+                      <p className="text-sm text-muted mb-8">{e.descripcion || "Registra las actividades del plan por períodos."}</p>
+                      <ActividadesForm propuestaId={propuesta.id} initialFechas={{ fechaInicio: cartaData?.fechaInicio || "", fechaFin: cartaData?.fechaFin || "" }}
+                        initialActividades={actividadesList} observaciones={propuesta.observaciones} reglas={reglasPasantia}
+                        pasoSiguiente={currentStep + 1} pasoAnterior={Math.max(1, currentStep - 1)} />
+                    </div>
+                  )}
+                  {paso.tipo === "justificacion_pasantia" && (
+                    <div className="bg-white border border-border rounded-xl p-8 shadow-sm">
+                      <h2 className="text-xl font-bold text-foreground mb-2">{e.titulo}</h2>
+                      <JustificacionForm propuestaId={propuesta.id} initialData={propuesta.justificacionProceso} isLocked={isFormLocked}
+                        pasoSiguiente={currentStep + 1} pasoAnterior={Math.max(1, currentStep - 1)} />
+                    </div>
+                  )}
+                  {paso.tipo === "carta" && !isPasantiaFicha && (
                     <CartaProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={cartaData} isLocked={isFormLocked} isReadOnly={!isLeader} />
                   )}
                   {paso.tipo === "problema" && (

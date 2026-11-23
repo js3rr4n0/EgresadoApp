@@ -1,3 +1,4 @@
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
@@ -11,10 +12,6 @@ import { getPeriodosPropuesta } from "@/lib/habilitacionActividades";
 import {
   contarPalabras,
   validarContenidoRegistro,
-  DESCRIPTOR_MIN_PALABRAS,
-  DESCRIPTOR_MAX_PALABRAS,
-  CONCLUSION_MIN_PALABRAS,
-  CONCLUSION_MAX_PALABRAS,
 } from "@/lib/reglasRegistroActividad";
 import { validarOrigenImagen } from "@/lib/fuenteImagen";
 import { formatearFechaLarga, rangoFechasTexto, rangoSemanaISO, hoyISOElSalvador, nombreCortoInforme } from "@/lib/periodosPasantia";
@@ -107,6 +104,8 @@ export default async function SeguimientoEgresadoPage({
   }
 
   const res = await getSeguimientoEgresado(propuestaActiva.id);
+  // Entrega W2: límites de palabras e informes de la ficha de la pasantía (fase 1: los de siempre).
+  const lim = await reglasPasantiaDePropuesta(propuestaActiva.id);
   if (!res.success || !res.grupos) {
     return (
       <div className="space-y-6">
@@ -229,7 +228,7 @@ export default async function SeguimientoEgresadoPage({
     grupoActual && !semanaEnRevision
       ? grupoActual.actividades
           .filter((a) => ["pendiente", "guardado", "observado"].includes(a.registro?.estado || "pendiente"))
-          .flatMap((a) => validarContenidoRegistro(a.registro || {}).map((p) => `${a.codigo}: ${p}`))
+          .flatMap((a) => validarContenidoRegistro(a.registro || {}, lim).map((p) => `${a.codigo}: ${p}`))
       : [];
   const actividadesPorEnviar = grupoActual
     ? grupoActual.actividades.filter((a) => ["pendiente", "guardado", "observado"].includes(a.registro?.estado || "pendiente")).length
@@ -246,11 +245,11 @@ export default async function SeguimientoEgresadoPage({
       { label: "Cita APA 7", ok: (a.registro?.citaApa?.trim().length ?? 0) >= 5 },
       {
         label: `Descripción (${palabras} palabra${palabras === 1 ? "" : "s"})`,
-        ok: palabras >= DESCRIPTOR_MIN_PALABRAS && palabras <= DESCRIPTOR_MAX_PALABRAS,
+        ok: palabras >= lim.descripcion.min && palabras <= lim.descripcion.max,
       },
       {
         label: `Conclusión técnica (${palabrasConclusion} palabra${palabrasConclusion === 1 ? "" : "s"})`,
-        ok: palabrasConclusion >= CONCLUSION_MIN_PALABRAS && palabrasConclusion <= CONCLUSION_MAX_PALABRAS,
+        ok: palabrasConclusion >= lim.conclusion.min && palabrasConclusion <= lim.conclusion.max,
       },
     ];
     indicadores.push({
@@ -641,7 +640,7 @@ export default async function SeguimientoEgresadoPage({
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-extrabold text-slate-800">{nombreCortoInforme(im.numero)}</span>
+                  <span className="text-xs font-extrabold text-slate-800">{nombreCortoInforme(im.numero, lim.periodos)}</span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border text-center ${estado.badge}`}>
                     {estado.label}
                   </span>

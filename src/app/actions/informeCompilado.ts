@@ -21,6 +21,8 @@ import { getSession } from "@/lib/session";
 import { eq, and, asc, desc, inArray, lte, sql } from "drizzle-orm";
 import { codigoActividad, ESTADOS_REGISTRADOS, getPeriodosPropuesta } from "@/lib/habilitacionActividades";
 import { rangoSemanaISO, esInformeFinal, hoyISOElSalvador } from "@/lib/periodosPasantia";
+import { configFinalFase1, estructuraFinal, leerApartadosExtra, type ConfigDocumentoFinal } from "@/lib/fichas/documentoFinalPasantia";
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import { datosPortada } from "@/lib/portadaInforme";
 import {
   AUTORIDADES_ACADEMICAS,
@@ -84,7 +86,10 @@ export async function getInformeCompilado(informeId: number) {
       : null;
 
     // El informe final (último período) consolida las actividades de los cinco períodos; los demás, solo las de su período.
-    const final = esInformeFinal(informe.numero);
+    // Entrega W2: el último período de la ficha (fase 1: el quinto).
+    const reglasPasantia = await reglasPasantiaDePropuesta(prop.id);
+    const totalInformes = reglasPasantia.periodos;
+    const final = esInformeFinal(informe.numero, totalInformes);
     const acts = await db
       .select()
       .from(actividades)
@@ -197,6 +202,7 @@ export async function getInformeCompilado(informeId: number) {
     // Portada: el informe final abarca la pasantía completa; los demás, su período.
     const portada = datosPortada({
       numeroInforme: informe.numero,
+      totalInformes,
       facultad: egresadoRow?.facultad,
       carrera: egresadoRow?.carrera,
       tituloCarrera: egresadoRow?.tituloCarrera,
@@ -209,9 +215,9 @@ export async function getInformeCompilado(informeId: number) {
     });
 
     // Informe final: apartados propios de la estructura oficial (autoridades, agradecimientos, empresa y anexos).
-    const documentoFinal = final ? await armarDocumentoFinal(prop.id, prop.sucursalId, informe, empresa, portada, registros, contadorImagen) : null;
+    const documentoFinal = final ? await armarDocumentoFinal(prop.id, prop.sucursalId, informe, empresa, portada, registros, contadorImagen, reglasPasantia.documentoFinal) : null;
     // Informe de período: cronograma ejecutado y modificaciones autorizadas que corresponden al período informado.
-    const cambiosPeriodo = final ? null : await armarCambiosCronograma(prop.id, registros, informe.numero);
+    const cambiosPeriodo = final || !reglasPasantia.informePeriodo.cambios.activo ? null : await armarCambiosCronograma(prop.id, registros, informe.numero);
     const fechas = {
       envio: informe.enviadoEn ? fechaISO(informe.enviadoEn) : null,
       aprobacion: informe.estado === "aprobado" ? fechaISO(informe.revisadoEn) : null,
@@ -220,6 +226,9 @@ export async function getInformeCompilado(informeId: number) {
     return {
       success: true,
       informe,
+      totalInformes,
+      // Entrega W3: partes del informe de período que pide la ficha (fase 1: todas).
+      partesPeriodo: reglasPasantia.informePeriodo,
       portada,
       documentoFinal,
       cambiosPeriodo,
@@ -270,7 +279,9 @@ async function armarDocumentoFinal(
   empresa: Empresa | null,
   portada: ReturnType<typeof datosPortada>,
   registros: Registro[],
-  imagenesPrevias: number
+  imagenesPrevias: number,
+  // Entrega W3: capítulos y anexos de la ficha (fase 1: la estructura de siempre).
+  config: ConfigDocumentoFinal = configFinalFase1()
 ) {
   const { filas, cronograma: periodosCronograma, modificaciones, registroPorActividad } = await armarCambiosCronograma(propuestaId, registros, null);
 
@@ -309,6 +320,8 @@ async function armarDocumentoFinal(
     introduccion: leerIntroduccion(informe.introduccion),
     bibliografia,
     glosario: glosarioOrdenado(leerGlosario(informe.glosario)),
+    estructura: estructuraFinal(config, leerGlosario(informe.glosario).length > 0),
+    extras: leerApartadosExtra(informe.apartadosExtra),
     empresa: await datosEmpresa(empresa, sucursalId),
     cronograma: periodosCronograma,
     modificaciones,

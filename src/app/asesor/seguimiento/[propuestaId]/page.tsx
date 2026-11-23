@@ -7,6 +7,7 @@ import { getInformesMensualesAsesor } from "@/app/actions/informesMensuales";
 import { getNotasSeguimiento } from "@/app/actions/comentariosAsesor";
 import { getInformeVisita } from "@/app/actions/informeVisita";
 import { formatearFechaLarga, hoyISOElSalvador, nombreCortoInforme, nombreInforme } from "@/lib/periodosPasantia";
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import { cuentaRegresivaVisita } from "@/lib/formularioVisita";
 import { leerNotaSemanal } from "@/lib/comentariosAsesor";
 import CuentaRegresivaVisita from "@/components/CuentaRegresivaVisita";
@@ -57,6 +58,7 @@ export default async function SeguimientoAsesorPage({
 
   const { propuestaId } = await params;
   const id = Number(propuestaId);
+  const totalInformes = (await reglasPasantiaDePropuesta(id)).periodos;
   if (!Number.isFinite(id)) notFound();
 
   const sp = await searchParams;
@@ -213,7 +215,7 @@ export default async function SeguimientoAsesorPage({
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <span className="text-[10px] font-extrabold uppercase tracking-wide text-unicaes">Informe</span>
-                      <p className="text-sm font-extrabold text-slate-900">{nombreInforme(inf.numero)}</p>
+                      <p className="text-sm font-extrabold text-slate-900">{nombreInforme(inf.numero, totalInformes)}</p>
                       <p className="text-[11px] text-slate-500 font-semibold">Enviado el {formatFecha(inf.enviadoEn)}</p>
                     </div>
                     <span
@@ -325,7 +327,7 @@ export default async function SeguimientoAsesorPage({
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-xs font-extrabold text-slate-800">{nombreCortoInforme(im.numero)}</span>
+                  <span className="text-xs font-extrabold text-slate-800">{nombreCortoInforme(im.numero, totalInformes)}</span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase border text-center ${estado.badge}`}>
                     {estado.label}
                   </span>

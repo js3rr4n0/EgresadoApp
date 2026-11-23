@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { saveActividades } from "@/app/actions/actividades";
 import { useRouter } from "next/navigation";
 import ReenviarPropuestaAjustadaButton from "@/components/ReenviarPropuestaAjustadaButton";
-import { generarPeriodosPasantia, DURACION_PASANTIA_DIAS, fechaLocalDesdeISO, sumarDiasISO } from "@/lib/periodosPasantia";
+import { generarPeriodosPasantia, fechaLocalDesdeISO, sumarDiasISO } from "@/lib/periodosPasantia";
+import { REGLAS_FASE1, type ReglasPasantia } from "@/lib/reglasPasantia";
 
 interface Actividad {
   id: string; // internal id for UI
@@ -22,6 +23,11 @@ interface PeriodoDisplay {
 }
 
 interface ActividadesFormProps {
+  /** Pasos siguiente y anterior (por defecto, los de la fase 1; con ficha, los de la ficha). */
+  pasoSiguiente?: number;
+  pasoAnterior?: number;
+  /** Duración, días por período y semanas (fase 1: 150, 30 y 4; con ficha, los de su ejecución; W2). */
+  reglas?: Pick<ReglasPasantia, "duracionDias" | "diasPorPeriodo" | "semanasPorPeriodo">;
   propuestaId: number;
   initialFechas: { fechaInicio: string; fechaFin: string };
   initialActividades: any[];
@@ -33,6 +39,9 @@ export default function ActividadesForm({
   initialFechas,
   initialActividades,
   observaciones,
+  pasoSiguiente = 6,
+  pasoAnterior = 4,
+  reglas = REGLAS_FASE1,
 }: ActividadesFormProps) {
   const router = useRouter();
 
@@ -83,9 +92,9 @@ export default function ActividadesForm({
     if (fechaInicio) {
       // "AAAA-MM-DD" con new Date() se lee en UTC y en El Salvador cae un día antes; se lee como fecha local.
       const start = fechaLocalDesdeISO(fechaInicio);
-      setFechaFin(sumarDiasISO(fechaInicio, DURACION_PASANTIA_DIAS));
+      setFechaFin(sumarDiasISO(fechaInicio, reglas.duracionDias));
 
-      const generatedPeriods: PeriodoDisplay[] = generarPeriodosPasantia(start).map((p) => ({
+      const generatedPeriods: PeriodoDisplay[] = generarPeriodosPasantia(start, reglas.duracionDias, reglas.diasPorPeriodo, reglas.semanasPorPeriodo).map((p) => ({
         num: p.num,
         name: p.nombre,
         range: p.rango,
@@ -164,9 +173,9 @@ export default function ActividadesForm({
       const pDef = periodos.find((per) => per.num === p);
       const pActs = actividades.filter((a) => a.periodo === p);
 
-      if (pActs.length < 4) {
+      if (pActs.length < reglas.semanasPorPeriodo) {
         setError(
-          `El Período ${p} (${pDef?.name || `Mes ${p}`}) debe contener un mínimo de 4 actividades (al menos 1 por semana). Actualmente tiene ${pActs.length}.`
+          `El Período ${p} (${pDef?.name || `Mes ${p}`}) debe contener un mínimo de ${reglas.semanasPorPeriodo} actividades (al menos 1 por semana). Actualmente tiene ${pActs.length}.`
         );
         setSelectedPeriodo(p);
         setPending(false);
@@ -222,7 +231,7 @@ export default function ActividadesForm({
     if (res.success) {
       const params = new URLSearchParams(window.location.search);
       params.set("id", propuestaId.toString());
-      params.set("step", "6");
+      params.set("step", String(pasoSiguiente));
       router.push(`?${params.toString()}`);
     } else {
       setError(res.error || "Error al guardar");
@@ -268,7 +277,7 @@ export default function ActividadesForm({
           </div>
           <div>
             <label className="block text-xs font-bold text-foreground mb-1">
-              Fin de Pasantía (Automático a 150 días)
+              Fin de Pasantía (Automático a {reglas.duracionDias} días)
             </label>
             <input
               type="date"
@@ -289,7 +298,7 @@ export default function ActividadesForm({
               <div>
                 <h3 className="text-lg font-bold text-card-dark">Períodos del Plan</h3>
                 <p className="text-xs text-muted">
-                  Se requieren al menos 4 actividades por período (mínimo 1 por semana).
+                  Se requieren al menos {reglas.semanasPorPeriodo} actividades por período (mínimo 1 por semana).
                 </p>
               </div>
 
@@ -306,7 +315,7 @@ export default function ActividadesForm({
               {periodos.map((p) => {
                 const isActive = selectedPeriodo === p.num;
                 const pActs = actividades.filter((a) => a.periodo === p.num);
-                const isComplete = pActs.length >= 4;
+                const isComplete = pActs.length >= reglas.semanasPorPeriodo;
 
                 return (
                   <button
@@ -335,7 +344,7 @@ export default function ActividadesForm({
                           </span>
                         ) : (
                           <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                            ⚠️ {pActs.length}/4 acts
+                            ⚠️ {pActs.length}/{reglas.semanasPorPeriodo} acts
                           </span>
                         )}
                       </div>
@@ -591,10 +600,10 @@ export default function ActividadesForm({
         {!observaciones && (
           <button
             type="button"
-            onClick={() => router.push("?step=4")}
+            onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior}`)}
             className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors"
           >
-            ← Volver a Carta de Aceptación
+            ← Volver al paso anterior
           </button>
         )}
         <div className="flex items-center gap-3 ml-auto flex-wrap">

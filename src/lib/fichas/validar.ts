@@ -1,6 +1,7 @@
 // Validación de la definición de una ficha antes de guardarla o habilitarla. Módulo puro.
 // Devuelve la lista de problemas en lenguaje del administrador; una lista vacía significa que la ficha es válida.
 import { CATALOGO, elementoEnEtapa } from "./catalogo";
+import { leerConfigFinal, problemasConfigFinal } from "./documentoFinalPasantia";
 import { esRecurso } from "./elementosRecurso";
 import { ELEMENTOS_CON_CAMPOS_EXTRA, problemasCampos, problemasElementoPropio, tieneFormaCampos, tieneFormaCopia } from "./elementosPropios";
 import { partePrecarga, partesConfiguradas, tipoApartado, TIPOS_APARTADO } from "./apartadosAcademicos";
@@ -185,7 +186,6 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
     if (esp.camposExtra !== undefined) {
       if (etapa.tipo === "informe_final") p("los capítulos del informe final no llevan campos adicionales.");
       else if (!(ELEMENTOS_CON_CAMPOS_EXTRA as readonly string[]).includes(esp.elemento)) p("este elemento no admite campos adicionales.");
-      else if (def.modalidad === "pasantia") p("el asistente de pasantía todavía no muestra campos adicionales.");
       else if (esp.camposExtra.length === 0) p("la lista de campos adicionales está vacía.");
       else problemasCampos(esp.camposExtra).forEach((m) => p(`campos adicionales: ${m}`));
     }
@@ -327,6 +327,12 @@ export function validarDefinicion(def: DefinicionFicha): ProblemaFicha[] {
   // Etapas de ejecución.
   const ejecuciones = resto.filter(esEtapaEjecucion);
   ejecuciones.forEach((e, i) => validarEjecucion(e, i + 1, problemas));
+  // Pasantía (W3): el contenido del documento final que se configuró en la ejecución.
+  for (const e of ejecuciones) {
+    if (e.informe.documentoFinal) {
+      for (const m of problemasConfigFinal(leerConfigFinal(e.informe.documentoFinal))) problemas.push({ ubicacion: e.id, mensaje: `Documento final: ${m}` });
+    }
+  }
 
   // Coherencia entre la propuesta y la ejecución.
   const tieneCronograma = vistos.has("cronograma");

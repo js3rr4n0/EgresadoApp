@@ -5,12 +5,15 @@ import { saveJustificacion } from "@/app/actions/justificacion";
 import { useRouter, useSearchParams } from "next/navigation";
 
 interface JustificacionFormProps {
+  /** Pasos siguiente y anterior (por defecto, los de la fase 1; con ficha, los de la ficha). */
+  pasoSiguiente?: number;
+  pasoAnterior?: number;
   propuestaId: number;
   initialData: string | null;
   isLocked: boolean;
 }
 
-export default function JustificacionForm({ propuestaId, initialData, isLocked }: JustificacionFormProps) {
+export default function JustificacionForm({ propuestaId, initialData, isLocked, pasoSiguiente = 7, pasoAnterior = 5 }: JustificacionFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -32,7 +35,7 @@ export default function JustificacionForm({ propuestaId, initialData, isLocked }
     if (res.success) {
       const params = new URLSearchParams(searchParams.toString());
       params.set("id", propuestaId.toString());
-      params.set("step", "7");
+      params.set("step", String(pasoSiguiente));
       router.push(`?${params.toString()}`);
     } else {
       setError(res.error || "Error al guardar");
@@ -66,8 +69,8 @@ export default function JustificacionForm({ propuestaId, initialData, isLocked }
       </div>
 
       <div className="flex justify-between items-center pt-6 border-t border-border mt-8">
-        <button type="button" onClick={() => router.push(`?id=${propuestaId}&step=5`)} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors">
-          ← Volver a Actividades
+        <button type="button" onClick={() => router.push(`?id=${propuestaId}&step=${pasoAnterior}`)} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors">
+          ← Volver al paso anterior
         </button>
         <button 
           type="submit" 

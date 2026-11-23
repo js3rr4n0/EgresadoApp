@@ -34,6 +34,7 @@ export default function RevisionInformeClient({
     enviadoEn: string | null;
     cumplimiento: string | null;
     comentarioAsesor: string | null;
+    totalInformes?: number;
   };
   periodo: { inicio: string | null; fin: string | null } | null;
   actividades: { id: number; codigo: string; titulo: string; estado: string }[];
@@ -97,7 +98,7 @@ export default function RevisionInformeClient({
     <div className="space-y-6 max-w-4xl mx-auto pb-16">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-xl font-extrabold text-card-dark">Revisión del {nombreInforme(informe.numero).toLowerCase()}</h1>
+          <h1 className="text-xl font-extrabold text-card-dark">Revisión del {nombreInforme(informe.numero, informe.totalInformes).toLowerCase()}</h1>
           <p className="text-xs text-muted mt-1 font-semibold">Pasantía como Trabajo de Graduación</p>
         </div>
         <Link
@@ -302,7 +303,7 @@ export default function RevisionInformeClient({
       {confirmarAprobacion && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 className="text-base font-extrabold text-slate-900">Aprobar {nombreInforme(informe.numero).toLowerCase()}</h3>
+            <h3 className="text-base font-extrabold text-slate-900">Aprobar {nombreInforme(informe.numero, informe.totalInformes).toLowerCase()}</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
               El informe quedará registrado como aprobado y se notificará al estudiante y a la coordinación.
             </p>

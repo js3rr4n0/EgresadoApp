@@ -6,6 +6,7 @@ import { APARTADOS_INFORME_PERIODO_PROYECTO } from "@/lib/fichas/disenoFuturo";
 import type { ProblemaFicha } from "@/lib/fichas/validar";
 import { campoCompacto, EncabezadoSeccion, etiquetaCompacta, Interruptor, Tarjeta } from "./EditorPropuesta";
 import LineaTiempo from "./LineaTiempo";
+import EditorDocumentoFinal from "./EditorDocumentoFinal";
 import { CalendarioEjecucion } from "./VistaPrevia";
 import { nuevoId } from "./ids";
 import { Proximamente } from "./comunes";
@@ -323,6 +324,15 @@ export default function EditorEjecucion({
                   </div>
                 </Tarjeta>
               </div>
+
+              {/* Pasantía (entrega W3): contenido del documento final y del informe de cada período. */}
+              {definicion.modalidad === "pasantia" && n === 0 && (
+                <>
+                  <EncabezadoSeccion titulo="Documento final e informes" descripcion="Capítulos y anexos del documento final de la pasantía y partes del informe de cada período." />
+                  <EditorDocumentoFinal pre={pre} documentoFinal={et.informe.documentoFinal} periodo={et.informe.periodo} editable={editable}
+                    onChange={(x) => reemplazar(et.id, { informe: { ...et.informe, documentoFinal: x.documentoFinal, periodo: x.periodo } })} />
+                </>
+              )}
 
               <Tarjeta titulo="Hitos" extra={editable && tiposDisponibles.length > 0 ? (
                 <div className="flex flex-wrap gap-1 justify-end">

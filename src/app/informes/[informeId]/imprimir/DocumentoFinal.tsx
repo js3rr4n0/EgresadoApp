@@ -3,7 +3,8 @@
 // página antes de este componente.
 import type { InformeCompilado } from "@/lib/informeWord";
 import { rangoFechasTexto } from "@/lib/periodosPasantia";
-import { APARTADOS_FINAL, anexosFinal, tituloActividadFinal } from "@/lib/informeFinal";
+import { Fragment } from "react";
+import { APARTADOS_FINAL, tituloActividadFinal } from "@/lib/informeFinal";
 import {
   ImagenesDocumento,
   MarcoTeorico,
@@ -32,18 +33,20 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
   );
   const idActividad = (codigo: string) => `actividad-${codigo.replace(/\./g, "-")}`;
 
-  const indice: EntradaIndice[] = [
-    { id: "introduccion", texto: APARTADOS_FINAL.introduccion, nivel: 1 },
-    { id: "empresa", texto: APARTADOS_FINAL.empresa, nivel: 1 },
-    { id: "actividades", texto: APARTADOS_FINAL.actividades, nivel: 1 },
-    ...d.secciones.flatMap((s) => [
-      { id: `periodo-${s.numero}`, texto: tituloPeriodo(s), nivel: 2 as const },
-      ...actividades
-        .filter((a) => a.periodo === s.numero)
-        .map((a) => ({ id: idActividad(a.codigo), texto: `${a.codigo}. ${a.titulo}`, nivel: 3 as const })),
-    ]),
-    { id: "conclusiones", texto: APARTADOS_FINAL.conclusiones, nivel: 1 },
-  ];
+  // Entrega W3: capítulos y anexos en el orden y con los títulos de la ficha (fase 1: la estructura de siempre).
+  const { estructura, extras } = f;
+  const idCapitulo = (clave: string) => clave.replace(":", "-");
+  const indice: EntradaIndice[] = estructura.capitulos.flatMap((cap) => [
+    { id: idCapitulo(cap.clave), texto: cap.titulo, nivel: 1 as const },
+    ...(cap.clave === "actividades"
+      ? d.secciones.flatMap((s) => [
+          { id: `periodo-${s.numero}`, texto: tituloPeriodo(s), nivel: 2 as const },
+          ...actividades
+            .filter((a) => a.periodo === s.numero)
+            .map((a) => ({ id: idActividad(a.codigo), texto: `${a.codigo}. ${a.titulo}`, nivel: 3 as const })),
+        ])
+      : []),
+  ]);
 
   // Índice de imágenes: las ilustraciones de la empresa y las imágenes de cada actividad (1.1.1.A, 1.1.1.B).
   const indiceImagenes = [
@@ -54,6 +57,171 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
   ];
 
   const supervisor = d.supervisor ? `${d.supervisor.nombres} ${d.supervisor.apellidos}` : "";
+
+  const capitulo = (clave: string, titulo: string) => {
+    switch (clave) {
+      case "introduccion":
+        return (
+      <section className="doc-salto">
+            <h2 id={idCapitulo(clave)} className="doc-titulo-seccion doc-capitulo">
+              {titulo}
+            </h2>
+            {f.introduccion.some((p) => p.trim()) ? (
+              <ParrafosCuerpo texto={f.introduccion.filter((p) => p.trim()).join("\n")} />
+            ) : (
+              <p className="doc-parrafo">
+                <em>Pendiente: el egresado debe redactar la introducción.</em>
+              </p>
+            )}
+          </section>
+        );
+      case "empresa":
+        return (
+      <section className="doc-salto">
+            <h2 id={idCapitulo(clave)} className="doc-titulo-seccion doc-capitulo">
+              {titulo}
+            </h2>
+            {f.empresa.nombre && (
+              <p className="doc-parrafo">
+                <strong>{f.empresa.nombre}</strong>
+                {f.empresa.area ? `, ${f.empresa.area}.` : "."}
+                {f.empresa.direccion ? ` Dirección: ${f.empresa.direccion.replace(/\.+$/, "")}.` : ""}
+                {f.empresa.sucursal
+                  ? ` Sucursal: ${f.empresa.sucursal.nombre}${f.empresa.sucursal.telefono ? `, teléfono ${f.empresa.sucursal.telefono}` : ""}.`
+                  : ""}
+              </p>
+            )}
+            <p className="doc-subtitulo-2">Descripción</p>
+            {f.empresa.descripcion.length > 0 ? (
+              <ParrafosCuerpo texto={f.empresa.descripcion.join("\n")} />
+            ) : (
+              <p className="doc-parrafo">
+                <em>La empresa no tiene descripción registrada en el sistema.</em>
+              </p>
+            )}
+            {f.empresa.antecedentes.length > 0 && (
+              <>
+                <p className="doc-subtitulo-2">Antecedentes</p>
+                <ParrafosCuerpo texto={f.empresa.antecedentes.join("\n")} />
+              </>
+            )}
+            {f.empresa.ilustraciones.map((il) => (
+              <div key={il.tipo}>
+                <p className="doc-subtitulo-2">{il.tipo === "mapa" ? "Ubicación" : "Organigrama"}</p>
+                <figure id={`ilustracion-${il.tipo}`} style={{ margin: "6pt 0", pageBreakInside: "avoid" }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={il.tipo === "mapa" ? `/api/map?coords=${f.empresa.coordenadas}` : f.empresa.organigrama!.url}
+                    alt={il.leyenda}
+                    style={{ width: "100%", maxHeight: il.tipo === "mapa" ? "8cm" : "17cm", objectFit: "contain", display: "block", margin: "0 auto" }}
+                  />
+                  <figcaption className="doc-leyenda">
+                    <span className="doc-pie">
+                      {il.etiqueta}. {il.leyenda}.
+                    </span>
+                    <span className="doc-nota">{il.nota}</span>
+                  </figcaption>
+                </figure>
+              </div>
+            ))}
+            {f.empresa.organigrama && !f.empresa.organigrama.esImagen && (
+              <p className="doc-parrafo">
+                <em>El organigrama de la empresa se registró como documento PDF en la propuesta y puede consultarse en el sistema.</em>
+              </p>
+            )}
+          </section>
+        );
+      case "actividades":
+        return (
+      <section className="doc-salto">
+            <h2 id={idCapitulo(clave)} className="doc-titulo-seccion doc-capitulo">
+              {titulo}
+            </h2>
+            {d.secciones.map((s) => (
+              <div key={s.numero}>
+                <h3 id={`periodo-${s.numero}`} className="doc-subtitulo-1">
+                  {tituloPeriodo(s)}
+                </h3>
+                {actividades
+                  .filter((a) => a.periodo === s.numero)
+                  .map((a) => {
+                    const r = a.registro;
+                    const imagenes = d.imagenesPorActividad[a.id] ?? [];
+                    return (
+                      <div key={a.id}>
+                        <h4 id={idActividad(a.codigo)} className="doc-subtitulo-1" style={{ breakAfter: "avoid" }}>
+                          {a.encabezado}
+                        </h4>
+                        {!a.registrada || !r ? (
+                          <p>
+                            <em>Actividad no registrada a la fecha de generación.</em>
+                          </p>
+                        ) : (
+                          <>
+                            {r.marcoTeorico && (
+                              <>
+                                <p className="doc-subtitulo-2">Marco teórico</p>
+                                <MarcoTeorico texto={r.marcoTeorico} citaApa={r.citaApa} citaApaDatos={r.citaApaDatos} />
+                              </>
+                            )}
+                            {r.descriptor && (
+                              <>
+                                <p className="doc-subtitulo-2">Descripción</p>
+                                <ParrafosCuerpo texto={r.descriptor} />
+                              </>
+                            )}
+                            {imagenes.length > 0 && (
+                              <>
+                                <p className="doc-subtitulo-2">{imagenes.length > 1 ? "Imágenes de soporte de la actividad" : "Imagen de soporte de la actividad"}</p>
+                                <ImagenesDocumento imagenes={imagenes} />
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            ))}
+          </section>
+        );
+      case "conclusiones":
+        return (
+      <section className="doc-salto">
+            <h2 id={idCapitulo(clave)} className="doc-titulo-seccion doc-capitulo">
+              {titulo}
+            </h2>
+            {actividades
+              .filter((a) => a.registrada && a.registro?.conclusionTecnica)
+              .map((a) => (
+                <div key={a.id}>
+                  <p className="doc-subtitulo-2">
+                    Actividad {a.codigo}. {a.titulo}
+                  </p>
+                  <ParrafosCuerpo texto={a.registro!.conclusionTecnica} />
+                </div>
+              ))}
+          </section>
+        );
+      default:
+        // Capítulo de texto que agrega la ficha (W3): lo redacta el egresado.
+        return (
+          <section className="doc-salto">
+            <h2 id={idCapitulo(clave)} className="doc-titulo-seccion doc-capitulo">
+              {titulo}
+            </h2>
+            {extras[clave]?.trim() ? (
+              <ParrafosCuerpo texto={extras[clave]} />
+            ) : (
+              <p className="doc-parrafo">
+                <em>Pendiente: el egresado debe redactar este capítulo.</em>
+              </p>
+            )}
+          </section>
+        );
+    }
+  };
+
 
   return (
     <>
@@ -75,7 +243,7 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
       </div>
 
       {/* ────────────── Agradecimientos (opcional) ────────────── */}
-      {f.agradecimientos.length > 0 && (
+      {estructura.agradecimientos && f.agradecimientos.length > 0 && (
         <section className="doc-salto">
           <h2 id="agradecimientos" className="doc-titulo-seccion doc-capitulo">
             {APARTADOS_FINAL.agradecimientos}
@@ -115,144 +283,9 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
         )}
       </section>
 
-      {/* ────────────── Introducción: cuatro párrafos redactados por el egresado ────────────── */}
-      <section className="doc-salto">
-        <h2 id="introduccion" className="doc-titulo-seccion doc-capitulo">
-          {APARTADOS_FINAL.introduccion}
-        </h2>
-        {f.introduccion.some((p) => p.trim()) ? (
-          <ParrafosCuerpo texto={f.introduccion.filter((p) => p.trim()).join("\n")} />
-        ) : (
-          <p className="doc-parrafo">
-            <em>Pendiente: el egresado debe redactar la introducción.</em>
-          </p>
-        )}
-      </section>
-
-      {/* ────────────── Descripción de la empresa ────────────── */}
-      <section className="doc-salto">
-        <h2 id="empresa" className="doc-titulo-seccion doc-capitulo">
-          {APARTADOS_FINAL.empresa}
-        </h2>
-        {f.empresa.nombre && (
-          <p className="doc-parrafo">
-            <strong>{f.empresa.nombre}</strong>
-            {f.empresa.area ? `, ${f.empresa.area}.` : "."}
-            {f.empresa.direccion ? ` Dirección: ${f.empresa.direccion.replace(/\.+$/, "")}.` : ""}
-            {f.empresa.sucursal
-              ? ` Sucursal: ${f.empresa.sucursal.nombre}${f.empresa.sucursal.telefono ? `, teléfono ${f.empresa.sucursal.telefono}` : ""}.`
-              : ""}
-          </p>
-        )}
-        <p className="doc-subtitulo-2">Descripción</p>
-        {f.empresa.descripcion.length > 0 ? (
-          <ParrafosCuerpo texto={f.empresa.descripcion.join("\n")} />
-        ) : (
-          <p className="doc-parrafo">
-            <em>La empresa no tiene descripción registrada en el sistema.</em>
-          </p>
-        )}
-        {f.empresa.antecedentes.length > 0 && (
-          <>
-            <p className="doc-subtitulo-2">Antecedentes</p>
-            <ParrafosCuerpo texto={f.empresa.antecedentes.join("\n")} />
-          </>
-        )}
-        {f.empresa.ilustraciones.map((il) => (
-          <div key={il.tipo}>
-            <p className="doc-subtitulo-2">{il.tipo === "mapa" ? "Ubicación" : "Organigrama"}</p>
-            <figure id={`ilustracion-${il.tipo}`} style={{ margin: "6pt 0", pageBreakInside: "avoid" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={il.tipo === "mapa" ? `/api/map?coords=${f.empresa.coordenadas}` : f.empresa.organigrama!.url}
-                alt={il.leyenda}
-                style={{ width: "100%", maxHeight: il.tipo === "mapa" ? "8cm" : "17cm", objectFit: "contain", display: "block", margin: "0 auto" }}
-              />
-              <figcaption className="doc-leyenda">
-                <span className="doc-pie">
-                  {il.etiqueta}. {il.leyenda}.
-                </span>
-                <span className="doc-nota">{il.nota}</span>
-              </figcaption>
-            </figure>
-          </div>
-        ))}
-        {f.empresa.organigrama && !f.empresa.organigrama.esImagen && (
-          <p className="doc-parrafo">
-            <em>El organigrama de la empresa se registró como documento PDF en la propuesta y puede consultarse en el sistema.</em>
-          </p>
-        )}
-      </section>
-
-      {/* ────────────── Actividades realizadas, en orden cronológico ────────────── */}
-      <section className="doc-salto">
-        <h2 id="actividades" className="doc-titulo-seccion doc-capitulo">
-          {APARTADOS_FINAL.actividades}
-        </h2>
-        {d.secciones.map((s) => (
-          <div key={s.numero}>
-            <h3 id={`periodo-${s.numero}`} className="doc-subtitulo-1">
-              {tituloPeriodo(s)}
-            </h3>
-            {actividades
-              .filter((a) => a.periodo === s.numero)
-              .map((a) => {
-                const r = a.registro;
-                const imagenes = d.imagenesPorActividad[a.id] ?? [];
-                return (
-                  <div key={a.id}>
-                    <h4 id={idActividad(a.codigo)} className="doc-subtitulo-1" style={{ breakAfter: "avoid" }}>
-                      {a.encabezado}
-                    </h4>
-                    {!a.registrada || !r ? (
-                      <p>
-                        <em>Actividad no registrada a la fecha de generación.</em>
-                      </p>
-                    ) : (
-                      <>
-                        {r.marcoTeorico && (
-                          <>
-                            <p className="doc-subtitulo-2">Marco teórico</p>
-                            <MarcoTeorico texto={r.marcoTeorico} citaApa={r.citaApa} citaApaDatos={r.citaApaDatos} />
-                          </>
-                        )}
-                        {r.descriptor && (
-                          <>
-                            <p className="doc-subtitulo-2">Descripción</p>
-                            <ParrafosCuerpo texto={r.descriptor} />
-                          </>
-                        )}
-                        {imagenes.length > 0 && (
-                          <>
-                            <p className="doc-subtitulo-2">{imagenes.length > 1 ? "Imágenes de soporte de la actividad" : "Imagen de soporte de la actividad"}</p>
-                            <ImagenesDocumento imagenes={imagenes} />
-                          </>
-                        )}
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-        ))}
-      </section>
-
-      {/* ────────────── Conclusiones: la conclusión registrada en cada actividad ────────────── */}
-      <section className="doc-salto">
-        <h2 id="conclusiones" className="doc-titulo-seccion doc-capitulo">
-          {APARTADOS_FINAL.conclusiones}
-        </h2>
-        {actividades
-          .filter((a) => a.registrada && a.registro?.conclusionTecnica)
-          .map((a) => (
-            <div key={a.id}>
-              <p className="doc-subtitulo-2">
-                Actividad {a.codigo}. {a.titulo}
-              </p>
-              <ParrafosCuerpo texto={a.registro!.conclusionTecnica} />
-            </div>
-          ))}
-      </section>
+      {estructura.capitulos.map((cap) => (
+        <Fragment key={cap.clave}>{capitulo(cap.clave, cap.titulo)}</Fragment>
+      ))}
 
       {/* ────────────── Anexos ────────────── */}
       <section className="doc-salto">
@@ -260,7 +293,7 @@ export default function DocumentoFinal({ d }: { d: InformeCompilado }) {
           {APARTADOS_FINAL.anexos}
         </h2>
 
-        {anexosFinal(f.glosario.length > 0).map((anexo, i) => (
+        {estructura.anexos.map((anexo, i) => (
           <div key={anexo.id}>
             <h3 id={`anexo-${anexo.id}`} className={`doc-subtitulo-1${i > 0 ? " doc-salto" : ""}`}>
               {anexo.titulo}

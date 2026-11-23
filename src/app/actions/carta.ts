@@ -1,5 +1,6 @@
 "use server";
 
+import { reglasPasantiaDePropuesta } from "@/lib/reglasPasantiaPropuesta";
 import { db } from "@/lib/db";
 import { cartasAceptacion } from "@/lib/schema";
 import { getSession } from "@/lib/session";
@@ -40,13 +41,14 @@ export async function saveCartaAceptacion(formData: FormData) {
         return { success: false, error: "La fecha de inicio debe ser al menos 3 semanas después de la fecha de emisión." };
       }
 
-      // VALIDACION: fecha_fin - fecha_inicio entre 150 y 155 dias
+      // VALIDACION: fecha_fin - fecha_inicio entre la duración y la duración + 5 días (fase 1: 150; con ficha, la suya; W2)
+      const duracion = (await reglasPasantiaDePropuesta(propuestaId)).duracionDias;
       const finDate = new Date(fechaFin);
       const diffTime = Math.abs(finDate.getTime() - inicioDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-      if (diffDays < 150 || diffDays > 155) {
-        return { success: false, error: "Las fechas colocadas no concuerdan con el periodo establecido (150 días)" };
+      if (diffDays < duracion || diffDays > duracion + 5) {
+        return { success: false, error: `Las fechas colocadas no concuerdan con el periodo establecido (${duracion} días)` };
       }
     }
 

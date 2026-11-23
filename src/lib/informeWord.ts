@@ -28,7 +28,7 @@ import {
 import type { getInformeCompilado } from "@/app/actions/informeCompilado";
 import { formatearFechaLarga, rangoFechasTexto, nombreInforme } from "@/lib/periodosPasantia";
 import type { DatosPortada } from "@/lib/portadaInforme";
-import { APARTADOS_FINAL, anexosFinal, tituloActividadFinal } from "@/lib/informeFinal";
+import { APARTADOS_FINAL, tituloActividadFinal } from "@/lib/informeFinal";
 import { parrafosDe } from "@/lib/reglasRegistroActividad";
 import { leerDatosCita, segmentosCitaApa, type SegmentoCita } from "@/lib/citaApa";
 
@@ -409,18 +409,22 @@ export async function generarInformeWord(d: InformeCompilado, opciones: { origen
   for (const seccion of d.secciones) {
     const rangoSeccion = seccion.inicio && seccion.fin ? rangoFechasTexto(seccion.inicio, seccion.fin) : null;
     if (d.esFinal) contenido.push(tituloSeccion(`Período ${seccion.numero}${rangoSeccion ? ` (${rangoSeccion})` : ""}`));
-    contenido.push(d.esFinal ? subtitulo1("Cronograma de actividades del período") : tituloSeccion("Cronograma de actividades del período"));
-    contenido.push(
-      parrafo(
-        `Porción del cronograma individual correspondiente al período ${seccion.numero} de la pasantía${rangoSeccion ? `, ${rangoSeccion}` : ""}.`,
-        { justificado: true }
-      )
-    );
-    if (seccion.actividades.length > 0) {
-      contenido.push(tablaCronograma(seccion));
-      contenido.push(leyenda(`Cronograma de actividades del período ${seccion.numero}.`));
-    } else {
-      contenido.push(parrafo("El período no tiene actividades registradas en el cronograma."));
+    // Entrega W3: la ficha puede quitar o renombrar el cronograma del período.
+    if (d.partesPeriodo.cronograma.activo) {
+      const tituloCronograma = d.partesPeriodo.cronograma.titulo;
+      contenido.push(d.esFinal ? subtitulo1(tituloCronograma) : tituloSeccion(tituloCronograma));
+      contenido.push(
+        parrafo(
+          `Porción del cronograma individual correspondiente al período ${seccion.numero} de la pasantía${rangoSeccion ? `, ${rangoSeccion}` : ""}.`,
+          { justificado: true }
+        )
+      );
+      if (seccion.actividades.length > 0) {
+        contenido.push(tablaCronograma(seccion));
+        contenido.push(leyenda(`Cronograma de actividades del período ${seccion.numero}.`));
+      } else {
+        contenido.push(parrafo("El período no tiene actividades registradas en el cronograma."));
+      }
     }
 
     // ── Actividades realizadas durante el período ──
@@ -505,7 +509,7 @@ export async function generarInformeWord(d: InformeCompilado, opciones: { origen
 
   // ── Cambios al cronograma del período ──
   if (d.cambiosPeriodo) {
-    contenido.push(tituloSeccion("Cambios al cronograma"));
+    contenido.push(tituloSeccion(d.partesPeriodo.cambios.titulo));
     contenido.push(
       parrafo(
         `Actividades ejecutadas durante el período ${d.informe.numero}, con los cambios autorizados al cronograma original (actividades agregadas, pospuestas, reubicadas y eliminadas).`,
@@ -572,7 +576,7 @@ function empaquetar(d: InformeCompilado, preliminares: Paragraph[], contenido: (
 
   const documento = new Document({
     creator: "Sistema de Procesos de Graduación - UNICAES",
-    title: nombreInforme(d.informe.numero),
+    title: nombreInforme(d.informe.numero, (d as { totalInformes?: number }).totalInformes),
     // El índice de contenidos es un campo: Word lo actualiza (con sus números de página) al abrir el documento.
     features: { updateFields: true },
     styles: {
@@ -849,14 +853,18 @@ function contenidoFinal(d: InformeCompilado, f: DocumentoFinal, mapa: Buffer | n
     )
   );
 
+  // Entrega W3: capítulos y anexos en el orden y con los títulos de la ficha (fase 1: la estructura de siempre).
+  const { estructura, extras } = f;
+  const conAgradecimientos = estructura.agradecimientos && f.agradecimientos.length > 0;
+
   // ── Agradecimientos (opcional) ──
-  if (f.agradecimientos.length) {
+  if (conAgradecimientos) {
     contenido.push(apartadoFinal(APARTADOS_FINAL.agradecimientos, false, false));
     contenido.push(...parrafosCuerpo(f.agradecimientos.join("\n")));
   }
 
   // ── Índice de contenidos: apartados y períodos por su título; las actividades por su entrada TC (código y título) ──
-  contenido.push(apartadoFinal(APARTADOS_FINAL.indice, f.agradecimientos.length > 0, false));
+  contenido.push(apartadoFinal(APARTADOS_FINAL.indice, conAgradecimientos, false));
   contenido.push(
     new TableOfContents(APARTADOS_FINAL.indice, {
       hyperlink: true,
@@ -870,89 +878,109 @@ function contenidoFinal(d: InformeCompilado, f: DocumentoFinal, mapa: Buffer | n
   contenido.push(apartadoFinal(APARTADOS_FINAL.indiceImagenes, true, false));
   contenido.push(new TableOfContents(APARTADOS_FINAL.indiceImagenes, { hyperlink: true, tcFieldIdentifier: "I", tcFieldLevelRange: `${NIVEL_INDICE_IMAGENES}-${NIVEL_INDICE_IMAGENES}` }));
 
-  // ── Introducción ──
-  contenido.push(apartadoFinal(APARTADOS_FINAL.introduccion));
-  const introduccion = f.introduccion.filter((p) => p.trim());
-  if (introduccion.length) contenido.push(...parrafosCuerpo(introduccion.join("\n")));
-  else contenido.push(parrafo([texto("Pendiente: el egresado debe redactar la introducción.", { italics: true })]));
-
-  // ── Descripción de la empresa: lo registrado en la fase de propuesta ──
-  contenido.push(apartadoFinal(APARTADOS_FINAL.empresa));
-  const e = f.empresa;
-  if (e.nombre) {
-    contenido.push(
-      new Paragraph({
-        alignment: AlignmentType.JUSTIFIED,
-        spacing: { line: INTERLINEADO, before: ESPACIO_CUERPO, after: ESPACIO_CUERPO },
-        children: [
-          texto(e.nombre, { bold: true }),
-          texto(
-            `${e.area ? `, ${e.area}.` : "."}${e.direccion ? ` Dirección: ${e.direccion.replace(/\.+$/, "")}.` : ""}${
-              e.sucursal ? ` Sucursal: ${e.sucursal.nombre}${e.sucursal.telefono ? `, teléfono ${e.sucursal.telefono}` : ""}.` : ""
-            }`
-          ),
-        ],
-      })
-    );
-  }
-  contenido.push(etiquetaFinal("Descripción"));
-  if (e.descripcion.length) contenido.push(...parrafosCuerpo(e.descripcion.join("\n")));
-  else contenido.push(parrafo([texto("La empresa no tiene descripción registrada en el sistema.", { italics: true })]));
-  if (e.antecedentes.length) {
-    contenido.push(etiquetaFinal("Antecedentes"));
-    contenido.push(...parrafosCuerpo(e.antecedentes.join("\n")));
-  }
-  for (const il of e.ilustraciones) {
-    contenido.push(etiquetaFinal(il.tipo === "mapa" ? "Ubicación" : "Organigrama"));
-    const imagen = il.tipo === "mapa" ? (mapa ? { datos: mapa, tipo: "png" as TipoImagen } : null) : decodificarImagen(e.organigrama!.url);
-    if (imagen) contenido.push(...ilustracionEmpresa(imagen.datos, imagen.tipo, il.etiqueta, il.leyenda, il.nota, il.tipo === "mapa" ? 8 : 17));
-    else contenido.push(parrafo([texto(`${il.etiqueta}: no fue posible incluir la imagen en el documento.`, { italics: true })]));
-  }
-  if (e.organigrama && !e.organigrama.esImagen) {
-    contenido.push(
-      parrafo([texto("El organigrama de la empresa se registró como documento PDF en la propuesta y puede consultarse en el sistema.", { italics: true })])
-    );
-  }
-
-  // ── Actividades realizadas, en orden cronológico ──
-  contenido.push(apartadoFinal(APARTADOS_FINAL.actividades));
-  for (const s of d.secciones) {
-    contenido.push(subtitulo1(tituloPeriodoFinal(s)));
-    for (const a of actividades.filter((x) => x.periodo === s.numero)) {
-      contenido.push(
-        new Paragraph({ style: ESTILO_ACTIVIDAD, children: [texto(a.encabezado), entradaIndice(`${a.codigo}. ${a.titulo}`, "C", 3)] })
-      );
-      const r = a.registro;
-      if (!a.registrada || !r) {
-        contenido.push(parrafo([texto("Actividad no registrada a la fecha de generación.", { italics: true })]));
-        continue;
+  for (const cap of estructura.capitulos) {
+    switch (cap.clave) {
+      case "introduccion": {
+      // ── Introducción ──
+      contenido.push(apartadoFinal(cap.titulo));
+      const introduccion = f.introduccion.filter((p) => p.trim());
+      if (introduccion.length) contenido.push(...parrafosCuerpo(introduccion.join("\n")));
+      else contenido.push(parrafo([texto("Pendiente: el egresado debe redactar la introducción.", { italics: true })]));
+        break;
       }
-      if (r.marcoTeorico) {
-        contenido.push(etiquetaFinal("Marco teórico"));
-        contenido.push(...parrafosMarco(r.marcoTeorico, r.citaApa, r.citaApaDatos));
+      case "empresa": {
+      // ── Descripción de la empresa: lo registrado en la fase de propuesta ──
+      contenido.push(apartadoFinal(cap.titulo));
+      const e = f.empresa;
+      if (e.nombre) {
+        contenido.push(
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { line: INTERLINEADO, before: ESPACIO_CUERPO, after: ESPACIO_CUERPO },
+            children: [
+              texto(e.nombre, { bold: true }),
+              texto(
+                `${e.area ? `, ${e.area}.` : "."}${e.direccion ? ` Dirección: ${e.direccion.replace(/\.+$/, "")}.` : ""}${
+                  e.sucursal ? ` Sucursal: ${e.sucursal.nombre}${e.sucursal.telefono ? `, teléfono ${e.sucursal.telefono}` : ""}.` : ""
+                }`
+              ),
+            ],
+          })
+        );
       }
-      if (r.descriptor) {
-        contenido.push(etiquetaFinal("Descripción"));
-        contenido.push(...parrafosCuerpo(r.descriptor));
+      contenido.push(etiquetaFinal("Descripción"));
+      if (e.descripcion.length) contenido.push(...parrafosCuerpo(e.descripcion.join("\n")));
+      else contenido.push(parrafo([texto("La empresa no tiene descripción registrada en el sistema.", { italics: true })]));
+      if (e.antecedentes.length) {
+        contenido.push(etiquetaFinal("Antecedentes"));
+        contenido.push(...parrafosCuerpo(e.antecedentes.join("\n")));
       }
-      const imagenes = d.imagenesPorActividad[a.id] ?? [];
-      if (imagenes.length) {
-        contenido.push(etiquetaFinal(imagenes.length > 1 ? "Imágenes de soporte de la actividad" : "Imagen de soporte de la actividad"));
-        contenido.push(...imagenesSoporte(imagenes, a.codigo));
+      for (const il of e.ilustraciones) {
+        contenido.push(etiquetaFinal(il.tipo === "mapa" ? "Ubicación" : "Organigrama"));
+        const imagen = il.tipo === "mapa" ? (mapa ? { datos: mapa, tipo: "png" as TipoImagen } : null) : decodificarImagen(e.organigrama!.url);
+        if (imagen) contenido.push(...ilustracionEmpresa(imagen.datos, imagen.tipo, il.etiqueta, il.leyenda, il.nota, il.tipo === "mapa" ? 8 : 17));
+        else contenido.push(parrafo([texto(`${il.etiqueta}: no fue posible incluir la imagen en el documento.`, { italics: true })]));
+      }
+      if (e.organigrama && !e.organigrama.esImagen) {
+        contenido.push(
+          parrafo([texto("El organigrama de la empresa se registró como documento PDF en la propuesta y puede consultarse en el sistema.", { italics: true })])
+        );
+      }
+        break;
+      }
+      case "actividades": {
+      // ── Actividades realizadas, en orden cronológico ──
+      contenido.push(apartadoFinal(cap.titulo));
+      for (const s of d.secciones) {
+        contenido.push(subtitulo1(tituloPeriodoFinal(s)));
+        for (const a of actividades.filter((x) => x.periodo === s.numero)) {
+          contenido.push(
+            new Paragraph({ style: ESTILO_ACTIVIDAD, children: [texto(a.encabezado), entradaIndice(`${a.codigo}. ${a.titulo}`, "C", 3)] })
+          );
+          const r = a.registro;
+          if (!a.registrada || !r) {
+            contenido.push(parrafo([texto("Actividad no registrada a la fecha de generación.", { italics: true })]));
+            continue;
+          }
+          if (r.marcoTeorico) {
+            contenido.push(etiquetaFinal("Marco teórico"));
+            contenido.push(...parrafosMarco(r.marcoTeorico, r.citaApa, r.citaApaDatos));
+          }
+          if (r.descriptor) {
+            contenido.push(etiquetaFinal("Descripción"));
+            contenido.push(...parrafosCuerpo(r.descriptor));
+          }
+          const imagenes = d.imagenesPorActividad[a.id] ?? [];
+          if (imagenes.length) {
+            contenido.push(etiquetaFinal(imagenes.length > 1 ? "Imágenes de soporte de la actividad" : "Imagen de soporte de la actividad"));
+            contenido.push(...imagenesSoporte(imagenes, a.codigo));
+          }
+        }
+      }
+        break;
+      }
+      case "conclusiones": {
+      // ── Conclusiones: la registrada en cada actividad ──
+      contenido.push(apartadoFinal(cap.titulo));
+      for (const a of actividades.filter((x) => x.registrada && x.registro?.conclusionTecnica)) {
+        contenido.push(etiquetaFinal(`Actividad ${a.codigo}. ${a.titulo}`));
+        contenido.push(...parrafosCuerpo(a.registro!.conclusionTecnica!));
+      }
+        break;
+      }
+      default: {
+        // Capítulo de texto que agrega la ficha (W3): lo redacta el egresado.
+        contenido.push(apartadoFinal(cap.titulo));
+        const textoExtra = extras[cap.clave]?.trim();
+        if (textoExtra) contenido.push(...parrafosCuerpo(textoExtra));
+        else contenido.push(parrafo([texto("Pendiente: el egresado debe redactar este capítulo.", { italics: true })]));
       }
     }
   }
 
-  // ── Conclusiones: la registrada en cada actividad ──
-  contenido.push(apartadoFinal(APARTADOS_FINAL.conclusiones));
-  for (const a of actividades.filter((x) => x.registrada && x.registro?.conclusionTecnica)) {
-    contenido.push(etiquetaFinal(`Actividad ${a.codigo}. ${a.titulo}`));
-    contenido.push(...parrafosCuerpo(a.registro!.conclusionTecnica!));
-  }
-
   // ── Anexos ──
   contenido.push(apartadoFinal(APARTADOS_FINAL.anexos, true, false));
-  anexosFinal(f.glosario.length > 0).forEach((anexo, i) => {
+  estructura.anexos.forEach((anexo, i) => {
     contenido.push(tituloAnexo(anexo.titulo, i > 0));
     switch (anexo.id) {
       case "cronogramaReal":
