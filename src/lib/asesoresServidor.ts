@@ -23,6 +23,7 @@ const ESTADOS_ACTIVOS = ["aprobada", "primer_contacto_completado", "en_ejecucion
 
 export interface FilaAsesor {
   id: number;
+  facultadId: number | null;
   nombre: string;
   correo: string;
   activo: boolean;
@@ -51,7 +52,7 @@ export interface ProcesoAsesor {
 }
 
 interface Base {
-  asesores: { id: number; nombre: string; correo: string; activo: boolean; carreraId: number | null; asignadas: unknown }[];
+  asesores: { id: number; nombre: string; correo: string; activo: boolean; carreraId: number | null; asignadas: unknown; facultadId: number | null }[];
   nombresCarrera: Map<number, string>;
   procesos: (ProcesoAsesor & { asesorId: number; empresaId: number | null })[];
   valoracionesPorAsesor: Map<number, ValoracionGuardada[]>;
@@ -62,7 +63,7 @@ const idsCarreras = (a: { carreraId: number | null; asignadas: unknown }) =>
 
 async function leerBase(soloAsesor?: number): Promise<Base> {
   const asesores = await db
-    .select({ id: usuarios.id, nombre: usuarios.nombreCompleto, correo: usuarios.correo, activo: usuarios.activo, carreraId: usuarios.carreraId, asignadas: usuarios.carrerasAsignadas })
+    .select({ id: usuarios.id, nombre: usuarios.nombreCompleto, correo: usuarios.correo, activo: usuarios.activo, carreraId: usuarios.carreraId, asignadas: usuarios.carrerasAsignadas, facultadId: usuarios.facultadId })
     .from(usuarios)
     .where(and(eq(usuarios.rol, "asesor"), soloAsesor ? eq(usuarios.id, soloAsesor) : undefined));
   const listaCarreras = await db.select({ id: carreras.id, nombre: carreras.nombre }).from(carreras);
@@ -172,6 +173,7 @@ function fila(base: Base, a: Base["asesores"][number]): FilaAsesor {
   const carreraIds = idsCarreras(a);
   return {
     id: a.id,
+    facultadId: a.facultadId,
     nombre: a.nombre,
     correo: a.correo,
     activo: a.activo,
@@ -187,9 +189,10 @@ function fila(base: Base, a: Base["asesores"][number]): FilaAsesor {
 }
 
 /** Asesores para la tabla. Con `carrerasCoordinador`, solo los que atienden alguna de esas carreras. */
-export async function leerAsesores(carrerasCoordinador?: number[]): Promise<{ filas: FilaAsesor[]; carreras: string[] }> {
+export async function leerAsesores(carrerasCoordinador?: number[], facultadId?: number | null): Promise<{ filas: FilaAsesor[]; carreras: string[] }> {
   const base = await leerBase();
   let filas = base.asesores.map((a) => fila(base, a));
+  if (facultadId) filas = filas.filter((f) => f.facultadId === facultadId);
   if (carrerasCoordinador && carrerasCoordinador.length) filas = filas.filter((f) => f.carreraIds.some((c) => carrerasCoordinador.includes(c)));
   filas.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
   return { filas, carreras: [...new Set(filas.flatMap((f) => f.carreras))].sort() };

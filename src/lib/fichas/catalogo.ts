@@ -59,9 +59,9 @@ export const DERECHOS_PROVISIONALES = [
 ];
 
 export const DOCUMENTOS_ESTUDIANTE = [
-  { valor: "pago_tg", etiqueta: "Hoja de inscripción del trabajo de graduación" },
+  { valor: "pago_tg", etiqueta: "Comprobante de inscripción del trabajo de graduación" },
   { valor: "servicio_social", etiqueta: "Constancia de servicio social" },
-  { valor: "certificacion_notas", etiqueta: "Hoja de notas" },
+  { valor: "certificacion_notas", etiqueta: "Certificación global de notas" },
 ];
 
 export const ACTORES = [

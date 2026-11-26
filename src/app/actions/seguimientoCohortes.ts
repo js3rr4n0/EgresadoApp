@@ -4,7 +4,7 @@
 
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/session";
+import { alcanceAdmin, type Alcance } from "@/lib/permisos";
 import {
   carreras, documentosPropuesta, empresas, facultades, fichasVersiones, historialEstados, informesFinalesFicha, informesMensuales,
   informesPlan, informesPrimerContacto, integrantesProyecto, periodos, planesTrabajo, propuestas, usuarios,
@@ -37,10 +37,13 @@ export interface CohorteActiva {
   enEjecucion: number;
 }
 
+/** Superadministrador o administrador de facultad (C3); este último ve solo su facultad. */
 async function soloAdmin() {
-  const s = await getSession();
-  return s?.rol === "admin" ? s : null;
+  return alcanceAdmin();
 }
+
+/** Para el administrador de facultad, el filtro queda fijo en su facultad. */
+const conAlcance = (a: Alcance, filtro: FiltroInforme): FiltroInforme => (a.superadmin ? filtro : { ...filtro, facultadId: a.facultadId! });
 
 const hoyIso = () => isoDia(new Date());
 const dia = (d: Date | string | null | undefined) => (d ? (typeof d === "string" ? d.slice(0, 10) : isoDia(d)) : null);
@@ -59,11 +62,14 @@ const enAlcance = (p: { facultadId: number | null; carreraId: number | null }, f
   (!f.carreraId || p.carreraId === f.carreraId) && (!f.facultadId || p.facultadId === f.facultadId);
 
 export async function getOpcionesSeguimiento(): Promise<Resultado<{ cohortes: CohorteActiva[]; facultades: { id: number; nombre: string }[]; carreras: { id: number; nombre: string; facultadId: number }[] }>> {
-  if (!(await soloAdmin())) return { success: false, error: "No autorizado" };
+  const alc = await soloAdmin();
+  if (!alc) return { success: false, error: "No autorizado" };
   const hoy = hoyIso();
   const lista = await db.select().from(periodos).where(eq(periodos.activo, true)).orderBy(asc(periodos.inicioRecepcion));
-  const egresados = await personas();
-  const props = lista.length ? await db.select({ periodoId: propuestas.periodoId, estado: propuestas.estado }).from(propuestas).where(inArray(propuestas.periodoId, lista.map((p) => p.id))) : [];
+  const egresados = (await personas()).filter((e) => alc.superadmin || e.facultadId === alc.facultadId);
+  const idsEgresados = new Set(egresados.map((e) => e.id));
+  const props = (lista.length ? await db.select({ periodoId: propuestas.periodoId, estado: propuestas.estado, egresadoId: propuestas.egresadoId }).from(propuestas).where(inArray(propuestas.periodoId, lista.map((p) => p.id))) : [])
+    .filter((p) => alc.superadmin || idsEgresados.has(p.egresadoId));
   const cohortes: CohorteActiva[] = lista.map((p) => {
     const fechas = { inicioRecepcion: p.inicioRecepcion, finRecepcion: p.finRecepcion, maxInicioProceso: p.maxInicioProceso, maxInformeFinal: p.maxInformeFinal, maxAprobacionFinal: p.maxAprobacionFinal };
     const fase = faseCohorte(fechas, hoy);
@@ -75,8 +81,10 @@ export async function getOpcionesSeguimiento(): Promise<Resultado<{ cohortes: Co
       enEjecucion: deCohorte.filter((x) => x.estado === "en_ejecucion").length,
     };
   });
-  const facs = await db.select({ id: facultades.id, nombre: facultades.nombre }).from(facultades).where(eq(facultades.activo, true)).orderBy(asc(facultades.nombre));
-  const cars = await db.select({ id: carreras.id, nombre: carreras.nombre, facultadId: carreras.facultadId }).from(carreras).where(eq(carreras.activo, true)).orderBy(asc(carreras.nombre));
+  const facs = (await db.select({ id: facultades.id, nombre: facultades.nombre }).from(facultades).where(eq(facultades.activo, true)).orderBy(asc(facultades.nombre)))
+    .filter((x) => alc.superadmin || x.id === alc.facultadId);
+  const cars = (await db.select({ id: carreras.id, nombre: carreras.nombre, facultadId: carreras.facultadId }).from(carreras).where(eq(carreras.activo, true)).orderBy(asc(carreras.nombre)))
+    .filter((x) => alc.superadmin || x.facultadId === alc.facultadId);
   return { success: true, datos: { cohortes, facultades: facs, carreras: cars } };
 }
 
@@ -95,7 +103,9 @@ export interface FilaRecepcion {
 }
 
 export async function getInformeRecepcion(periodoId: number, filtro: FiltroInforme): Promise<Resultado<{ rango: { desde: string; hasta: string; automatico: boolean }; filas: FilaRecepcion[]; total: FilaRecepcion }>> {
-  if (!(await soloAdmin())) return { success: false, error: "No autorizado" };
+  const alc = await soloAdmin();
+  if (!alc) return { success: false, error: "No autorizado" };
+  filtro = conAlcance(alc, filtro);
   const [periodo] = await db.select().from(periodos).where(eq(periodos.id, periodoId));
   if (!periodo) return { success: false, error: "La cohorte no existe." };
   const automatico = !filtro.desde && !filtro.hasta;
@@ -186,7 +196,9 @@ export async function getInformePreEjecucion(periodoId: number, filtro: FiltroIn
   hoy: string; rango: { desde: string | null; hasta: string | null; automatico: boolean };
   enPreEjecucion: FilaPreEjecucion[]; iniciadas: FilaPreEjecucion[]; cumplimiento: ReturnType<typeof cumplimientoPorDia>;
 }>> {
-  if (!(await soloAdmin())) return { success: false, error: "No autorizado" };
+  const alc = await soloAdmin();
+  if (!alc) return { success: false, error: "No autorizado" };
+  filtro = conAlcance(alc, filtro);
   const [periodo] = await db.select().from(periodos).where(eq(periodos.id, periodoId));
   if (!periodo) return { success: false, error: "La cohorte no existe." };
   const hoy = hoyIso();
@@ -283,7 +295,9 @@ export async function getInformeFinalizando(periodoId: number, filtro: FiltroInf
   hoy: string; corte: string; diario: boolean; proximo: string | null; automatico: boolean;
   filas: FilaSeguimiento[]; asesores: FilaAsesor[];
 }>> {
-  if (!(await soloAdmin())) return { success: false, error: "No autorizado" };
+  const alc = await soloAdmin();
+  if (!alc) return { success: false, error: "No autorizado" };
+  filtro = conAlcance(alc, filtro);
   const [periodo] = await db.select().from(periodos).where(eq(periodos.id, periodoId));
   if (!periodo) return { success: false, error: "La cohorte no existe." };
   const hoy = hoyIso();

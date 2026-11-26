@@ -1,5 +1,7 @@
 "use client";
 
+import { NOMBRE_ROL } from "@/lib/rolesNombres";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { crearUsuario } from "@/app/actions/usuarios";
@@ -25,10 +27,11 @@ interface Periodo {
   activo: boolean;
 }
 
-export default function UserForm({ carreras, periodos = [], facultades = [] }: { carreras: Carrera[], periodos?: Periodo[], facultades?: Facultad[] }) {
+export default function UserForm({ carreras, periodos = [], facultades = [], rolesPermitidos }: { carreras: Carrera[], periodos?: Periodo[], facultades?: Facultad[], /** Administrador de facultad: solo coordinador y asesor (C3). */ rolesPermitidos?: string[] }) {
   const router = useRouter();
-  const [rol, setRol] = useState("egresado");
-  const [facultadId, setFacultadId] = useState<string>("");
+  const [rol, setRol] = useState(rolesPermitidos?.[0] ?? "egresado");
+  // Con una sola facultad posible (administrador de facultad), queda elegida
+  const [facultadId, setFacultadId] = useState<string>(facultades.length === 1 ? String(facultades[0].id) : "");
   const [selectedCarreras, setSelectedCarreras] = useState<number[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,11 +149,10 @@ export default function UserForm({ carreras, periodos = [], facultades = [] }: {
               onChange={(e) => setRol(e.target.value)}
               className="w-full px-4 py-2.5 rounded-lg border border-border text-foreground bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-all"
             >
-              <option value="admin">admin</option>
-              <option value="decanato">decanato</option>
-              <option value="coordinador">coordinador</option>
-              <option value="asesor">asesor</option>
-              <option value="egresado">egresado</option>
+              {/* Nombres de rol en pantalla (C3): admin = Superadministrador, decanato = Administrador de facultad */}
+              {(rolesPermitidos ?? ["admin", "decanato", "coordinador", "asesor", "egresado"]).map((r) => (
+                <option key={r} value={r}>{NOMBRE_ROL[r]}</option>
+              ))}
             </select>
           </div>
 
@@ -197,7 +199,7 @@ export default function UserForm({ carreras, periodos = [], facultades = [] }: {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <label className="block text-sm font-bold text-card-dark">
-                  Carreras Asignadas ({rol === "coordinador" ? "Coordinación por Facultad" : rol === "asesor" ? "Asesoría por Carrera" : "Decanato"})
+                  Carreras Asignadas ({rol === "coordinador" ? "Coordinación por Facultad" : rol === "asesor" ? "Asesoría por Carrera" : "Administración de facultad"})
                 </label>
                 <p className="text-xs text-muted">
                   Selecciona las carreras específicas que {rol === "coordinador" ? "coordina este usuario" : "atiende este asesor"}.

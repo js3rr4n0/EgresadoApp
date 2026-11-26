@@ -23,7 +23,7 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
   const docs = [
     {
       id: "pago_tg",
-      title: "Hoja de inscripción del trabajo de graduación",
+      title: "Comprobante de inscripción del trabajo de graduación",
       desc: "Documento oficial de inscripción al proceso de graduación.",
     },
     {
@@ -33,8 +33,8 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
     },
     {
       id: "certificacion_notas",
-      title: "Hoja de notas",
-      desc: "Historial académico que compruebe el CUM requerido para el trabajo de graduación.",
+      title: "Certificación global de notas",
+      desc: "Si Registro Académico ya te entregó la certificación global de notas, súbela; si aún no te la entrega, sube el recibo de pago correspondiente.",
     }
   ];
 

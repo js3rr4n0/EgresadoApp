@@ -22,6 +22,8 @@ import PdfToImagesViewer from "@/components/PdfToImagesViewer";
 import MediaZoomViewer from "@/components/MediaZoomViewer";
 import HistorialProyectoAccordion from "@/components/HistorialProyectoAccordion";
 import ValoracionesDelProceso from "@/components/valoraciones/ValoracionesDelProceso";
+import { opcionesAsesor, reglaDePropuesta, ultimaSolicitudAsesor } from "@/lib/asignacionServidor";
+import { alcanceAdmin, puedeAsignarPropuesta, puedeVerPropuesta } from "@/lib/permisos";
 
 export default async function AdminPropuestaReviewPage({
   params,
@@ -31,6 +33,12 @@ export default async function AdminPropuestaReviewPage({
   const p = await params;
   const pId = parseInt(p.id, 10);
   if (isNaN(pId)) redirect("/admin/propuestas");
+
+  // Administrador de facultad (C3): solo propuestas de su facultad; asigna solo si la cohorte lo tiene como administrador
+  const alcance = await alcanceAdmin();
+  if (!alcance) redirect("/login");
+  if (!(await puedeVerPropuesta(alcance, pId))) redirect("/admin/propuestas");
+  const puedeAsignar = await puedeAsignarPropuesta(alcance, pId);
 
   const [propuestaInfo] = await db
     .select({
@@ -104,8 +112,13 @@ export default async function AdminPropuestaReviewPage({
   const historialRes = await getHistorialCompletoProyecto(propuesta.id);
   const historialList = historialRes.success ? historialRes.data : [];
 
-  const coordRes = await getCoordinadoresConEstadisticas(propuesta.empresaId);
+  // Entrega C2: coordinadores (o asesores, si no hay coordinador) según la configuración de la cohorte
+  const regla = await reglaDePropuesta(propuesta.id);
+  const soloIds = regla?.configurada ? [...(regla.coordinadores ?? []), ...(regla.adminFacultadId ? [regla.adminFacultadId] : [])] : null;
+  const coordRes = await getCoordinadoresConEstadisticas(propuesta.empresaId, soloIds);
   const coordinadoresList = coordRes.success ? coordRes.data : [];
+  const asesoresDirecto = regla?.sinCoordinador ? await opcionesAsesor(regla) : [];
+  const ultimaSolicitud = await ultimaSolicitudAsesor(propuesta.id);
 
   const today = new Date();
   const options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
@@ -485,7 +498,25 @@ export default async function AdminPropuestaReviewPage({
             estadoActual={propuesta.estado}
             coordinadores={coordinadoresList}
             initialCoordinadorId={propuesta.coordinadorId}
-            initialObservaciones={propuesta.observaciones}
+            regla={
+              regla
+                ? {
+                    cohorte: regla.cohorte,
+                    periodoId: regla.periodoId,
+                    facultad: regla.facultad?.nombre ?? null,
+                    carrera: regla.carrera?.nombre ?? null,
+                    configurada: regla.configurada,
+                    texto: regla.regla,
+                    sinCoordinador: regla.sinCoordinador,
+                    adminFacultadId: regla.adminFacultadId,
+                  }
+                : null
+            }
+            asesoresDirecto={asesoresDirecto}
+            ultimaSolicitud={ultimaSolicitud}
+            tieneAsesor={!!propuesta.asesorId}
+            puedeAsignar={puedeAsignar}
+            superadmin={alcance.superadmin}
           />
 
           {/* HISTORIAL DE ACCIONES Y CAMBIOS DEL PROYECTO (ACORDEÓN COLAPSABLE) */}

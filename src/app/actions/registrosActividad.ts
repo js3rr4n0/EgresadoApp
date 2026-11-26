@@ -1195,7 +1195,7 @@ export async function guardarBorradorRevision(
 export async function getSeguimientoCoordinador() {
   try {
     const session = await getSession();
-    if (!session || !session.userId || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || !session.userId || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No autorizado" };
     }
 

@@ -4,10 +4,14 @@
 
 | Rol | Correo | Password |
 |---|---|---|
-| Admin | admin@uni.test | Test123! |
-| Decanato | decanato@uni.test | Test123! |
+| Superadministrador (rol `admin`) | admin@uni.test | Test123! |
+| Administrador de facultad (rol `decanato`) | decanato@uni.test | Test123! |
 | Asesor | asesor@uni.test | Test123! |
 | Egresado | egresado@uni.test | Test123! |
+
+Usuario de prueba creado en la base de desarrollo (no está en el seed) para CONFIGURACION_COHORTE.md, entrega C3:
+administrador de facultad de Ingeniería y Arquitectura, `admin.ingenieria@uni.test`, con la misma contraseña de prueba.
+Es el administrador de esa facultad en la cohorte C3-2026 Ejemplo.
 
 ## Comandos de Base de Datos
 

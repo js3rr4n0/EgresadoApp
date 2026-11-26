@@ -92,6 +92,8 @@ export async function getEmpresas() {
 
 export async function createEmpresa(data: EmpresaData) {
   try {
+    // El catálogo es uno solo y solo lo edita el superadministrador (CONFIGURACION_COHORTE.md, C3)
+    if ((await getSession())?.rol !== "admin") return { success: false, error: "Solo el superadministrador puede modificar el catálogo de empresas." };
     const { supervisores: sups, firmantes: firms, organigramas: orgs, sucursales: sucs, ...empresaFields } = data;
 
     // Validate Supervisores
@@ -157,6 +159,8 @@ export async function createEmpresa(data: EmpresaData) {
 
 export async function updateEmpresa(id: number, data: EmpresaData) {
   try {
+    // El catálogo es uno solo y solo lo edita el superadministrador (CONFIGURACION_COHORTE.md, C3)
+    if ((await getSession())?.rol !== "admin") return { success: false, error: "Solo el superadministrador puede modificar el catálogo de empresas." };
     const { supervisores: sups, firmantes: firms, organigramas: orgs, sucursales: sucs, ...empresaFields } = data;
 
     // Validate Supervisores
@@ -303,6 +307,8 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
 
 export async function updateSucursalesSolo(empresaId: number, sucs: SucursalData[]) {
   try {
+    // El catálogo es uno solo y solo lo edita el superadministrador (CONFIGURACION_COHORTE.md, C3)
+    if ((await getSession())?.rol !== "admin") return { success: false, error: "Solo el superadministrador puede modificar el catálogo de empresas." };
     if (sucs && sucs.length > 0) {
       const keepIds = sucs.filter(s => s.id).map(s => s.id as number);
       
@@ -335,6 +341,8 @@ export async function updateSucursalesSolo(empresaId: number, sucs: SucursalData
 
 export async function deleteEmpresa(id: number) {
   try {
+    // El catálogo es uno solo y solo lo edita el superadministrador (CONFIGURACION_COHORTE.md, C3)
+    if ((await getSession())?.rol !== "admin") return { success: false, error: "Solo el superadministrador puede modificar el catálogo de empresas." };
     // 1. Verificar si existen propuestas de egresados vinculadas a esta empresa
     const propuestasVinculadas = await db
       .select({ id: propuestas.id })

@@ -1,53 +1,7 @@
-import { db } from "@/lib/db";
-import { solicitudesEmpresa, empresas, propuestas, usuarios, sucursales } from "@/lib/schema";
-import { desc, eq } from "drizzle-orm";
-import SolicitudesTable from "./SolicitudesTable";
+import { redirect } from "next/navigation";
 
-export default async function SolicitudesEmpresaPage() {
-  const solicitudes = await db
-    .select({
-      id: solicitudesEmpresa.id,
-      tipo: solicitudesEmpresa.tipo,
-      estado: solicitudesEmpresa.estado,
-      datos: solicitudesEmpresa.datos,
-      creadaEn: solicitudesEmpresa.creadaEn,
-      empresaTarget: empresas.nombre,
-      egresado: usuarios.nombreCompleto,
-    })
-    .from(solicitudesEmpresa)
-    .leftJoin(empresas, eq(solicitudesEmpresa.empresaId, empresas.id))
-    .leftJoin(propuestas, eq(solicitudesEmpresa.propuestaId, propuestas.id))
-    .leftJoin(usuarios, eq(propuestas.egresadoId, usuarios.id))
-    .orderBy(desc(solicitudesEmpresa.creadaEn));
-
-  const rawEmpresas = await db.select().from(empresas);
-  const { organigramasEmpresa } = await import("@/lib/schema");
-  const orgs = await db.select().from(organigramasEmpresa).orderBy(desc(organigramasEmpresa.id));
-  const allEmpresas = rawEmpresas.map(emp => {
-    const latestOrg = orgs.find(o => o.empresaId === emp.id);
-    return {
-      ...emp,
-      organigramaUrl: latestOrg ? latestOrg.url : emp.organigramaUrl
-    };
-  });
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Solicitudes de Empresa</h1>
-        <p className="text-muted mt-1 text-sm">
-          Revisa y aprueba nuevas empresas o actualizaciones de datos enviadas por los egresados.
-        </p>
-      </div>
-
-      <div className="bg-white border border-border rounded-xl shadow-sm p-1">
-        <SolicitudesTable 
-          solicitudes={solicitudes} 
-          allEmpresas={allEmpresas} 
-          allSucursales={await db.select().from(sucursales)}
-          allSupervisores={await db.select().from((await import("@/lib/schema")).supervisores)}
-        />
-      </div>
-    </div>
-  );
+// Las solicitudes de empresa se revisan ahora al inicio de Gestión de Empresas y las de corrección de datos en
+// /admin/solicitudes (ajustes del 26-nov-2026). Esta ruta queda por los enlaces antiguos.
+export default function SolicitudesEmpresaPage() {
+  redirect("/admin/empresas#solicitudes");
 }

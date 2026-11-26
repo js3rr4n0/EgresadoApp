@@ -3,7 +3,8 @@
  *
  * Routes:
  *   /admin/**    → only role 'admin'
- *   /decanato/** → only role 'decanato'
+ *   /admin/**    → also role 'decanato' (administrador de facultad), only the routes in adminFacultadPuedeAbrir,
+ *                  and /coordinador/** when the cohort makes it coordinator (CONFIGURACION_COHORTE.md, C3)
  *   /asesor/**   → only role 'asesor'
  *   /egresado/** → only role 'egresado'
  *   /login       → public (redirects to dashboard if already logged in)
@@ -11,13 +12,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { adminFacultadPuedeAbrir } from "@/lib/rolesNombres";
 
 const encodedKey = new TextEncoder().encode(process.env.AUTH_SECRET!);
 
 // Role → allowed path prefix
 const ROLE_PATHS: Record<string, string> = {
   admin: "/admin",
-  decanato: "/decanato",
+  decanato: "/admin",
   coordinador: "/coordinador",
   asesor: "/asesor",
   egresado: "/egresado",
@@ -66,6 +68,11 @@ export async function proxy(request: NextRequest) {
   if (isProtected && session) {
     if (session.rol === "admin") {
       return NextResponse.next();
+    }
+    // Administrador de facultad: parte del panel /admin y la vista de coordinador (si coordina)
+    if (session.rol === "decanato") {
+      if (path.startsWith("/coordinador") || (path.startsWith("/admin") && adminFacultadPuedeAbrir(path))) return NextResponse.next();
+      return NextResponse.redirect(new URL("/admin", request.url));
     }
     const allowedPrefix = ROLE_PATHS[session.rol];
     if (!allowedPrefix || !path.startsWith(allowedPrefix)) {

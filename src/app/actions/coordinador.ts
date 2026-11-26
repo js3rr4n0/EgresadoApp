@@ -24,6 +24,7 @@ import { revalidatePath } from "next/cache";
 import { notificarEquipo } from "@/lib/notificarEquipo";
 import { getDocumentosPropuesta } from "@/app/actions/documentosPropuesta";
 import { estadoPlanDePropuesta } from "@/app/actions/planTrabajo";
+import { opcionesAsesor, reglaDePropuesta } from "@/lib/asignacionServidor";
 
 /**
  * Fetch proposals assigned by Admin to the logged-in Coordinator for advisor assignment
@@ -31,7 +32,7 @@ import { estadoPlanDePropuesta } from "@/app/actions/planTrabajo";
 export async function getPropuestasPendientesCoordinador() {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No autorizado" };
     }
 
@@ -128,11 +129,30 @@ export async function getPropuestasPendientesCoordinador() {
 /**
  * Fetch advisers belonging to the Coordinator's faculty
  */
-export async function getAsesoresFacultad() {
+export async function getAsesoresFacultad(propuestaId?: number) {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No autorizado" };
+    }
+
+    // Entrega C2: si la cohorte de la propuesta está configurada, solo los asesores que participan para esa carrera
+    if (propuestaId) {
+      const regla = await reglaDePropuesta(propuestaId);
+      if (regla?.configurada) {
+        const opciones = await opcionesAsesor(regla);
+        return {
+          success: true,
+          data: opciones.map((a) => ({
+            id: a.id,
+            nombreCompleto: a.nombre,
+            correo: a.correo,
+            deLaCarrera: a.deLaCarrera,
+            carga: a.activos + a.pendientes,
+          })),
+          regla: regla.regla,
+        };
+      }
     }
 
     const isAdmin = session.rol === "admin";
@@ -195,7 +215,7 @@ export async function getAsesoresFacultad() {
 export async function asignarAsesorCoordinador(propuestaId: number, asesorId: number) {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No autorizado" };
     }
 
@@ -214,6 +234,12 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
       .limit(1);
 
     if (!asesor) return { success: false, error: "El asesor seleccionado no es válido." };
+
+    // Entrega C2: con la cohorte configurada, solo asesores que participan para la carrera de la propuesta
+    const regla = await reglaDePropuesta(propuestaId);
+    if (regla?.configurada && !(await opcionesAsesor(regla)).some((a) => a.id === asesorId)) {
+      return { success: false, error: "Ese asesor no participa en esta cohorte para la carrera de la propuesta." };
+    }
 
     // Check if there is already a pending request for this proposal and advisor
     const [existingReq] = await db
@@ -347,7 +373,7 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
 export async function getPropuestasAsignadasCoordinador() {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No autorizado" };
     }
 
@@ -676,7 +702,7 @@ export async function solicitarBajaProyectoAsesor(propuestaId: number, motivo: s
 export async function getSolicitudesBajaCoordinador() {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No autorizado" };
     }
 
@@ -736,7 +762,7 @@ export async function responderSolicitudBajaCoordinador(
 ) {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No autorizado" };
     }
 
@@ -809,7 +835,7 @@ export async function responderAsignacionCoordinador(
 ) {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No autorizado" };
     }
 
@@ -891,7 +917,7 @@ export async function responderAsignacionCoordinador(
 export async function darInicioPlanTrabajo(propuestaId: number) {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No autorizado" };
     }
 

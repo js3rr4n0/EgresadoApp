@@ -3,8 +3,27 @@
 import { db } from "@/lib/db";
 import { usuarios, carreras, carrerasSedes, facultades, bitacoraUsuarios } from "@/lib/schema";
 import { getSession } from "@/lib/session";
+import { alcanceAdmin, usuarioEnAlcance, type Alcance } from "@/lib/permisos";
+
+/**
+ * Administrador de facultad (C3, respuesta 3): crea y edita coordinadores y asesores de su facultad. El
+ * superadministrador puede todo. Devuelve el alcance o un error.
+ */
+async function permitirGestion(rol: string | null, objetivoId?: number): Promise<{ alcance: Alcance } | { error: string }> {
+  const alcance = await alcanceAdmin();
+  if (!alcance) return { error: "No autorizado" };
+  if (alcance.superadmin) return { alcance };
+  if (rol !== null && !["coordinador", "asesor"].includes(rol)) return { error: "Solo puedes gestionar coordinadores y asesores de tu facultad." };
+  if (objetivoId !== undefined) {
+    const [u] = await db.select({ rol: usuarios.rol }).from(usuarios).where(eq(usuarios.id, objetivoId));
+    if (!u || !["coordinador", "asesor"].includes(u.rol) || !(await usuarioEnAlcance(alcance, objetivoId))) {
+      return { error: "Ese usuario no es de tu facultad o no puedes gestionarlo." };
+    }
+  }
+  return { alcance };
+}
 import { sedesPorCarrera } from "@/lib/carrerasSedes";
-import { eq, desc } from "drizzle-orm";
+import { and, eq, desc, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 
@@ -44,6 +63,9 @@ export async function crearUsuario(formData: FormData) {
     if (!nombreCompleto || !correo || !password || !rol) {
       return { success: false, error: "Faltan campos obligatorios" };
     }
+    const permiso = await permitirGestion(rol);
+    if ("error" in permiso) return { success: false, error: permiso.error };
+    if (!permiso.alcance.superadmin) facultadId = permiso.alcance.facultadId;
 
     // Determine facultadId if a carrera is selected and facultadId not explicitly set
     if (!facultadId && carreraId) {
@@ -89,6 +111,8 @@ export async function crearUsuario(formData: FormData) {
 
 export async function getUsuarios() {
   try {
+    const alcance = await alcanceAdmin();
+    if (!alcance) return { success: false, error: "No autorizado" };
     const data = await db
       .select({
         id: usuarios.id,
@@ -108,6 +132,8 @@ export async function getUsuarios() {
       .from(usuarios)
       .leftJoin(carreras, eq(usuarios.carreraId, carreras.id))
       .leftJoin(facultades, eq(usuarios.facultadId, facultades.id))
+      // Administrador de facultad: los usuarios de su facultad, sin administradores
+      .where(alcance.superadmin ? undefined : and(eq(usuarios.facultadId, alcance.facultadId!), inArray(usuarios.rol, ["coordinador", "asesor", "egresado"])))
       .orderBy(desc(usuarios.id));
 
     const allCarreras = await db.select().from(carreras);
@@ -135,6 +161,8 @@ export async function getUsuarios() {
 
 export async function toggleUserStatus(userId: number, newStatus: boolean) {
   try {
+    const permiso = await permitirGestion(null, userId);
+    if ("error" in permiso) return { success: false, error: permiso.error };
     await db
       .update(usuarios)
       .set({ activo: newStatus })
@@ -190,6 +218,9 @@ export async function updateUsuario(id: number, formData: FormData) {
     if (!nombreCompleto || !correo || !rol) {
       return { success: false, error: "Faltan campos obligatorios" };
     }
+    const permiso = await permitirGestion(rol, id);
+    if ("error" in permiso) return { success: false, error: permiso.error };
+    if (!permiso.alcance.superadmin) facultadId = permiso.alcance.facultadId;
 
     if (!facultadId && carreraId) {
       const carrera = await db.select().from(carreras).where(eq(carreras.id, carreraId)).limit(1);
@@ -231,6 +262,9 @@ export async function updateUsuario(id: number, formData: FormData) {
 
 export async function eliminarUsuario(userId: number) {
   try {
+    // Solo el superadministrador elimina usuarios (C3)
+    const alcance = await alcanceAdmin();
+    if (!alcance?.superadmin) return { success: false, error: "Solo el superadministrador puede eliminar usuarios." };
     await db.delete(usuarios).where(eq(usuarios.id, userId));
     revalidatePath("/admin/usuarios");
     return { success: true };

@@ -4,7 +4,8 @@ import { periodos, facultades } from "@/lib/schema";
 import { desc } from "drizzle-orm";
 import EditUserForm from "@/components/EditUserForm";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { alcanceAdmin } from "@/lib/permisos";
 
 export default async function EditarUsuarioPage({
   params,
@@ -30,6 +31,10 @@ export default async function EditarUsuarioPage({
   if (!userRes.success || !userRes.data) {
     notFound();
   }
+  // Administrador de facultad (C3): solo coordinadores y asesores de su facultad
+  const alcance = await alcanceAdmin();
+  if (!alcance) redirect("/login");
+  if (!alcance.superadmin && (userRes.data.facultadId !== alcance.facultadId || !["coordinador", "asesor"].includes(userRes.data.rol))) notFound();
 
   const carreras = carrerasRes.success && carrerasRes.data ? carrerasRes.data : [];
 

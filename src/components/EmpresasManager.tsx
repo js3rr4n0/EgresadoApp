@@ -41,6 +41,8 @@ export default function EmpresasManager({
   reportes = {},
   notas = {},
   editarId = null,
+  soloLectura = false,
+  alInicio = null,
 }: {
   initialEmpresas: any[];
   estadisticas?: Record<number, EstadisticasEmpresa>;
@@ -49,6 +51,10 @@ export default function EmpresasManager({
   /** Valoraciones promedio por empresa (entrega V3). */
   notas?: Record<number, NotasEmpresa>;
   editarId?: number | null;
+  /** Administrador de facultad (C3): ve el catálogo, no lo edita (respuesta 2). */
+  soloLectura?: boolean;
+  /** Contenido entre el título y la tabla (las solicitudes de empresa pendientes). */
+  alInicio?: React.ReactNode;
 }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -390,19 +396,21 @@ export default function EmpresasManager({
     <div>
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Catálogo de Empresas</h2>
+          <h2 className="text-2xl font-bold text-gray-800">Gestión de Empresas</h2>
           <p className="text-sm text-gray-500 mt-1">
             Gestiona las instituciones o empresas donde los egresados pueden realizar su Trabajo de Grado.
           </p>
         </div>
-        <button
+        {!soloLectura && <button
           onClick={() => { resetForm(); setIsModalOpen(true); }}
           className="bg-brand-red hover:bg-red-800 text-white px-4 py-2 rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
           Nueva Empresa
-        </button>
+        </button>}
       </div>
+
+      {alInicio && <div className="mb-6">{alInicio}</div>}
 
       {/* FILTROS */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-border mb-4 flex flex-col gap-3">
@@ -540,30 +548,32 @@ export default function EmpresasManager({
                           {reportes[emp.id].length === 1 ? "1 reporte" : `${reportes[emp.id].length} reportes`}
                         </a>
                       )}
-                      <button
+                      {!soloLectura && <button
                         onClick={() => handleToggle(emp)}
                         className={`block mx-auto mt-1.5 text-[11px] font-bold underline-offset-2 hover:underline ${emp.habilitada ? "text-gray-500 hover:text-brand-red" : "text-green-700"}`}
                       >
                         {emp.habilitada ? "Deshabilitar" : "Habilitar"}
-                      </button>
+                      </button>}
                     </td>
                     <td className="px-4 py-3">
                       <a href={`/admin/empresas/${emp.id}`} className="block text-center px-2.5 py-1.5 mb-1 text-xs font-bold text-brand-red bg-brand-red/5 hover:bg-brand-red hover:text-white rounded-lg transition-colors whitespace-nowrap">
                         Ver más
                       </a>
                       <div className="flex items-center justify-end gap-1">
+                        {!soloLectura && <>
                         <button onClick={() => handleEdit(emp)} title="Editar datos" className={claseIcono}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                         </button>
                         <button onClick={() => openSucursalesModal(emp)} title="Sucursales" className={claseIcono}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
                         </button>
+                        </>}
                         <a href={`/admin/empresas/${emp.id}/imprimir`} target="_blank" rel="noreferrer" title="Descargar PDF" className={claseIcono}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
                         </a>
-                        <button onClick={() => handleDelete(emp.id)} title="Eliminar" className={claseIcono}>
+                        {!soloLectura && <button onClick={() => handleDelete(emp.id)} title="Eliminar" className={claseIcono}>
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
+                        </button>}
                       </div>
                     </td>
                   </tr>

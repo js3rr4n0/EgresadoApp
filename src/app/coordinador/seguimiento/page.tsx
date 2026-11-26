@@ -12,7 +12,7 @@ const ESTADO_INFORME: Record<string, { label: string; clase: string }> = {
 
 export default async function SeguimientoCoordinadorPage() {
   const session = await getSession();
-  if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+  if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
     redirect("/login");
   }
 

@@ -740,7 +740,7 @@ export async function verificarCapacidadEnvio(propuestaId: number) {
     const hasPago = docs.some(d => d.tipo === "pago_tg");
 
     if (!hasServicio || !hasNotas || !hasPago) {
-      errores.push(`Faltan documentos obligatorios: ${u.nombreCompleto} (${u.carnet || 'sin carnet'}) debe subir la hoja de inscripción, la constancia de servicio social y la hoja de notas en su panel principal.`);
+      errores.push(`Faltan documentos obligatorios: ${u.nombreCompleto} (${u.carnet || 'sin carnet'}) debe subir el comprobante de inscripción del trabajo de graduación, la constancia de servicio social y la certificación global de notas en su panel principal.`);
     }
   }
 

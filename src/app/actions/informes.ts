@@ -390,7 +390,7 @@ export async function anularInformePrimerContacto(
 ) {
   try {
     const session = await getSession();
-    if (!session || !session.userId || (session.rol !== "coordinador" && session.rol !== "admin")) {
+    if (!session || !session.userId || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
       return { success: false, error: "No tiene permisos para anular este informe." };
     }
 

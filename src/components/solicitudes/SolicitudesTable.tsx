@@ -1,10 +1,14 @@
 "use client";
 
+// Tabla de solicitudes de la administración: de empresa (en Gestión de Empresas) y de corrección de datos del
+// egresado (en Solicitudes). Se movió aquí desde admin/empresas/solicitudes.
+import { fechaCortaSV, horaSV } from "@/lib/fechasTexto";
+
 import { useState } from "react";
 
 import { aprobarSolicitudEmpresa, rechazarSolicitudEmpresa } from "@/app/actions/solicitudes";
 
-export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSucursales = [], allSupervisores = [] }: { solicitudes: any[], allEmpresas?: any[], allSucursales?: any[], allSupervisores?: any[] }) {
+export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSucursales = [], allSupervisores = [], vacio = "No hay solicitudes." }: { solicitudes: any[], allEmpresas?: any[], allSucursales?: any[], allSupervisores?: any[], /** Texto cuando no hay filas. */ vacio?: string }) {
   const [loadingId, setLoadingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -73,12 +77,12 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
     <>
     <div className="overflow-x-auto">
       <table className="w-full text-sm text-left">
-        <thead className="bg-slate-50 text-slate-500 font-medium">
+        <thead className="bg-gray-50 text-[10px] uppercase tracking-wider text-card-dark border-b border-border">
           <tr>
             <th className="px-6 py-4">Fecha</th>
             <th className="px-6 py-4">Tipo</th>
             <th className="px-6 py-4">Egresado</th>
-            <th className="px-6 py-4">Empresa (Datos Nuevos)</th>
+            <th className="px-6 py-4">Detalle de la solicitud</th>
             <th className="px-6 py-4">Estado</th>
             <th className="px-6 py-4 text-right">Acciones</th>
           </tr>
@@ -87,7 +91,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
           {solicitudes.length === 0 && (
             <tr>
               <td colSpan={6} className="px-6 py-8 text-center text-muted">
-                No hay solicitudes pendientes.
+                {vacio}
               </td>
             </tr>
           )}
@@ -96,16 +100,17 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
             return (
               <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                 <td className="px-6 py-4">
-                  {s.creadaEn ? new Date(s.creadaEn).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : "-"}
+                  {/* Mismo texto en servidor y navegador (evita errores de hidratación) */}
+                  {s.creadaEn ? <><span className="font-semibold text-gray-800 whitespace-nowrap">{fechaCortaSV(new Date(s.creadaEn).toISOString())}</span><span className="block text-xs text-muted">{horaSV(new Date(s.creadaEn).toISOString())}</span></> : "-"}
                 </td>
                 <td className="px-6 py-4">
                   {s.tipo === "nueva" && !data?.empresa?.targetEmpresaId ? (
-                    <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">Nueva Empresa</span>
+                    <span className="bg-red-50 text-brand-red border border-brand-red/20 px-2 py-1 rounded-md text-xs font-bold whitespace-nowrap">Empresa nueva</span>
                   ) : s.tipo === "datos_alumno" ? (
-                    <span className="bg-amber-100 text-amber-800 px-2 py-1 rounded text-xs font-bold">Datos Alumno</span>
+                    <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-1 rounded-md text-xs font-bold whitespace-nowrap">Datos del egresado</span>
                   ) : (
-                    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded text-xs font-bold">
-                      {data?.supervisor && !data?.empresa?.nombre ? "Nuevo Supervisor" : "Actualización"}
+                    <span className="bg-gray-100 text-gray-700 border border-gray-200 px-2 py-1 rounded-md text-xs font-bold whitespace-nowrap">
+                      {data?.supervisor && !data?.empresa?.nombre ? "Supervisor nuevo" : "Actualización de datos"}
                     </span>
                   )}
                 </td>
@@ -340,7 +345,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                                         onClick={() => handleViewMap(oldMapUrl)}
                                         className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded text-xs font-bold border border-blue-200"
                                       >
-                                        📍 Ver Mapa Actual (Viejo)
+                                        Ver Mapa Actual (Viejo)
                                       </button>
                                     ) : (
                                       <span className="text-xs text-slate-400 italic">Sin mapa registrado</span>
@@ -355,7 +360,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                                         onClick={() => handleViewOrganigrama(oldOrgUrl)}
                                         className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded text-xs font-bold border border-purple-200"
                                       >
-                                        🟣 Ver Organigrama Actual (Viejo)
+                                        Ver Organigrama Actual (Viejo)
                                       </button>
                                     ) : (
                                       <span className="text-xs text-slate-400 italic">Sin organigrama registrado</span>
@@ -401,7 +406,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                                               : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border-emerald-200'
                                           }`}
                                         >
-                                          📍 Ver Mapa Propuesto (Nuevo)
+                                          Ver Mapa Propuesto (Nuevo)
                                         </button>
                                         {mapChanged && <span className="text-[10px] bg-emerald-200 text-emerald-900 px-1.5 py-0.5 rounded font-extrabold">Modificado</span>}
                                       </div>
@@ -419,7 +424,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                                           onClick={() => handleViewOrganigrama(newOrgUrl)}
                                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-bold border transition bg-purple-600 text-white hover:bg-purple-700 border-purple-700 shadow-sm"
                                         >
-                                          🟣 Ver Organigrama Propuesto (Nuevo)
+                                          Ver Organigrama Propuesto (Nuevo)
                                         </button>
                                         <span className="text-[10px] bg-purple-200 text-purple-900 px-1.5 py-0.5 rounded font-extrabold">Nuevo Adjunto</span>
                                       </div>
@@ -468,7 +473,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                             onClick={() => handleViewMap(viewDetails.datos.empresa.mapaUrl)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white hover:bg-blue-700 rounded text-xs font-bold shadow-sm"
                           >
-                            📍 Abrir Ubicación en Mapa GPS
+                            Abrir Ubicación en Mapa GPS
                           </button>
                         ) : (
                           <span className="text-xs text-slate-400 italic">Sin mapa registrado</span>
@@ -483,7 +488,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                             onClick={() => handleViewOrganigrama(viewDetails.datos.empresa.organigramaUrl)}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white hover:bg-purple-700 rounded text-xs font-bold shadow-sm"
                           >
-                            🟣 Ver Organigrama Adjunto
+                            Ver Organigrama Adjunto
                           </button>
                         ) : (
                           <span className="text-xs text-slate-400 italic">Sin organigrama adjunto</span>

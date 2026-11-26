@@ -18,6 +18,8 @@ import {
 import { eq, and, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
+import { opcionesAsesor, reglaDePropuesta } from "@/lib/asignacionServidor";
+import { alcanceAdmin, puedeAsignarPropuesta } from "@/lib/permisos";
 import { notificarEquipo } from "@/lib/notificarEquipo";
 
 export async function reviewPropuesta(
@@ -82,8 +84,13 @@ export async function reviewPropuesta(
   }
 }
 
-export async function getCoordinadoresConEstadisticas(empresaId?: number | null) {
+/**
+ * Coordinadores con su carga. Con `soloIds` (entrega C2) se devuelven solo esos usuarios, que pueden incluir al
+ * administrador de facultad (rol decanato) cuando la configuración de la cohorte lo permite.
+ */
+export async function getCoordinadoresConEstadisticas(empresaId?: number | null, soloIds?: number[] | null) {
   try {
+    if (soloIds && soloIds.length === 0) return { success: true, data: [] };
     const coords = await db
       .select({
         id: usuarios.id,
@@ -95,7 +102,7 @@ export async function getCoordinadoresConEstadisticas(empresaId?: number | null)
       })
       .from(usuarios)
       .leftJoin(facultades, eq(usuarios.facultadId, facultades.id))
-      .where(inArray(usuarios.rol, ["coordinador", "admin"]));
+      .where(soloIds ? inArray(usuarios.id, soloIds) : inArray(usuarios.rol, ["coordinador", "admin"]));
 
     const coordinadoresConStats = await Promise.all(
       coords.map(async (c) => {
@@ -172,14 +179,26 @@ export async function getCoordinadoresConEstadisticas(empresaId?: number | null)
 
 export async function asignarPropuestaACoordinador(propuestaId: number, coordinadorId: number) {
   try {
-    const session = await getSession();
-    if (!session || session.rol !== "admin") return { success: false, error: "No autorizado" };
+    // Superadministrador o administrador de facultad con permiso en la cohorte (C3)
+    const alcance = await alcanceAdmin();
+    if (!alcance || !(await puedeAsignarPropuesta(alcance, propuestaId))) return { success: false, error: "No autorizado" };
+    const session = alcance.session;
 
     const [propuesta] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
     if (!propuesta) return { success: false, error: "Propuesta no encontrada" };
 
     const [coordinador] = await db.select().from(usuarios).where(eq(usuarios.id, coordinadorId)).limit(1);
     if (!coordinador) return { success: false, error: "Coordinador no encontrado" };
+
+    // Entrega C2: solo los coordinadores que la configuración de la cohorte permite para la carrera del egresado
+    const regla = await reglaDePropuesta(propuestaId);
+    if (regla?.configurada) {
+      if (regla.sinCoordinador) return { success: false, error: "Esta propuesta no lleva coordinador en su cohorte: asigna el asesor directamente." };
+      const permitidos = [...(regla.coordinadores ?? []), ...(regla.adminFacultadId ? [regla.adminFacultadId] : [])];
+      if (!permitidos.includes(coordinadorId)) return { success: false, error: "Ese coordinador no está configurado para la carrera de esta propuesta en su cohorte." };
+    } else if (!["coordinador", "admin"].includes(coordinador.rol)) {
+      return { success: false, error: "El usuario elegido no es coordinador." };
+    }
 
     const estadoAnterior = propuesta.estado;
 
@@ -220,10 +239,69 @@ export async function asignarPropuestaACoordinador(propuestaId: number, coordina
   }
 }
 
+/**
+ * Entrega C2: cuando la facultad (o la carrera) no tiene coordinador en la cohorte, el superadministrador envía la
+ * solicitud de asesoría directamente. Se usa el mismo mecanismo que el coordinador (solicitudes_asesor): el asesor
+ * acepta o rechaza desde su panel. La propuesta queda sin coordinador.
+ */
+export async function asignarAsesorDirecto(propuestaId: number, asesorId: number) {
+  try {
+    const alcance = await alcanceAdmin();
+    if (!alcance || !(await puedeAsignarPropuesta(alcance, propuestaId))) return { success: false, error: "No autorizado" };
+    const session = alcance.session;
+
+    const [propuesta] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
+    if (!propuesta) return { success: false, error: "Propuesta no encontrada" };
+    if (propuesta.asesorId) return { success: false, error: "La propuesta ya tiene asesor." };
+    if (!["enviada", "coordinador_asignado"].includes(propuesta.estado)) return { success: false, error: "La propuesta no está en espera de asignación." };
+
+    const regla = await reglaDePropuesta(propuestaId);
+    if (!regla?.configurada || !regla.sinCoordinador) return { success: false, error: "Esta propuesta lleva coordinador según la configuración de su cohorte." };
+    const opciones = await opcionesAsesor(regla);
+    const asesor = opciones.find((a) => a.id === asesorId);
+    if (!asesor) return { success: false, error: "Ese asesor no participa en esta cohorte para la carrera de la propuesta." };
+
+    const [pendiente] = await db
+      .select({ id: solicitudesAsesor.id })
+      .from(solicitudesAsesor)
+      .where(and(eq(solicitudesAsesor.propuestaId, propuestaId), eq(solicitudesAsesor.asesorId, asesorId), eq(solicitudesAsesor.estado, "pendiente")));
+    if (pendiente) return { success: false, error: "Ya hay una solicitud pendiente para ese asesor." };
+
+    // Una sola solicitud viva: las anteriores pendientes se reemplazan
+    await db
+      .update(solicitudesAsesor)
+      .set({ estado: "rechazada", justificacionRechazo: "Reemplazada por una nueva solicitud del superadministrador", respondidoEn: new Date() })
+      .where(and(eq(solicitudesAsesor.propuestaId, propuestaId), eq(solicitudesAsesor.estado, "pendiente")));
+    await db.insert(solicitudesAsesor).values({ propuestaId, asesorId, coordinadorId: session.userId, estado: "pendiente", creadaEn: new Date() });
+    // Si antes tenía coordinador (configuración cambiada), se quita: en esta cohorte la facultad no lo usa
+    if (propuesta.coordinadorId) await db.update(propuestas).set({ coordinadorId: null }).where(eq(propuestas.id, propuestaId));
+    await db.insert(historialEstados).values({ propuestaId, de: propuesta.estado, a: "asesor_solicitado_directo", usuarioId: session.userId });
+
+    const [estudiante] = await db.select().from(usuarios).where(eq(usuarios.id, propuesta.egresadoId)).limit(1);
+    const tipo = propuesta.tipo === "pasantia" ? "Pasantía" : propuesta.tipo === "proyecto" ? "Proyecto" : "Investigación";
+    await db.insert(notificaciones).values({
+      usuarioId: asesorId,
+      tipo: "solicitud_asesoria",
+      mensaje: `La administración le solicita asesorar una propuesta de ${tipo} del estudiante ${estudiante?.nombreCompleto ?? "Estudiante"} (carnet ${estudiante?.carnet ?? "N/A"}). ¿Está dispuesto a asesorar?`,
+      leida: false,
+      creadoEn: new Date(),
+    });
+
+    revalidatePath("/admin/propuestas");
+    revalidatePath(`/admin/propuestas/${propuestaId}`);
+    revalidatePath("/asesor");
+    return { success: true, message: `Solicitud de asesoría enviada a ${asesor.nombre}.` };
+  } catch (error: any) {
+    console.error("Error al asignar asesor directo:", error);
+    return { success: false, error: "No se pudo enviar la solicitud al asesor." };
+  }
+}
+
 export async function eliminarPropuestaBorrador(propuestaId: number) {
   try {
     const session = await getSession();
-    if (!session || (session.rol !== "admin" && session.rol !== "decanato")) {
+    // Solo el superadministrador elimina propuestas (C3)
+    if (!session || session.rol !== "admin") {
       return { success: false, error: "No autorizado" };
     }
 

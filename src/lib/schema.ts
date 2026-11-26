@@ -250,6 +250,63 @@ export const bitacoraUsuarios = pgTable(
   (table) => [index("bitacora_usuarios_usuario_idx").on(table.usuarioId)]
 );
 
+// ─────────────────────────── Configuración de la cohorte (specs/CONFIGURACION_COHORTE.md, C1) ───────────────────────────
+// Script: scripts/crear_configuracion_cohorte.ts
+
+// Cómo se organiza cada facultad en una cohorte: quién la administra y cómo se coordina.
+export const cohorteFacultades = pgTable(
+  "cohorte_facultades",
+  {
+    id: serial("id").primaryKey(),
+    periodoId: integer("periodo_id").notNull().references(() => periodos.id, { onDelete: "cascade" }),
+    facultadId: integer("facultad_id").notNull().references(() => facultades.id, { onDelete: "cascade" }),
+    administracion: varchar("administracion", { length: 20 }).notNull().default("central"), // central | facultad
+    adminFacultadId: integer("admin_facultad_id").references(() => usuarios.id, { onDelete: "set null" }), // rol decanato
+    coordinacion: varchar("coordinacion", { length: 20 }).notNull().default("general"), // sin_coordinador | general | por_carrera
+    adminCoordina: boolean("admin_coordina").notNull().default(false), // el administrador de facultad es también coordinador
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("cohorte_facultades_unica").on(table.periodoId, table.facultadId),
+    check("cohorte_facultades_admin_check", sql`${table.administracion} IN ('central', 'facultad')`),
+    check("cohorte_facultades_coord_check", sql`${table.coordinacion} IN ('sin_coordinador', 'general', 'por_carrera')`),
+  ]
+);
+
+// Coordinadores y asesores que participan en una cohorte por facultad. carreras: ids que atiende (vacío = todas).
+export const cohorteParticipantes = pgTable(
+  "cohorte_participantes",
+  {
+    id: serial("id").primaryKey(),
+    periodoId: integer("periodo_id").notNull().references(() => periodos.id, { onDelete: "cascade" }),
+    facultadId: integer("facultad_id").notNull().references(() => facultades.id, { onDelete: "cascade" }),
+    usuarioId: integer("usuario_id").notNull().references(() => usuarios.id, { onDelete: "cascade" }),
+    funcion: varchar("funcion", { length: 20 }).notNull(), // coordinador | asesor
+    carreras: jsonb("carreras").notNull().default([]),
+    activo: boolean("activo").notNull().default(true),
+  },
+  (table) => [
+    unique("cohorte_participantes_unica").on(table.periodoId, table.facultadId, table.usuarioId, table.funcion),
+    check("cohorte_participantes_funcion_check", sql`${table.funcion} IN ('coordinador', 'asesor')`),
+    index("cohorte_participantes_periodo_idx").on(table.periodoId),
+  ]
+);
+
+// Bitácora de la configuración: qué cambió, quién, cuándo y, desde el inicio de la cohorte, la justificación.
+export const cohorteConfigBitacora = pgTable(
+  "cohorte_config_bitacora",
+  {
+    id: serial("id").primaryKey(),
+    periodoId: integer("periodo_id").notNull().references(() => periodos.id, { onDelete: "cascade" }),
+    facultadId: integer("facultad_id").references(() => facultades.id, { onDelete: "set null" }),
+    adminId: integer("admin_id").references(() => usuarios.id),
+    cambios: jsonb("cambios").notNull(), // string[]
+    justificacion: text("justificacion"),
+    fecha: timestamp("fecha", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("cohorte_config_bitacora_periodo_idx").on(table.periodoId)]
+);
+
 export const sucursales = pgTable("sucursales", {
   id: serial("id").primaryKey(),
   empresaId: integer("empresa_id")

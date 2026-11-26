@@ -10,6 +10,7 @@ import { NOMBRE_MODALIDAD } from "@/lib/estadisticasEmpresas";
 import { AYUDA_RESULTADO, NOMBRE_RESULTADO, conteoResultados, type FilaHistorial, type Resultado } from "@/lib/historialEmpresa";
 import { formatoNota } from "@/lib/valoraciones";
 import Nota from "@/components/valoraciones/Nota";
+import { fechaCortaSV } from "@/lib/fechasTexto";
 
 const CLASE_RESULTADO: Record<Resultado, string> = {
   en_curso: "bg-blue-50 text-blue-800 border-blue-200",
@@ -21,7 +22,8 @@ const CLASE_RESULTADO: Record<Resultado, string> = {
 const ORDEN_RESULTADOS: Resultado[] = ["satisfactorio", "no_satisfactorio", "concluido", "en_curso", "baja"];
 const claseSelect = "w-full px-3 py-2 rounded-lg border border-border bg-white text-sm focus:border-brand-red outline-none";
 
-const fechaCorta = (iso: string) => new Date(iso).toLocaleDateString("es-SV", { day: "2-digit", month: "short", year: "numeric" });
+// Mismo texto en servidor y navegador (evita errores de hidratación)
+const fechaCorta = fechaCortaSV;
 
 export default function TablaHistorial({ filas, empresa }: { filas: FilaHistorial[]; empresa: string }) {
   const [buscar, setBuscar] = useState("");

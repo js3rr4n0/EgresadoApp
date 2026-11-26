@@ -13,7 +13,7 @@ export default async function BitacoraEgresadoCoordinadorPage({
   searchParams: Promise<{ filtro?: string; pagina?: string }>;
 }) {
   const session = await getSession();
-  if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) redirect("/login");
+  if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) redirect("/login");
 
   const { propuestaId } = await params;
   const id = Number(propuestaId);

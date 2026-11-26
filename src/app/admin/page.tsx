@@ -1,11 +1,17 @@
 import { getSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { usuarios, facultades, carreras, propuestas } from "@/lib/schema";
-import { eq, count } from "drizzle-orm";
+import { and, eq, count } from "drizzle-orm";
+import { redirect } from "next/navigation";
+import { alcanceAdmin } from "@/lib/permisos";
 import DashboardCharts from "@/components/DashboardCharts";
 
 export default async function AdminDashboard() {
   const session = await getSession();
+  // Administrador de facultad (C3): los conteos son de su facultad
+  const alcance = await alcanceAdmin();
+  if (!session || !alcance) redirect("/login");
+  const deFacultad = alcance.superadmin ? undefined : eq(usuarios.facultadId, alcance.facultadId!);
 
   // Fecha actual en español
   const dateOptions: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -13,10 +19,10 @@ export default async function AdminDashboard() {
   const formattedDate = todayStr.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
   // Fetch real data
-  const [usuariosActivosRes] = await db.select({ count: count() }).from(usuarios).where(eq(usuarios.activo, true));
-  const [asesoresRes] = await db.select({ count: count() }).from(usuarios).where(eq(usuarios.rol, "asesor"));
-  const [facultadesRes] = await db.select({ count: count() }).from(facultades);
-  const [carrerasRes] = await db.select({ count: count() }).from(carreras);
+  const [usuariosActivosRes] = await db.select({ count: count() }).from(usuarios).where(and(eq(usuarios.activo, true), deFacultad));
+  const [asesoresRes] = await db.select({ count: count() }).from(usuarios).where(and(eq(usuarios.rol, "asesor"), deFacultad));
+  const [facultadesRes] = alcance.superadmin ? await db.select({ count: count() }).from(facultades) : [{ count: 1 }];
+  const [carrerasRes] = await db.select({ count: count() }).from(carreras).where(alcance.superadmin ? undefined : eq(carreras.facultadId, alcance.facultadId!));
 
   // Stats by state
   const propuestasRaw = await db
@@ -25,6 +31,8 @@ export default async function AdminDashboard() {
       count: count(),
     })
     .from(propuestas)
+    .innerJoin(usuarios, eq(usuarios.id, propuestas.egresadoId))
+    .where(deFacultad)
     .groupBy(propuestas.estado);
 
   // Normalizar los datos para los gráficos
@@ -57,7 +65,7 @@ export default async function AdminDashboard() {
     <div className="space-y-6">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-brand-red">
-          Panel de Administración
+          {alcance.superadmin ? "Panel de Administración" : `Administración de ${alcance.facultadNombre}`}
         </h1>
         <p className="text-muted text-sm mt-1 capitalize">
           Hoy Es {formattedDate}

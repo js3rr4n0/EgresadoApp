@@ -201,9 +201,16 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                   {asesores.map((a: any) => (
                     <option key={a.id} value={a.id}>
                       {a.nombreCompleto} ({a.correo})
+                      {typeof a.carga === "number" ? ` · ${a.carga} en curso o pendientes` : ""}
+                      {a.deLaCarrera ? " · de la carrera" : ""}
                     </option>
                   ))}
                 </select>
+                {asesores.length === 0 && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">
+                    No hay asesores habilitados para la carrera de esta propuesta en su cohorte. Pide a la administración que los configure.
+                  </p>
+                )}
               </div>
             </div>
 

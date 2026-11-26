@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/session";
+import { alcanceAdmin } from "@/lib/permisos";
 import { empresas, firmantes, organigramasEmpresa, sucursales, supervisores } from "@/lib/schema";
 import { leerProcesosEmpresas } from "@/lib/procesosEmpresas";
 import { calcularEstadisticas, compararRecientes, NOMBRE_MODALIDAD, type Modalidad } from "@/lib/estadisticasEmpresas";
@@ -152,8 +152,10 @@ export default async function DetalleEmpresaPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ vista?: string }>;
 }) {
-  const session = await getSession();
-  if (!session || session.rol !== "admin") redirect("/login");
+  // Administrador de facultad (C3): solo lectura (el catálogo lo edita el superadministrador)
+  const alcance = await alcanceAdmin();
+  if (!alcance) redirect("/login");
+  const editar = alcance.superadmin;
 
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
@@ -206,17 +208,21 @@ export default async function DetalleEmpresaPage({
             <p className="text-sm text-muted mt-1">{empresa.area || "Sin área especificada"}</p>
           </div>
           <div className="flex gap-2 shrink-0 flex-wrap">
-            <BotonEstadoEmpresa
-              empresa={{ id, nombre: empresa.nombre, habilitada: empresa.habilitada }}
-              reportes={vigentes.map(({ id: rid, fecha, origen, descripcion }) => ({ id: rid, fecha, origen, descripcion }))}
-              notas={valoracion ? { egresados: valoracion.egresados.promedio, asesores: valoracion.asesores.promedio, general: valoracion.general } : null}
-            />
+            {editar && (
+              <BotonEstadoEmpresa
+                empresa={{ id, nombre: empresa.nombre, habilitada: empresa.habilitada }}
+                reportes={vigentes.map(({ id: rid, fecha, origen, descripcion }) => ({ id: rid, fecha, origen, descripcion }))}
+                notas={valoracion ? { egresados: valoracion.egresados.promedio, asesores: valoracion.asesores.promedio, general: valoracion.general } : null}
+              />
+            )}
             <a href={`/admin/empresas/${id}/imprimir`} target="_blank" rel="noreferrer" className="px-4 py-2 rounded-xl border border-border bg-white text-sm font-bold text-gray-700 hover:border-brand-red hover:text-brand-red transition-colors">
               Descargar PDF
             </a>
-            <Link href={`/admin/empresas?editar=${id}`} className="px-4 py-2 rounded-xl bg-brand-red hover:bg-brand-red-hover text-white text-sm font-bold transition-colors">
-              Editar datos
-            </Link>
+            {editar && (
+              <Link href={`/admin/empresas?editar=${id}`} className="px-4 py-2 rounded-xl bg-brand-red hover:bg-brand-red-hover text-white text-sm font-bold transition-colors">
+                Editar datos
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -440,7 +446,7 @@ export default async function DetalleEmpresaPage({
 
       {vista === "reportes" && (
         <div className="space-y-6">
-          <Seccion titulo="Nuevo reporte en contra">
+          {editar && <Seccion titulo="Nuevo reporte en contra">
             <FormularioReporte
               empresaId={id}
               hoy={hoy}
@@ -449,7 +455,7 @@ export default async function DetalleEmpresaPage({
                 etiqueta: `${p.cohorte.nombre} · ${NOMBRE_MODALIDAD[p.tipo]} · ${p.egresados.map((e) => e.nombre).join(", ")}`,
               }))}
             />
-          </Seccion>
+          </Seccion>}
           <Seccion titulo="Reportes registrados" detalle={`${cuenta(vigentes.length, "vigente", "vigentes")} · ${cuenta(reportes.length - vigentes.length, "archivado", "archivados")}`}>
             {reportes.length === 0 ? (
               <p className="text-sm text-muted">No hay reportes en contra de esta empresa.</p>
@@ -479,7 +485,7 @@ export default async function DetalleEmpresaPage({
                             </AbrirArchivo>
                           )}
                         </div>
-                        {r.estado === "vigente" && <div className="shrink-0"><BotonArchivarReporte reporteId={r.id} /></div>}
+                        {editar && r.estado === "vigente" && <div className="shrink-0"><BotonArchivarReporte reporteId={r.id} /></div>}
                       </div>
                     </li>
                   );

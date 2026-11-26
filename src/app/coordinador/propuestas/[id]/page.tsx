@@ -27,7 +27,7 @@ export default async function CoordinadorPropuestaProgresoPage({
 
   const [res, asesoresRes] = await Promise.all([
     getDetallePropuestaCoordinador(pId),
-    getAsesoresFacultad(),
+    getAsesoresFacultad(pId),
   ]);
 
   if (!res || !res.success || !res.data) {

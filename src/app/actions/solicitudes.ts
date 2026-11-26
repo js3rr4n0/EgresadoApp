@@ -61,7 +61,8 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
         }).where(eq(propuestas.id, solicitud.propuestaId));
       }
 
-      revalidatePath("/admin/empresas/solicitudes");
+      revalidatePath("/admin/solicitudes");
+    revalidatePath("/admin", "layout");
       revalidatePath("/egresado");
       revalidatePath("/egresado/redactar");
       revalidatePath("/coordinador");
@@ -263,7 +264,8 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
     }
 
     revalidatePath("/admin/empresas");
-    revalidatePath("/admin/empresas/solicitudes");
+    revalidatePath("/admin/solicitudes");
+    revalidatePath("/admin", "layout");
     revalidatePath("/egresado");
     revalidatePath("/egresado/redactar");
     revalidatePath("/coordinador");
@@ -328,7 +330,8 @@ export async function rechazarSolicitudEmpresa(solicitudId: number, justificacio
     }
 
     revalidatePath("/admin/empresas");
-    revalidatePath("/admin/empresas/solicitudes");
+    revalidatePath("/admin/solicitudes");
+    revalidatePath("/admin", "layout");
     revalidatePath("/egresado");
     revalidatePath("/egresado/redactar");
     revalidatePath("/coordinador");

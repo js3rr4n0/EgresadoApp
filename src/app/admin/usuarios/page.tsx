@@ -3,8 +3,12 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { facultades } from "@/lib/schema";
 import UsuariosTable from "@/components/UsuariosTable";
+import { redirect } from "next/navigation";
+import { alcanceAdmin } from "@/lib/permisos";
 
 export default async function UsuariosPage() {
+  const alcance = await alcanceAdmin();
+  if (!alcance) redirect("/login");
   const result = await getUsuarios();
   const usuarios = result.success && result.data ? result.data : [];
   
@@ -27,7 +31,11 @@ export default async function UsuariosPage() {
         </Link>
       </div>
 
-      <UsuariosTable initialUsuarios={usuarios as any} facultades={facultiesList} />
+      <UsuariosTable
+        initialUsuarios={usuarios as any}
+        facultades={alcance.superadmin ? facultiesList : facultiesList.filter((f) => f.id === alcance.facultadId)}
+        superadmin={alcance.superadmin}
+      />
     </div>
   );
 }

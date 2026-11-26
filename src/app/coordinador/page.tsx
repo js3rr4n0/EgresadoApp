@@ -10,7 +10,7 @@ import CoordinadorDashboardClient from "@/components/coordinador/CoordinadorDash
 
 export default async function CoordinadorPage() {
   const session = await getSession();
-  if (!session || (session.rol !== "coordinador" && session.rol !== "admin")) {
+  if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
     redirect("/login");
   }
 

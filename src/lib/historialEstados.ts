@@ -21,6 +21,7 @@ const ESTADOS: Record<string, string> = {
 
 const EVENTOS: [string, string][] = [
   ["solicitud_asesor_enviada", "Solicitud de asesoría enviada al docente"],
+  ["asesor_solicitado_directo", "Asignación directa de asesor (facultad sin coordinador)"],
   ["asesor_asignado", "Asesor asignado"],
   ["asesor_acepto", "El asesor aceptó la asesoría"],
   ["asesor_rechazo", "El asesor rechazó la asesoría"],

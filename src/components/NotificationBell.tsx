@@ -34,18 +34,23 @@ export default function NotificationBell({ roleName }: NotificationBellProps) {
     setIsOpen(!isOpen);
   };
 
-  const handleMarkReadAndNavigate = async (id: number) => {
+  // Las solicitudes de empresa se revisan en Gestión de Empresas y las de corrección en Solicitudes
+  const destino = (tipo?: string) =>
+    tipo?.startsWith("solicitud_empresa") ? "/admin/empresas#solicitudes" : tipo === "solicitud_correccion_datos" ? "/admin/solicitudes" : null;
+
+  const handleMarkReadAndNavigate = async (id: number, tipo?: string) => {
     await marcarNotificacionLeida(id);
     loadNotifications();
-    if (isAdminOrDecan) {
+    const ruta = destino(tipo);
+    if (isAdminOrDecan && ruta) {
       setIsOpen(false);
-      router.push("/admin/empresas/solicitudes");
+      router.push(ruta);
     }
   };
 
   const handleGoToSolicitudes = () => {
     setIsOpen(false);
-    router.push("/admin/empresas/solicitudes");
+    router.push("/admin/empresas#solicitudes");
   };
 
   const badgeDisplayCount = isAdminOrDecan ? (pendingCount > 0 ? pendingCount : unreadCount) : unreadCount;
@@ -117,7 +122,7 @@ export default function NotificationBell({ roleName }: NotificationBellProps) {
                 return (
                   <div
                     key={n.id}
-                    onClick={() => handleMarkReadAndNavigate(n.id)}
+                    onClick={() => handleMarkReadAndNavigate(n.id, n.tipo)}
                     className={`p-4 text-xs cursor-pointer transition-all ${
                       !n.leida ? "bg-amber-50/70 border-l-4 border-l-amber-500" : "hover:bg-slate-50 text-slate-600"
                     }`}

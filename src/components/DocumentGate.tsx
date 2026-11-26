@@ -70,14 +70,14 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
     },
     {
       id: "certificacion_notas",
-      title: "Hoja de notas",
-      desc: "Historial académico que compruebe el CUM requerido para el trabajo de graduación.",
+      title: "Certificación global de notas",
+      desc: "Si Registro Académico ya te entregó la certificación global de notas, súbela; si aún no te la entrega, sube el recibo de pago correspondiente.",
       done: hasNotas,
       url: urlNotas,
     },
     {
       id: "pago_tg",
-      title: "Hoja de inscripción del trabajo de graduación",
+      title: "Comprobante de inscripción del trabajo de graduación",
       desc: "Documento oficial de inscripción al proceso de graduación.",
       done: hasPago,
       url: urlPago,
@@ -213,12 +213,13 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
               </div>
               <div>
-                <h3 className={`font-bold ${totalDone === 3 ? 'text-emerald-900' : 'text-card-dark'}`}>Crea tu Propuesta</h3>
-                <p className={`text-sm mt-1 ${totalDone === 3 ? 'text-emerald-700/80' : 'text-muted'}`}>
-                  {totalDone === 3 
-                    ? "Ya has completado la subida de los tres documentos obligatorios." 
-                    : "Puedes crear tu propuesta ahora, pero deberás subir los tres archivos para poder enviarla a revisión."}
+                <h3 className={`font-bold ${totalDone === 3 ? 'text-emerald-900' : 'text-card-dark'}`}>Crea tu propuesta de trabajo de graduación</h3>
+                <p className={`text-sm mt-1 ${totalDone === 3 ? 'text-emerald-800' : 'text-gray-700'}`}>
+                  Podrás crear 3 propuestas distintas y enviar la que mejor te convenga.
                 </p>
+                {totalDone < 3 && (
+                  <p className="text-xs mt-1 text-muted">Para enviarla a revisión necesitas subir los tres documentos obligatorios.</p>
+                )}
               </div>
             </div>
             
@@ -352,7 +353,7 @@ export default function DocumentGate({ hasServicio, hasNotas, hasPago, urlServic
                 ) : (
                   <>
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                    Elegir y Rellenar propuesta
+                    Elegir y redactar propuesta
                   </>
                 )}
               </button>

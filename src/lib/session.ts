@@ -97,7 +97,7 @@ export async function deleteSession(): Promise<void> {
 export function getDashboardPath(rol: UserRole): string {
   const paths: Record<UserRole, string> = {
     admin: "/admin",
-    decanato: "/decanato",
+    decanato: "/admin", // administrador de facultad (C3)
     coordinador: "/coordinador",
     asesor: "/asesor",
     egresado: "/egresado",

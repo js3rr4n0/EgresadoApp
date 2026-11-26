@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { toggleUserStatus, eliminarUsuario } from "@/app/actions/usuarios";
+import { NOMBRE_ROL } from "@/lib/rolesNombres";
 
 type Usuario = {
   id: number;
@@ -21,9 +22,12 @@ type Usuario = {
 interface UsuariosTableProps {
   initialUsuarios: Usuario[];
   facultades: { id: number; nombre: string }[];
+  /** Administrador de facultad (C3): no elimina y solo edita coordinadores y asesores. */
+  superadmin?: boolean;
 }
 
-export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosTableProps) {
+export default function UsuariosTable({ initialUsuarios, facultades, superadmin = true }: UsuariosTableProps) {
+  const editable = (rol: string) => superadmin || rol === "coordinador" || rol === "asesor";
   const [usuarios, setUsuarios] = useState<Usuario[]>(initialUsuarios);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("Todos los Roles");
@@ -154,11 +158,9 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
             className="px-3 py-1.5 rounded-full border border-border text-xs text-foreground focus:outline-none bg-white min-w-[110px]"
           >
             <option>Todos los Roles</option>
-            <option value="admin">admin</option>
-            <option value="decanato">decanato</option>
-            <option value="asesor">asesor</option>
-            <option value="coordinador">coordinador</option>
-            <option value="egresado">egresado</option>
+            {(superadmin ? ["admin", "decanato", "coordinador", "asesor", "egresado"] : ["coordinador", "asesor", "egresado"]).map((r) => (
+              <option key={r} value={r}>{NOMBRE_ROL[r]}</option>
+            ))}
           </select>
           <select
             value={statusFilter}
@@ -231,7 +233,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                   </td>
                   <td className="px-3 py-2.5">
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200 uppercase tracking-wider inline-block">
-                      {user.rol}
+                      {NOMBRE_ROL[user.rol] ?? user.rol}
                     </span>
                   </td>
                   <td className="px-3 py-2.5 max-w-[130px]">
@@ -261,7 +263,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                   </td>
                   <td className="px-2 py-2.5 text-center">
                     <button
-                      onClick={() => handleToggle(user)}
+                      onClick={() => editable(user.rol) && handleToggle(user)}
                       disabled={togglingId === user.id}
                       className={`inline-flex items-center transition-opacity ${togglingId === user.id ? "opacity-50" : "hover:opacity-80"}`}
                       title={user.activo ? "Click para Desactivar" : "Click para Activar"}
@@ -292,7 +294,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                   </td>
                   <td className="px-3 py-2.5 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Link
+                      {editable(user.rol) && <Link
                         href={`/admin/usuarios/${user.id}/editar`}
                         className="p-1 text-slate-400 hover:text-slate-800 transition-colors rounded-md hover:bg-slate-100"
                         title="Editar"
@@ -300,8 +302,8 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                         </svg>
-                      </Link>
-                      <button
+                      </Link>}
+                      {superadmin && <button
                         onClick={() => handleDelete(user)}
                         disabled={deletingId === user.id}
                         className={`p-1 text-slate-400 hover:text-brand-red transition-colors rounded-md hover:bg-red-50 ${deletingId === user.id ? "opacity-50" : ""}`}
@@ -310,7 +312,7 @@ export default function UsuariosTable({ initialUsuarios, facultades }: UsuariosT
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
-                      </button>
+                      </button>}
                     </div>
                   </td>
                 </tr>

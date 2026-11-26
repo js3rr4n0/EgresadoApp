@@ -4,8 +4,13 @@ import { periodos, facultades } from "@/lib/schema";
 import { desc } from "drizzle-orm";
 import UserForm from "@/components/UserForm";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { alcanceAdmin } from "@/lib/permisos";
 
 export default async function NuevoUsuarioPage() {
+  // Administrador de facultad (C3): crea coordinadores y asesores de su facultad
+  const alcance = await alcanceAdmin();
+  if (!alcance) redirect("/login");
   const [res, periodosData, facultadesData] = await Promise.all([
     getCarreras(),
     db.select({ id: periodos.id, nombre: periodos.nombre, activo: periodos.activo })
@@ -30,7 +35,12 @@ export default async function NuevoUsuarioPage() {
         <h1 className="text-2xl font-bold text-card-dark">Crear Usuario</h1>
       </div>
 
-      <UserForm carreras={carreras} periodos={periodosData} facultades={facultadesData} />
+      <UserForm
+        carreras={carreras}
+        periodos={periodosData}
+        facultades={alcance.superadmin ? facultadesData : facultadesData.filter((f) => f.id === alcance.facultadId)}
+        rolesPermitidos={alcance.superadmin ? undefined : ["coordinador", "asesor"]}
+      />
     </div>
   );
 }

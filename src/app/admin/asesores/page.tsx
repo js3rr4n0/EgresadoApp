@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/session";
+import { alcanceAdmin } from "@/lib/permisos";
 import { leerAsesores } from "@/lib/asesoresServidor";
 import TablaAsesores from "@/components/asesores/TablaAsesores";
 
@@ -7,9 +7,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Asesores | Admin" };
 
 export default async function AsesoresAdminPage() {
-  const session = await getSession();
-  if (!session || session.rol !== "admin") redirect("/login");
-  const { filas, carreras } = await leerAsesores();
+  // Administrador de facultad (C3): los asesores de su facultad
+  const alcance = await alcanceAdmin();
+  if (!alcance) redirect("/login");
+  const { filas, carreras } = await leerAsesores(undefined, alcance.facultadId);
 
   return (
     <div className="space-y-6">

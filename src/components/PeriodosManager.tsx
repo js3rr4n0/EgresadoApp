@@ -200,6 +200,13 @@ export default function PeriodosManager({ initialPeriodos }: { initialPeriodos: 
                   <span className="text-gray-500 font-medium">Fin Periodo Técnico:</span>
                   <span className="font-bold text-gray-700">{p.maxAprobacionFinal}</span>
                 </div>
+                {/* Configuración de la cohorte (CONFIGURACION_COHORTE.md, entrega C1) */}
+                <a
+                  href={`/admin/periodos/${p.id}/configuracion`}
+                  className="mt-2 flex items-center justify-center gap-2 w-full px-3 py-2 rounded-lg border border-brand-red/30 text-brand-red text-sm font-bold hover:bg-brand-red hover:text-white transition-colors"
+                >
+                  Configurar participantes
+                </a>
               </div>
 
               <div className="mt-6 pt-4 border-t border-gray-100 flex items-center justify-between z-10 relative">

@@ -6,7 +6,7 @@
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { getSession } from "@/lib/session";
+import { alcanceAdmin, usuarioEnAlcance } from "@/lib/permisos";
 import { bitacoraUsuarios, usuarios } from "@/lib/schema";
 import { MINIMO_MOTIVO } from "@/lib/bitacoraEmpresa";
 
@@ -14,8 +14,10 @@ type Resultado = { success: true } | { success: false; error: string };
 
 export async function cambiarEstadoAsesor(asesorId: number, activar: boolean, motivo: string): Promise<Resultado> {
   try {
-    const s = await getSession();
-    if (!s || s.rol !== "admin") return { success: false, error: "No autorizado." };
+    // Superadministrador o administrador de facultad con asesores de su facultad (C3)
+    const alcance = await alcanceAdmin();
+    if (!alcance || !(await usuarioEnAlcance(alcance, asesorId))) return { success: false, error: "No autorizado." };
+    const s = alcance.session;
 
     const texto = (motivo ?? "").trim();
     if (texto.length < MINIMO_MOTIVO) {

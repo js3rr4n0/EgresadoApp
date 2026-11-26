@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "./LogoutButton";
+import { adminFacultadPuedeAbrir } from "@/lib/rolesNombres";
 
 const navItems = [
   { label: "Dashboard", href: "/admin", icon: (
@@ -23,13 +24,13 @@ const navItems = [
   { label: "Fechas y Periodos", href: "/admin/periodos", icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
   ) },
-  { label: "Catálogo de Empresas", href: "/admin/empresas", icon: (
+  { label: "Gestión de Empresas", href: "/admin/empresas", icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
   ) },
   { label: "Propuestas", href: "/admin/propuestas", icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
   ) },
-  { label: "Solicitudes", href: "/admin/empresas/solicitudes", icon: (
+  { label: "Solicitudes", href: "/admin/solicitudes", icon: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
   ) },
   { label: "Editar Bloques Propuestas", href: "/admin/bloques-propuestas", icon: (
@@ -46,8 +47,17 @@ const navItems = [
   ) },
 ];
 
-export default function AdminSidebar() {
+export default function AdminSidebar({
+  superadmin = true,
+  contadores = {},
+}: {
+  superadmin?: boolean;
+  /** Pendientes por sección (ruta → cantidad): se muestran junto al nombre para avisar qué hay que atender. */
+  contadores?: Record<string, number>;
+}) {
   const pathname = usePathname();
+  // Administrador de facultad (C3): solo las secciones que su rol permite, más la vista de coordinador
+  const visibles = superadmin ? navItems : navItems.filter((i) => i.href === "/coordinador" || adminFacultadPuedeAbrir(i.href));
 
   return (
     <aside className="w-full lg:w-[280px] shrink-0 bg-[#CC292B] lg:min-h-screen text-white flex flex-col lg:fixed lg:left-0 lg:top-0 lg:bottom-0 z-50 print:hidden">
@@ -68,8 +78,10 @@ export default function AdminSidebar() {
       </div>
 
       <nav className="flex-1 px-4 pb-2 lg:py-4 lg:space-y-2 flex lg:flex-col overflow-x-auto gap-2 lg:gap-0 no-scrollbar">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href !== '/admin' && pathname.startsWith(item.href));
+        {visibles.map((item) => {
+          // Solo la sección más específica
+          const coincide = (href: string) => pathname === href || (href !== '/admin' && pathname.startsWith(href + "/"));
+          const isActive = coincide(item.href) && !visibles.some((o) => o.href.length > item.href.length && coincide(o.href));
           return (
             <Link
               key={item.href}
@@ -81,7 +93,15 @@ export default function AdminSidebar() {
               }`}
             >
               {item.icon}
-              {item.label}
+              <span className="flex-1">{item.label}</span>
+              {(contadores[item.href] ?? 0) > 0 && (
+                <span
+                  className={`min-w-[22px] h-[22px] px-1.5 rounded-full text-[11px] font-bold flex items-center justify-center ${isActive ? "bg-white text-brand-red" : "bg-white/90 text-brand-red"}`}
+                  title={`${contadores[item.href]} pendientes`}
+                >
+                  {contadores[item.href] > 99 ? "99+" : contadores[item.href]}
+                </span>
+              )}
             </Link>
           );
         })}

@@ -316,7 +316,8 @@ export async function solicitarRevisionEmpresa(propuestaId: number, data: any, m
     }
 
     revalidatePath("/egresado/redactar");
-    revalidatePath("/admin/empresas/solicitudes");
+    revalidatePath("/admin/solicitudes");
+    revalidatePath("/admin", "layout");
     return { success: true };
   } catch (error: any) {
     console.error("Error soliciting revision:", error);
@@ -376,7 +377,7 @@ export async function enviarPropuesta(id: number) {
     const hasPago = docs.some(d => d.tipo === "pago_tg");
 
     if (!hasServicio || !hasNotas || !hasPago) {
-      return { success: false, error: "Para enviar la propuesta debes subir los tres documentos obligatorios: hoja de inscripción, constancia de servicio social y hoja de notas." };
+      return { success: false, error: "Para enviar la propuesta debes subir los tres documentos obligatorios: comprobante de inscripción del trabajo de graduación, constancia de servicio social y certificación global de notas." };
     }
   }
 
@@ -537,7 +538,8 @@ export async function solicitarCorreccionDatosDecanato(formData: FormData) {
     }
 
     revalidatePath("/egresado/redactar");
-    revalidatePath("/admin/empresas/solicitudes");
+    revalidatePath("/admin/solicitudes");
+    revalidatePath("/admin", "layout");
     return { success: true, message: "Solicitud enviada exitosamente para su revisión por las autoridades." };
   } catch (error: any) {
     console.error("Error al solicitar corrección de datos:", error);

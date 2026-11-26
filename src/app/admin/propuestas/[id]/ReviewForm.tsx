@@ -1,294 +1,314 @@
 "use client";
 
-import { useState } from "react";
-import { asignarPropuestaACoordinador, eliminarPropuestaBorrador } from "@/app/actions/adminPropuestas";
+// Gestión de la propuesta del superadministrador. Entrega C2 (specs/CONFIGURACION_COHORTE.md): la asignación sigue la
+// configuración de la cohorte. Muestra solo los coordinadores permitidos para la carrera del egresado y, si la facultad
+// trabaja sin coordinador, la asignación directa de asesor.
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { asignarAsesorDirecto, asignarPropuestaACoordinador, eliminarPropuestaBorrador } from "@/app/actions/adminPropuestas";
+import type { OpcionAsesor } from "@/lib/asignacionServidor";
+
+interface Coordinador {
+  id: number;
+  nombreCompleto: string;
+  correo: string;
+  rol: string;
+  facultadNombre: string;
+  proyectosAsignadosCount: number;
+  proyectosEmpresaCount: number;
+  proyectosDetalle: { id: number; numero: number; titulo: string; tipo: string; estado: string; empresaNombre: string | null }[];
+}
+
+interface Regla {
+  cohorte: string;
+  periodoId: number;
+  facultad: string | null;
+  carrera: string | null;
+  configurada: boolean;
+  texto: string;
+  sinCoordinador: boolean;
+  adminFacultadId: number | null;
+}
+
+interface Solicitud {
+  estado: string;
+  asesor: string;
+  justificacion: string | null;
+  creadaEn: string | null;
+  respondidoEn: string | null;
+}
+
+const ESTADOS: Record<string, { texto: string; clase: string }> = {
+  borrador: { texto: "En borrador (no enviada)", clase: "bg-slate-100 text-slate-700 border-slate-300" },
+  redactando: { texto: "En borrador (no enviada)", clase: "bg-slate-100 text-slate-700 border-slate-300" },
+  enviada: { texto: "Pendiente de asignación", clase: "bg-blue-50 text-blue-800 border-blue-200" },
+  coordinador_asignado: { texto: "Coordinador asignado", clase: "bg-red-50 text-brand-red border-brand-red/30" },
+  aprobada: { texto: "Aprobada por el asesor", clase: "bg-green-100 text-green-800 border-green-200" },
+  primer_contacto_completado: { texto: "Primer contacto completado", clase: "bg-green-100 text-green-800 border-green-200" },
+  en_ejecucion: { texto: "En ejecución", clase: "bg-green-100 text-green-900 border-green-300" },
+  rechazada: { texto: "Rechazada", clase: "bg-red-100 text-red-800 border-red-200" },
+};
+
+const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" }) : "");
 
 export default function ReviewForm({
   propuestaId,
   estadoActual,
   coordinadores = [],
   initialCoordinadorId,
-  initialObservaciones,
+  regla,
+  asesoresDirecto = [],
+  ultimaSolicitud,
+  tieneAsesor,
+  puedeAsignar = true,
+  superadmin = true,
 }: {
   propuestaId: number;
   estadoActual: string;
-  coordinadores?: any[];
+  coordinadores?: Coordinador[];
   initialCoordinadorId?: number | null;
-  initialObservaciones: string | null;
+  initialObservaciones?: string | null;
+  regla: Regla | null;
+  asesoresDirecto?: OpcionAsesor[];
+  ultimaSolicitud: Solicitud | null;
+  tieneAsesor: boolean;
+  /** Administrador de facultad sin permiso de asignar en esta cohorte (administración central). */
+  puedeAsignar?: boolean;
+  superadmin?: boolean;
 }) {
   const router = useRouter();
-  const [coordinadorId, setCoordinadorId] = useState<number | string>(initialCoordinadorId || "");
+  const unico = regla?.configurada && coordinadores.length === 1 ? coordinadores[0].id : null;
+  const [coordinadorId, setCoordinadorId] = useState<number | null>(initialCoordinadorId ?? unico);
+  const [asesorId, setAsesorId] = useState<number | null>(null);
+  const [buscar, setBuscar] = useState("");
+  const [detalle, setDetalle] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [message, setMessage] = useState("");
-  const [coordSearch, setCoordSearch] = useState("");
+  const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
 
-  const [showProjectsList, setShowProjectsList] = useState(false);
+  const estado = ESTADOS[estadoActual] ?? ESTADOS.enviada;
+  const enEspera = ["enviada", "coordinador_asignado"].includes(estadoActual);
+  const directo = !!regla?.sinCoordinador;
 
-  const selectedCoordObj = coordinadores.find((c) => String(c.id) === coordinadorId);
+  const filtrados = useMemo(() => {
+    const q = buscar.trim().toLowerCase();
+    return coordinadores.filter((c) => !q || c.nombreCompleto.toLowerCase().includes(q) || c.correo.toLowerCase().includes(q) || c.facultadNombre.toLowerCase().includes(q));
+  }, [coordinadores, buscar]);
+  const asesoresFiltrados = useMemo(() => {
+    const q = buscar.trim().toLowerCase();
+    return asesoresDirecto.filter((a) => !q || a.nombre.toLowerCase().includes(q) || a.correo.toLowerCase().includes(q));
+  }, [asesoresDirecto, buscar]);
 
-  const filteredCoordinadores = coordinadores.filter((c) => {
-    if (!coordSearch.trim()) return true;
-    const q = coordSearch.toLowerCase();
-    return (
-      c.nombreCompleto?.toLowerCase().includes(q) ||
-      c.correo?.toLowerCase().includes(q) ||
-      c.facultadNombre?.toLowerCase().includes(q)
-    );
-  });
-
-  const handleAssignCoordinatorSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!coordinadorId) {
-      alert("Por favor seleccione un coordinador de facultad.");
-      return;
-    }
+  const asignarCoordinador = async () => {
+    if (!coordinadorId) return;
     setLoading(true);
-    setMessage("");
-
-    const res = await asignarPropuestaACoordinador(propuestaId, Number(coordinadorId));
+    setMensaje(null);
+    const res = await asignarPropuestaACoordinador(propuestaId, coordinadorId);
     setLoading(false);
-
-    if (res.success) {
-      setMessage("¡Propuesta asignada al coordinador exitosamente!");
-      setTimeout(() => {
-        router.refresh();
-      }, 1000);
-    } else {
-      setMessage("Error: " + res.error);
-    }
+    setMensaje(res.success ? { ok: true, texto: "Propuesta asignada al coordinador." } : { ok: false, texto: res.error ?? "No se pudo asignar." });
+    if (res.success) router.refresh();
   };
 
-  const handleDeletePropuesta = async () => {
-    const confirmMsg = "¿Estás seguro de eliminar definitivamente esta propuesta? Se eliminarán todos sus datos y serás redirigido al listado de propuestas.";
-    if (!window.confirm(confirmMsg)) return;
+  const solicitarAsesor = async () => {
+    if (!asesorId) return;
+    setLoading(true);
+    setMensaje(null);
+    const res = await asignarAsesorDirecto(propuestaId, asesorId);
+    setLoading(false);
+    setMensaje(res.success ? { ok: true, texto: res.message ?? "Solicitud enviada." } : { ok: false, texto: res.error ?? "No se pudo enviar." });
+    if (res.success) { setAsesorId(null); router.refresh(); }
+  };
 
+  const eliminar = async () => {
+    if (!window.confirm("¿Eliminar definitivamente esta propuesta? Se borrarán todos sus datos.")) return;
     setDeleting(true);
     const res = await eliminarPropuestaBorrador(propuestaId);
     setDeleting(false);
-
     if (res.success) {
-      alert(res.message);
       router.push("/admin/propuestas");
       router.refresh();
-    } else {
-      alert(res.error || "Error al eliminar propuesta.");
-    }
-  };
-
-  const getBadgeStyle = () => {
-    switch (estadoActual) {
-      case "borrador":
-      case "redactando":
-        return "bg-slate-100 text-slate-800 border-slate-300";
-      case "coordinador_asignado":
-        return "bg-purple-100 text-purple-900 border-purple-300 font-extrabold";
-      case "en_ejecucion":
-        return "bg-emerald-100 text-emerald-950 border-emerald-400 font-black";
-      case "aprobada":
-        return "bg-emerald-100 text-emerald-800 border-emerald-300";
-      case "primer_contacto_completado":
-        return "bg-teal-100 text-teal-900 border-teal-300 font-extrabold";
-      case "rechazada":
-        return "bg-rose-100 text-rose-800 border-rose-300";
-      default:
-        return "bg-blue-100 text-blue-900 border-blue-300";
-    }
-  };
-
-  const getBadgeText = () => {
-    switch (estadoActual) {
-      case "borrador":
-      case "redactando":
-        return "En Borrador (No Enviada)";
-      case "coordinador_asignado":
-        return "Coordinador Asignado";
-      case "en_ejecucion":
-        return "🚀 En Ejecución";
-      case "aprobada":
-        return "Aprobada por Asesor";
-      case "primer_contacto_completado":
-        return "Primer Contacto Completado";
-      case "rechazada":
-        return "Rechazada";
-      default:
-        return "Pendiente de Revisión";
-    }
+    } else alert(res.error || "No se pudo eliminar la propuesta.");
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sticky top-8 space-y-6">
-      <div className="border-b border-slate-200 pb-4 space-y-2">
-        <h2 className="text-xl font-extrabold text-slate-900 uppercase tracking-wider">
-          Gestión de la Propuesta
-        </h2>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 font-bold">Estado actual:</span>
-          <span className={`px-2.5 py-1 rounded-full text-xs font-extrabold border ${getBadgeStyle()}`}>
-            {getBadgeText()}
-          </span>
-        </div>
+    <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden sticky top-8">
+      <div className="px-5 py-4 bg-brand-red text-white">
+        <h2 className="font-bold text-lg">Gestión de la propuesta</h2>
+        <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-md text-xs font-bold border bg-white ${estado.clase}`}>{estado.texto}</span>
       </div>
 
-      <form onSubmit={handleAssignCoordinatorSubmit} className="space-y-4">
-        {/* Sección de Asignación de Coordinador con Búsqueda y Autocompletado */}
-        <div className="space-y-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
-          <label className="block text-xs font-bold text-indigo-950 uppercase">
-            Seleccionar Coordinador de Facultad / Admin
-          </label>
-
-          <input
-            type="text"
-            placeholder="Buscar coordinador por nombre o facultad..."
-            value={coordSearch}
-            onChange={(e) => setCoordSearch(e.target.value)}
-            className="w-full px-3.5 py-2 text-xs border border-indigo-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-
-          <select
-            value={coordinadorId}
-            onChange={(e) => {
-              setCoordinadorId(e.target.value);
-              setShowProjectsList(false);
-            }}
-            required
-            className="w-full px-4 py-2.5 rounded-xl border border-indigo-300 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-slate-900 font-medium text-sm"
-          >
-            <option value="">-- Elige un Coordinador o Administrador --</option>
-            {filteredCoordinadores.map((c) => {
-              const hasCompanyExp = (c.proyectosEmpresaCount ?? 0) > 0;
-              const isAdminRole = c.rol === "admin";
-              return (
-                <option key={c.id} value={c.id}>
-                  {hasCompanyExp ? "⭐ [Prioritario] " : ""}
-                  {isAdminRole ? "🛡️ [ADMIN] " : ""}
-                  {c.nombreCompleto} ({c.facultadNombre || "General"})
-                  {hasCompanyExp ? ` — Trabaja con esta empresa (${c.proyectosEmpresaCount} previas)` : ""}
-                </option>
-              );
-            })}
-          </select>
-
-          {/* Coordinador Info Box: Facultad & Proyectos Asignados */}
-          {selectedCoordObj && (
-            <div className="bg-white p-3.5 rounded-xl border border-indigo-200 space-y-2 text-xs text-slate-700 shadow-2xs">
-              <p className="font-extrabold text-indigo-950 text-sm flex items-center justify-between">
-                <span className="flex items-center gap-1.5">
-                  {selectedCoordObj.nombreCompleto}
-                  {selectedCoordObj.rol === "admin" && (
-                    <span className="text-[10px] bg-purple-100 text-purple-900 border border-purple-200 px-1.5 py-0.2 rounded font-extrabold">
-                      ADMIN
-                    </span>
-                  )}
-                </span>
-                {selectedCoordObj.proyectosEmpresaCount > 0 && (
-                  <span className="text-[10px] bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full font-bold">
-                    ⭐ Trabaja con esta empresa
-                  </span>
-                )}
-              </p>
-              <p className="flex items-center justify-between">
-                <span className="font-semibold text-slate-500">Facultad:</span>
-                <span className="font-bold text-slate-800">{selectedCoordObj.facultadNombre}</span>
-              </p>
-              <div className="flex items-center justify-between pt-1 border-t border-slate-100">
-                <span className="font-semibold text-slate-500">Proyectos Activos:</span>
-                <button
-                  type="button"
-                  onClick={() => setShowProjectsList(!showProjectsList)}
-                  className="font-extrabold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
-                  title="Clic para ver detalle de proyectos y empresas"
-                >
-                  <span>{selectedCoordObj.proyectosAsignadosCount ?? 0} asignados</span>
-                  <span className="text-[10px]">{showProjectsList ? "▲" : "▼"}</span>
-                </button>
-              </div>
-
-              {/* Projects Breakdown List */}
-              {showProjectsList && (
-                <div className="mt-2 pt-2 border-t border-indigo-100 space-y-2">
-                  <p className="font-bold text-[11px] text-indigo-950 uppercase tracking-wider flex items-center justify-between">
-                    <span>Proyectos y Empresas Actuales</span>
-                    <span className="text-[10px] font-normal text-slate-500">({selectedCoordObj.proyectosDetalle?.length || 0})</span>
-                  </p>
-                  {selectedCoordObj.proyectosDetalle && selectedCoordObj.proyectosDetalle.length > 0 ? (
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                      {selectedCoordObj.proyectosDetalle.map((p: any) => (
-                        <div key={p.id} className="p-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] flex flex-col gap-1">
-                          <div className="flex items-center justify-between font-bold text-slate-900">
-                            <span>Propuesta #{p.numero} ({p.tipo})</span>
-                            <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 font-extrabold">
-                              {p.estado}
-                            </span>
-                          </div>
-                          <p className="text-slate-700 font-medium line-clamp-1">{p.titulo}</p>
-                          {p.empresaNombre ? (
-                            <p className="text-amber-900 font-bold text-[10px] flex items-center gap-1 bg-amber-50 p-1 rounded border border-amber-200/60">
-                              <span>🏢 Empresa:</span> {p.empresaNombre}
-                            </p>
-                          ) : (
-                            <p className="text-slate-400 italic text-[10px]">Sin empresa registrada</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-slate-500 italic text-[11px] text-center p-2 bg-slate-50 rounded border border-dashed border-slate-200">
-                      No tiene proyectos asignados actualmente.
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {selectedCoordObj.proyectosEmpresaCount > 0 && (
-                <p className="flex items-center justify-between pt-1 border-t border-indigo-100 text-amber-800 font-bold">
-                  <span>Experiencia en esta empresa:</span>
-                  <span>{selectedCoordObj.proyectosEmpresaCount} propuesta(s)</span>
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {message && (
-          <div className={`p-3 rounded-xl text-xs font-bold ${message.startsWith("Error") ? "bg-rose-100 text-rose-800" : "bg-emerald-100 text-emerald-800"}`}>
-            {message}
+      <div className="p-5 space-y-5">
+        {/* Regla que se aplica según la configuración de la cohorte */}
+        {regla && (
+          <div className={`rounded-xl border p-3 text-sm space-y-1 ${regla.configurada ? "border-border bg-gray-50" : "border-amber-300 bg-amber-50"}`}>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Regla de asignación</p>
+            <p className="text-xs text-gray-600">
+              {regla.cohorte} · {regla.facultad ?? "Sin facultad"} · {regla.carrera ?? "Sin carrera"}
+            </p>
+            <p className={`font-semibold ${regla.configurada ? "text-gray-800" : "text-amber-900"}`}>{regla.texto}</p>
+            {!regla.configurada && (
+              <Link href={`/admin/periodos/${regla.periodoId}/configuracion`} className="inline-block text-xs font-bold text-brand-red hover:underline">
+                Configurar la cohorte
+              </Link>
+            )}
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={loading || !coordinadorId}
-          className="w-full py-3.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-extrabold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
-        >
-          {loading ? (
-            <span>Procesando...</span>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <span>{estadoActual === "coordinador_asignado" ? "Reasignar Coordinador" : "Asignar a Coordinador"}</span>
-            </>
-          )}
-        </button>
-      </form>
+        {/* Estado de la solicitud de asesoría */}
+        {ultimaSolicitud && (
+          <div className="rounded-xl border border-border p-3 text-sm">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted mb-1">Solicitud de asesoría</p>
+            <p className="text-gray-800">
+              <span className="font-semibold">{ultimaSolicitud.asesor}</span>{" "}
+              <span className={`ml-1 px-1.5 py-px rounded text-[11px] font-bold ${ultimaSolicitud.estado === "aceptada" ? "bg-green-100 text-green-800" : ultimaSolicitud.estado === "rechazada" ? "bg-red-100 text-red-800" : "bg-amber-100 text-amber-800"}`}>
+                {ultimaSolicitud.estado === "aceptada" ? "Aceptó" : ultimaSolicitud.estado === "rechazada" ? "Rechazó" : "Pendiente de respuesta"}
+              </span>
+            </p>
+            <p className="text-xs text-muted mt-0.5">Enviada el {fecha(ultimaSolicitud.creadaEn)}{ultimaSolicitud.respondidoEn ? ` · respondida el ${fecha(ultimaSolicitud.respondidoEn)}` : ""}</p>
+            {ultimaSolicitud.justificacion && <p className="text-xs text-gray-700 mt-1">Motivo: {ultimaSolicitud.justificacion}</p>}
+          </div>
+        )}
 
-      {/* Botón de Eliminar Definitivamente (Acción dentro del panel de revisión) */}
-      <div className="pt-4 border-t border-slate-200 space-y-2">
-        <label className="block text-xs font-bold text-slate-500 uppercase">Acción Administrativa Especial</label>
-        <button
-          type="button"
-          onClick={handleDeletePropuesta}
-          disabled={deleting}
-          className="w-full py-3 px-4 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center justify-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          <span>{deleting ? "Eliminando propuesta..." : "Eliminar Propuesta Definitivamente"}</span>
-        </button>
+        {enEspera && !tieneAsesor && !puedeAsignar && (
+          <p className="text-sm text-gray-700 bg-gray-50 border border-border rounded-lg p-3">
+            En esta cohorte la facultad tiene administración central: la asignación la hace el superadministrador.
+          </p>
+        )}
+
+        {enEspera && !tieneAsesor && puedeAsignar && (
+          <div className="space-y-3">
+            <div className="flex items-baseline justify-between">
+              <p className="text-sm font-bold text-gray-800">{directo ? "Asignación directa de asesor" : "Asignar coordinador"}</p>
+              <span className="text-xs text-muted">{directo ? asesoresDirecto.length : coordinadores.length} disponibles</span>
+            </div>
+            {(directo ? asesoresDirecto.length : coordinadores.length) > 5 && (
+              <input
+                type="text"
+                value={buscar}
+                onChange={(e) => setBuscar(e.target.value)}
+                placeholder="Buscar por nombre o correo..."
+                className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none"
+              />
+            )}
+
+            {directo ? (
+              asesoresDirecto.length === 0 ? (
+                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  No hay asesores habilitados para esta carrera en la cohorte. Agrégalos en la configuración de la cohorte.
+                </p>
+              ) : (
+                <ul className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {asesoresFiltrados.map((a) => (
+                    <li key={a.id}>
+                      <button
+                        type="button"
+                        onClick={() => setAsesorId(a.id)}
+                        className={`w-full text-left rounded-xl border p-3 transition-colors ${asesorId === a.id ? "border-brand-red ring-1 ring-brand-red bg-red-50/40" : "border-border hover:border-gray-400"}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800">{a.nombre}</p>
+                            <p className="text-[11px] text-muted truncate">{a.carreras.length ? a.carreras.join(", ") : "Todas las carreras"}</p>
+                          </div>
+                          {a.deLaCarrera && <span className="shrink-0 px-1.5 py-px rounded bg-green-100 text-green-800 text-[10px] font-bold">De la carrera</span>}
+                        </div>
+                        <p className="text-[11px] text-gray-600 mt-1">{a.activos} en curso · {a.pendientes} {a.pendientes === 1 ? "solicitud pendiente" : "solicitudes pendientes"}</p>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : coordinadores.length === 0 ? (
+              <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                No hay coordinadores habilitados para esta carrera en la cohorte. Revisa la configuración de la cohorte.
+              </p>
+            ) : (
+              <ul className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                {filtrados.map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => setCoordinadorId(c.id)}
+                      disabled={!!unico && c.id !== unico}
+                      className={`w-full text-left rounded-xl border p-3 transition-colors ${coordinadorId === c.id ? "border-brand-red ring-1 ring-brand-red bg-red-50/40" : "border-border hover:border-gray-400"}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-800">{c.nombreCompleto}</p>
+                          <p className="text-[11px] text-muted truncate">
+                            {c.facultadNombre}
+                            {c.id === regla?.adminFacultadId ? " · Administrador de facultad" : c.rol === "admin" ? " · Superadministrador" : ""}
+                          </p>
+                        </div>
+                        {c.proyectosEmpresaCount > 0 && <span className="shrink-0 px-1.5 py-px rounded bg-amber-100 text-amber-800 text-[10px] font-bold">Conoce la empresa</span>}
+                      </div>
+                      <p className="text-[11px] text-gray-600 mt-1">
+                        {c.proyectosAsignadosCount} {c.proyectosAsignadosCount === 1 ? "propuesta" : "propuestas"} a cargo
+                        {c.proyectosEmpresaCount > 0 ? ` · ${c.proyectosEmpresaCount} con esta empresa` : ""}
+                      </p>
+                    </button>
+                    {coordinadorId === c.id && c.proyectosDetalle.length > 0 && (
+                      <div className="mt-1 ml-3">
+                        <button type="button" onClick={() => setDetalle(detalle === c.id ? null : c.id)} className="text-[11px] font-bold text-brand-red hover:underline">
+                          {detalle === c.id ? "Ocultar propuestas a cargo" : "Ver propuestas a cargo"}
+                        </button>
+                        {detalle === c.id && (
+                          <ul className="mt-1 space-y-1 max-h-40 overflow-y-auto">
+                            {c.proyectosDetalle.map((p) => (
+                              <li key={p.id} className="text-[11px] text-gray-700 bg-gray-50 border border-border rounded-md px-2 py-1">
+                                {p.titulo} <span className="text-muted">· {p.empresaNombre ?? "sin empresa"}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {unico && <p className="text-xs text-muted">Es el único coordinador configurado para esta carrera en la cohorte.</p>}
+
+            {mensaje && (
+              <p className={`text-sm rounded-lg p-3 border ${mensaje.ok ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>{mensaje.texto}</p>
+            )}
+
+            <button
+              type="button"
+              onClick={directo ? solicitarAsesor : asignarCoordinador}
+              disabled={loading || (directo ? !asesorId : !coordinadorId)}
+              className="w-full py-3 rounded-xl bg-brand-red hover:bg-brand-red-hover text-white text-sm font-bold transition-colors disabled:opacity-50"
+            >
+              {loading
+                ? "Procesando..."
+                : directo
+                  ? "Enviar solicitud al asesor"
+                  : estadoActual === "coordinador_asignado"
+                    ? "Reasignar coordinador"
+                    : "Asignar coordinador"}
+            </button>
+          </div>
+        )}
+
+        {!enEspera && !["borrador", "redactando"].includes(estadoActual) && (
+          <p className="text-sm text-muted">La propuesta ya pasó la etapa de asignación.</p>
+        )}
+
+        {superadmin && (
+        <div className="pt-4 border-t border-border space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Acción administrativa</p>
+          <button
+            type="button"
+            onClick={eliminar}
+            disabled={deleting}
+            className="w-full py-2.5 rounded-xl border border-red-300 text-red-700 hover:bg-red-50 text-sm font-bold transition-colors disabled:opacity-50"
+          >
+            {deleting ? "Eliminando..." : "Eliminar propuesta definitivamente"}
+          </button>
+        </div>
+        )}
       </div>
     </div>
   );
