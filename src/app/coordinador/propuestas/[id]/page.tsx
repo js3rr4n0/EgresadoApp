@@ -1,6 +1,7 @@
 import { getDetallePropuestaCoordinador, getAsesoresFacultad } from "@/app/actions/coordinador";
 import Link from "next/link";
 import CoordinadorProgresoClient from "./CoordinadorProgresoClient";
+import ValoracionesDelProceso from "@/components/valoraciones/ValoracionesDelProceso";
 
 export default async function CoordinadorPropuestaProgresoPage({
   params,
@@ -48,5 +49,11 @@ export default async function CoordinadorPropuestaProgresoPage({
 
   const asesores = asesoresRes?.success && Array.isArray(asesoresRes.data) ? asesoresRes.data : [];
 
-  return <CoordinadorProgresoClient data={{ ...(res.data as any), asesores }} />;
+  return (
+    <div className="space-y-6">
+      <CoordinadorProgresoClient data={{ ...(res.data as any), asesores }} />
+      {/* Valoraciones al cierre del proceso (entrega V5) */}
+      <ValoracionesDelProceso propuestaId={pId} />
+    </div>
+  );
 }

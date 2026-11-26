@@ -21,6 +21,7 @@ import ReviewForm from "./ReviewForm";
 import PdfToImagesViewer from "@/components/PdfToImagesViewer";
 import MediaZoomViewer from "@/components/MediaZoomViewer";
 import HistorialProyectoAccordion from "@/components/HistorialProyectoAccordion";
+import ValoracionesDelProceso from "@/components/valoraciones/ValoracionesDelProceso";
 
 export default async function AdminPropuestaReviewPage({
   params,
@@ -489,6 +490,9 @@ export default async function AdminPropuestaReviewPage({
 
           {/* HISTORIAL DE ACCIONES Y CAMBIOS DEL PROYECTO (ACORDEÓN COLAPSABLE) */}
           <HistorialProyectoAccordion historial={historialList} />
+
+          {/* Valoraciones al cierre del proceso (entrega V5) */}
+          <ValoracionesDelProceso propuestaId={propuesta.id} />
         </div>
       </div>
     </div>

@@ -1,7 +1,8 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { usuarios, carreras, carrerasSedes, facultades } from "@/lib/schema";
+import { usuarios, carreras, carrerasSedes, facultades, bitacoraUsuarios } from "@/lib/schema";
+import { getSession } from "@/lib/session";
 import { sedesPorCarrera } from "@/lib/carrerasSedes";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -138,7 +139,20 @@ export async function toggleUserStatus(userId: number, newStatus: boolean) {
       .update(usuarios)
       .set({ activo: newStatus })
       .where(eq(usuarios.id, userId));
-    
+
+    // Entrega V5: el cambio de estado de un asesor queda en su bitácora aunque se haga desde Usuarios (aquí sin motivo).
+    const [u] = await db.select({ rol: usuarios.rol }).from(usuarios).where(eq(usuarios.id, userId));
+    if (u?.rol === "asesor") {
+      const session = await getSession();
+      await db.insert(bitacoraUsuarios).values({
+        usuarioId: userId,
+        adminId: session?.userId ?? null,
+        tipo: "estado",
+        detalle: { activo: newStatus, motivo: "Cambio hecho desde Gestión de usuarios, sin motivo registrado.", origen: "usuarios" },
+      });
+      revalidatePath("/admin/asesores");
+    }
+
     revalidatePath("/admin/usuarios");
     return { success: true };
   } catch (error) {

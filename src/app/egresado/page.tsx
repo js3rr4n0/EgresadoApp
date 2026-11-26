@@ -8,6 +8,7 @@ import Link from "next/link";
 import InvitationAlert from "@/components/proyecto/InvitationAlert";
 import { getUserPendingInvitations, getUserAcceptedTeamProposal } from "@/app/actions/proyecto";
 import CrearPropuestaModalButton from "@/components/CrearPropuestaModalButton";
+import AvisoValoraciones from "@/components/valoraciones/AvisoValoraciones";
 
 function formatFechaHoraSV(dateInput: Date | string | null) {
   if (!dateInput) return { fecha: "N/A", hora: "N/A" };
@@ -202,6 +203,9 @@ export default async function EgresadoLandingPage() {
     <div className="space-y-8">
       {/* Pending Invitations Alert Banner */}
       <InvitationAlert invitations={pendingInvitations} />
+
+      {/* Valoraciones pendientes de procesos cerrados (entrega V3) */}
+      <AvisoValoraciones usuarioId={session.userId} rol="egresado" />
 
       <div>
         <h1 className="text-2xl font-bold text-foreground">Mi Trabajo de Graduación</h1>

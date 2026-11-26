@@ -68,7 +68,9 @@ export default function DashboardHeader({
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6">
           <nav className="flex gap-4 sm:gap-8 min-w-max">
             {navItems.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href + "/"));
+              const coincide = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
+              // Solo se marca la pestaña más específica: /coordinador/asesores no marca también /coordinador.
+              const isActive = coincide(item.href) && !navItems.some((o) => o.href.length > item.href.length && coincide(o.href));
               return (
                 <Link
                   key={item.href}

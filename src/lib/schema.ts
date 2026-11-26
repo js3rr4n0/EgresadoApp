@@ -9,6 +9,7 @@ import {
   date,
   timestamp,
   jsonb,
+  numeric,
   unique,
   uniqueIndex,
   index,
@@ -171,6 +172,83 @@ export const historialEmpresas = pgTable("historial_empresas", {
   cambios: jsonb("cambios").notNull(), // { before: {...}, after: {...} } or text
   fecha: timestamp("fecha", { withTimezone: true }).defaultNow(),
 });
+
+// Bitácora de la empresa (historial_empresas.cambios.type):
+//   'create' | 'update'  → solicitudes de empresa aprobadas (actions/solicitudes.ts)
+//   'edicion'            → el administrador editó datos: { campos: string[] }
+//   'estado'             → habilitar o deshabilitar: { habilitada, motivo, reporteId? }
+//   'reporte'            → reporte registrado o archivado: { reporteId, accion: 'registrado' | 'archivado', nota? }
+
+// Reportes en contra de una empresa (specs/VALORACIONES_EMPRESAS_ASESORES.md, entrega V2). Sirven al administrador
+// para decidir si deshabilita una empresa aunque su valoración sea buena. Script: scripts/crear_reportes_empresa.ts
+export const reportesEmpresa = pgTable(
+  "reportes_empresa",
+  {
+    id: serial("id").primaryKey(),
+    empresaId: integer("empresa_id")
+      .notNull()
+      .references(() => empresas.id, { onDelete: "cascade" }),
+    fecha: date("fecha").notNull(), // fecha del hecho reportado
+    origen: varchar("origen", { length: 20 }).notNull(), // quién reporta: egresado, asesor, coordinador, supervisor, otro
+    propuestaId: integer("propuesta_id").references(() => propuestas.id, { onDelete: "set null" }), // proceso relacionado (opcional)
+    descripcion: text("descripcion").notNull(),
+    archivo: jsonb("archivo"), // { url (data URL), nombre }
+    estado: varchar("estado", { length: 20 }).notNull().default("vigente"), // vigente | archivado
+    registradoPor: integer("registrado_por").references(() => usuarios.id),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("reportes_empresa_origen_check", sql`${table.origen} IN ('egresado', 'asesor', 'coordinador', 'supervisor', 'otro')`),
+    check("reportes_empresa_estado_check", sql`${table.estado} IN ('vigente', 'archivado')`),
+    index("reportes_empresa_empresa_idx").on(table.empresaId),
+  ]
+);
+
+// Valoraciones al cierre del proceso (entrega V3). Escala de 1 a 10 por aspecto (aspectos en src/lib/valoraciones.ts).
+// evaluado_id es el id de la empresa (objetivo 'empresa') o del usuario (objetivo 'asesor' o 'egresado').
+// Script: scripts/crear_valoraciones.ts
+export const valoraciones = pgTable(
+  "valoraciones",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    evaluadorId: integer("evaluador_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    evaluadorRol: varchar("evaluador_rol", { length: 20 }).notNull(), // egresado | asesor
+    objetivo: varchar("objetivo", { length: 20 }).notNull(), // empresa | asesor | egresado
+    evaluadoId: integer("evaluado_id").notNull(),
+    puntajes: jsonb("puntajes").notNull(), // { [aspecto]: 1..10 }
+    promedio: numeric("promedio", { precision: 4, scale: 2, mode: "number" }).notNull(),
+    comentario: text("comentario"),
+    creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    unique("valoraciones_unica").on(table.propuestaId, table.evaluadorId, table.objetivo, table.evaluadoId),
+    check("valoraciones_rol_check", sql`${table.evaluadorRol} IN ('egresado', 'asesor')`),
+    check("valoraciones_objetivo_check", sql`${table.objetivo} IN ('empresa', 'asesor', 'egresado')`),
+    index("valoraciones_evaluado_idx").on(table.objetivo, table.evaluadoId),
+  ]
+);
+
+// Bitácora de decisiones sobre un usuario (entrega V5): habilitar o deshabilitar un asesor con su motivo.
+// detalle: { activo: boolean, motivo: string, origen: 'asesores' | 'usuarios' }. Script: scripts/crear_bitacora_usuarios.ts
+export const bitacoraUsuarios = pgTable(
+  "bitacora_usuarios",
+  {
+    id: serial("id").primaryKey(),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id, { onDelete: "cascade" }),
+    adminId: integer("admin_id").references(() => usuarios.id),
+    tipo: varchar("tipo", { length: 30 }).notNull(), // estado
+    detalle: jsonb("detalle").notNull(),
+    fecha: timestamp("fecha", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("bitacora_usuarios_usuario_idx").on(table.usuarioId)]
+);
 
 export const sucursales = pgTable("sucursales", {
   id: serial("id").primaryKey(),

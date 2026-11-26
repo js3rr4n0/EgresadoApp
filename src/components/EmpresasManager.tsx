@@ -1,19 +1,127 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { createEmpresa, updateEmpresa, deleteEmpresa, toggleEmpresaStatus, updateSucursalesSolo, EmpresaData, SupervisorData, FirmanteData, SucursalData } from "@/app/actions/empresas";
+import DialogoEstadoEmpresa, { type ReporteParaDialogo } from "@/components/admin/DialogoEstadoEmpresa";
+import { createEmpresa, updateEmpresa, deleteEmpresa, updateSucursalesSolo, EmpresaData, SupervisorData, FirmanteData, SucursalData } from "@/app/actions/empresas";
+import Nota from "@/components/valoraciones/Nota";
+import { estadisticasVacias, type EstadisticasEmpresa, type Modalidad } from "@/lib/estadisticasEmpresas";
 
 const MapSelector = dynamic(() => import("./MapSelector"), { ssr: false });
 
-export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: any[] }) {
+type Orden = "nombre" | "procesos" | "reciente" | "cohortes" | "menor_valoracion" | "mayor_valoracion";
+const POR_PAGINA = 15;
+const claseSelect = "w-full px-3 py-2 rounded-lg border border-border focus:border-brand-red outline-none bg-white text-sm";
+const claseIcono = "p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const formDesde = (emp: any): EmpresaData => ({
+  nombre: emp.nombre || "",
+  area: emp.area || "",
+  descripcion: emp.descripcion || "",
+  antecedentes: emp.antecedentes || "",
+  direccion: emp.direccion || "",
+  organigramaUrl: emp.organigramaUrl || "",
+  mapaUrl: emp.mapaUrl || "",
+  supervisores: emp.supervisores || [],
+  firmantes: emp.firmantes || [],
+  organigramas: emp.organigramas || [],
+  sucursales: emp.sucursales || [],
+});
+
+export interface NotasEmpresa {
+  egresados: number | null;
+  asesores: number | null;
+  general: number | null;
+}
+
+export default function EmpresasManager({
+  initialEmpresas,
+  estadisticas = {},
+  reportes = {},
+  notas = {},
+  editarId = null,
+}: {
+  initialEmpresas: any[];
+  estadisticas?: Record<number, EstadisticasEmpresa>;
+  /** Reportes vigentes en contra, por empresa (entrega V2). */
+  reportes?: Record<number, ReporteParaDialogo[]>;
+  /** Valoraciones promedio por empresa (entrega V3). */
+  notas?: Record<number, NotasEmpresa>;
+  editarId?: number | null;
+}) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  
+
   const [searchTerm, setSearchTerm] = useState("");
   const [filterArea, setFilterArea] = useState("");
   const [filterSucursales, setFilterSucursales] = useState("todas");
+  const [filterEstado, setFilterEstado] = useState("");
+  const [filterModalidad, setFilterModalidad] = useState("");
+  const [filterCohorte, setFilterCohorte] = useState("");
+  const [orden, setOrden] = useState<Orden>("nombre");
+  const [pagina, setPagina] = useState(1);
+
+  const estadisticaDe = (id: number) => estadisticas[id] ?? estadisticasVacias();
+  const [empresaEstado, setEmpresaEstado] = useState<{ id: number; nombre: string; habilitada: boolean } | null>(null);
+
+  const areas = useMemo(
+    () => Array.from(new Set(initialEmpresas.map(e => e.area).filter(Boolean))).sort() as string[],
+    [initialEmpresas],
+  );
+  const cohortesDisponibles = useMemo(() => {
+    const nombres = new Set<string>();
+    Object.values(estadisticas).forEach(e => e.cohortes.forEach(c => nombres.add(c.nombre)));
+    return [...nombres].sort().reverse();
+  }, [estadisticas]);
+
+  const filtradas = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    const lista = initialEmpresas.filter(emp => {
+      const est = estadisticas[emp.id] ?? estadisticasVacias();
+      if (filterArea && emp.area !== filterArea) return false;
+      if (filterEstado === "activa" && !emp.habilitada) return false;
+      if (filterEstado === "deshabilitada" && emp.habilitada) return false;
+      if (filterEstado === "reportes" && !(reportes[emp.id]?.length)) return false;
+      if (filterSucursales === "con" && (!emp.sucursales || emp.sucursales.length === 0)) return false;
+      if (filterSucursales === "sin" && emp.sucursales && emp.sucursales.length > 0) return false;
+      if (filterModalidad === "ninguna" && est.procesos > 0) return false;
+      if (filterModalidad && filterModalidad !== "ninguna" && est.porModalidad[filterModalidad as Modalidad] === 0) return false;
+      if (filterCohorte === "en_curso" && est.cohortesEnCurso === 0) return false;
+      if (filterCohorte && filterCohorte !== "en_curso" && !est.cohortes.some(c => c.nombre === filterCohorte)) return false;
+      if (q) {
+        const coincide =
+          emp.nombre.toLowerCase().includes(q) ||
+          emp.sucursales?.some((s: any) => s.nombre.toLowerCase().includes(q)) ||
+          est.asesores.some(a => a.nombre.toLowerCase().includes(q));
+        if (!coincide) return false;
+      }
+      return true;
+    });
+    const est = (id: number) => estadisticas[id] ?? estadisticasVacias();
+    const porNombre = (a: any, b: any) => a.nombre.localeCompare(b.nombre, "es");
+    return lista.sort((a, b) => {
+      if (orden === "procesos") return est(b.id).procesos - est(a.id).procesos || porNombre(a, b);
+      if (orden === "menor_valoracion" || orden === "mayor_valoracion") {
+        // Las empresas sin valoración van al final en ambos órdenes
+        const na = notas[a.id]?.general ?? null, nb = notas[b.id]?.general ?? null;
+        if (na == null || nb == null) return (na == null ? 1 : 0) - (nb == null ? 1 : 0) || porNombre(a, b);
+        return (orden === "menor_valoracion" ? na - nb : nb - na) || porNombre(a, b);
+      }
+      if (orden === "cohortes") return est(b.id).cohortes.length - est(a.id).cohortes.length || porNombre(a, b);
+      if (orden === "reciente") {
+        const ia = est(a.id).cohortes.length, ib = est(b.id).cohortes.length;
+        if (!ia || !ib) return ib - ia || porNombre(a, b);
+        return est(b.id).ultimaCohorte!.inicio.localeCompare(est(a.id).ultimaCohorte!.inicio) || porNombre(a, b);
+      }
+      return porNombre(a, b);
+    });
+  }, [initialEmpresas, estadisticas, reportes, notas, searchTerm, filterArea, filterEstado, filterSucursales, filterModalidad, filterCohorte, orden]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA));
+  const paginaActual = Math.min(pagina, totalPaginas);
+  const visibles = filtradas.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA);
 
   const [sucursalesModalOpen, setSucursalesModalOpen] = useState(false);
   const [currentEmpresaForSucs, setCurrentEmpresaForSucs] = useState<any>(null);
@@ -42,25 +150,25 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     setEditingId(null);
     setError(null);
     setIsModalOpen(false);
+    if (window.location.search.includes("editar=")) window.history.replaceState(null, "", "/admin/empresas");
   };
 
   const handleEdit = (emp: any) => {
-    setFormData({
-      nombre: emp.nombre || "",
-      area: emp.area || "",
-      descripcion: emp.descripcion || "",
-      antecedentes: emp.antecedentes || "",
-      direccion: emp.direccion || "",
-      organigramaUrl: emp.organigramaUrl || "",
-      mapaUrl: emp.mapaUrl || "",
-      supervisores: emp.supervisores || [],
-      firmantes: emp.firmantes || [],
-      organigramas: emp.organigramas || [],
-      sucursales: emp.sucursales || [],
-    });
+    setFormData(formDesde(emp));
     setEditingId(emp.id);
     setIsModalOpen(true);
   };
+
+  // «Editar datos» desde la página de detalle llega como /admin/empresas?editar=ID. El formulario se abre después de
+  // cargar la página: si se abre en el primer render, el mapa (Leaflet) falla al montarse.
+  useEffect(() => {
+    const emp = editarId ? initialEmpresas.find(e => e.id === editarId) : null;
+    if (!emp) return;
+    const t = setTimeout(() => handleEdit(emp), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editarId]);
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,11 +215,8 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
     }
   };
 
-  const handleToggle = async (id: number, current: boolean) => {
-    if (confirm(`¿Estás seguro de ${current ? "deshabilitar" : "habilitar"} esta empresa?`)) {
-      await toggleEmpresaStatus(id, current);
-    }
-  };
+  // Habilitar o deshabilitar abre el diálogo que pide el motivo (entrega V2)
+  const handleToggle = (emp: any) => setEmpresaEstado({ id: emp.id, nombre: emp.nombre, habilitada: emp.habilitada });
 
   const handleChange = (field: keyof EmpresaData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -299,144 +404,183 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
         </button>
       </div>
 
-      {/* FILTERS */}
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-border mb-6 flex flex-col md:flex-row gap-4 items-center justify-between">
-        <div className="relative w-full md:w-96">
-          <svg className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          <input
-            type="text"
-            placeholder="Buscar por nombre o sucursal..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-lg border border-border focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all text-sm"
-          />
+      {/* FILTROS */}
+      <div className="bg-white p-4 rounded-xl shadow-sm border border-border mb-4 flex flex-col gap-3">
+        <div className="flex flex-col gap-3">
+          <div className="relative w-full lg:w-96">
+            <svg className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <input
+              type="text"
+              placeholder="Buscar por nombre, sucursal o asesor..."
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setPagina(1); }}
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-border focus:border-brand-red focus:ring-1 focus:ring-brand-red outline-none transition-all text-sm"
+            />
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 w-full">
+            <select value={filterArea} onChange={(e) => { setFilterArea(e.target.value); setPagina(1); }} className={claseSelect}>
+              <option value="">Todas las áreas</option>
+              {areas.map(area => <option key={area} value={area}>{area}</option>)}
+            </select>
+            <select value={filterEstado} onChange={(e) => { setFilterEstado(e.target.value); setPagina(1); }} className={claseSelect}>
+              <option value="">Activas y deshabilitadas</option>
+              <option value="activa">Solo activas</option>
+              <option value="deshabilitada">Solo deshabilitadas</option>
+              <option value="reportes">Con reportes vigentes</option>
+            </select>
+            <select value={filterModalidad} onChange={(e) => { setFilterModalidad(e.target.value); setPagina(1); }} className={claseSelect}>
+              <option value="">Todas las modalidades</option>
+              <option value="pasantia">Con pasantías</option>
+              <option value="proyecto">Con proyectos</option>
+              <option value="investigacion">Con investigaciones</option>
+              <option value="ninguna">Sin procesos</option>
+            </select>
+            <select value={filterCohorte} onChange={(e) => { setFilterCohorte(e.target.value); setPagina(1); }} className={claseSelect}>
+              <option value="">Todas las cohortes</option>
+              <option value="en_curso">Con cohorte en curso</option>
+              {cohortesDisponibles.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <select value={filterSucursales} onChange={(e) => { setFilterSucursales(e.target.value); setPagina(1); }} className={claseSelect}>
+              <option value="todas">Con y sin sucursales</option>
+              <option value="con">Con sucursales</option>
+              <option value="sin">Sin sucursales</option>
+            </select>
+            <select value={orden} onChange={(e) => setOrden(e.target.value as Orden)} className={claseSelect}>
+              <option value="nombre">Ordenar por nombre</option>
+              <option value="procesos">Más procesos</option>
+              <option value="reciente">Participación más reciente</option>
+              <option value="cohortes">Más cohortes</option>
+              <option value="menor_valoracion">Menor valoración</option>
+              <option value="mayor_valoracion">Mayor valoración</option>
+            </select>
+          </div>
         </div>
-        
-        <div className="flex w-full md:w-auto gap-2">
-          <select
-            value={filterArea}
-            onChange={(e) => setFilterArea(e.target.value)}
-            className="w-full md:w-auto px-4 py-2 rounded-lg border border-border focus:border-brand-red outline-none bg-white text-sm"
-          >
-            <option value="">Todas las áreas</option>
-            {Array.from(new Set(initialEmpresas.map(e => e.area).filter(Boolean))).map(area => (
-              <option key={area} value={area}>{area}</option>
-            ))}
-          </select>
-          
-          <select
-            value={filterSucursales}
-            onChange={(e) => setFilterSucursales(e.target.value)}
-            className="w-full md:w-auto px-4 py-2 rounded-lg border border-border focus:border-brand-red outline-none bg-white text-sm"
-          >
-            <option value="todas">Todas</option>
-            <option value="con">Con Sucursales</option>
-            <option value="sin">Sin Sucursales</option>
-          </select>
-        </div>
+        <p className="text-xs text-muted">
+          {filtradas.length === initialEmpresas.length
+            ? `${initialEmpresas.length} empresas registradas`
+            : `${filtradas.length} de ${initialEmpresas.length} empresas con los filtros aplicados`}
+          {" · "}Los procesos cuentan las propuestas aprobadas en adelante, de cualquier modalidad.
+        </p>
       </div>
 
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {(() => {
-          const filteredEmpresas = initialEmpresas.filter(emp => {
-            if (filterArea && emp.area !== filterArea) return false;
-            if (filterSucursales === "con" && (!emp.sucursales || emp.sucursales.length === 0)) return false;
-            if (filterSucursales === "sin" && emp.sucursales && emp.sucursales.length > 0) return false;
-            if (searchTerm) {
-              const q = searchTerm.toLowerCase();
-              const matchNombre = emp.nombre.toLowerCase().includes(q);
-              const matchSucs = emp.sucursales?.some((s: any) => s.nombre.toLowerCase().includes(q));
-              if (!matchNombre && !matchSucs) return false;
-            }
-            return true;
-          });
-
-          if (filteredEmpresas.length === 0) {
-            return (
-              <div className="col-span-full py-12 text-center text-muted">
-                No se encontraron empresas con los filtros aplicados.
-              </div>
-            );
-          }
-
-          return filteredEmpresas.map((emp) => (
-          <div key={emp.id} className={`border rounded-xl p-5 shadow-sm bg-white flex flex-col relative overflow-hidden transition-all ${emp.habilitada ? "border-brand-red/20 ring-1 ring-brand-red/10" : "border-gray-200 opacity-80"}`}>
-            
-            <div className="flex justify-between items-start z-10 relative">
-              <div>
-                <h3 className="font-bold text-lg text-gray-800">{emp.nombre}</h3>
-                <p className="text-xs text-gray-500 mt-0.5">{emp.area || "Sin área especificada"}</p>
-              </div>
-              <div className="flex gap-1 shrink-0">
-                <a href={`/admin/empresas/${emp.id}/imprimir`} target="_blank" rel="noreferrer" className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors bg-gray-50 hover:bg-blue-50 rounded-lg" title="Descargar PDF">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-                </a>
-                <button onClick={() => handleEdit(emp)} className="p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                </button>
-                <button onClick={() => handleDelete(emp.id)} className="p-1.5 text-gray-400 hover:text-brand-red transition-colors bg-gray-50 hover:bg-red-50 rounded-lg">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-2 z-10 relative flex-1">
-              <p className="text-sm text-gray-600 line-clamp-2">{emp.descripcion}</p>
-              
-              <div className="flex gap-2 pt-2">
-                {(() => {
-                  const mapa = emp.mapaUrl || emp.sucursales?.find((s: any) => s.mapaUrl)?.mapaUrl;
-                  if (!mapa) return null;
-                  return (
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${mapa}`} target="_blank" rel="noreferrer" className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 flex items-center gap-1 hover:bg-blue-100 transition">
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                      Ver Mapa
-                    </a>
-                  );
-                })()}
-                {(emp.organigramas && emp.organigramas.length > 0) ? (
-                  <button onClick={() => handleOpenOrganigrama(emp.organigramas[0].url)} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100 flex items-center gap-1 hover:bg-purple-100 transition">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    Organigrama Reciente
-                  </button>
-                ) : emp.organigramaUrl && (
-                  <button onClick={() => handleOpenOrganigrama(emp.organigramaUrl!)} className="text-xs bg-purple-50 text-purple-600 px-2 py-1 rounded border border-purple-100 flex items-center gap-1 hover:bg-purple-100 transition">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                    Organigrama (Antiguo)
-                  </button>
-                )}
-              </div>
-
-              <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-sm mt-auto">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                  <span className="font-semibold text-gray-700">{emp.supervisores?.length || 0} Sups.</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                  <span className="font-semibold text-gray-700">{emp.firmantes?.length || 0} Firmantes</span>
-                </div>
-                <button type="button" onClick={() => openSucursalesModal(emp)} className="flex items-center gap-2 hover:bg-gray-200 px-2 py-1 rounded transition-colors">
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                  <span className="font-semibold text-gray-700">{emp.sucursales?.length || 0} Sucursales</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between z-10 relative">
-              <span className={`px-2.5 py-1 text-xs font-bold rounded-md ${emp.habilitada ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                {emp.habilitada ? 'Activa' : 'Deshabilitada'}
-              </span>
-              <button
-                onClick={() => handleToggle(emp.id, emp.habilitada)}
-                className={`text-sm font-bold underline ${emp.habilitada ? 'text-gray-500 hover:text-red-600' : 'text-green-600 hover:text-green-800'}`}
-              >
-                {emp.habilitada ? 'Deshabilitar' : 'Habilitar'}
-              </button>
+      {/* TABLA */}
+      <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-[10px] uppercase tracking-wider text-card-dark border-b border-border">
+              <tr>
+                <th className="text-left px-4 py-3 min-w-[200px]">Empresa</th>
+                <th className="px-2.5 py-3 text-left">Valoración</th>
+                <th className="px-2.5 py-3 text-center">Procesos</th>
+                <th className="px-2.5 py-3 text-center">Cohortes</th>
+                <th className="px-2.5 py-3 text-left">Última cohorte</th>
+                <th className="px-2.5 py-3 text-center">Asesores</th>
+                <th className="px-2.5 py-3 text-left min-w-[150px]">Último asesor</th>
+                <th className="px-2.5 py-3 text-center">Estado</th>
+                <th className="px-4 py-3 text-right">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {visibles.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="py-12 text-center text-muted">No se encontraron empresas con los filtros aplicados.</td>
+                </tr>
+              )}
+              {visibles.map((emp) => {
+                const est = estadisticaDe(emp.id);
+                return (
+                  <tr key={emp.id} className={`hover:bg-gray-50/70 transition-colors ${emp.habilitada ? "" : "bg-gray-50/60 text-gray-500"}`}>
+                    <td className="px-4 py-3">
+                      <a href={`/admin/empresas/${emp.id}`} className="font-bold text-gray-800 hover:text-brand-red transition-colors">{emp.nombre}</a>
+                      <p className="text-xs text-muted mt-0.5">
+                        {emp.area || "Sin área especificada"}
+                        {emp.sucursales?.length > 0 && ` · ${emp.sucursales.length} ${emp.sucursales.length === 1 ? "sucursal" : "sucursales"}`}
+                      </p>
+                    </td>
+                    <td className="px-2.5 py-3">
+                      <p className="text-[11px] whitespace-nowrap"><span className="text-gray-600">Egresados:</span> <Nota valor={notas[emp.id]?.egresados ?? null} /></p>
+                      <p className="text-[11px] whitespace-nowrap mt-1"><span className="text-gray-600">Asesores:</span> <Nota valor={notas[emp.id]?.asesores ?? null} /></p>
+                    </td>
+                    <td className="px-2.5 py-3 text-center">
+                      <span className="font-bold text-gray-800">{est.procesos}</span>
+                      {est.procesos > 0 && <p className="text-[11px] text-muted">{est.egresados} {est.egresados === 1 ? "egresado" : "egresados"}</p>}
+                    </td>
+                    <td className="px-2.5 py-3 text-center font-bold text-gray-800">{est.cohortes.length}</td>
+                    <td className="px-2.5 py-3">
+                      {est.ultimaCohorte ? (
+                        <>
+                          <span className="font-semibold text-gray-800 whitespace-nowrap">{est.ultimaCohorte.nombre}</span>
+                          {est.cohortesEnCurso > 0 ? (
+                            <p className="text-[11px] font-semibold text-brand-red">{est.cohortesEnCurso === 1 ? "1 cohorte en curso" : `${est.cohortesEnCurso} cohortes en curso`}</p>
+                          ) : (
+                            <p className="text-[11px] text-muted">{est.ultimaCohorte.nombreFase}</p>
+                          )}
+                        </>
+                      ) : <span className="text-muted">—</span>}
+                    </td>
+                    <td className="px-2.5 py-3 text-center font-bold text-gray-800">{est.asesores.length}</td>
+                    <td className="px-2.5 py-3">
+                      {est.ultimoAsesor ? (
+                        <>
+                          <span className="font-semibold text-gray-800">{est.ultimoAsesor.nombre}</span>
+                          <p className="text-[11px] text-muted">{est.ultimoAsesor.cohorte}</p>
+                        </>
+                      ) : <span className="text-muted">Sin asesor</span>}
+                    </td>
+                    <td className="px-2.5 py-3 text-center">
+                      <span className={`px-2.5 py-1 text-[11px] font-bold rounded-md whitespace-nowrap ${emp.habilitada ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}`}>
+                        {emp.habilitada ? "Activa" : "Deshabilitada"}
+                      </span>
+                      {(reportes[emp.id]?.length ?? 0) > 0 && (
+                        <a
+                          href={`/admin/empresas/${emp.id}?vista=reportes`}
+                          className="block mt-1.5 text-[11px] font-bold text-brand-red whitespace-nowrap hover:underline"
+                          title="Reportes vigentes en contra de la empresa"
+                        >
+                          {reportes[emp.id].length === 1 ? "1 reporte" : `${reportes[emp.id].length} reportes`}
+                        </a>
+                      )}
+                      <button
+                        onClick={() => handleToggle(emp)}
+                        className={`block mx-auto mt-1.5 text-[11px] font-bold underline-offset-2 hover:underline ${emp.habilitada ? "text-gray-500 hover:text-brand-red" : "text-green-700"}`}
+                      >
+                        {emp.habilitada ? "Deshabilitar" : "Habilitar"}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <a href={`/admin/empresas/${emp.id}`} className="block text-center px-2.5 py-1.5 mb-1 text-xs font-bold text-brand-red bg-brand-red/5 hover:bg-brand-red hover:text-white rounded-lg transition-colors whitespace-nowrap">
+                        Ver más
+                      </a>
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => handleEdit(emp)} title="Editar datos" className={claseIcono}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                        </button>
+                        <button onClick={() => openSucursalesModal(emp)} title="Sucursales" className={claseIcono}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
+                        </button>
+                        <a href={`/admin/empresas/${emp.id}/imprimir`} target="_blank" rel="noreferrer" title="Descargar PDF" className={claseIcono}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                        </a>
+                        <button onClick={() => handleDelete(emp.id)} title="Eliminar" className={claseIcono}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {totalPaginas > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-gray-50 text-sm">
+            <span className="text-muted">Página {paginaActual} de {totalPaginas}</span>
+            <div className="flex gap-2">
+              <button disabled={paginaActual === 1} onClick={() => setPagina(paginaActual - 1)} className="px-3 py-1.5 rounded-lg border border-border bg-white font-semibold text-gray-700 disabled:opacity-40 hover:border-brand-red">Anterior</button>
+              <button disabled={paginaActual === totalPaginas} onClick={() => setPagina(paginaActual + 1)} className="px-3 py-1.5 rounded-lg border border-border bg-white font-semibold text-gray-700 disabled:opacity-40 hover:border-brand-red">Siguiente</button>
             </div>
           </div>
-        ));
-        })()}
+        )}
       </div>
 
       {/* Modal */}
@@ -728,6 +872,15 @@ export default function EmpresasManager({ initialEmpresas }: { initialEmpresas: 
           </div>
         </div>
       )}
+      {empresaEstado && (
+        <DialogoEstadoEmpresa
+          empresa={empresaEstado}
+          reportes={reportes[empresaEstado.id] ?? []}
+          notas={notas[empresaEstado.id] ?? null}
+          onCerrar={() => setEmpresaEstado(null)}
+        />
+      )}
+
       {/* Sucursales Modal */}
       {sucursalesModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 overflow-y-auto">

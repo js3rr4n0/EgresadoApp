@@ -4,6 +4,8 @@ import { db } from "@/lib/db";
 import { empresas, supervisores, firmantes, organigramasEmpresa, sucursales, propuestas, solicitudesEmpresa, historialEmpresas } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { getSession } from "@/lib/session";
+import { camposCambiados, type CambioEmpresa } from "@/lib/bitacoraEmpresa";
 
 export type SupervisorData = {
   id?: number;
@@ -166,11 +168,40 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
       }
     }
 
+    // Bitácora (entrega V2): foto de antes para saber qué campos cambió el administrador
+    const [antes] = await db.select().from(empresas).where(eq(empresas.id, id));
+    const [supsAntes, firmsAntes, sucsAntes, orgsAntes] = await Promise.all([
+      db.select().from(supervisores).where(eq(supervisores.empresaId, id)),
+      db.select().from(firmantes).where(eq(firmantes.empresaId, id)),
+      db.select().from(sucursales).where(eq(sucursales.empresaId, id)),
+      db.select({ id: organigramasEmpresa.id }).from(organigramasEmpresa).where(eq(organigramasEmpresa.empresaId, id)),
+    ]);
+
     // 1. Update Empresa
     await db.update(empresas).set({
       ...empresaFields,
       actualizadaEn: new Date(),
     }).where(eq(empresas.id, id));
+
+    if (antes) {
+      const huella = (lista: Record<string, unknown>[], claves: string[]) =>
+        JSON.stringify(
+          lista
+            .map((x) => claves.map((k) => (x[k] == null ? "" : String(x[k]).trim())))
+            .sort((a, b) => a.join("|").localeCompare(b.join("|")))
+        );
+      const clavesPersona = ["titulo", "nombres", "apellidos", "cargo", "telefono", "correo", "sucursalId"];
+      const campos = camposCambiados(antes, empresaFields, ["nombre", "area", "descripcion", "antecedentes", "direccion", "mapaUrl"]);
+      if (huella(supsAntes, [...clavesPersona, "especialidad"]) !== huella((sups ?? []) as Record<string, unknown>[], [...clavesPersona, "especialidad"])) campos.push("supervisores");
+      if (huella(firmsAntes, [...clavesPersona, "firmaUrl"]) !== huella((firms ?? []) as Record<string, unknown>[], [...clavesPersona, "firmaUrl"])) campos.push("firmantes");
+      if (sucs && huella(sucsAntes, ["nombre", "direccion", "telefono", "mapaUrl"]) !== huella(sucs as Record<string, unknown>[], ["nombre", "direccion", "telefono", "mapaUrl"])) campos.push("sucursales");
+      if ((orgs ?? []).some((o) => !o.id) || (orgs ?? []).length !== orgsAntes.length) campos.push("organigramas");
+      if (campos.length > 0) {
+        const session = await getSession();
+        const cambio: CambioEmpresa = { type: "edicion", campos };
+        await db.insert(historialEmpresas).values({ empresaId: id, adminId: session?.userId ?? null, cambios: cambio });
+      }
+    }
 
     // 2. Upsert Supervisores
     if (sups && sups.length > 0) {
@@ -268,15 +299,7 @@ export async function updateEmpresa(id: number, data: EmpresaData) {
   }
 }
 
-export async function toggleEmpresaStatus(id: number, currentStatus: boolean) {
-  try {
-    await db.update(empresas).set({ habilitada: !currentStatus }).where(eq(empresas.id, id));
-    revalidatePath("/admin/empresas");
-    return { success: true };
-  } catch (error) {
-    return { success: false, error: "No se pudo actualizar el estado" };
-  }
-}
+// Habilitar o deshabilitar pide motivo y queda en la bitácora: cambiarEstadoEmpresa en actions/estadoEmpresa.ts (V2).
 
 export async function updateSucursalesSolo(empresaId: number, sucs: SucursalData[]) {
   try {

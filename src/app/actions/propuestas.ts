@@ -248,6 +248,17 @@ export async function updateEmpresa(propuestaId: number, empresaId: number | nul
   const session = await getSession();
   if (!session || session.rol !== "egresado") return { success: false, error: "No autorizado" };
 
+  // Una empresa deshabilitada no se puede elegir (el formulario ya la muestra tachada); entrega V2.
+  if (empresaId) {
+    const { empresas } = await import("@/lib/schema");
+    const [emp] = await db.select({ habilitada: empresas.habilitada }).from(empresas).where(eq(empresas.id, empresaId));
+    if (!emp) return { success: false, error: "La empresa no existe." };
+    if (!emp.habilitada) {
+      const [actual] = await db.select({ empresaId: propuestas.empresaId }).from(propuestas).where(eq(propuestas.id, propuestaId));
+      if (actual?.empresaId !== empresaId) return { success: false, error: "Esta empresa está deshabilitada y no se puede elegir." };
+    }
+  }
+
   await db.update(propuestas)
     .set({ empresaId, sucursalId })
     .where(and(eq(propuestas.id, propuestaId), eq(propuestas.egresadoId, session.userId)));

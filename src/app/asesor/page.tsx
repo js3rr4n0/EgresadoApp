@@ -2,6 +2,8 @@ import { getMisPropuestasAsesor, getSolicitudesAsesor } from "@/app/actions/ases
 import { getResumenSeguimientoAsesor } from "@/app/actions/registrosActividad";
 import AsesorDashboardClient from "./AsesorDashboardClient";
 import { getBandejaFichasAsesor } from "@/app/actions/bandejaFichas";
+import { getSession } from "@/lib/session";
+import AvisoValoraciones from "@/components/valoraciones/AvisoValoraciones";
 
 export default async function AsesorPage() {
   const [propuestasRes, solicitudesRes, seguimientoRes, fichas] = await Promise.all([
@@ -17,14 +19,20 @@ export default async function AsesorPage() {
   const bandeja = seguimientoRes.success && seguimientoRes.bandeja ? seguimientoRes.bandeja : [];
   const diasPlazoRevision = seguimientoRes.success && seguimientoRes.diasPlazoRevision ? seguimientoRes.diasPlazoRevision : 3;
 
+  const session = await getSession();
+
   return (
-    <AsesorDashboardClient
-      initialPropuestas={propuestas}
-      initialSolicitudes={solicitudes}
-      seguimiento={seguimiento}
-      bandeja={bandeja}
-      diasPlazoRevision={diasPlazoRevision}
-      bandejaFichas={fichas.tienePropuestas ? fichas.entradas : null}
-    />
+    <div className="space-y-6">
+      {/* Valoraciones pendientes de procesos cerrados (entrega V3) */}
+      {session?.rol === "asesor" && <AvisoValoraciones usuarioId={session.userId} rol="asesor" />}
+      <AsesorDashboardClient
+        initialPropuestas={propuestas}
+        initialSolicitudes={solicitudes}
+        seguimiento={seguimiento}
+        bandeja={bandeja}
+        diasPlazoRevision={diasPlazoRevision}
+        bandejaFichas={fichas.tienePropuestas ? fichas.entradas : null}
+      />
+    </div>
   );
 }
