@@ -1,16 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { updatePortada, solicitarCorreccionDatosDecanato, updateTituloPropuesta } from "@/app/actions/propuestas";
-import {
-  invitarIntegrante,
-  expulsarIntegrante,
-  salirDelGrupo,
-  ratificarPropuesta,
-  transferirLiderazgo,
-  retirarseDelProyecto,
-  getEstadoFirmasPropuesta,
-} from "@/app/actions/proyecto";
 import { useRouter } from "next/navigation";
 import { tituloDeCarrera } from "@/lib/tituloCarrera"; // H13
 
@@ -36,6 +27,7 @@ interface ProyectoPortadaFormProps {
     nombreCompleto: string;
     carnet: string | null;
     correo: string;
+    tituloCarrera?: string | null;
   }[];
   memberInfo?: {
     integranteId: number;
@@ -71,13 +63,19 @@ export default function ProyectoPortadaForm({
   const [savingTitulo, setSavingTitulo] = useState(false);
   const [nombreCompleto] = useState(userDetails?.nombreCompleto || "");
   const [carnet] = useState(userDetails?.carnet || "");
-  const [invitingInput, setInvitingInput] = useState("");
-  
-  const [inviting, setInviting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
+  const [success] = useState<string | null>(null);
 
   const isReadOnly = isLocked || !isLeader;
+
+  // Integrantes que aparecen en la portada además del usuario activo: el líder (si quien mira es integrante) y los
+  // demás integrantes aceptados. El título se muestra cuando se conoce.
+  const integrantesPortada: { nombre: string; carnet: string | null; titulo?: string | null; lider?: boolean }[] = [
+    ...(!isLeader && memberInfo ? [{ nombre: memberInfo.liderNombre, carnet: memberInfo.liderCarnet, lider: true }] : []),
+    ...teamMembers
+      .filter((m) => m.estado === "aceptado" && m.id !== memberInfo?.integranteId)
+      .map((m) => ({ nombre: m.nombreCompleto, carnet: m.carnet, titulo: m.tituloCarrera ?? null })),
+  ];
 
   const handleSaveTituloAndContinue = async () => {
     if (!titulo.trim()) {
@@ -132,90 +130,6 @@ export default function ProyectoPortadaForm({
     }
   };
 
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isReadOnly || !invitingInput.trim()) return;
-
-    setInviting(true);
-    setError(null);
-    setSuccess(null);
-
-    const res = await invitarIntegrante(propuestaId, invitingInput);
-    if (!res.success) {
-      setError(res.error || "Error al invitar al integrante");
-    } else {
-      setSuccess("Invitación enviada correctamente.");
-      setInvitingInput("");
-      router.refresh();
-    }
-    setInviting(false);
-  };
-
-  const handleExpulsar = async (integranteId: number) => {
-    if (!confirm("¿Seguro que deseas remover a este integrante de tu equipo?")) return;
-    setError(null);
-    setSuccess(null);
-    const res = await expulsarIntegrante(integranteId);
-    if (!res.success) {
-      setError(res.error || "Error al retirar al integrante.");
-    } else {
-      setSuccess("Integrante retirado del equipo.");
-      router.refresh();
-    }
-  };
-
-  const [ratifying, setRatifying] = useState(false);
-
-  // H26: quién ratificó la versión actual y a quién le falta (o se le venció la firma por un cambio).
-  type EstadoFirmas = Awaited<ReturnType<typeof getEstadoFirmasPropuesta>>;
-  const [firmas, setFirmas] = useState<EstadoFirmas>(null);
-  const cargarFirmas = useCallback(() => {
-    getEstadoFirmasPropuesta(propuestaId).then(setFirmas).catch(() => setFirmas(null));
-  }, [propuestaId]);
-  useEffect(() => {
-    cargarFirmas();
-  }, [cargarFirmas, teamMembers.length]);
-
-  const handleRatificar = async () => {
-    setRatifying(true);
-    setError(null);
-    setSuccess(null);
-    const res = await ratificarPropuesta(propuestaId);
-    setRatifying(false);
-    if (!res.success) {
-      setError(res.error || "Error al ratificar la propuesta.");
-    } else {
-      setSuccess(res.message || "Versión de la propuesta ratificada exitosamente con la huella digital.");
-      cargarFirmas();
-      router.refresh();
-    }
-  };
-
-  const handleTransferir = async (nuevoLiderId: number, nombre: string) => {
-    if (!confirm(`¿Seguro que deseas transferir el rol de coordinador del equipo a ${nombre}?`)) return;
-    setError(null);
-    setSuccess(null);
-    const res = await transferirLiderazgo(propuestaId, nuevoLiderId);
-    if (!res.success) {
-      setError(res.error || "Error al transferir la coordinación.");
-    } else {
-      setSuccess(res.message || "Coordinación transferida.");
-      router.refresh();
-    }
-  };
-
-  const handleLeaveGroup = async () => {
-    if (!memberInfo && !isLeader) return;
-    if (!confirm("¿Seguro que deseas salir de este equipo? No podrás ver ni recibir actualizaciones de la propuesta.")) return;
-    setError(null);
-    const res = isLeader ? await retirarseDelProyecto(propuestaId) : (memberInfo ? await salirDelGrupo(memberInfo.integranteId) : { success: false, error: "No autorizado" });
-    if (!res.success) {
-      setError(res.error || "Error al salir del grupo.");
-    } else {
-      router.push("/egresado");
-    }
-  };
-
   const InputLock = () => (
     <div className="absolute right-3 top-3 text-slate-400">
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -231,7 +145,7 @@ export default function ProyectoPortadaForm({
           <h2 className="text-xl font-bold text-card-dark">
             {isInvestigacion ? "Portada de la Propuesta (Investigación)" : "Portada de la Propuesta (Proyecto)"}
           </h2>
-          <p className="text-sm text-muted">Datos generales del egresado e integrantes del equipo.</p>
+          <p className="text-sm text-muted">Datos generales del trabajo y de los integrantes.</p>
         </div>
         {!isLeader && memberInfo && (
           <div className="bg-amber-50 text-amber-800 text-xs px-3 py-1.5 rounded-lg border border-amber-200 font-bold">
@@ -249,25 +163,6 @@ export default function ProyectoPortadaForm({
       {success && (
         <div className="mb-6 p-4 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-sm font-medium">
           {success}
-        </div>
-      )}
-
-      {!isLeader && memberInfo && (
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h4 className="font-bold text-blue-900 text-sm">Perteneces a un equipo de trabajo</h4>
-            <p className="text-xs text-blue-700 mt-1">
-              Esta propuesta fue redactada por <strong>{memberInfo.liderNombre}</strong> ({memberInfo.liderCarnet}). 
-              Como integrante, puedes visualizar los avances pero no editar los campos.
-            </p>
-          </div>
-          <button
-            onClick={handleLeaveGroup}
-            type="button"
-            className="shrink-0 bg-red-600 hover:bg-red-700 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-sm"
-          >
-            Salir del Grupo
-          </button>
         </div>
       )}
 
@@ -291,7 +186,7 @@ export default function ProyectoPortadaForm({
             }`} 
           />
           <p className="text-xs text-amber-800 font-medium">
-            💡 Este es el título oficial que aparecerá en la portada de tu Hoja de Inscripción.
+            Este es el título oficial que aparecerá en la portada de la propuesta.
           </p>
         </div>
 
@@ -381,7 +276,6 @@ export default function ProyectoPortadaForm({
                     setSavingTitulo(true);
                     await updateTituloPropuesta(propuestaId, titulo);
                     setSavingTitulo(false);
-                    cargarFirmas(); // H26: cambiar el título invalida las firmas
                   }
                   alert("Borrador del título guardado exitosamente.");
                 }}
@@ -405,191 +299,35 @@ export default function ProyectoPortadaForm({
         </div>
       </div>
 
-      {/* Seccion Integrantes del Equipo */}
-      <div className="mt-10 border-t border-border pt-8">
-        <div className="mb-6">
-          <h3 className="text-lg font-bold text-card-dark flex items-center gap-2">
-            <svg className="w-5 h-5 text-brand-red" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            {isInvestigacion ? "Integrantes del Equipo de Investigación" : "Integrantes del Equipo de Proyecto"}
-          </h3>
-          <p className="text-xs text-muted mt-1">
-            Puedes invitar a otros egresados ingresando su número de carnet o correo electrónico.
+      {/* Integrantes que aparecen en la portada (R1). Se gestionan en el paso «Equipo de trabajo». */}
+      {integrantesPortada.length > 0 && (
+        <div className="mt-10 border-t border-border pt-8">
+          <h3 className="text-lg font-bold text-card-dark">Integrantes del equipo en la portada</h3>
+          <p className="text-xs text-muted mt-1 mb-4">
+            Aparecen en la portada del documento junto a tus datos. Para agregar o quitar integrantes, vuelve al paso «Equipo de trabajo».
+            «¿Datos erróneos?» solo corrige tus propios datos.
           </p>
-        </div>
-
-        {isLeader && !isLocked && (
-          <form onSubmit={handleInvite} className="mb-6 bg-slate-50 border border-border p-4 rounded-xl flex flex-col sm:flex-row items-center gap-3">
-            <div className="flex-1 w-full">
-              <input
-                type="text"
-                value={invitingInput}
-                onChange={(e) => setInvitingInput(e.target.value)}
-                placeholder="Ingresa el carnet o correo del egresado (Ej: 2020-PM-605 o correo@ejemplo.com)"
-                className="w-full px-4 py-2 rounded-lg border border-border bg-white text-sm focus:ring-2 focus:ring-brand-red focus:outline-none"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={inviting || !invitingInput.trim()}
-              className="w-full sm:w-auto bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm px-5 py-2 rounded-lg transition-colors shrink-0 disabled:opacity-50"
-            >
-              {inviting ? "Enviando..." : "Añadir Integrante"}
-            </button>
-          </form>
-        )}
-
-        <div className="bg-white border border-border rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full text-sm text-left">
-            <thead className="text-xs text-muted bg-slate-50 uppercase font-bold border-b border-border">
-              <tr>
-                <th className="px-6 py-3">Egresado</th>
-                <th className="px-6 py-3">Carnet / Correo</th>
-                <th className="px-6 py-3">Estado</th>
-                {isLeader && !isLocked && <th className="px-6 py-3 text-right">Acciones</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {/* Leader row */}
-              <tr className="bg-slate-50/50">
-                <td className="px-6 py-4 font-bold text-card-dark">
-                  {userDetails?.nombreCompleto} <span className="ml-2 text-xs bg-brand-red text-white px-2 py-0.5 rounded font-semibold">{isInvestigacion ? "Líder de la investigación" : "Líder del proyecto"}</span>
-                </td>
-                <td className="px-6 py-4 text-muted">{userDetails?.carnet || "N/A"}</td>
-                <td className="px-6 py-4">
-                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
-                    Aceptado
-                  </span>
-                </td>
-                {isLeader && !isLocked && <td className="px-6 py-4 text-right text-xs text-muted italic">Creador</td>}
-              </tr>
-
-              {/* Members rows */}
-              {teamMembers.map((member) => (
-                <tr key={member.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 font-medium text-foreground">{member.nombreCompleto}</td>
-                  <td className="px-6 py-4 text-muted">
-                    <div className="font-bold text-slate-800">{member.carnet || "Sin carnet"}</div>
-                    {member.correo && <div className="text-xs text-slate-500 font-normal">{member.correo}</div>}
-                  </td>
-                  <td className="px-6 py-4">
-                    {member.estado === "aceptado" ? (
-                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
-                        Aceptado
-                      </span>
-                    ) : member.estado === "pendiente" ? (
-                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
-                        Invitación Pendiente
-                      </span>
-                    ) : (
-                      <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-800">
-                        Rechazado
-                      </span>
-                    )}
-                  </td>
-                  {isLeader && !isLocked && (
-                    <td className="px-6 py-4 text-right flex items-center justify-end gap-3">
-                      {member.estado === "aceptado" && (
-                        <button
-                          onClick={() => handleTransferir(member.egresadoId, member.nombreCompleto)}
-                          type="button"
-                          className="text-blue-600 hover:text-blue-800 font-semibold text-xs hover:underline"
-                          title="Transferir el rol de coordinador del grupo a este integrante"
-                        >
-                          Transferir Rol
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleExpulsar(member.id)}
-                        type="button"
-                        className="text-red-600 hover:text-red-800 font-bold text-xs hover:underline"
-                      >
-                        Expulsar
-                      </button>
-                    </td>
-                  )}
-                </tr>
-              ))}
-
-              {teamMembers.length === 0 && (
-                <tr>
-                  <td colSpan={isLeader && !isLocked ? 4 : 3} className="px-6 py-6 text-center text-muted text-xs">
-                    No has añadido más integrantes {isInvestigacion ? "a esta investigación" : "a este proyecto"}.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* H15: en trabajo individual no hay que ratificar aparte; el envío deja ratificada la versión enviada. */}
-        {!isLocked && !teamMembers.some((m) => m.estado === "aceptado") && (
-          <p className="mt-6 text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
-            <strong>Trabajo individual:</strong> al enviar la propuesta queda ratificada la versión enviada. Si se une alguien al equipo, cada integrante deberá ratificarla aquí.
-          </p>
-        )}
-
-        {/* Section: Ratificación Unánime del Plan de Trabajo (§8) */}
-        {!isLocked && teamMembers.some((m) => m.estado === "aceptado") && (
-          <div className="mt-6 bg-slate-900 text-white rounded-xl p-5 border border-slate-800 shadow-md">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                    §8 Ratificación Unánime
-                  </span>
-                  <h4 className="font-bold text-sm text-white">Firma de Conformidad del Equipo</h4>
-                </div>
-                <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-                  Cada integrante del equipo debe ratificar de forma individual la versión final de la propuesta.
-                  Toda modificación posterior al título, alcance o actividades invalidará las firmas previas para garantizar el acuerdo unánime.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                <button
-                  type="button"
-                  onClick={handleRatificar}
-                  disabled={ratifying}
-                  className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {ratifying ? "Ratificando..." : "Ratificar Versión Actual"}
-                </button>
-
-                {(!isLeader || teamMembers.length > 0) && (
-                  <button
-                    type="button"
-                    onClick={handleLeaveGroup}
-                    className="w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-red-400 font-semibold text-xs px-3 py-2.5 rounded-lg transition-colors border border-slate-700 hover:border-red-900/50"
-                  >
-                    Retirarse del Equipo
-                  </button>
-                )}
-              </div>
-            </div>
-            {firmas && (
-              <div className="mt-4 pt-3 border-t border-slate-700 space-y-1.5">
-                <p className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">
-                  Firmas de la versión actual: {firmas.miembros.filter((m) => m.firmado).length} de {firmas.miembros.length}
-                  {firmas.todosFirmaron ? " · lista para enviar" : ""}
-                </p>
-                <ul className="flex flex-wrap gap-2">
-                  {firmas.miembros.map((m) => (
-                    <li key={m.usuarioId} className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${m.firmado ? "bg-emerald-500/15 text-emerald-200 border-emerald-500/40" : m.vencida ? "bg-amber-500/15 text-amber-200 border-amber-500/40" : "bg-slate-800 text-slate-300 border-slate-600"}`}>
-                      {m.firmado ? "✓" : m.vencida ? "↺" : "○"} {m.nombre}{m.esLider ? " (líder)" : ""}
-                      <span className="font-normal"> · {m.firmado ? "firmó" : m.vencida ? "debe volver a firmar: la propuesta o el equipo cambió" : "falta firmar"}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
+          <div className="border border-border rounded-xl overflow-hidden">
+            <table className="w-full text-sm text-left">
+              <thead className="text-[10px] text-card-dark bg-gray-50 uppercase tracking-wider border-b border-border">
+                <tr><th className="px-5 py-2.5">Nombre completo</th><th className="px-5 py-2.5">Carnet</th><th className="px-5 py-2.5">Título al que opta</th></tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {integrantesPortada.map((m, i) => (
+                  <tr key={i}>
+                    <td className="px-5 py-3 font-semibold text-gray-800">{m.nombre}{m.lider ? <span className="ml-2 text-[11px] bg-brand-red text-white px-2 py-0.5 rounded font-semibold">Líder</span> : null}</td>
+                    <td className="px-5 py-3 text-gray-700">{m.carnet || "Sin carnet"}</td>
+                    <td className="px-5 py-3 text-gray-700">{m.titulo || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+          {teamMembers.some((m) => m.estado === "pendiente") && (
+            <p className="text-xs text-amber-800 mt-2">Las invitaciones pendientes no aparecen en la portada hasta que la acepten.</p>
+          )}
+        </div>
+      )}
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">

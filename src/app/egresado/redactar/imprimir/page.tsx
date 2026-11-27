@@ -28,9 +28,11 @@ const getStaticMapUrl = (coords: string | null) => {
 export default async function PrintPropuestaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ id?: string }>;
+  searchParams: Promise<{ id?: string; embebido?: string }>;
 }) {
   const params = await searchParams;
+  // R6: dentro del paso «Revisión y envío» se muestra solo el documento (sin el encabezado ni los botones)
+  const embebido = params.embebido === "1";
   const session = await getSession();
   if (!session) {
     redirect("/login");
@@ -139,6 +141,13 @@ export default async function PrintPropuestaPage({
 
   return (
     <div className="bg-white min-h-screen text-black">
+      {embebido && (
+        <style>{`
+          header, footer, nav { display: none !important; }
+          main { padding: 0 !important; max-width: none !important; }
+          body { background: #fff !important; }
+        `}</style>
+      )}
       <style>{`
         @media print {
           header, footer, nav, .no-print {
@@ -152,7 +161,7 @@ export default async function PrintPropuestaPage({
       `}</style>
       <div className="mx-auto bg-white p-8 print:p-0" style={{ maxWidth: "800px" }}>
         {/* Helper print and navigation buttons */}
-        <div className="mb-8 flex justify-between items-center print:hidden">
+        <div className={`mb-8 flex justify-between items-center print:hidden ${embebido ? "hidden" : ""}`}>
           <Link
             href="/egresado"
             className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all shadow-xs"

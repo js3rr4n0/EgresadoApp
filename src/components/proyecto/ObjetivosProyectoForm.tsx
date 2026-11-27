@@ -3,6 +3,46 @@
 import { useState } from "react";
 import { saveObjetivosProyecto } from "@/app/actions/proyecto";
 import { useRouter } from "next/navigation";
+import BarraFortaleza from "@/components/fortaleza/BarraFortaleza";
+import { UMBRAL_FORTALEZA } from "@/lib/fortaleza";
+import { MINIMO_OBJETIVO, fortalezaObjetivos, revisarSmart, type RevisionSmart } from "@/lib/smart";
+
+/** Revisión SMART de un objetivo (R4): las cinco letras y lo que falta. */
+function RevisionObjetivo({ revision }: { revision: RevisionSmart }) {
+  if (revision.vacio) return <p className="text-xs text-muted">Escribe el objetivo para revisarlo con los criterios SMART.</p>;
+  const faltan = revision.criterios.filter((c) => !c.cumple);
+  const solido = revision.porcentaje >= MINIMO_OBJETIVO;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {revision.criterios.map((c) => (
+          <span
+            key={c.criterio}
+            title={`${c.nombre}: ${c.cumple ? "cumple" : "falta"}`}
+            className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-bold ${
+              c.cumple ? "border-green-200 bg-green-50 text-green-800" : "border-gray-200 bg-gray-50 text-gray-400"
+            }`}
+          >
+            {c.criterio}
+            <span className="font-semibold">{c.nombre}</span>
+          </span>
+        ))}
+        <span className={`ml-1 text-xs font-bold tabular-nums ${solido ? "text-green-800" : "text-brand-red"}`}>
+          {revision.porcentaje} % · {solido ? "Sólido" : "Débil"}
+        </span>
+      </div>
+      {faltan.length > 0 && (
+        <ul className="text-xs text-gray-600 space-y-0.5 list-disc pl-4">
+          {faltan.map((c) => (
+            <li key={c.criterio}>
+              <span className="font-semibold">{c.nombre}:</span> {c.motivo}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 interface ObjectiveItem {
   titulo: string;
@@ -61,6 +101,10 @@ export default function ObjetivosProyectoForm({
   const [success, setSuccess] = useState<string | null>(null);
 
   const disabled = isLocked || isReadOnly;
+  // R4: fortaleza del elemento (promedio SMART; los objetivos que faltan para el mínimo cuentan 0 %)
+  const fortaleza = fortalezaObjetivos(objetivosEspecificos, minEspecificos);
+  const bajoUmbral = fortaleza < UMBRAL_FORTALEZA;
+  const rangoTexto = minEspecificos === maxEspecificos ? `${minEspecificos}` : `Mínimo ${minEspecificos} - Máximo ${maxEspecificos}`;
 
   const handleRowChange = (index: number, field: "titulo" | "descripcion", value: string) => {
     const next = [...objetivosEspecificos];
@@ -96,6 +140,11 @@ export default function ObjetivosProyectoForm({
 
     if (invalid) {
       setError("Todos los objetivos específicos deben tener un título y una descripción.");
+      return;
+    }
+
+    if (shouldAdvance && bajoUmbral) {
+      setError(`La fortaleza de los objetivos es ${fortaleza} %; necesita al menos ${UMBRAL_FORTALEZA} % para continuar. Revisa lo que falta en cada objetivo.`);
       return;
     }
 
@@ -183,7 +232,7 @@ export default function ObjetivosProyectoForm({
       {observaciones && (
         <div className="mb-6 p-5 bg-amber-50 border-2 border-amber-300 rounded-xl space-y-2 shadow-xs">
           <div className="flex items-center gap-2 font-extrabold text-amber-950 text-sm">
-            <span>📝 Indicaciones de Corrección del Docente Asesor sobre los Objetivos:</span>
+            <span>Indicaciones de corrección del docente asesor sobre los objetivos:</span>
           </div>
           <p className="text-xs text-amber-900 leading-relaxed font-semibold whitespace-pre-wrap">
             {observaciones}
@@ -204,6 +253,15 @@ export default function ObjetivosProyectoForm({
       )}
 
       <div className="space-y-8">
+        {/* R4: fortaleza de los objetivos */}
+        <div className="rounded-xl border border-border bg-gray-50 p-4 space-y-2">
+          <BarraFortaleza porcentaje={fortaleza} titulo="Fortaleza de los objetivos" />
+          <p className="text-xs text-muted">
+            Cada objetivo específico se revisa con los criterios SMART (específico, medible, alcanzable, relevante y temporal) y vale lo que
+            cumple de ellos. Necesitas al menos {UMBRAL_FORTALEZA} % para continuar. La revisión mira la forma del texto; el asesor valida el fondo.
+          </p>
+        </div>
+
         {/* Objetivo General */}
         <div>
           <label className="block text-sm font-bold text-card-dark mb-2">
@@ -225,10 +283,10 @@ export default function ObjetivosProyectoForm({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div>
               <h3 className="font-bold text-card-dark text-base">
-                Objetivos Específicos (Mínimo {minEspecificos} - Máximo {maxEspecificos})
+                Objetivos Específicos ({rangoTexto})
               </h3>
               <p className="text-xs text-muted mt-0.5">
-                Ingresa el título corto y la descripción detallada de cada objetivo.
+                Ingresa el título corto y la descripción de cada objetivo: empieza con un verbo en infinitivo e indica qué se entregará, con qué medios, para qué y en qué plazo.
               </p>
             </div>
             {!disabled && (
@@ -274,10 +332,13 @@ export default function ObjetivosProyectoForm({
                         value={item.descripcion}
                         onChange={(e) => handleRowChange(index, "descripcion", e.target.value)}
                         disabled={disabled}
-                        placeholder="Descripción detallada de la meta alcanzable..."
+                        placeholder="Ej: Desarrollar un módulo de inventario mediante una aplicación web para reducir en 30 % el tiempo de registro, en los primeros 3 meses."
                         className="w-full px-3 py-2 rounded-lg border border-border bg-slate-50 focus:bg-white text-sm focus:outline-none focus:ring-1 focus:ring-brand-red disabled:opacity-75"
                         required
                       />
+                      <div className="mt-2">
+                        <RevisionObjetivo revision={revisarSmart(item.titulo, item.descripcion)} />
+                      </div>
                     </td>
                     {!disabled && (
                       <td className="px-4 py-3 text-center">
@@ -339,7 +400,8 @@ export default function ObjetivosProyectoForm({
                   </button>
                   <button
                     type="button"
-                    disabled={pending}
+                    disabled={pending || bajoUmbral}
+                    title={bajoUmbral ? `Necesitas al menos ${UMBRAL_FORTALEZA} % de fortaleza` : undefined}
                     onClick={() => handleSave(true)}
                     className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white font-bold text-sm transition-colors shadow-sm disabled:opacity-50 cursor-pointer"
                   >

@@ -9,14 +9,21 @@ import {
   notificaciones,
   carreras,
   ratificacionesPropuesta,
-  documentosEgresado,
 } from "@/lib/schema";
 import { eq, and, ne, or, inArray } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { errorCohorteEquipo, errorCarreraEquipo } from "@/lib/cohortes";
 import { limitesObjetivos, maxIntegrantesDePropuesta } from "@/lib/fichas/fichaDePropuesta";
+import { textoRangoObjetivos, reglaUniforme } from "@/lib/fichas/objetivos";
+
+/** "de 4 a 5" o "12 (4 por integrante, 3 integrantes)". */
+const cantidadObjetivos = (lim: { porIntegrante: { min: number; max: number }; integrantes: number }) =>
+  textoRangoObjetivos(reglaUniforme(lim.porIntegrante), lim.integrantes);
 import { huellaPropuesta } from "@/lib/huellaPropuesta";
+import { tituloDeCarrera } from "@/lib/tituloCarrera";
+import { fortalezaDePropuesta } from "@/lib/fortalezaServidor";
+import { UMBRAL_FORTALEZA } from "@/lib/fortaleza";
 
 // Líder + integrantes. En la entrega P2 saldrá de la ficha de la propuesta (participantes.max).
 const MAX_INTEGRANTES_EQUIPO = 3;
@@ -403,12 +410,16 @@ export async function getEquipoProyecto(propuestaId: number) {
       nombreCompleto: usuarios.nombreCompleto,
       carnet: usuarios.carnet,
       correo: usuarios.correo,
+      carrera: carreras.nombre,
+      tituloOficial: carreras.titulo,
     })
     .from(integrantesProyecto)
     .innerJoin(usuarios, eq(integrantesProyecto.egresadoId, usuarios.id))
+    .leftJoin(carreras, eq(carreras.id, usuarios.carreraId))
     .where(eq(integrantesProyecto.propuestaId, propuestaId));
 
-  return team;
+  // Título al que opta cada integrante, para mostrarlo en la portada (R1)
+  return team.map(({ carrera, tituloOficial, ...m }) => ({ ...m, tituloCarrera: tituloDeCarrera(carrera, tituloOficial) }));
 }
 
 /**
@@ -571,7 +582,7 @@ export async function saveObjetivosProyecto(
 
   const lim = await limitesObjetivos(propuestaId);
   if (!Array.isArray(data.objetivosEspecificos) || data.objetivosEspecificos.length < lim.min || data.objetivosEspecificos.length > lim.max) {
-    return { success: false, error: `Debes registrar entre ${lim.min} y ${lim.max} objetivos específicos (de ${lim.porIntegrante.min} a ${lim.porIntegrante.max} por integrante).` };
+    return { success: false, error: `Debes registrar ${cantidadObjetivos(lim)} objetivos específicos.` };
   }
 
   const existing = await db
@@ -717,49 +728,76 @@ export async function getEstadoFirmasPropuesta(propuestaId: number) {
   };
 }
 
-export async function verificarCapacidadEnvio(propuestaId: number) {
+/**
+ * Lo que falta para enviar. `incluirRevision: false` deja fuera la confirmación de la revisión del documento (R6): el
+ * paso «Revisión y envío» la muestra aparte.
+ */
+export async function verificarCapacidadEnvio(propuestaId: number, opciones: { incluirRevision?: boolean; /** Trabajo individual: enviar es la ratificación (H15). */ ratificaAlEnviar?: boolean } = {}) {
   const errores: string[] = [];
   const propRows = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
   if (propRows.length === 0) return { puedeEnviar: false, errores: ["Propuesta no encontrada."] };
   const prop = propRows[0];
 
-  // 1. Verificación de documentos de soporte por integrante activo (§6)
-  const leaderUser = await db.select().from(usuarios).where(eq(usuarios.id, prop.egresadoId)).limit(1);
-  const memberUsers = await db
-    .select({ id: usuarios.id, nombreCompleto: usuarios.nombreCompleto, carnet: usuarios.carnet })
-    .from(integrantesProyecto)
-    .innerJoin(usuarios, eq(integrantesProyecto.egresadoId, usuarios.id))
-    .where(and(eq(integrantesProyecto.propuestaId, propuestaId), eq(integrantesProyecto.estado, "aceptado")));
-
-  const activeUsers = [...leaderUser, ...memberUsers];
-
-  for (const u of activeUsers) {
-    const docs = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, u.id));
-    const hasServicio = docs.some(d => d.tipo === "servicio_social");
-    const hasNotas = docs.some(d => d.tipo === "certificacion_notas");
-    const hasPago = docs.some(d => d.tipo === "pago_tg");
-
-    if (!hasServicio || !hasNotas || !hasPago) {
-      errores.push(`Faltan documentos obligatorios: ${u.nombreCompleto} (${u.carnet || 'sin carnet'}) debe subir el comprobante de inscripción del trabajo de graduación, la constancia de servicio social y la certificación global de notas en su panel principal.`);
+  // 1. Documentos de soporte por integrante activo (§6). R6: dice qué le falta a cada quien.
+  const { documentosPorIntegrante } = await import("@/lib/revisionPropuestaServidor");
+  for (const u of await documentosPorIntegrante(propuestaId)) {
+    if (u.faltan.length) {
+      errores.push(`Documentos de soporte: a ${u.nombre} (${u.carnet || "sin carnet"}) le falta ${u.faltan.map((d) => d.toLowerCase()).join(", ")}. Cada integrante los sube desde su panel principal.`);
     }
   }
 
-  // 1b. Objetivos específicos de 3 a 4 por integrante (H19/H27): el equipo pudo cambiar después de escribirlos.
+  // 1b. Objetivos específicos (R4: individual de 4 a 5, en grupo 4 por integrante): el equipo pudo cambiar después de escribirlos.
   const [det] = await db.select({ especificos: detallesProyecto.objetivosEspecificos }).from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
   const lim = await limitesObjetivos(propuestaId);
   const cuantos = Array.isArray(det?.especificos) ? det.especificos.length : 0;
   if (cuantos < lim.min || cuantos > lim.max) {
-    errores.push(`Objetivos específicos: con ${lim.integrantes} integrante(s) la propuesta necesita de ${lim.min} a ${lim.max} (de ${lim.porIntegrante.min} a ${lim.porIntegrante.max} por integrante) y tiene ${cuantos}. Ajústalos en el paso Objetivos.`);
+    errores.push(`Objetivos específicos: la propuesta necesita ${cantidadObjetivos(lim)} y tiene ${cuantos}. Ajústalos en el paso Objetivos.`);
+  }
+
+  // 1c. R3: fortaleza de la propuesta (problema, justificación y alcance) de al menos 75 % en cada apartado y en total
+  const fortaleza = await fortalezaDePropuesta(propuestaId);
+  const debiles = fortaleza.elementos.filter((e) => e.porcentaje < UMBRAL_FORTALEZA);
+  if (debiles.length) {
+    errores.push(`Fortaleza insuficiente: ${debiles.map((e) => `${e.titulo} (${e.porcentaje} %)`).join(", ")}. Cada apartado necesita al menos ${UMBRAL_FORTALEZA} %.`);
+  } else if (fortaleza.porcentaje != null && fortaleza.porcentaje < UMBRAL_FORTALEZA) {
+    errores.push(`La fortaleza total de la propuesta es ${fortaleza.porcentaje} %; necesita al menos ${UMBRAL_FORTALEZA} %.`);
+  }
+
+  // 1d. R5: firmantes y supervisor de la carta elegidos y validados (sin solicitudes pendientes de la administración)
+  if (prop.tipo !== "pasantia") {
+    const { fichaDePropuesta, espaciosPropuesta } = await import("@/lib/fichas/fichaDePropuesta");
+    const ficha = await fichaDePropuesta(propuestaId);
+    if (ficha && espaciosPropuesta(ficha.definicion).some((e) => e.elemento === "carta")) {
+      const { estadoPersonasCartaDe } = await import("@/lib/personasCartaServidor");
+      const estado = await estadoPersonasCartaDe(propuestaId).catch(() => null);
+      if (estado && estado.pendiente) {
+        errores.push("Carta de aceptación: la administración todavía no valida los firmantes o el supervisor nuevos (o la falta de supervisor).");
+      } else if (estado && !estado.listo) {
+        errores.push("Carta de aceptación: elige los firmantes y el supervisor empresarial en el paso Carta de aceptación.");
+      }
+    }
+  }
+
+  // 1e. R6: el líder confirmó que revisó el documento completo, en su versión actual
+  if (prop.tipo !== "pasantia" && opciones.incluirRevision !== false) {
+    const { estadoRevision } = await import("@/lib/revisionPropuestaServidor");
+    const rev = await estadoRevision(propuestaId).catch(() => null);
+    if (rev && !rev.confirmada) {
+      errores.push(rev.cambioDespues
+        ? "Revisión del documento: la propuesta cambió después de tu confirmación. Revísala de nuevo y confirma en el paso Revisión y envío."
+        : "Revisión del documento: confirma en el paso Revisión y envío que revisaste el documento completo.");
+    }
   }
 
   // 2. Verificación de ratificación unánime (§8)
   const ratInfo = await getRatificacionesEstado(propuestaId);
-  if (!ratInfo || !ratInfo.todosFirmaron) {
+  const individualAlEnviar = opciones.ratificaAlEnviar && ratInfo?.totalMiembros === 1;
+  if (!individualAlEnviar && (!ratInfo || !ratInfo.todosFirmaron)) {
     // H15/H26: decir quién falta, en lugar del código interno.
     const faltan = (ratInfo?.miembrosEstado ?? []).filter((m) => !m.firmado).map((m) => m.nombreCompleto);
     errores.push(faltan.length
-      ? `Falta ratificar la versión actual de la propuesta (en el paso Portada): ${faltan.join(", ")}. Cualquier cambio en la propuesta o en el equipo invalida las firmas anteriores.`
-      : "Falta ratificar la versión actual de la propuesta (en el paso Portada). Cualquier cambio en la propuesta o en el equipo invalida las firmas anteriores.");
+      ? `Falta ratificar la versión actual de la propuesta (en el paso Equipo de trabajo): ${faltan.join(", ")}. Cualquier cambio en la propuesta o en el equipo invalida las firmas anteriores.`
+      : "Falta ratificar la versión actual de la propuesta (en el paso Equipo de trabajo). Cualquier cambio en la propuesta o en el equipo invalida las firmas anteriores.");
   }
 
   return {

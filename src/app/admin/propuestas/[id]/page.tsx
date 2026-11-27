@@ -22,6 +22,7 @@ import PdfToImagesViewer from "@/components/PdfToImagesViewer";
 import MediaZoomViewer from "@/components/MediaZoomViewer";
 import HistorialProyectoAccordion from "@/components/HistorialProyectoAccordion";
 import ValoracionesDelProceso from "@/components/valoraciones/ValoracionesDelProceso";
+import FortalezaResumen from "@/components/fortaleza/FortalezaResumen";
 import { opcionesAsesor, reglaDePropuesta, ultimaSolicitudAsesor } from "@/lib/asignacionServidor";
 import { alcanceAdmin, puedeAsignarPropuesta, puedeVerPropuesta } from "@/lib/permisos";
 
@@ -521,6 +522,9 @@ export default async function AdminPropuestaReviewPage({
 
           {/* HISTORIAL DE ACCIONES Y CAMBIOS DEL PROYECTO (ACORDEÓN COLAPSABLE) */}
           <HistorialProyectoAccordion historial={historialList} />
+
+          {/* R3: fortaleza de la propuesta */}
+          <FortalezaResumen propuestaId={propuesta.id} paraAsesor />
 
           {/* Valoraciones al cierre del proceso (entrega V5) */}
           <ValoracionesDelProceso propuestaId={propuesta.id} />

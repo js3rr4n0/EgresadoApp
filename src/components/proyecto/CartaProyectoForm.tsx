@@ -2,9 +2,15 @@
 
 import { useState, useEffect } from "react";
 import { saveCartaAceptacion } from "@/app/actions/carta";
+import { guardarPersonasCarta } from "@/app/actions/personasCarta";
 import { useRouter } from "next/navigation";
+import PersonasCarta from "./PersonasCarta";
+import { revisarEntrada, type EntradaPersonasCarta } from "@/lib/personasCarta";
+import type { DatosPersonasCarta } from "@/lib/personasCartaServidor";
 
 interface CartaProyectoFormProps {
+  /** R5: firmantes y supervisor de la empresa, lo elegido y la última solicitud a la administración. */
+  personas: DatosPersonasCarta;
   // Pasos del asistente según el orden de la ficha (P2); por defecto, el orden de la fase 1.
   pasoSiguiente?: number;
   pasoAnterior?: number;
@@ -35,6 +41,7 @@ export default function CartaProyectoForm({
   isLocked,
   isReadOnly = false,
   isInvestigacion = false,
+  personas,
 }: CartaProyectoFormProps) {
   const router = useRouter();
 
@@ -54,10 +61,16 @@ export default function CartaProyectoForm({
   const [fechaInicio, setFechaInicio] = useState(defaultInicio);
   const [fechaFin, setFechaFin] = useState(defaultFin);
 
-  const [supTitulo, setSupTitulo] = useState(initialData?.supTitulo || "");
-  const [supNombres, setSupNombres] = useState(initialData?.supNombres || "");
-  const [supApellidos, setSupApellidos] = useState(initialData?.supApellidos || "");
-  const [supCargo, setSupCargo] = useState(initialData?.supCargo || "");
+  // R5: los firmantes y el supervisor se eligen de la empresa (o se agregan como solicitud); ya no se escriben a mano
+  const [entrada, setEntrada] = useState<EntradaPersonasCarta>(() => ({
+    firmanteIds: personas.seleccion.firmanteIds,
+    // Los nuevos de una solicitud todavía pendiente se muestran para poder corregirlos
+    firmantesNuevos: personas.ultima?.estado === "pendiente" ? personas.ultima.datos.firmantesNuevos ?? [] : [],
+    supervisorId: personas.seleccion.supervisorId,
+    supervisorNuevo: personas.ultima?.estado === "pendiente" ? personas.ultima.datos.supervisorNuevo ?? null : null,
+    sinSupervisor: personas.seleccion.sinSupervisor,
+    motivoSinSupervisor: personas.seleccion.motivoSinSupervisor,
+  }));
 
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [existingPdfUrl, setExistingPdfUrl] = useState<string | null>(initialData?.archivoUrl || null);
@@ -109,8 +122,13 @@ export default function CartaProyectoForm({
       return;
     }
 
-    if (!fechaEmision || !fechaInicio || !fechaFin || !supNombres || !supApellidos || !supTitulo || !supCargo) {
-      setError("Por favor completa todos los campos del formulario.");
+    if (!fechaEmision || !fechaInicio || !fechaFin) {
+      setError("Por favor completa las fechas de la carta.");
+      return;
+    }
+    const problemas = revisarEntrada(entrada);
+    if (problemas.length) {
+      setError(problemas.join(" "));
       return;
     }
 
@@ -123,10 +141,6 @@ export default function CartaProyectoForm({
     formData.append("fechaEmision", fechaEmision);
     formData.append("fechaInicio", fechaInicio);
     formData.append("fechaFin", fechaFin);
-    formData.append("supTitulo", supTitulo);
-    formData.append("supNombres", supNombres);
-    formData.append("supApellidos", supApellidos);
-    formData.append("supCargo", supCargo);
 
     if (pdfFile) {
       if (pdfFile.size > 10 * 1024 * 1024) {
@@ -139,10 +153,18 @@ export default function CartaProyectoForm({
 
     const res = await saveCartaAceptacion(formData);
 
+    const resPersonas = res.success ? await guardarPersonasCarta(propuestaId, entrada) : null;
+
     if (!res.success) {
       setError(res.error || "Error al guardar la carta de aceptación.");
+    } else if (!resPersonas?.success) {
+      setError(resPersonas?.error || "No se pudieron guardar los firmantes y el supervisor.");
     } else {
-      setSuccess("Carta de aceptación guardada correctamente.");
+      setSuccess(
+        resPersonas.solicitud
+          ? "Carta guardada. Los firmantes o el supervisor nuevos (o la falta de supervisor) se enviaron a la administración para validarlos."
+          : "Carta de aceptación guardada correctamente.",
+      );
       if ((res as any).archivoUrl) setExistingPdfUrl((res as any).archivoUrl);
       if (shouldAdvance) {
         router.push(`?id=${propuestaId}&step=${pasoSiguiente ?? 4}`);
@@ -159,7 +181,7 @@ export default function CartaProyectoForm({
           {isInvestigacion ? "Carta de Aceptación de Investigación" : "Carta de Aceptación de Proyecto"}
         </h2>
         <p className="text-sm text-muted mt-1">
-          Adjunta la carta de aceptación otorgada por la institución o empresa en formato PDF y completa los datos del supervisor.
+          Adjunta la carta de aceptación otorgada por la institución o empresa en formato PDF y elige quiénes la firman y quién será el supervisor.
         </p>
       </div>
 
@@ -274,68 +296,14 @@ export default function CartaProyectoForm({
           </div>
         </div>
 
-        {/* Supervisor Inputs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-          <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">
-              Nombres del Supervisor Encargado <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={supNombres}
-              onChange={(e) => setSupNombres(e.target.value)}
-              disabled={disabled}
-              placeholder="Ej: Carlos Alberto"
-              className="w-full px-4 py-2.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">
-              Apellidos del Supervisor Encargado <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={supApellidos}
-              onChange={(e) => setSupApellidos(e.target.value)}
-              disabled={disabled}
-              placeholder="Ej: Mendoza Reyes"
-              className="w-full px-4 py-2.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">
-              Título del Supervisor Designado <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={supTitulo}
-              onChange={(e) => setSupTitulo(e.target.value)}
-              disabled={disabled}
-              placeholder="Ej: Ingeniero, Licenciado, Msc., Dr."
-              className="w-full px-4 py-2.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-card-dark mb-2">
-              Cargo del Supervisor <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={supCargo}
-              onChange={(e) => setSupCargo(e.target.value)}
-              disabled={disabled}
-              placeholder="Ej: Gerente de Innovación y Tecnología"
-              className="w-full px-4 py-2.5 rounded-lg border border-border bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-red text-sm disabled:opacity-75"
-              required
-            />
-          </div>
-        </div>
+        {/* R5: firmantes y supervisor de la empresa */}
+        {personas.empresaId ? (
+          <PersonasCarta firmantes={personas.firmantes} supervisores={personas.supervisores} valor={entrada} onChange={setEntrada} ultima={personas.ultima} disabled={disabled} />
+        ) : (
+          <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Para elegir firmantes y supervisor, primero selecciona la empresa en el paso Datos empresariales.
+          </p>
+        )}
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-border mt-8">
           <button

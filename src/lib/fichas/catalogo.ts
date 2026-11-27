@@ -183,9 +183,12 @@ export const CATALOGO: Record<ClaveElemento, ElementoCatalogo> = {
     requiere: [],
     etapas: ["propuesta"],
     parametros: [
-      // H19/H27: por integrante; el total de un equipo se multiplica por sus integrantes. Rige también el protocolo y el plan.
-      { clave: "minEspecificos", etiqueta: "Objetivos específicos mínimos por integrante", tipo: "numero", porDefecto: 3, min: 1, max: 10, ayuda: "Rige la propuesta, el protocolo y el plan de trabajo. En equipo se multiplica por los integrantes." },
-      { clave: "maxEspecificos", etiqueta: "Objetivos específicos máximos por integrante", tipo: "numero", porDefecto: 4, min: 1, max: 10 },
+      // R4: un rango para una sola persona y otro por integrante en grupo (el total se multiplica por los integrantes).
+      // Rige también el protocolo y el plan. Las claves anteriores (minEspecificos, maxEspecificos) ya no se leen.
+      { clave: "minIndividual", etiqueta: "Objetivos específicos mínimos (individual)", tipo: "numero", porDefecto: 4, min: 1, max: 10, ayuda: "Rige la propuesta, el protocolo y el plan de trabajo." },
+      { clave: "maxIndividual", etiqueta: "Objetivos específicos máximos (individual)", tipo: "numero", porDefecto: 5, min: 1, max: 10 },
+      { clave: "minPorIntegrante", etiqueta: "Objetivos específicos mínimos por integrante (en grupo)", tipo: "numero", porDefecto: 4, min: 1, max: 10, ayuda: "En grupo se multiplica por los integrantes, líder incluido." },
+      { clave: "maxPorIntegrante", etiqueta: "Objetivos específicos máximos por integrante (en grupo)", tipo: "numero", porDefecto: 4, min: 1, max: 10 },
     ],
   },
   documentos: {

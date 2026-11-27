@@ -14,6 +14,13 @@ const TIPO_VISTA: Record<TipoCampo, CampoElemento["tipo"]> = {
   texto: "texto", texto_largo: "texto largo", numero: "texto", fecha: "fecha", seleccion: "selección",
   lista: "lista", archivo: "archivo", imagen: "imagen", enlace: "texto",
 };
+/** "de 4 a 5" o "4" con los valores del parámetro (o los de la regla si no se configuraron). */
+function rangoVista(min: unknown, max: unknown, minPorDefecto: number, maxPorDefecto: number): string {
+  const a = Number(min ?? minPorDefecto);
+  const b = Number(max ?? maxPorDefecto);
+  return a === b ? `${a}` : `de ${a} a ${b}`;
+}
+
 function camposDelPaso(e: Espacio): CampoElemento[] {
   if (e.propio) return e.propio.definicion.campos.map((c) => ({ nombre: c.etiqueta, tipo: TIPO_VISTA[c.tipo], obligatorio: c.obligatorio }));
   // Campos adicionales (C4): al final de los del sistema.
@@ -47,7 +54,7 @@ function reglas(e: Espacio, equipo: boolean): string[] {
     case "actores":
       return [`Se piden: ${etiqueta(ACTORES, p.actores)}.`];
     case "objetivos":
-      return [`Un objetivo general y de ${p.minEspecificos} a ${p.maxEspecificos} objetivos específicos por integrante (en equipo, por la cantidad de integrantes).`];
+      return [`Un objetivo general y objetivos específicos: ${rangoVista(p.minIndividual, p.maxIndividual, 4, 5)} si es individual${equipo ? `; en grupo, ${rangoVista(p.minPorIntegrante, p.maxPorIntegrante, 4, 4)} por integrante` : ""}. Cada uno se revisa con los criterios SMART.`];
     case "documentos":
       return [`${CATALOGO.documentos.alcance === "integrante" && equipo ? "Cada integrante sube" : "Se sube"}: ${etiqueta(DOCUMENTOS_ESTUDIANTE, p.documentos) || "ningún documento"}.`];
     case "imagen":

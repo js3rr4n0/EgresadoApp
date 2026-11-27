@@ -151,7 +151,9 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
     vistos.add(esp.elemento);
 
     for (const par of el.parametros) {
-      const v = esp.parametros[par.clave];
+      // Un número que la ficha no guardó toma el valor por defecto (así lo muestra el editor): las fichas anteriores a
+      // un parámetro nuevo, como los rangos de objetivos de R4, siguen siendo válidas.
+      const v = esp.parametros[par.clave] ?? (par.tipo === "numero" ? par.porDefecto : undefined);
       if (par.tipo === "numero") {
         if (!entero(v) || v < par.min || v > par.max) p(`"${par.etiqueta}" debe estar entre ${par.min} y ${par.max}.`);
       } else if (par.tipo === "booleano") {
@@ -198,8 +200,9 @@ function validarEspacios(etapa: EtapaConEspacios, def: DefinicionFicha, problema
       if (minimo > maximo) p("la cantidad mínima es mayor que la máxima.");
     }
     if (esp.elemento === "objetivos") {
-      const { minEspecificos, maxEspecificos } = esp.parametros as { minEspecificos: number; maxEspecificos: number };
-      if (minEspecificos > maxEspecificos) p("el mínimo de objetivos específicos es mayor que el máximo.");
+      const q = esp.parametros as Record<string, unknown>;
+      if (Number(q.minIndividual ?? 4) > Number(q.maxIndividual ?? 5)) p("el mínimo de objetivos específicos (individual) es mayor que el máximo.");
+      if (Number(q.minPorIntegrante ?? 4) > Number(q.maxPorIntegrante ?? 4)) p("el mínimo de objetivos específicos por integrante es mayor que el máximo.");
     }
     if (esp.elemento === "resultados_objetivos" && !def.etapas.some(esEtapaPlan)) p("los resultados por objetivo salen del plan de trabajo: la ficha necesita uno.");
     if (esp.elemento === "cronograma_comparado" && !def.etapas.some(esEtapaPlan)) p("el cronograma sale del plan de trabajo: la ficha necesita uno.");

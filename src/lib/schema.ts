@@ -394,6 +394,19 @@ export const propuestas = pgTable(
   ]
 );
 
+// ─────────────────────────── Revisión del documento (R6) ───────────────────────────
+
+// El líder confirmó que revisó el documento completo antes de enviar. Vale mientras la huella de la propuesta no cambie
+// (lib/revisionPropuestaServidor.ts). Tabla aparte para no tocar «propuestas». Script: scripts/crear_revision_propuesta.ts
+export const revisionesPropuesta = pgTable("revisiones_propuesta", {
+  propuestaId: integer("propuesta_id")
+    .primaryKey()
+    .references(() => propuestas.id, { onDelete: "cascade" }),
+  huella: text("huella").notNull(),
+  confirmadaEn: timestamp("confirmada_en", { withTimezone: true }).notNull().defaultNow(),
+  confirmadaPor: integer("confirmada_por").references(() => usuarios.id),
+});
+
 // ─────────────────────────── Carta de aceptación ───────────────────────────
 
 export const cartasAceptacion = pgTable("cartas_aceptacion", {
@@ -416,6 +429,12 @@ export const cartasAceptacion = pgTable("cartas_aceptacion", {
   emisorCargo: varchar("emisor_cargo", { length: 255 }),
   emisorFirmaUrl: text("emisor_firma_url"),
   bloqueada: boolean("bloqueada").notNull().default(false),
+  // R5: firmantes (ids de `firmantes`) y supervisor de la empresa elegidos en la carta, o «sin supervisor empresarial»
+  // con su motivo (lo valida la administración). Los nuevos van como solicitud de empresa de tipo «carta».
+  firmanteIds: jsonb("firmante_ids").$type<number[]>(),
+  supervisorId: integer("supervisor_id"),
+  sinSupervisor: boolean("sin_supervisor").notNull().default(false),
+  motivoSinSupervisor: text("motivo_sin_supervisor"),
 });
 
 // ─────────────────────────── Actividades ───────────────────────────
@@ -671,7 +690,7 @@ export const solicitudesEmpresa = pgTable(
   (table) => [
     check(
       "tipo_solicitud_check",
-      sql`${table.tipo} IN ('nueva', 'actualizacion', 'modificacion', 'datos_alumno')`
+      sql`${table.tipo} IN ('nueva', 'actualizacion', 'modificacion', 'datos_alumno', 'carta')`
     ),
     check(
       "estado_solicitud_check",
@@ -790,6 +809,11 @@ export const detallesProyecto = pgTable("detalles_proyecto", {
   // Step 7: Objetivos del proyecto
   objetivoGeneral: text("objetivo_general"),
   objetivosEspecificos: jsonb("objetivos_especificos"), // Array of { titulo: string, descripcion: string }
+  // R3 (specs/REDACTAR_PROPUESTA_AJUSTES.md): partes de cada elemento ({ [clave]: texto }); las columnas de texto de
+  // arriba guardan el texto armado con subtítulos. Script: scripts/crear_partes_propuesta.ts
+  problemaPartes: jsonb("problema_partes"),
+  justificacionPartes: jsonb("justificacion_partes"),
+  alcancePartes: jsonb("alcance_partes"),
   objetivoGeneralAnterior: text("objetivo_general_anterior"),
   objetivosEspecificosAnteriores: jsonb("objetivos_especificos_anteriores"),
 });

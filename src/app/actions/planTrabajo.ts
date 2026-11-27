@@ -12,7 +12,7 @@ import { revalidatePath } from "next/cache";
 import { fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
 import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, type EtapaEjecucion, type EtapaPlan } from "@/lib/fichas/tipos";
 import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
-import { objetivosPorIntegranteDe, rangoObjetivos, type RangoObjetivos } from "@/lib/fichas/objetivos";
+import { reglaObjetivosDe, reglaUniforme, rangoObjetivos, rangoPorPersona, type RangoObjetivos } from "@/lib/fichas/objetivos";
 
 const fechaCorta = (d: Date) => d.toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" });
 import { cambioNoPermitido, normalizarArbol, numerar, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
@@ -141,10 +141,11 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
 
   const ficha = await fichaDePropuesta(propuestaId);
   const etapaFicha = ficha?.definicion.etapas.find(esEtapaPlan);
-  // H19/H27: si la propuesta pide objetivos, el plan usa el mismo rango por integrante (de 3 a 4 por defecto).
+  // R4: si la propuesta pide objetivos, el plan usa la misma regla (individual de 4 a 5, en grupo 4 por integrante).
   const objetivosProp = ficha?.definicion.etapas.find(esEtapaPropuesta)?.espacios.find((e) => e.elemento === "objetivos");
-  const etapa: EtapaPlan | undefined = etapaFicha && objetivosProp
-    ? { ...etapaFicha, minimos: { ...etapaFicha.minimos, objetivosPorIntegrante: objetivosPorIntegranteDe(ficha!.definicion).min, maxObjetivosPorIntegrante: objetivosPorIntegranteDe(ficha!.definicion).max } }
+  const porPersona = objetivosProp ? rangoPorPersona(reglaObjetivosDe(ficha!.definicion), equipo.length) : null;
+  const etapa: EtapaPlan | undefined = etapaFicha && porPersona
+    ? { ...etapaFicha, minimos: { ...etapaFicha.minimos, objetivosPorIntegrante: porPersona.min, maxObjetivosPorIntegrante: porPersona.max } }
     : etapaFicha;
   const protocolo = ficha?.definicion.etapas.find(esEtapaProtocolo);
   const informeFinal = !!ficha?.definicion.etapas.some(esEtapaInformeFinal);
@@ -195,7 +196,7 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
         : null,
       informeFinal,
       metodologia: pideMetodologia(etapa) ? { fuentes: await fuentesDe(propuestaId), protocolo: await metodologiaDelProtocolo(propuestaId, protocolo?.espacios ?? []) } : null,
-      rangoObjetivos: rangoObjetivos({ min: etapa.minimos.objetivosPorIntegrante, max: etapa.minimos.maxObjetivosPorIntegrante ?? Math.max(etapa.minimos.objetivosPorIntegrante, 4) }, equipo.length),
+      rangoObjetivos: rangoObjetivos(reglaUniforme({ min: etapa.minimos.objetivosPorIntegrante, max: etapa.minimos.maxObjetivosPorIntegrante ?? Math.max(etapa.minimos.objetivosPorIntegrante, 4) }), equipo.length),
     },
   };
 }

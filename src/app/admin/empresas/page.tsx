@@ -60,7 +60,7 @@ export default async function EmpresasPage({ searchParams }: { searchParams: Pro
             <div>
               <h2 className={`text-lg font-bold ${pendientes.length ? "" : "text-card-dark"}`}>Solicitudes de empresas</h2>
               <p className={`text-sm ${pendientes.length ? "text-white/85" : "text-muted"}`}>
-                Empresas nuevas y actualizaciones de datos de empresas o supervisores enviadas por los egresados.
+                Empresas nuevas, actualizaciones de datos de empresas o supervisores, y firmantes o supervisores de cartas de aceptación enviados por los egresados.
               </p>
             </div>
             <span className={`self-start md:self-auto px-3 py-1 rounded-lg text-sm font-bold ${pendientes.length ? "bg-white text-brand-red" : "bg-gray-200 text-gray-600"}`}>

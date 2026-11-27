@@ -10,7 +10,7 @@ import { planNuevo } from "@/lib/fichas/plantillas";
 import { aplanar, cargaPorIntegrante, planEjemplo, planIndividual, totalesNodo } from "@/lib/fichas/planTrabajo";
 import { campoCompacto, EncabezadoSeccion, etiquetaCompacta, Interruptor, Tarjeta } from "./EditorPropuesta";
 import { nuevoId } from "./ids";
-import { objetivosPorIntegranteDe } from "@/lib/fichas/objetivos";
+import { reglaObjetivosDe } from "@/lib/fichas/objetivos";
 
 function Numero({ id, etiqueta, valor, onChange, editable, min = 1, max = 20, sufijo }: {
   id: string; etiqueta: string; valor: number; onChange: (n: number) => void; editable: boolean; min?: number; max?: number; sufijo?: string;
@@ -52,6 +52,8 @@ function Fila({ texto, ayuda, children }: { texto: string; ayuda?: string; child
     </div>
   );
 }
+
+const rangoTexto = (r: { min: number; max: number }) => (r.min === r.max ? `${r.min}` : `de ${r.min} a ${r.max}`);
 
 export default function EditorPlan({
   definicion,
@@ -105,8 +107,8 @@ export default function EditorPlan({
     onChange({ ...definicion, etapas: definicion.etapas.map((e) => (esEtapaPlan(e) ? { ...e, ...cambios } : e)) });
   const propios = problemas.filter((p) => p.ubicacion === plan.id);
   const objetivos = definicion.etapas.find(esEtapaPropuesta)?.espacios.find((e) => e.elemento === "objetivos");
-  // H19/H27: si la propuesta pide objetivos, el plan usa su mismo rango por integrante.
-  const rangoPropuesta = objetivos ? objetivosPorIntegranteDe(definicion) : null;
+  // R4: si la propuesta pide objetivos, el plan usa su misma regla.
+  const reglaPropuesta = objetivos ? reglaObjetivosDe(definicion) : null;
   const investigacion = esCronogramaInvestigacion(plan);
 
   return (
@@ -208,10 +210,12 @@ export default function EditorPlan({
                   </div>
                 )}
                 <div className="flex flex-wrap gap-3">
-                  {rangoPropuesta ? (
+                  {reglaPropuesta ? (
                     <div>
-                      <span className={etiquetaCompacta}>{equipo ? "Objetivos por integrante" : "Objetivos específicos"}</span>
-                      <p className="text-xs text-gray-700 mt-1">De {rangoPropuesta.min} a {rangoPropuesta.max}, como en el elemento «Objetivos» de la propuesta.</p>
+                      <span className={etiquetaCompacta}>Objetivos específicos</span>
+                      <p className="text-xs text-gray-700 mt-1">
+                        Individual: {rangoTexto(reglaPropuesta.individual)}{equipo ? <>; en grupo: {rangoTexto(reglaPropuesta.porIntegrante)} por integrante</> : null}. Como en el elemento «Objetivos» de la propuesta.
+                      </p>
                     </div>
                   ) : <>
                   <Numero id="plan-obj" etiqueta={equipo ? "Objetivos por integrante" : "Objetivos específicos"} valor={plan.minimos.objetivosPorIntegrante} max={10} editable={editable}

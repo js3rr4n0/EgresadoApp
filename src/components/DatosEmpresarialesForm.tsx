@@ -59,7 +59,6 @@ export default function DatosEmpresarialesForm({
   const [isSaving, setIsSaving] = useState(false);
 
   // Modals state
-  const [problemModalOpen, setProblemModalOpen] = useState(false);
   const [problemMode, setProblemMode] = useState<"edit_existing" | "create_new" | null>(null);
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -210,7 +209,6 @@ export default function DatosEmpresarialesForm({
 
   const handleProblemSelection = (mode: "edit_existing" | "create_new") => {
     setProblemMode(mode);
-    setProblemModalOpen(false);
     
     // Reset form data
     setRevData({
@@ -221,8 +219,41 @@ export default function DatosEmpresarialesForm({
     setFormModalOpen(true);
   };
 
-  const handleExistingCompanySelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
+  // R2 (specs/REDACTAR_PROPUESTA_AJUSTES.md): la corrección se pide desde la empresa seleccionada, con sus datos ya
+  // cargados; el formulario «¿Empresa no encontrada?» queda solo para registrar una empresa nueva.
+  const abrirCorreccion = () => {
+    if (!selectedEmpresaId) return;
+    setProblemMode("edit_existing");
+    prefillEmpresa(selectedSucursalId ? `sucursal-${selectedSucursalId}` : `matriz-${selectedEmpresaId}`, true);
+    setFormModalOpen(true);
+  };
+
+  const abrirRegistroNueva = () => handleProblemSelection("create_new");
+
+  const cambiarEmpresa = () => {
+    setSelectedEmpresaId(null);
+    setSelectedSucursalId(null);
+    setSearchQuery("");
+    setIsDropdownOpen(true);
+    setTimeout(() => document.getElementById("buscador-empresa")?.focus(), 0);
+  };
+
+  const destinoCorreccion = revData.empresa as { targetEmpresaId?: number; targetSucursalId?: number };
+  const valorCorreccion = destinoCorreccion.targetSucursalId
+    ? `sucursal-${destinoCorreccion.targetSucursalId}`
+    : destinoCorreccion.targetEmpresaId
+      ? `matriz-${destinoCorreccion.targetEmpresaId}`
+      : "";
+
+  const handleExistingCompanySelect = (e: React.ChangeEvent<HTMLSelectElement>) => prefillEmpresa(e.target.value);
+
+  const prefillEmpresa = (val: string, reiniciarSupervisor = false) => {
+    if (reiniciarSupervisor) {
+      setRevData({
+        empresa: { nombre: "", area: "", descripcion: "", antecedentes: "", direccion: "", organigramaUrl: "", mapaUrl: "" },
+        supervisor: { titulo: "", nombres: "", apellidos: "", cargo: "", especialidad: "", telefono: "", correo: "" },
+      });
+    }
     if (!val) {
       setRevData(prev => ({ 
         ...prev, 
@@ -288,6 +319,7 @@ export default function DatosEmpresarialesForm({
           </label>
           <div className="relative">
             <input
+              id="buscador-empresa"
               type="text"
               value={searchQuery}
               onChange={(e) => {
@@ -301,7 +333,7 @@ export default function DatosEmpresarialesForm({
               onFocus={() => setIsDropdownOpen(true)}
               onBlur={() => setTimeout(() => setIsDropdownOpen(false), 200)}
               placeholder="Escribe para buscar empresa o sucursal..."
-              className="w-full px-4 py-2.5 rounded-lg bg-white border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-colors"
+              className="w-full pl-4 pr-10 py-2.5 rounded-lg bg-white border border-slate-200 text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red transition-colors"
             />
             {isDropdownOpen && (
               <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
@@ -331,14 +363,38 @@ export default function DatosEmpresarialesForm({
                 )}
               </div>
             )}
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-            </div>
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={cambiarEmpresa}
+                title="Quitar la selección y buscar otra empresa"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 rounded-md text-slate-400 hover:text-brand-red hover:bg-red-50 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            ) : (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              </div>
+            )}
           </div>
         </div>
 
         {selectedEmpresa && (
           <div className="animate-in fade-in slide-in-from-top-4 duration-300 space-y-5">
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-gray-50 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Empresa seleccionada</p>
+                <p className="font-bold text-gray-800 truncate">{selectedSucursal ? `${selectedSucursal.nombre} (sucursal de ${selectedEmpresa.nombre})` : selectedEmpresa.nombre}</p>
+              </div>
+              <button
+                type="button"
+                onClick={cambiarEmpresa}
+                className="shrink-0 px-3 py-1.5 rounded-lg border border-border bg-white text-sm font-bold text-gray-700 hover:border-brand-red hover:text-brand-red transition-colors"
+              >
+                Cambiar empresa
+              </button>
+            </div>
             <div>
               <div className="md:w-1/2 mb-5">
                 <label className="block text-sm font-bold text-foreground mb-1.5">
@@ -456,21 +512,38 @@ export default function DatosEmpresarialesForm({
                 })()}
               </div>
             </div>
+
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="font-bold text-amber-900 text-sm">¿Algún dato de esta empresa no es correcto?</p>
+                <p className="text-xs text-amber-800 mt-0.5">Envía una solicitud de corrección; la administración la revisa antes de cambiar el catálogo.</p>
+              </div>
+              <button
+                type="button"
+                onClick={abrirCorreccion}
+                className="shrink-0 px-4 py-2 rounded-lg bg-white border border-amber-300 text-amber-900 text-sm font-bold hover:bg-amber-100 transition-colors"
+              >
+                Solicitar corrección de datos
+              </button>
+            </div>
           </div>
         )}
 
-        <div className="mt-8 p-6 bg-blue-50/50 border border-blue-100 rounded-xl flex items-start gap-4">
-          <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center shrink-0">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+        {!selectedEmpresa && (
+          <div className="mt-8 p-5 bg-gray-50 border border-border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h3 className="font-bold text-gray-800">¿Tu empresa no aparece en la lista?</h3>
+              <p className="text-sm text-muted mt-1">Solicita que se registre. La administración revisa los datos antes de agregarla al catálogo.</p>
+            </div>
+            <button
+              type="button"
+              onClick={abrirRegistroNueva}
+              className="shrink-0 px-4 py-2 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white text-sm font-bold transition-colors"
+            >
+              Registrar empresa nueva
+            </button>
           </div>
-          <div>
-            <h3 className="font-bold text-blue-900 text-lg">¿Empresa no encontrada?</h3>
-            <p className="text-blue-800/80 text-sm mt-1">
-              Si tu empresa no existe o los datos no son los correctos presiona{" "}
-              <button onClick={() => setProblemModalOpen(true)} type="button" className="font-bold underline hover:text-blue-600">aquí</button>.
-            </p>
-          </div>
-        </div>
+        )}
       </div>
 
       <div className="flex justify-center sm:justify-start gap-4 mt-8 pt-6 border-t border-border flex-wrap">
@@ -494,53 +567,6 @@ export default function DatosEmpresarialesForm({
         </button>
       </div>
 
-      {/* 1. Problem Modal */}
-      {problemModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 text-center border-b border-border">
-              <h3 className="text-xl font-bold text-card-dark">¿Cuál es el problema con la empresa?</h3>
-              <p className="text-sm text-muted mt-1">Selecciona la opción que mejor describa tu situación.</p>
-            </div>
-            <div className="p-6 space-y-4">
-              <button 
-                onClick={() => handleProblemSelection("edit_existing")}
-                className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:border-[#3b82f6] hover:bg-[#eff6ff] transition-colors text-left"
-              >
-                <div className="w-12 h-12 rounded-full bg-[#e0e7ff] flex items-center justify-center shrink-0">
-                  <svg className="w-6 h-6 text-[#4f46e5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                </div>
-                <div>
-                  <h4 className="font-bold text-card-dark">Tu empresa existe pero los datos no son correctos</h4>
-                  <p className="text-sm text-muted">Podrás enviar una solicitud para actualizar la información.</p>
-                </div>
-              </button>
-
-              <button 
-                onClick={() => handleProblemSelection("create_new")}
-                className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:border-[#8b5cf6] hover:bg-[#f5f3ff] transition-colors text-left"
-              >
-                <div className="w-12 h-12 rounded-full bg-[#ede9fe] flex items-center justify-center shrink-0">
-                  <svg className="w-6 h-6 text-[#7c3aed]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                </div>
-                <div>
-                  <h4 className="font-bold text-card-dark">Tu empresa no existe</h4>
-                  <p className="text-sm text-muted">Podrás registrar una nueva empresa o institución.</p>
-                </div>
-              </button>
-            </div>
-            <div className="p-6 border-t border-border bg-slate-50/50">
-              <button 
-                onClick={() => setProblemModalOpen(false)}
-                className="w-full px-5 py-3 rounded-xl border border-border bg-white text-card-dark font-bold hover:bg-slate-50 transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 2. Revision Form Modal */}
       {formModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -563,6 +589,7 @@ export default function DatosEmpresarialesForm({
                   <div>
                     <label className="block text-sm font-bold text-card-dark mb-1.5">Nombre de la empresa <span className="text-brand-red">*</span></label>
                     <select
+                      value={valorCorreccion}
                       onChange={handleExistingCompanySelect}
                       className="w-full px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red bg-white"
                     >

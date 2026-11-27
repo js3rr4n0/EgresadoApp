@@ -7,6 +7,51 @@ import { fechaCortaSV, horaSV } from "@/lib/fechasTexto";
 import { useState } from "react";
 
 import { aprobarSolicitudEmpresa, rechazarSolicitudEmpresa } from "@/app/actions/solicitudes";
+import type { DatosSolicitudCarta, PersonaNueva } from "@/lib/personasCarta";
+
+/** Persona propuesta en la carta (R5). */
+function PersonaPropuesta({ p, rol }: { p: PersonaNueva; rol: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-white px-4 py-3">
+      <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{rol}</p>
+      <p className="font-bold text-card-dark">{[p.titulo, p.nombreCompleto].filter(Boolean).join(" ")}</p>
+      <p className="text-xs text-gray-700">{p.cargo}</p>
+      <p className="text-xs text-gray-700">{p.correo} · {p.telefono}</p>
+    </div>
+  );
+}
+
+/** Detalle de una solicitud de la carta de aceptación (R5): firmantes y supervisor nuevos, o sin supervisor. */
+function DetalleCarta({ datos, empresa }: { datos: DatosSolicitudCarta; empresa?: string }) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm">
+        El egresado eligió en su carta de aceptación personas que no están registradas en <span className="font-bold">{empresa || "la empresa"}</span>.
+        Al aprobar, quedan registradas en la empresa y elegidas en su carta. La propuesta no cambia de estado.
+      </p>
+      {datos.firmantesNuevos?.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {datos.firmantesNuevos.map((p, i) => <PersonaPropuesta key={i} p={p} rol="Firmante nuevo" />)}
+        </div>
+      )}
+      {datos.supervisorNuevo && <PersonaPropuesta p={datos.supervisorNuevo} rol="Supervisor nuevo" />}
+      {datos.sinSupervisor && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">Sin supervisor empresarial</p>
+          <p className="text-sm text-gray-800 whitespace-pre-wrap">{datos.sinSupervisor.motivo}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Resumen corto para la tabla. */
+const resumenCarta = (d: DatosSolicitudCarta) =>
+  [
+    d?.firmantesNuevos?.length ? `${d.firmantesNuevos.length} firmante(s) nuevo(s)` : "",
+    d?.supervisorNuevo ? "supervisor nuevo" : "",
+    d?.sinSupervisor ? "sin supervisor empresarial" : "",
+  ].filter(Boolean).join(", ");
 
 export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSucursales = [], allSupervisores = [], vacio = "No hay solicitudes." }: { solicitudes: any[], allEmpresas?: any[], allSucursales?: any[], allSupervisores?: any[], /** Texto cuando no hay filas. */ vacio?: string }) {
   const [loadingId, setLoadingId] = useState<number | null>(null);
@@ -15,7 +60,10 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
   const [viewDetails, setViewDetails] = useState<any | null>(null);
 
   const handleApprove = async (id: number) => {
-    if (!confirm("¿Estás seguro de aprobar esta solicitud? La empresa se guardará en la base de datos y la propuesta del egresado será desbloqueada.")) return;
+    const esCarta = solicitudes.find((x) => x.id === id)?.tipo === "carta";
+    if (!confirm(esCarta
+      ? "¿Aprobar esta solicitud? Los firmantes o el supervisor quedarán registrados en la empresa y elegidos en la carta del egresado."
+      : "¿Estás seguro de aprobar esta solicitud? La empresa se guardará en la base de datos y la propuesta del egresado será desbloqueada.")) return;
     
     setLoadingId(id);
     const res = await aprobarSolicitudEmpresa(id);
@@ -106,6 +154,8 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                 <td className="px-6 py-4">
                   {s.tipo === "nueva" && !data?.empresa?.targetEmpresaId ? (
                     <span className="bg-red-50 text-brand-red border border-brand-red/20 px-2 py-1 rounded-md text-xs font-bold whitespace-nowrap">Empresa nueva</span>
+                  ) : s.tipo === "carta" ? (
+                    <span className="bg-sky-50 text-sky-800 border border-sky-200 px-2 py-1 rounded-md text-xs font-bold whitespace-nowrap">Carta de aceptación</span>
                   ) : s.tipo === "datos_alumno" ? (
                     <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-1 rounded-md text-xs font-bold whitespace-nowrap">Datos del egresado</span>
                   ) : (
@@ -116,7 +166,12 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
                 </td>
                 <td className="px-6 py-4">{s.egresado || "Desconocido"}</td>
                 <td className="px-6 py-4">
-                  {s.tipo === "datos_alumno" ? (
+                  {s.tipo === "carta" ? (
+                    <div>
+                      <div className="font-bold text-foreground">{s.empresaTarget || "Empresa"}</div>
+                      <div className="text-xs text-muted">{resumenCarta(data)}</div>
+                    </div>
+                  ) : s.tipo === "datos_alumno" ? (
                     <div>
                       <div className="font-bold text-foreground">
                         Corrección de Nombre / Carnet
@@ -220,7 +275,7 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
             <div>
               <h3 className="text-xl font-bold text-card-dark">Detalles de Solicitud</h3>
               <p className="text-xs text-muted">
-                {viewDetails.tipo === "datos_alumno" ? "Solicitud de Corrección de Datos del Egresado" : "Solicitud de Datos de Empresa / Supervisor"}
+                {viewDetails.tipo === "carta" ? "Firmantes y supervisor de la carta de aceptación" : viewDetails.tipo === "datos_alumno" ? "Solicitud de Corrección de Datos del Egresado" : "Solicitud de Datos de Empresa / Supervisor"}
               </p>
             </div>
             <button onClick={() => setViewDetails(null)} className="text-muted hover:text-foreground">
@@ -229,7 +284,9 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
           </div>
 
           <div className="p-6 overflow-y-auto space-y-6 flex-1 text-sm text-slate-700">
-            {viewDetails.tipo === "datos_alumno" ? (
+            {viewDetails.tipo === "carta" ? (
+              <DetalleCarta datos={viewDetails.datos} empresa={viewDetails.empresaTarget} />
+            ) : viewDetails.tipo === "datos_alumno" ? (
               (() => {
                 const anteriores = viewDetails.datos?.anteriores || {};
                 const nuevos = viewDetails.datos?.nuevos || {};

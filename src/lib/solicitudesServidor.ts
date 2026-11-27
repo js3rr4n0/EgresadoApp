@@ -1,6 +1,7 @@
 import "server-only";
 // Solicitudes que revisa la administración y contadores de pendientes del menú lateral (ajustes del 26-nov-2026).
-//   - De empresa (nueva, actualización o modificación de empresa o supervisor): en Gestión de Empresas.
+//   - De empresa (nueva, actualización o modificación de empresa o supervisor, y firmantes o supervisor de la carta,
+//     R5): en Gestión de Empresas.
 //   - De corrección de datos del egresado (datos_alumno): en Solicitudes.
 
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
@@ -8,7 +9,7 @@ import { db } from "@/lib/db";
 import { empresas, organigramasEmpresa, propuestas, solicitudesEmpresa, sucursales, supervisores, usuarios } from "@/lib/schema";
 import type { Alcance } from "@/lib/permisos";
 
-export const TIPOS_EMPRESA = ["nueva", "actualizacion", "modificacion"];
+export const TIPOS_EMPRESA = ["nueva", "actualizacion", "modificacion", "carta"];
 export const TIPOS_CORRECCION = ["datos_alumno"];
 
 export async function leerSolicitudes(clase: "empresa" | "correccion") {

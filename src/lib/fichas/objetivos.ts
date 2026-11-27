@@ -1,6 +1,6 @@
-// Cantidad de objetivos específicos (reunión del 20-nov-2026, H19 y H27): de 3 a 4 por integrante, y la misma regla en
-// la propuesta, el protocolo y el plan de trabajo. El total de un equipo es el rango por integrante por la cantidad de
-// integrantes (líder incluido). Módulo puro: lo usan el servidor y las pantallas.
+// Cantidad de objetivos específicos. Regla vigente (specs/REDACTAR_PROPUESTA_AJUSTES.md, R4): trabajo individual, de 4 a
+// 5; en grupo, 4 por integrante (líder incluido). La ficha configura los dos rangos en el elemento «Objetivos» y la misma
+// regla rige la propuesta, el protocolo y el plan de trabajo. Módulo puro: lo usan el servidor y las pantallas.
 import { esEtapaPropuesta, type DefinicionFicha } from "./tipos";
 
 export interface RangoObjetivos {
@@ -8,28 +8,53 @@ export interface RangoObjetivos {
   max: number;
 }
 
-/** Regla por defecto: de 3 a 4 objetivos específicos por integrante. */
-export const OBJETIVOS_POR_INTEGRANTE: RangoObjetivos = { min: 3, max: 4 };
-
-/** Rango por integrante que configuró la ficha en el elemento «objetivos» de la propuesta (o el de la regla). */
-export function objetivosPorIntegranteDe(def: DefinicionFicha | null | undefined): RangoObjetivos {
-  const esp = def?.etapas.find(esEtapaPropuesta)?.espacios.find((e) => e.elemento === "objetivos");
-  const min = Number(esp?.parametros.minEspecificos);
-  const max = Number(esp?.parametros.maxEspecificos);
-  return Number.isInteger(min) && Number.isInteger(max) && min >= 1 && max >= min ? { min, max } : OBJETIVOS_POR_INTEGRANTE;
+/** Rango para una sola persona y rango por integrante cuando es en grupo. */
+export interface ReglaObjetivos {
+  individual: RangoObjetivos;
+  porIntegrante: RangoObjetivos;
 }
+
+export const OBJETIVOS_INDIVIDUAL: RangoObjetivos = { min: 4, max: 5 };
+export const OBJETIVOS_POR_INTEGRANTE: RangoObjetivos = { min: 4, max: 4 };
+export const REGLA_OBJETIVOS: ReglaObjetivos = { individual: OBJETIVOS_INDIVIDUAL, porIntegrante: OBJETIVOS_POR_INTEGRANTE };
+
+/** La misma cantidad por persona sea individual o en grupo (lo usa el plan de trabajo sin elemento «Objetivos»). */
+export const reglaUniforme = (r: RangoObjetivos): ReglaObjetivos => ({ individual: r, porIntegrante: r });
+
+function rangoDe(parametros: Record<string, unknown> | undefined, claveMin: string, claveMax: string, porDefecto: RangoObjetivos): RangoObjetivos {
+  const min = Number(parametros?.[claveMin] ?? porDefecto.min);
+  const max = Number(parametros?.[claveMax] ?? porDefecto.max);
+  return Number.isInteger(min) && Number.isInteger(max) && min >= 1 && max >= min ? { min, max } : porDefecto;
+}
+
+/** Regla que configuró la ficha en el elemento «objetivos» de la propuesta (o la regla vigente). */
+export function reglaObjetivosDe(def: DefinicionFicha | null | undefined): ReglaObjetivos {
+  const esp = def?.etapas.find(esEtapaPropuesta)?.espacios.find((e) => e.elemento === "objetivos");
+  const p = esp?.parametros as Record<string, unknown> | undefined;
+  return {
+    individual: rangoDe(p, "minIndividual", "maxIndividual", OBJETIVOS_INDIVIDUAL),
+    porIntegrante: rangoDe(p, "minPorIntegrante", "maxPorIntegrante", OBJETIVOS_POR_INTEGRANTE),
+  };
+}
+
+const personas = (integrantes: number) => Math.max(1, Math.floor(integrantes) || 1);
+
+/** Rango por persona que aplica a un trabajo de `integrantes` personas. */
+export const rangoPorPersona = (regla: ReglaObjetivos, integrantes: number): RangoObjetivos =>
+  personas(integrantes) === 1 ? regla.individual : regla.porIntegrante;
 
 /** Total de objetivos específicos para un trabajo de `integrantes` personas (al menos 1). */
-export function rangoObjetivos(porIntegrante: RangoObjetivos, integrantes: number): RangoObjetivos {
-  const n = Math.max(1, Math.floor(integrantes) || 1);
-  return { min: porIntegrante.min * n, max: porIntegrante.max * n };
+export function rangoObjetivos(regla: ReglaObjetivos, integrantes: number): RangoObjetivos {
+  const n = personas(integrantes);
+  const r = rangoPorPersona(regla, n);
+  return { min: r.min * n, max: r.max * n };
 }
 
-/** Texto para las pantallas: "de 3 a 4" o "de 6 a 8 (de 3 a 4 por integrante, 2 integrantes)". */
-export function textoRangoObjetivos(porIntegrante: RangoObjetivos, integrantes: number): string {
-  const r = rangoObjetivos(porIntegrante, integrantes);
-  const n = Math.max(1, Math.floor(integrantes) || 1);
-  return n === 1
-    ? `de ${r.min} a ${r.max}`
-    : `de ${r.min} a ${r.max} (de ${porIntegrante.min} a ${porIntegrante.max} por integrante, ${n} integrantes)`;
+const textoRango = (r: RangoObjetivos) => (r.min === r.max ? `${r.min}` : `de ${r.min} a ${r.max}`);
+
+/** Texto para las pantallas: "de 4 a 5" o "12 (4 por integrante, 3 integrantes)". */
+export function textoRangoObjetivos(regla: ReglaObjetivos, integrantes: number): string {
+  const n = personas(integrantes);
+  const total = rangoObjetivos(regla, n);
+  return n === 1 ? textoRango(total) : `${textoRango(total)} (${textoRango(regla.porIntegrante)} por integrante, ${n} integrantes)`;
 }

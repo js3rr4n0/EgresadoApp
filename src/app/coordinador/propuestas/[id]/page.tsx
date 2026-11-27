@@ -2,6 +2,7 @@ import { getDetallePropuestaCoordinador, getAsesoresFacultad } from "@/app/actio
 import Link from "next/link";
 import CoordinadorProgresoClient from "./CoordinadorProgresoClient";
 import ValoracionesDelProceso from "@/components/valoraciones/ValoracionesDelProceso";
+import FortalezaResumen from "@/components/fortaleza/FortalezaResumen";
 
 export default async function CoordinadorPropuestaProgresoPage({
   params,
@@ -51,6 +52,8 @@ export default async function CoordinadorPropuestaProgresoPage({
 
   return (
     <div className="space-y-6">
+      {/* R3: fortaleza de la propuesta */}
+      <FortalezaResumen propuestaId={pId} paraAsesor />
       <CoordinadorProgresoClient data={{ ...(res.data as any), asesores }} />
       {/* Valoraciones al cierre del proceso (entrega V5) */}
       <ValoracionesDelProceso propuestaId={pId} />

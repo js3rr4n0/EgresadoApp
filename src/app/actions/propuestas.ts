@@ -418,6 +418,18 @@ export async function reenviarPropuestaAjustada(id: number) {
   const [prop] = await db.select().from(propuestas).where(and(eq(propuestas.id, id), eq(propuestas.egresadoId, session.userId))).limit(1);
   if (!prop) return { success: false, error: "Propuesta no encontrada." };
 
+  // R3/R4: también al reenviar con ajustes, cada apartado y el total necesitan al menos 75 % de fortaleza
+  const { fortalezaDePropuesta } = await import("@/lib/fortalezaServidor");
+  const { UMBRAL_FORTALEZA } = await import("@/lib/fortaleza");
+  const fortaleza = await fortalezaDePropuesta(id).catch(() => null);
+  const debiles = fortaleza?.elementos.filter((e) => e.porcentaje < UMBRAL_FORTALEZA) ?? [];
+  if (debiles.length) {
+    return { success: false, error: `Fortaleza insuficiente: ${debiles.map((e) => `${e.titulo} (${e.porcentaje} %)`).join(", ")}. Cada apartado necesita al menos ${UMBRAL_FORTALEZA} %.` };
+  }
+  if (fortaleza?.porcentaje != null && fortaleza.porcentaje < UMBRAL_FORTALEZA) {
+    return { success: false, error: `La fortaleza total de la propuesta es ${fortaleza.porcentaje} %; necesita al menos ${UMBRAL_FORTALEZA} %.` };
+  }
+
   const now = new Date();
   const nuevoEstado = prop.coordinadorId ? "coordinador_asignado" : "enviada";
 

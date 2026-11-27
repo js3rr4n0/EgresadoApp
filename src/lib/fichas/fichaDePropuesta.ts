@@ -9,7 +9,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { elegirVersion } from "./cohortesFicha";
 import { definicionBase } from "./fichasBase";
 import { esEtapaPropuesta, type DefinicionFicha, type Espacio, type Modalidad } from "./tipos";
-import { objetivosPorIntegranteDe, rangoObjetivos, type RangoObjetivos } from "./objetivos";
+import { reglaObjetivosDe, rangoObjetivos, rangoPorPersona, type RangoObjetivos } from "./objetivos";
 
 /** Modalidades cuyo asistente ya lee la ficha. */
 // Pasantía (entrega W1, 23-nov-2026): las propuestas nuevas toman la versión habilitada de su ficha; las que ya existían
@@ -101,12 +101,12 @@ export async function integrantesDePropuesta(propuestaId: number): Promise<numbe
 }
 
 /**
- * Límites de objetivos específicos (H19/H27): el rango por integrante de la ficha (de 3 a 4 por defecto) por la cantidad
- * de integrantes. Las propuestas sin ficha usan la misma regla.
+ * Límites de objetivos específicos (R4): individual de 4 a 5 y en grupo 4 por integrante por defecto (configurable en la
+ * ficha). Las propuestas sin ficha usan la misma regla.
  */
 export async function limitesObjetivos(propuestaId: number): Promise<RangoObjetivos & { porIntegrante: RangoObjetivos; integrantes: number }> {
   const f = await fichaDePropuesta(propuestaId);
-  const porIntegrante = objetivosPorIntegranteDe(f?.version ? f.definicion : null);
+  const regla = reglaObjetivosDe(f?.version ? f.definicion : null);
   const integrantes = await integrantesDePropuesta(propuestaId);
-  return { ...rangoObjetivos(porIntegrante, integrantes), porIntegrante, integrantes };
+  return { ...rangoObjetivos(regla, integrantes), porIntegrante: rangoPorPersona(regla, integrantes), integrantes };
 }

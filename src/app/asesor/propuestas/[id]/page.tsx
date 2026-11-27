@@ -2,6 +2,7 @@ import { getDetallePropuestaAsesor } from "@/app/actions/asesor";
 import { getOrCreateInformePrimerContacto } from "@/app/actions/informes";
 import Link from "next/link";
 import PropuestaProgresoClient from "./PropuestaProgresoClient";
+import FortalezaResumen from "@/components/fortaleza/FortalezaResumen";
 import { estadoPlanDePropuesta } from "@/app/actions/planTrabajo";
 
 export default async function AsesorPropuestaProgresoPage({
@@ -89,6 +90,10 @@ export default async function AsesorPropuestaProgresoPage({
           </div>
         </div>
       )}
+      {/* R3: fortaleza de la propuesta (problema, justificación y alcance) */}
+      <div className="mb-4">
+        <FortalezaResumen propuestaId={pId} paraAsesor />
+      </div>
       <PropuestaProgresoClient
         estadoPlan={estadoPlan}
         data={res.data as any}

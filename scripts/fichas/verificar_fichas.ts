@@ -30,7 +30,8 @@ import { datosCitaVacios, type DatosCitaApa } from "../../src/lib/citaApa";
 import { bloquesBitacora, entradasBitacora, limpiarModificacion, textoEntrada } from "../../src/lib/fichas/bitacora";
 import { apartadosInformeFinal, portadaInformeFinal } from "../../src/lib/fichas/documentoInformeFinal";
 import { armarInformePeriodo, numerarEvidencias } from "../../src/lib/fichas/informePeriodo";
-import { objetivosPorIntegranteDe, OBJETIVOS_POR_INTEGRANTE, rangoObjetivos, textoRangoObjetivos } from "../../src/lib/fichas/objetivos";
+import { reglaObjetivosDe, REGLA_OBJETIVOS, OBJETIVOS_POR_INTEGRANTE, OBJETIVOS_INDIVIDUAL, rangoObjetivos, textoRangoObjetivos } from "../../src/lib/fichas/objetivos";
+import { fortalezaObjetivos, revisarSmart } from "../../src/lib/smart";
 import { conIntegrantes, conRangoObjetivos } from "../../src/lib/fichas/apartadosAcademicos";
 import { describirHistorial } from "../../src/lib/historialEstados";
 import { tituloDeCarrera } from "../../src/lib/tituloCarrera";
@@ -141,8 +142,9 @@ comprobar(
 );
 // Reunión del 20-nov-2026 (H19/H27): de 3 a 4 objetivos específicos por integrante, en propuesta, protocolo y plan.
 comprobar(
-  "Los objetivos específicos son de 3 a 4 por integrante",
-  contiene("src/lib/fichas/objetivos.ts", /OBJETIVOS_POR_INTEGRANTE: RangoObjetivos = \{ min: 3, max: 4 \}/)
+  "Los objetivos específicos son de 4 a 5 individual y 4 por integrante en grupo (R4)",
+  contiene("src/lib/fichas/objetivos.ts", /OBJETIVOS_INDIVIDUAL: RangoObjetivos = \{ min: 4, max: 5 \}/) &&
+    contiene("src/lib/fichas/objetivos.ts", /OBJETIVOS_POR_INTEGRANTE: RangoObjetivos = \{ min: 4, max: 4 \}/)
 );
 
 // 3. La validación detecta errores típicos
@@ -159,7 +161,7 @@ const detecta = (descripcion: string, mensajes: string[], parte: string) =>
 detecta("supervisor antes de la empresa", conCambio((d) => propuesta(d).espacios.reverse()), "debe ir después de");
 // Revisión del catálogo (13-nov-2026): cualquier elemento se puede usar en cualquier modalidad.
 comprobar("Un elemento de proyecto (objetivos) se puede usar en una ficha de pasantía", conCambio((d) => {
-  propuesta(d).espacios.push({ ...propuesta(d).espacios[0], id: "obj", elemento: "objetivos", titulo: "Objetivos", parametros: { minEspecificos: 4, maxEspecificos: 6 } });
+  propuesta(d).espacios.push({ ...propuesta(d).espacios[0], id: "obj", elemento: "objetivos", titulo: "Objetivos", parametros: { minIndividual: 4, maxIndividual: 5, minPorIntegrante: 4, maxPorIntegrante: 4 } });
 }).length === 0);
 detecta("un elemento fuera de su etapa (tabla en la propuesta de pasantía)", conCambio((d) => {
   propuesta(d).espacios.push({ ...propuesta(d).espacios[0], id: "t", elemento: "tabla", titulo: "Tabla", parametros: parametrosPorDefecto("tabla") });
@@ -1408,12 +1410,27 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
 
 // 31. Decisiones de la reunión del 20-nov-2026 y textos del recorrido integral
 {
-  // H19/H27: de 3 a 4 por integrante, multiplicado por el equipo.
-  comprobar("Rango por integrante por defecto", OBJETIVOS_POR_INTEGRANTE.min === 3 && OBJETIVOS_POR_INTEGRANTE.max === 4);
-  comprobar("En equipo de 3 se piden de 9 a 12", JSON.stringify(rangoObjetivos(OBJETIVOS_POR_INTEGRANTE, 3)) === JSON.stringify({ min: 9, max: 12 }));
-  comprobar("Individual: de 3 a 4", textoRangoObjetivos(OBJETIVOS_POR_INTEGRANTE, 1) === "de 3 a 4");
-  comprobar("Las plantillas recomendadas piden de 3 a 4 por integrante",
-    (["proyecto", "investigacion"] as const).every((m) => JSON.stringify(objetivosPorIntegranteDe(plantillaRecomendada(m))) === JSON.stringify({ min: 3, max: 4 })));
+  // R4 (26-nov-2026): individual de 4 a 5; en grupo, 4 por integrante, multiplicado por el equipo.
+  comprobar("Regla por defecto: individual de 4 a 5 y 4 por integrante", OBJETIVOS_INDIVIDUAL.min === 4 && OBJETIVOS_INDIVIDUAL.max === 5 && OBJETIVOS_POR_INTEGRANTE.min === 4 && OBJETIVOS_POR_INTEGRANTE.max === 4);
+  comprobar("En equipo de 3 se piden 12", JSON.stringify(rangoObjetivos(REGLA_OBJETIVOS, 3)) === JSON.stringify({ min: 12, max: 12 }));
+  comprobar("Individual: de 4 a 5", textoRangoObjetivos(REGLA_OBJETIVOS, 1) === "de 4 a 5");
+  comprobar("En equipo de 2: 8 (4 por integrante)", textoRangoObjetivos(REGLA_OBJETIVOS, 2) === "8 (4 por integrante, 2 integrantes)");
+  comprobar("Las plantillas recomendadas usan la regla nueva",
+    (["proyecto", "investigacion"] as const).every((m) => JSON.stringify(reglaObjetivosDe(plantillaRecomendada(m))) === JSON.stringify(REGLA_OBJETIVOS)));
+  const fichaConRangos = { ...plantillaRecomendada("proyecto") };
+  fichaConRangos.etapas = fichaConRangos.etapas.map((e) => ("espacios" in e && e.tipo === "propuesta"
+    ? { ...e, espacios: e.espacios.map((x) => (x.elemento === "objetivos" ? { ...x, parametros: { ...x.parametros, minIndividual: 3, maxIndividual: 3, minPorIntegrante: 2, maxPorIntegrante: 3 } } : x)) }
+    : e)) as typeof fichaConRangos.etapas;
+  comprobar("La ficha configura los dos rangos", JSON.stringify(rangoObjetivos(reglaObjetivosDe(fichaConRangos), 1)) === JSON.stringify({ min: 3, max: 3 })
+    && JSON.stringify(rangoObjetivos(reglaObjetivosDe(fichaConRangos), 2)) === JSON.stringify({ min: 4, max: 6 }));
+  // R4: revisión SMART sobre el texto
+  const completo = revisarSmart("Desarrollar módulo de inventario", "Desarrollar un módulo de inventario mediante una aplicación web para reducir en 30 % el tiempo de registro, en los primeros 3 meses.");
+  comprobar("SMART: un objetivo completo cumple los cinco criterios", completo.porcentaje === 100, completo.criterios.filter((c) => !c.cumple).map((c) => c.criterio).join());
+  const vago = revisarSmart("Conocer el proceso", "Conocer el proceso de ventas de la empresa.");
+  comprobar("SMART: «conocer» no es específico", !vago.criterios.find((c) => c.criterio === "S")!.cumple && vago.porcentaje <= 20);
+  comprobar("SMART: sin texto no se revisa", revisarSmart("", "").vacio && revisarSmart("", "").porcentaje === 0);
+  comprobar("Fortaleza de objetivos: los que faltan para el mínimo cuentan 0 %",
+    fortalezaObjetivos([{ titulo: "Desarrollar módulo", descripcion: "Desarrollar un módulo de inventario mediante una aplicación web para reducir en 30 % el tiempo de registro, en los primeros 3 meses." }], 4) === 25);
   comprobar("El plan nuevo tiene máximo 4 por integrante", planNuevo("p").minimos.maxObjetivosPorIntegrante === 4);
   const tipoObj = tipoApartado({ parametros: { tipo: "objetivos" } })!;
   comprobar("El protocolo pide de 3 a 4 específicos por defecto", tipoObj.partes.find((p) => p.id === "especificos")!.maxItems === 4);
@@ -1429,8 +1446,9 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
     validarPlanEquipo(dos, planMax, [dos.responsable ?? 1], 4).map((p) => p.mensaje).join(" | "));
 
   // H14: los 3 documentos obligatorios con los mismos nombres en todas las pantallas.
-  comprobar("Documentos obligatorios: hoja de inscripción, constancia de servicio social y hoja de notas",
-    ["src/components/DocumentGate.tsx", "src/components/DocumentosEstudianteForm.tsx"].every((f) => contiene(f, /Hoja de inscripción del trabajo de graduación/) && contiene(f, /Constancia de servicio social/) && contiene(f, /"Hoja de notas"/)));
+  // Nombres vigentes desde el ajuste de la primera vista del egresado (26-nov-2026)
+  comprobar("Documentos obligatorios: comprobante de inscripción, constancia de servicio social y certificación global de notas",
+    ["src/components/DocumentGate.tsx", "src/components/DocumentosEstudianteForm.tsx"].every((f) => contiene(f, /Comprobante de inscripción del trabajo de graduación/) && contiene(f, /Constancia de servicio social/) && contiene(f, /"Certificación global de notas"/)));
 
   // H18: los eventos del historial no son cambios de estado.
   const ev = describirHistorial("coordinador_asignado", "solicitud_asesor_enviada");

@@ -5,15 +5,21 @@ import { uploadDocumento, deleteDocumento } from "@/app/actions/documentos";
 import { enviarPropuesta } from "@/app/actions/propuestas";
 import { useRouter } from "next/navigation";
 import { openDocument } from "@/lib/pdfViewer";
+import TablaDocumentosEquipo from "@/components/proyecto/TablaDocumentosEquipo";
+import type { DocumentosIntegrante } from "@/lib/revisionPropuestaServidor";
 
 interface DocumentosEstudianteFormProps {
   propuestaId: number;
   isLocked: boolean;
   documentosSubidos: { tipo: string; archivoUrl: string }[];
   prevStep?: number;
+  /** R6 (proyecto e investigación): documentos de cada integrante. */
+  equipo?: DocumentosIntegrante[];
+  /** R6: con paso siguiente, este paso ya no envía; se envía en «Revisión y envío». */
+  pasoSiguiente?: number;
 }
 
-export default function DocumentosEstudianteForm({ propuestaId, isLocked, documentosSubidos, prevStep = 6 }: DocumentosEstudianteFormProps) {
+export default function DocumentosEstudianteForm({ propuestaId, isLocked, documentosSubidos, prevStep = 6, equipo, pasoSiguiente }: DocumentosEstudianteFormProps) {
   const router = useRouter();
   const [uploading, setUploading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +90,10 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pasoSiguiente) {
+      router.push(`?id=${propuestaId}&step=${pasoSiguiente}`);
+      return;
+    }
     if (!allUploaded) {
       setError("Debes adjuntar todos los documentos requeridos antes de mandar la propuesta.");
       return;
@@ -186,6 +196,16 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
         </div>
       )}
 
+      {equipo && equipo.length > 0 && (
+        <section>
+          <h3 className="font-bold text-card-dark mb-1">Documentos del equipo</h3>
+          <p className="text-xs text-muted mb-2">
+            Para enviar la propuesta, cada integrante necesita sus tres documentos. Cada uno los sube desde su panel principal.
+          </p>
+          <TablaDocumentosEquipo equipo={equipo} />
+        </section>
+      )}
+
       <div className="flex justify-between items-center pt-6 border-t border-border mt-8">
         <div className="flex items-center gap-4">
           <button type="button" onClick={() => router.push(`?id=${propuestaId}&step=${prevStep}`)} className="px-4 py-2 text-sm font-bold text-muted hover:text-card-dark transition-colors cursor-pointer">
@@ -202,14 +222,21 @@ export default function DocumentosEstudianteForm({ propuestaId, isLocked, docume
           </button>
         </div>
 
-        <button 
-          type="submit" 
+        {pasoSiguiente ? (
+          <button type="submit" className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-brand-red hover:bg-brand-red-hover text-white font-bold text-sm transition-colors">
+            Continuar
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+          </button>
+        ) : (
+        <button
+          type="submit"
           disabled={pending || isLocked || !allUploaded}
           className="flex items-center gap-2 px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition-colors disabled:opacity-50"
         >
           {pending ? "Enviando..." : (isLocked ? "Propuesta Bloqueada" : "Mandar propuesta")}
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
         </button>
+        )}
       </div>
     </form>
   );

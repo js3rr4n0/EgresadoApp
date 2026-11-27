@@ -22,6 +22,16 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
 
     const data = solicitud.datos as any;
 
+    // R5: firmantes o supervisor nuevos de la carta, o «sin supervisor empresarial». No cambia el estado de la propuesta.
+    if (solicitud.tipo === "carta") {
+      const { aprobarSolicitudCarta } = await import("@/lib/solicitudCartaServidor");
+      await aprobarSolicitudCarta(solicitud, session.userId);
+      revalidatePath("/admin/empresas");
+      revalidatePath("/admin", "layout");
+      revalidatePath("/egresado/redactar");
+      return { success: true };
+    }
+
     if (solicitud.tipo === "datos_alumno") {
       let egresadoId = data?.egresadoId;
       if (!egresadoId && solicitud.propuestaId) {
@@ -292,6 +302,16 @@ export async function rechazarSolicitudEmpresa(solicitudId: number, justificacio
     if (solicitud.estado !== "pendiente") return { success: false, error: "La solicitud ya fue procesada" };
 
     const data = solicitud.datos as any;
+
+    // R5: solicitud de la carta. No cambia el estado de la propuesta; el egresado corrige en el paso de la carta.
+    if (solicitud.tipo === "carta") {
+      const { rechazarSolicitudCarta } = await import("@/lib/solicitudCartaServidor");
+      await rechazarSolicitudCarta(solicitud, justificacion, session.userId);
+      revalidatePath("/admin/empresas");
+      revalidatePath("/admin", "layout");
+      revalidatePath("/egresado/redactar");
+      return { success: true };
+    }
 
     // Update solicitud to rejected
     await db.update(solicitudesEmpresa)

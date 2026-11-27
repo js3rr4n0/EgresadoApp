@@ -14,16 +14,23 @@ import DatosEmpresarialesForm from "@/components/DatosEmpresarialesForm";
 import DatosSupervisorForm from "@/components/DatosSupervisorForm";
 
 import ProyectoPortadaForm from "@/components/proyecto/ProyectoPortadaForm";
+import EquipoTrabajoForm from "@/components/proyecto/EquipoTrabajoForm";
+import PartesElementoForm from "@/components/proyecto/PartesElementoForm";
+import FortalezaResumen from "@/components/fortaleza/FortalezaResumen";
+import { UMBRAL_FORTALEZA, fortalezaElemento, leerPartes, type ElementoConPartes } from "@/lib/fortaleza";
 import ActoresIntervinientesForm from "@/components/proyecto/ActoresIntervinientesForm";
 import CartaProyectoForm from "@/components/proyecto/CartaProyectoForm";
-import DescripcionProblemaForm from "@/components/proyecto/DescripcionProblemaForm";
-import JustificacionProyectoForm from "@/components/proyecto/JustificacionProyectoForm";
-import AlcanceProyectoForm from "@/components/proyecto/AlcanceProyectoForm";
+import RevisionEnvio from "@/components/proyecto/RevisionEnvio";
+import { documentosPorIntegrante, estadoRevision, type DocumentosIntegrante, type EstadoRevision } from "@/lib/revisionPropuestaServidor";
+import { verificarCapacidadEnvio } from "@/app/actions/proyecto";
+import { datosPersonasCarta, estadoPersonasCartaDe, type DatosPersonasCarta } from "@/lib/personasCartaServidor";
+import type { EstadoPersonasCarta } from "@/lib/personasCarta";
 import ObjetivosProyectoForm from "@/components/proyecto/ObjetivosProyectoForm";
 import TextoEspacioForm from "@/components/proyecto/TextoEspacioForm";
 import { espaciosPropuesta, fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
 import type { Espacio } from "@/lib/fichas/tipos";
-import { objetivosPorIntegranteDe, rangoObjetivos, textoRangoObjetivos } from "@/lib/fichas/objetivos";
+import { reglaObjetivosDe, rangoObjetivos, textoRangoObjetivos } from "@/lib/fichas/objetivos";
+import { fortalezaObjetivos } from "@/lib/smart";
 import { getSession } from "@/lib/session";
 import PropioEspacioForm from "@/components/proyecto/PropioEspacioForm";
 import CamposExtraForm from "@/components/proyecto/CamposExtraForm";
@@ -35,7 +42,7 @@ import RecursoEspacioForm from "@/components/proyecto/RecursoEspacioForm";
 import { reglasDeDefinicion } from "@/lib/reglasPasantia";
 
 /** Formulario de la fase 1 que atiende cada espacio de la ficha de proyecto (entrega P2). */
-type TipoPasoProyecto = "portada" | "empresa" | "supervisor" | "actores" | "carta" | "cronograma" | "justificacion_pasantia" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "recurso" | "propio" | "no_disponible";
+type TipoPasoProyecto = "equipo" | "revision" | "portada" | "empresa" | "supervisor" | "actores" | "carta" | "cronograma" | "justificacion_pasantia" | "problema" | "justificacion" | "alcance" | "objetivos" | "documentos" | "texto" | "recurso" | "propio" | "no_disponible";
 function tipoPasoProyecto(e: Espacio): TipoPasoProyecto {
   switch (e.elemento) {
     case "portada":
@@ -117,8 +124,17 @@ export default async function EgresadoPage({
 
   // Proyecto e investigación: los pasos salen de la ficha ligada a la propuesta (o de la ficha base, que es la fase 1 tal cual).
   const fichaProyecto = usaFicha ? await fichaDePropuesta(propuesta.id) : null;
+  // R1 (specs/REDACTAR_PROPUESTA_AJUSTES.md): en proyecto e investigación, antes de la portada va el paso «Equipo de
+  // trabajo» (individual o en grupo). No es un elemento de la ficha: se agrega aquí y corre la numeración de los demás.
+  const pasoEquipo = { id: "__equipo", elemento: "equipo", titulo: "Equipo de trabajo", descripcion: "Individual o en grupo", obligatorio: true, parametros: {} } as unknown as Espacio;
+  // R6: al final, «Revisión y envío» (documento completo, documentos por integrante y confirmación del líder).
+  const pasoRevision = { id: "__revision", elemento: "revision", titulo: "Revisión y envío", descripcion: "Revisar el documento y enviar", obligatorio: true, parametros: {} } as unknown as Espacio;
   const pasosProyecto = fichaProyecto
-    ? espaciosPropuesta(fichaProyecto.definicion).map((espacio, i) => ({ num: i + 1, espacio, tipo: tipoPasoProyecto(espacio) }))
+    ? [
+        ...(isMultiUserFlow ? [{ espacio: pasoEquipo, tipo: "equipo" as TipoPasoProyecto }] : []),
+        ...espaciosPropuesta(fichaProyecto.definicion).map((espacio) => ({ espacio, tipo: tipoPasoProyecto(espacio) })),
+        ...(isMultiUserFlow ? [{ espacio: pasoRevision, tipo: "revision" as TipoPasoProyecto }] : []),
+      ].map((p, i) => ({ ...p, num: i + 1 }))
     : [];
   // Entrega W2: duración, períodos y semanas de la ejecución de la ficha de pasantía.
   const reglasPasantia = reglasDeDefinicion(isPasantiaFicha ? fichaProyecto?.definicion : null);
@@ -130,6 +146,12 @@ export default async function EgresadoPage({
     : parseInt(params.step || "1", 10);
 
   let cartaData: any = null;
+  // R6: documentos por integrante, lo que falta para enviar y la confirmación de la revisión
+  let documentosEquipo: DocumentosIntegrante[] = [];
+  let pendientesEnvio: string[] = [];
+  let revisionDoc: EstadoRevision = { confirmada: false, cambioDespues: false, confirmadaEn: null };
+  let personasCarta: DatosPersonasCarta | null = null;
+  let estadoPersonas: EstadoPersonasCarta | null = null;
   let empresasList: any[] = [];
   let sucursalesList: any[] = [];
   let supervisoresList: any[] = [];
@@ -139,8 +161,8 @@ export default async function EgresadoPage({
   let teamMembers: any[] = [];
   let detallesProj: any = null;
   let respuestasProyecto: Record<string, string> = {};
-  // H19/H27: de 3 a 4 objetivos específicos por integrante (líder más los que aceptaron).
-  const porIntegrante = objetivosPorIntegranteDe(fichaProyecto?.version ? fichaProyecto.definicion : null);
+  // R4: individual de 4 a 5 y en grupo 4 por integrante (líder más los que aceptaron), o lo que diga la ficha.
+  const reglaObjetivos = reglaObjetivosDe(fichaProyecto?.version ? fichaProyecto.definicion : null);
   let integrantesTrabajo = 1;
 
   if (usaFicha) {
@@ -149,6 +171,16 @@ export default async function EgresadoPage({
     detallesProj = await getDetallesProyecto(propuesta.id);
     respuestasProyecto = await getRespuestasEspacios(propuesta.id);
     cartaData = await getCartaAceptacion(propuesta.id);
+    // R5: firmantes y supervisor de la carta (proyecto e investigación). Si la base todavía no tiene las columnas,
+    // el paso se comporta como antes.
+    if (!isPasantiaFicha) {
+      try {
+        estadoPersonas = await estadoPersonasCartaDe(propuesta.id);
+        if (currentStep === numPasoProyecto("carta", -1)) personasCarta = await datosPersonasCarta(propuesta.id);
+      } catch {
+        estadoPersonas = null;
+      }
+    }
 
     // Datos empresariales y supervisor (recorrido del 23-nov-2026): los mismos formularios y datos que en pasantía.
     const pasoEmpresa = pasosProyecto.find((p) => p.tipo === "empresa")?.num;
@@ -184,6 +216,16 @@ export default async function EgresadoPage({
     if (currentStep === docStepNumber) {
       const { documentosEgresado } = await import("@/lib/schema");
       documentosSubidos = await db.select().from(documentosEgresado).where(eq(documentosEgresado.egresadoId, propuesta.egresadoId));
+      if (isMultiUserFlow) documentosEquipo = await documentosPorIntegrante(propuesta.id);
+    }
+    if (isMultiUserFlow && currentStep === numPasoProyecto("revision", -1)) {
+      documentosEquipo = await documentosPorIntegrante(propuesta.id);
+      pendientesEnvio = (await verificarCapacidadEnvio(propuesta.id, { incluirRevision: false, ratificaAlEnviar: true })).errores;
+      try {
+        revisionDoc = await estadoRevision(propuesta.id);
+      } catch {
+        pendientesEnvio = [...pendientesEnvio, "Falta preparar la base de datos para la revisión (script crear_revision_propuesta.ts)."];
+      }
     }
   } else {
     // Pasantía
@@ -238,8 +280,16 @@ export default async function EgresadoPage({
     { id: propuesta.egresadoId, nombre: isLeader ? userDetails?.nombreCompleto ?? "Líder" : (await db.select({ n: usuarios.nombreCompleto }).from(usuarios).where(eq(usuarios.id, propuesta.egresadoId)))[0]?.n ?? "Líder" },
     ...teamMembers.filter((m: { estado?: string }) => m.estado === "aceptado").map((m: { egresadoId: number; nombreCompleto: string }) => ({ id: m.egresadoId, nombre: m.nombreCompleto })),
   ];
-  const rangoObjetivosPropuesta = rangoObjetivos(porIntegrante, integrantesTrabajo);
-  const textoRangoObjetivosPropuesta = textoRangoObjetivos(porIntegrante, integrantesTrabajo);
+  const rangoObjetivosPropuesta = rangoObjetivos(reglaObjetivos, integrantesTrabajo);
+  const textoRangoObjetivosPropuesta = textoRangoObjetivos(reglaObjetivos, integrantesTrabajo);
+
+  // R3: partes de problema, justificación y alcance (las propuestas anteriores tienen un solo texto: va a la primera parte)
+  const partesDe = (el: ElementoConPartes) =>
+    el === "problema"
+      ? leerPartes(el, detallesProj?.problemaPartes, detallesProj?.descripcionProblema)
+      : el === "justificacion"
+        ? leerPartes(el, detallesProj?.justificacionPartes, detallesProj?.justificacion)
+        : leerPartes(el, detallesProj?.alcancePartes, detallesProj?.alcance);
 
   // Calculate max allowed step
   let maxAllowedStep = 1;
@@ -271,16 +321,18 @@ export default async function EgresadoPage({
           return !!propuesta.justificacionProceso;
         case "carta":
           if (isPasantiaFicha) return cartaData !== null;
-          return !!(cartaData?.archivoUrl && cartaData?.fechaEmision && cartaData?.fechaInicio && cartaData?.fechaFin && cartaData?.supNombres);
+          // R5: firmantes y supervisor elegidos o enviados a la administración (con la solicitud pendiente se puede avanzar)
+          return !!(cartaData?.archivoUrl && cartaData?.fechaEmision && cartaData?.fechaInicio && cartaData?.fechaFin &&
+            (estadoPersonas ? estadoPersonas.completo : cartaData?.supNombres));
+        // R3: se avanza con al menos 75 % de fortaleza en el apartado
         case "problema":
-          return !!detallesProj?.descripcionProblema;
         case "justificacion":
-          return !!detallesProj?.justificacion;
         case "alcance":
-          return !!detallesProj?.alcance;
+          return fortalezaElemento(p.tipo, partesDe(p.tipo), Number(p.espacio.parametros.minPalabras) || 0).porcentaje >= UMBRAL_FORTALEZA;
         case "objetivos":
           return !!(detallesProj?.objetivoGeneral && Array.isArray(detallesProj?.objetivosEspecificos) &&
-            detallesProj.objetivosEspecificos.length >= rangoObjetivosPropuesta.min && detallesProj.objetivosEspecificos.length <= rangoObjetivosPropuesta.max);
+            detallesProj.objetivosEspecificos.length >= rangoObjetivosPropuesta.min && detallesProj.objetivosEspecificos.length <= rangoObjetivosPropuesta.max &&
+            fortalezaObjetivos(detallesProj.objetivosEspecificos, rangoObjetivosPropuesta.min) >= UMBRAL_FORTALEZA);
         case "texto":
           return !p.espacio.obligatorio || !!respuestasProyecto[p.espacio.id]?.trim();
         case "recurso":
@@ -434,6 +486,13 @@ export default async function EgresadoPage({
             </div>
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${propuesta.estado === "redactando" ? "bg-amber-500 animate-pulse" : "bg-brand-red"}`}></span>
           </div>
+
+          {/* R3: fortaleza total de la propuesta (proyecto e investigación) */}
+          {isMultiUserFlow && (
+            <div className="mb-5">
+              <FortalezaResumen propuestaId={propuesta.id} lateral />
+            </div>
+          )}
 
           <h2 className="font-bold text-foreground mb-6">Progreso de la Propuesta #{propuesta.numero}</h2>
 
@@ -602,6 +661,10 @@ export default async function EgresadoPage({
                         initialData={{ nombreCompleto: userDetails.nombreCompleto, carnet: userDetails.carnet, carrera: userDetails.carrera, tituloCarrera: userDetails.tituloCarrera, mesEnvio, titulo: propuesta.titulo }} />
                     </div>
                   )}
+                  {paso.tipo === "equipo" && (
+                    <EquipoTrabajoForm propuestaId={propuesta.id} pasoSiguiente={currentStep + 1} userDetails={userDetails} isLocked={isFormLocked}
+                      isLeader={isLeader} teamMembers={teamMembers} memberInfo={memberInfo} isInvestigacion={isInvestigacion} />
+                  )}
                   {paso.tipo === "portada" && !isPasantiaFicha && (
                     <ProyectoPortadaForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} userDetails={userDetails} mesEnvio={mesEnvio} isLocked={isFormLocked}
                       isLeader={isLeader} teamMembers={teamMembers} memberInfo={memberInfo} initialTitulo={propuesta.titulo} />
@@ -635,16 +698,19 @@ export default async function EgresadoPage({
                     </div>
                   )}
                   {paso.tipo === "carta" && !isPasantiaFicha && (
-                    <CartaProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={cartaData} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                    personasCarta ? (
+                    <CartaProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={cartaData} isLocked={isFormLocked} isReadOnly={!isLeader} personas={personasCarta} />
+                  ) : (
+                    <p className="bg-white border border-border rounded-xl p-6 text-sm text-muted">
+                      Falta preparar la base de datos para la carta (script crear_personas_carta.ts).
+                    </p>
+                  )
                   )}
-                  {paso.tipo === "problema" && (
-                    <DescripcionProblemaForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={detallesProj?.descripcionProblema} isLocked={isFormLocked} isReadOnly={!isLeader} />
-                  )}
-                  {paso.tipo === "justificacion" && (
-                    <JustificacionProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialData={detallesProj?.justificacion} isLocked={isFormLocked} isReadOnly={!isLeader} />
-                  )}
-                  {paso.tipo === "alcance" && (
-                    <AlcanceProyectoForm {...nav} propuestaId={propuesta.id} initialData={detallesProj?.alcance} isLocked={isFormLocked} isReadOnly={!isLeader} />
+                  {/* R3: problema, justificación y alcance en 4 partes con indicador de fortaleza */}
+                  {(paso.tipo === "problema" || paso.tipo === "justificacion" || paso.tipo === "alcance") && (
+                    <PartesElementoForm key={paso.tipo} propuestaId={propuesta.id} elemento={paso.tipo} titulo={e.titulo} descripcion={e.descripcion}
+                      initialPartes={partesDe(paso.tipo)} minPalabras={Number(e.parametros.minPalabras) || 0} maxPalabras={Number(e.parametros.maxPalabras) || 0}
+                      pasoSiguiente={currentStep + 1} pasoAnterior={currentStep > 1 ? currentStep - 1 : null} isLocked={isFormLocked} isReadOnly={!isLeader} />
                   )}
                   {paso.tipo === "objetivos" && (
                     <ObjetivosProyectoForm {...nav} propuestaId={propuesta.id} isInvestigacion={isInvestigacion} initialObjetivoGeneral={detallesProj?.objetivoGeneral}
@@ -691,7 +757,12 @@ export default async function EgresadoPage({
                     </div>
                   )}
                   {paso.tipo === "documentos" && (
-                    <DocumentosEstudianteForm propuestaId={propuesta.id} isLocked={isFormLocked || !isLeader} documentosSubidos={documentosSubidos} prevStep={currentStep - 1} />
+                    <DocumentosEstudianteForm propuestaId={propuesta.id} isLocked={isFormLocked || !isLeader} documentosSubidos={documentosSubidos} prevStep={currentStep - 1}
+                      {...(isMultiUserFlow ? { equipo: documentosEquipo, pasoSiguiente: currentStep + 1 } : {})} />
+                  )}
+                  {paso.tipo === "revision" && (
+                    <RevisionEnvio propuestaId={propuesta.id} pendientes={pendientesEnvio} equipo={documentosEquipo} revision={revisionDoc}
+                      esLider={isLeader} bloqueada={isFormLocked} pasoAnterior={currentStep - 1} />
                   )}
                   {paso.tipo === "no_disponible" && (
                     <div className="bg-white border border-border rounded-xl p-6 text-sm text-muted">
