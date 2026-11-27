@@ -24,7 +24,8 @@ import { revalidatePath } from "next/cache";
 import { notificarEquipo } from "@/lib/notificarEquipo";
 import { getDocumentosPropuesta } from "@/app/actions/documentosPropuesta";
 import { estadoPlanDePropuesta } from "@/app/actions/planTrabajo";
-import { opcionesAsesor, reglaDePropuesta } from "@/lib/asignacionServidor";
+import { opcionesAsesor, reglaDePropuesta, prioridadPorEmpresa } from "@/lib/asignacionServidor";
+import { motivoPrioridad, pesoPrioridad } from "@/lib/prioridadAsesor";
 
 /**
  * Fetch proposals assigned by Admin to the logged-in Coordinator for advisor assignment
@@ -149,6 +150,7 @@ export async function getAsesoresFacultad(propuestaId?: number) {
             correo: a.correo,
             deLaCarrera: a.deLaCarrera,
             carga: a.activos + a.pendientes,
+            prioritario: motivoPrioridad(a.prioridad),
           })),
           regla: regla.regla,
         };
@@ -202,6 +204,13 @@ export async function getAsesoresFacultad(propuestaId?: number) {
         );
     }
 
+    // A6: también sin configuración de cohorte, primero quien ya trabaja o trabajó con la empresa
+    if (propuestaId) {
+      const prioridad = await prioridadPorEmpresa(propuestaId);
+      asesoresList = asesoresList
+        .map((a) => ({ ...a, prioritario: motivoPrioridad(prioridad.get(a.id)) }))
+        .sort((a, b) => pesoPrioridad(prioridad.get(b.id)) - pesoPrioridad(prioridad.get(a.id)));
+    }
     return { success: true, data: asesoresList };
   } catch (error: any) {
     console.error("Error al obtener asesores:", error);

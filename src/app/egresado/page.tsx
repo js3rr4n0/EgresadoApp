@@ -5,6 +5,9 @@ import { documentosEgresado, propuestas, solicitudesAsesor, usuarios, empresas, 
 import { eq, asc, desc, and } from "drizzle-orm";
 import DocumentGate from "@/components/DocumentGate";
 import Link from "next/link";
+import AccionesPropuestaRechazada from "@/components/egresado/AccionesPropuestaRechazada";
+import { ultimoRechazo } from "@/lib/expedientePropuesta";
+import { fechaCortaSV } from "@/lib/fechasTexto";
 import InvitationAlert from "@/components/proyecto/InvitationAlert";
 import { getUserPendingInvitations, getUserAcceptedTeamProposal } from "@/app/actions/proyecto";
 import CrearPropuestaModalButton from "@/components/CrearPropuestaModalButton";
@@ -69,18 +72,26 @@ export default async function EgresadoLandingPage() {
   const activeSubmittedProp =
     userPropuestas.find(
       (p) =>
-        p.enviadaEn !== null ||
+        // A3: la rechazada por requisitos vuelve al egresado; no bloquea las demás
+        p.estado !== "rechazada" && (p.enviadaEn !== null ||
         !!p.observaciones ||
         submittedStates.includes(p.estado) ||
         (p.coordinadorId !== null && !["rechazada", "anulada"].includes(p.estado)) ||
-        (p.asesorId !== null && !["rechazada", "anulada"].includes(p.estado))
+        (p.asesorId !== null && !["rechazada", "anulada"].includes(p.estado)))
     ) ||
     // Integrante de un equipo (recorrido integral, 20-nov-2026): mientras la propuesta del equipo está en redacción, el
     // integrante sigue viendo sus documentos obligatorios (el envío los exige a todos) y no un "enviada a revisión".
-    (acceptedTeam && (acceptedTeam.propuesta.enviadaEn !== null || submittedStates.includes(acceptedTeam.propuesta.estado))
+    (acceptedTeam && acceptedTeam.propuesta.estado !== "rechazada" && (acceptedTeam.propuesta.enviadaEn !== null || submittedStates.includes(acceptedTeam.propuesta.estado))
       ? acceptedTeam.propuesta
       : undefined);
   const hasSubmittedPropuesta = !!activeSubmittedProp;
+
+  // A3: propuestas rechazadas por requisitos (las propias y la del equipo), con su último motivo
+  const rechazadas = [
+    ...userPropuestas.filter((p) => p.estado === "rechazada").map((p) => ({ p, lider: true })),
+    ...(acceptedTeam && acceptedTeam.propuesta.estado === "rechazada" ? [{ p: acceptedTeam.propuesta, lider: false }] : []),
+  ];
+  const rechazos = await Promise.all(rechazadas.map(async (r) => ({ ...r, rechazo: await ultimoRechazo(r.p.id) })));
 
   let activeStatusTitle = "";
   let activeStatusDesc = "";
@@ -429,6 +440,40 @@ export default async function EgresadoLandingPage() {
         </div>
       )}
 
+      {/* A3: propuestas rechazadas por requisitos */}
+      {rechazos.map(({ p, lider, rechazo }) => (
+        <section key={p.id} id={`rechazo-${p.id}`} className="rounded-2xl border border-brand-red/30 bg-red-50/60 p-6 space-y-4 scroll-mt-6">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-red">Propuesta rechazada por requisitos</p>
+            <h2 className="text-lg font-bold text-card-dark mt-1">{p.titulo || `Propuesta #${p.numero}`}</h2>
+            <p className="text-sm text-gray-700 mt-1">
+              {rechazo
+                ? `${rechazo.funcion === "coordinador" ? "El coordinador" : "La administración"} la devolvió el ${fechaCortaSV(rechazo.fecha)} porque no cumple los requisitos previos para asignarla.`
+                : "La propuesta fue rechazada."}
+            </p>
+          </div>
+          {rechazo && (
+            <div className="rounded-xl border border-border bg-white p-4 space-y-2">
+              <p className="text-sm font-bold text-card-dark">Qué corregir</p>
+              <ul className="list-disc pl-5 text-sm text-gray-800 space-y-0.5">
+                {rechazo.motivos.map((m, i) => <li key={i}>{m}</li>)}
+              </ul>
+              <p className="text-sm text-gray-700 border-t border-border pt-2">{rechazo.mensaje}</p>
+            </div>
+          )}
+          {lider ? (
+            <>
+              <p className="text-xs text-gray-600">
+                Puedes modificarla (conserva todos sus datos) y enviarla de nuevo, o eliminarla. Al reenviarla vuelve a empezar desde la asignación.
+              </p>
+              <AccionesPropuestaRechazada propuestaId={p.id} numero={p.numero} />
+            </>
+          ) : (
+            <p className="text-xs text-gray-600">El líder del equipo decide si la modifica o la elimina.</p>
+          )}
+        </section>
+      ))}
+
       {/* PROPOSALS TABLE BAR - ALWAYS VISIBLE AT ALL TIMES AS REQUESTED */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 md:p-8 shadow-sm space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
@@ -507,7 +552,12 @@ export default async function EgresadoLandingPage() {
                     let targetUrl = `/egresado/redactar/imprimir?id=${p.id}`;
                     let isPdf = true;
 
-                    if (hasAdvisorObservations) {
+                    if (p.estado === "rechazada") {
+                      actionText = "Ver motivo";
+                      actionClass = "bg-white border border-brand-red text-brand-red hover:bg-red-50 font-bold";
+                      targetUrl = `#rechazo-${p.id}`;
+                      isPdf = false;
+                    } else if (hasAdvisorObservations) {
                       actionText = "✏️ Corregir Observaciones";
                       actionClass = "bg-amber-500 hover:bg-amber-600 text-white font-extrabold shadow-sm animate-pulse";
                       targetUrl = `/egresado/redactar?id=${p.id}&step=5`;
@@ -529,7 +579,9 @@ export default async function EgresadoLandingPage() {
                         <td className="px-6 py-4">
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-extrabold border ${
-                              hasAdvisorObservations
+                              p.estado === "rechazada"
+                                ? "bg-red-50 text-brand-red border-brand-red/30"
+                                : hasAdvisorObservations
                                 ? "bg-amber-100 text-amber-900 border-amber-300"
                                 : p.estado === "redactando"
                                 ? hasSubmittedPropuesta && !isCurrentActiveSubmitted
@@ -540,7 +592,9 @@ export default async function EgresadoLandingPage() {
                                 : "bg-purple-100 text-purple-800 border-purple-200"
                             }`}
                           >
-                            {hasAdvisorObservations
+                            {p.estado === "rechazada"
+                              ? "Rechazada"
+                              : hasAdvisorObservations
                               ? "Ajustes Solicitados"
                               : p.estado === "primer_contacto_completado"
                               ? "Primer Contacto Completado"

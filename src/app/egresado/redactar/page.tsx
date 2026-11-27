@@ -21,6 +21,8 @@ import { UMBRAL_FORTALEZA, fortalezaElemento, leerPartes, type ElementoConPartes
 import ActoresIntervinientesForm from "@/components/proyecto/ActoresIntervinientesForm";
 import CartaProyectoForm from "@/components/proyecto/CartaProyectoForm";
 import RevisionEnvio from "@/components/proyecto/RevisionEnvio";
+import { ultimoRechazo } from "@/lib/expedientePropuesta";
+import { fechaCortaSV } from "@/lib/fechasTexto";
 import { documentosPorIntegrante, estadoRevision, type DocumentosIntegrante, type EstadoRevision } from "@/lib/revisionPropuestaServidor";
 import { verificarCapacidadEnvio } from "@/app/actions/proyecto";
 import { datosPersonasCarta, estadoPersonasCartaDe, type DatosPersonasCarta } from "@/lib/personasCartaServidor";
@@ -397,6 +399,9 @@ export default async function EgresadoPage({
   const isLockedOther = isAnySubmitted && !isCurrentSubmitted;
   const isFormLocked = propuesta.bloqueada || propuesta.estado !== "redactando" || isLockedOther;
 
+  // A3: reabierta después de un rechazo por requisitos y todavía sin reenviar: se muestra el motivo
+  const rechazoVigente = propuesta.estado === "redactando" && !propuesta.enviadaEn ? await ultimoRechazo(propuesta.id).catch(() => null) : null;
+
   return (
     <div>
       <div className="mb-6">
@@ -422,6 +427,22 @@ export default async function EgresadoPage({
               Has enviado la <strong>Propuesta #{submittedPropNumber}</strong> a revisión administrativa. Mientras se encuentre en evaluación, tus demás propuestas están en modo solo lectura. Si es rechazada, se desbloquearán automáticamente con todos sus datos conservados.
             </p>
           </div>
+        </div>
+      )}
+
+      {rechazoVigente && (
+        <div className="mb-6 rounded-xl border border-brand-red/30 bg-red-50/60 p-5 space-y-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-brand-red">Corrige lo que motivó el rechazo</p>
+          <p className="text-sm text-gray-700">
+            {rechazoVigente.funcion === "coordinador" ? "El coordinador" : "La administración"} rechazó esta propuesta el {fechaCortaSV(rechazoVigente.fecha)}:
+          </p>
+          <ul className="list-disc pl-5 text-sm text-gray-800 space-y-0.5">
+            {rechazoVigente.motivos.map((m, i) => <li key={i}>{m}</li>)}
+          </ul>
+          <p className="text-sm text-gray-700">{rechazoVigente.mensaje}</p>
+          <p className="text-xs text-gray-600">
+            Los documentos de soporte se cambian desde el panel principal de cada integrante. Al terminar, revisa el documento y envíala de nuevo.
+          </p>
         </div>
       )}
 

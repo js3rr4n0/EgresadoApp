@@ -4,6 +4,7 @@ import { propuestas, usuarios, carreras } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
 import PropuestasTable from "./PropuestasTable";
 import { alcanceAdmin } from "@/lib/permisos";
+import PropuestasEliminadas from "@/components/revisarPropuesta/PropuestasEliminadas";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,9 @@ export default async function AdminPropuestasPage() {
       </div>
 
       <PropuestasTable data={list} />
+
+      {/* A5: registro de eliminadas (solo superadministrador) */}
+      {alcance.superadmin && <PropuestasEliminadas />}
     </div>
   );
 }

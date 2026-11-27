@@ -8,8 +8,11 @@ import {
   responderSolicitudBajaCoordinador,
   responderAsignacionCoordinador,
   getDetallePropuestaCoordinador,
+  getAsesoresFacultad,
 } from "@/app/actions/coordinador";
+import Prioritario from "@/components/asesores/Prioritario";
 import Link from "next/link";
+import RechazarPropuesta from "@/components/revisarPropuesta/RechazarPropuesta";
 import DocumentosPropuestaSection from "@/components/coordinador/DocumentosPropuestaSection";
 
 interface PropuestaPendiente {
@@ -49,6 +52,8 @@ interface Asesor {
   id: number;
   nombreCompleto: string;
   correo: string;
+  /** A6: motivo de la prioridad por la empresa de la propuesta, si la tiene. */
+  prioritario?: string | null;
 }
 
 interface SolicitudBaja {
@@ -124,10 +129,18 @@ export default function CoordinadorDashboardClient({
   const [respuestaBaja, setRespuestaBaja] = useState("");
   const [processingBaja, setProcessingBaja] = useState(false);
 
+  // A6: asesores de esta propuesta (según la cohorte), con los prioritarios por la empresa primero
+  const [asesoresPropuesta, setAsesoresPropuesta] = useState<Asesor[] | null>(null);
   const handleOpenAssignModal = (prop: PropuestaPendiente) => {
     setSelectedPropuesta(prop);
     setSelectedAsesorId("");
+    setAsesoresPropuesta(null);
+    getAsesoresFacultad(prop.id).then((r) => {
+      if (r.success && Array.isArray(r.data)) setAsesoresPropuesta(r.data as Asesor[]);
+    });
   };
+  const listaAsesores = asesoresPropuesta ?? asesores;
+  const asesorElegido = listaAsesores.find((a) => String(a.id) === selectedAsesorId);
 
   const handleAssignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -686,12 +699,25 @@ export default function CoordinadorDashboardClient({
               </div>
 
               <div className="flex items-center gap-3">
+                {/* A2: rechazo por requisitos mientras espera la asignación de asesor */}
+                {docDetails?.propuesta?.estado === "coordinador_asignado" && !docDetails?.propuesta?.asesorId && (
+                  <RechazarPropuesta
+                    propuestaId={viewingDocPropuesta.id}
+                    numero={viewingDocPropuesta.numero}
+                    integrantes={[
+                      { id: docDetails.propuesta.egresadoId, nombre: docDetails.estudiante?.nombreCompleto ?? "Líder" },
+                      ...(docDetails.teamMembers ?? []).filter((t: { id: number }) => t.id !== docDetails.propuesta.egresadoId).map((t: { id: number; nombreCompleto: string }) => ({ id: t.id, nombre: t.nombreCompleto })),
+                    ]}
+                    alRechazar={() => { setViewingDocPropuesta(null); router.refresh(); }}
+                    claseBoton="bg-white/10 hover:bg-white/20 border border-white/30 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-colors"
+                  />
+                )}
                 {(!viewingDocPropuesta.solicitudActual || viewingDocPropuesta.solicitudActual.estado === "rechazada") && !viewingDocPropuesta.asesorAsignadoId && (
                   <button
                     onClick={() => handleOpenAssignModal(viewingDocPropuesta)}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition-all shadow-xs inline-flex items-center gap-1 cursor-pointer"
                   >
-                    👤 {viewingDocPropuesta.solicitudActual?.estado === "rechazada" ? "Reasignar Asesor" : "Asignar Asesor"}
+                    {viewingDocPropuesta.solicitudActual?.estado === "rechazada" ? "Reasignar Asesor" : "Asignar Asesor"}
                   </button>
                 )}
                 <Link
@@ -1007,12 +1033,20 @@ export default function CoordinadorDashboardClient({
                   className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-red focus:border-transparent outline-none bg-white font-medium"
                 >
                   <option value="">-- Seleccionar Asesor --</option>
-                  {asesores.map((ase) => (
+                  {listaAsesores.map((ase) => (
                     <option key={ase.id} value={ase.id}>
-                      {ase.nombreCompleto} ({ase.correo})
+                      {ase.prioritario ? "★ Prioritario · " : ""}{ase.nombreCompleto} ({ase.correo})
                     </option>
                   ))}
                 </select>
+                {asesorElegido?.prioritario ? (
+                  <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-900">
+                    <Prioritario motivo={asesorElegido.prioritario} />
+                    {asesorElegido.prioritario}
+                  </p>
+                ) : listaAsesores.some((a) => a.prioritario) ? (
+                  <p className="mt-2 text-xs text-slate-500">Los marcados como prioritarios ya trabajan o trabajaron con la empresa de esta propuesta.</p>
+                ) : null}
               </div>
 
               <div className="flex justify-end gap-2 pt-2">

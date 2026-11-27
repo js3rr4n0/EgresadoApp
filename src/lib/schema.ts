@@ -394,6 +394,57 @@ export const propuestas = pgTable(
   ]
 );
 
+// ─────────────────────────── Rechazo por requisitos (A2) ───────────────────────────
+
+// La administración (antes de asignar) o el coordinador (antes de que un asesor acepte) rechazan una propuesta que no
+// cumple los requisitos previos. Script: scripts/crear_rechazos_propuesta.ts
+export const rechazosPropuesta = pgTable("rechazos_propuesta", {
+  id: serial("id").primaryKey(),
+  propuestaId: integer("propuesta_id")
+    .notNull()
+    .references(() => propuestas.id, { onDelete: "cascade" }),
+  /** [{ clave, integranteId? }] (lib/rechazoPropuesta.ts) */
+  motivos: jsonb("motivos").notNull().$type<{ clave: string; integranteId?: number }[]>(),
+  mensaje: text("mensaje").notNull(),
+  rechazadoPor: integer("rechazado_por").references(() => usuarios.id),
+  /** "administracion" o "coordinador" */
+  funcion: varchar("funcion", { length: 20 }).notNull(),
+  estadoAnterior: varchar("estado_anterior", { length: 30 }).notNull(),
+  creadoEn: timestamp("creado_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─────────────────────────── Propuestas eliminadas (A5) ───────────────────────────
+
+// Registro de lo que elimina el superadministrador. Sin referencia a «propuestas» (ya no existe).
+// Script: scripts/crear_propuestas_eliminadas.ts
+export const propuestasEliminadas = pgTable("propuestas_eliminadas", {
+  id: serial("id").primaryKey(),
+  propuestaId: integer("propuesta_id").notNull(),
+  numero: integer("numero").notNull(),
+  titulo: text("titulo"),
+  tipo: varchar("tipo", { length: 30 }).notNull(),
+  estado: varchar("estado", { length: 30 }).notNull(),
+  /** [{ id, nombre, carnet, lider }] */
+  integrantes: jsonb("integrantes").notNull().$type<{ id: number; nombre: string; carnet: string | null; lider: boolean }[]>(),
+  empresa: text("empresa"),
+  justificacion: text("justificacion").notNull(),
+  eliminadaPor: integer("eliminada_por").references(() => usuarios.id, { onDelete: "set null" }),
+  eliminadaEn: timestamp("eliminada_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// ─────────────────────────── Verificación de firmas de la carta (A4) ───────────────────────────
+
+// «Firmas verificadas»: la administración comparó a simple vista la carta con las firmas registradas en la empresa.
+// Vale mientras no cambien la carta ni las personas elegidas (huella). Script: scripts/crear_verificacion_firmas.ts
+export const verificacionesFirmas = pgTable("verificaciones_firmas", {
+  propuestaId: integer("propuesta_id")
+    .primaryKey()
+    .references(() => propuestas.id, { onDelete: "cascade" }),
+  huella: text("huella").notNull(),
+  verificadaPor: integer("verificada_por").references(() => usuarios.id),
+  verificadaEn: timestamp("verificada_en", { withTimezone: true }).notNull().defaultNow(),
+});
+
 // ─────────────────────────── Revisión del documento (R6) ───────────────────────────
 
 // El líder confirmó que revisó el documento completo antes de enviar. Vale mientras la huella de la propuesta no cambie

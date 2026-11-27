@@ -8,11 +8,6 @@ import {
   usuarios,
   notificaciones,
   facultades,
-  carreras,
-  actividades,
-  cartasAceptacion,
-  detallesProyecto,
-  integrantesProyecto,
   empresas,
 } from "@/lib/schema";
 import { eq, and, inArray } from "drizzle-orm";
@@ -163,12 +158,8 @@ export async function getCoordinadoresConEstadisticas(empresaId?: number | null,
     );
 
     // Prioritize coordinators who have worked with the company, then sort by lower workload
-    coordinadoresConStats.sort((a, b) => {
-      if (b.proyectosEmpresaCount !== a.proyectosEmpresaCount) {
-        return b.proyectosEmpresaCount - a.proyectosEmpresaCount;
-      }
-      return a.proyectosAsignadosCount - b.proyectosAsignadosCount;
-    });
+    // A6: la prioridad por empresa es del asesor; los coordinadores se ordenan solo por carga
+    coordinadoresConStats.sort((a, b) => a.proyectosAsignadosCount - b.proyectosAsignadosCount || a.nombreCompleto.localeCompare(b.nombreCompleto, "es"));
 
     return { success: true, data: coordinadoresConStats };
   } catch (error: any) {
@@ -297,38 +288,3 @@ export async function asignarAsesorDirecto(propuestaId: number, asesorId: number
   }
 }
 
-export async function eliminarPropuestaBorrador(propuestaId: number) {
-  try {
-    const session = await getSession();
-    // Solo el superadministrador elimina propuestas (C3)
-    if (!session || session.rol !== "admin") {
-      return { success: false, error: "No autorizado" };
-    }
-
-    const [propuesta] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
-    if (!propuesta) return { success: false, error: "Propuesta no encontrada" };
-
-    const isBorrador = propuesta.estado === "borrador" || propuesta.estado === "redactando" || propuesta.estado.startsWith("pend_") || propuesta.estado.includes("empresa") || propuesta.estado.includes("datos");
-
-    if (!isBorrador) {
-      return { success: false, error: "Solo se pueden eliminar propuestas en estado borrador o redactando." };
-    }
-
-    // Delete child dependencies first
-    await db.delete(actividades).where(eq(actividades.propuestaId, propuestaId));
-    await db.delete(cartasAceptacion).where(eq(cartasAceptacion.propuestaId, propuestaId));
-    await db.delete(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
-    await db.delete(integrantesProyecto).where(eq(integrantesProyecto.propuestaId, propuestaId));
-    await db.delete(historialEstados).where(eq(historialEstados.propuestaId, propuestaId));
-    await db.delete(solicitudesAsesor).where(eq(solicitudesAsesor.propuestaId, propuestaId));
-
-    // Delete main proposal record
-    await db.delete(propuestas).where(eq(propuestas.id, propuestaId));
-
-    revalidatePath("/admin/propuestas");
-    return { success: true, message: `Propuesta #${propuesta.numero} en borrador eliminada definitivamente.` };
-  } catch (error: any) {
-    console.error("Error al eliminar propuesta en borrador:", error);
-    return { success: false, error: "Error al eliminar propuesta: " + error.message };
-  }
-}

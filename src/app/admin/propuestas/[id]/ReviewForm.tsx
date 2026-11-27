@@ -7,8 +7,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { asignarAsesorDirecto, asignarPropuestaACoordinador, eliminarPropuestaBorrador } from "@/app/actions/adminPropuestas";
+import { asignarAsesorDirecto, asignarPropuestaACoordinador } from "@/app/actions/adminPropuestas";
+import EliminarPropuesta from "@/components/revisarPropuesta/EliminarPropuesta";
+import Prioritario from "@/components/asesores/Prioritario";
+import { motivoPrioridad } from "@/lib/prioridadAsesor";
 import type { OpcionAsesor } from "@/lib/asignacionServidor";
+import RechazarPropuesta from "@/components/revisarPropuesta/RechazarPropuesta";
 
 interface Coordinador {
   id: number;
@@ -64,6 +68,9 @@ export default function ReviewForm({
   tieneAsesor,
   puedeAsignar = true,
   superadmin = true,
+  rechazo = null,
+  firmasVerificadas = null,
+  eliminacion = null,
 }: {
   propuestaId: number;
   estadoActual: string;
@@ -77,6 +84,12 @@ export default function ReviewForm({
   /** Administrador de facultad sin permiso de asignar en esta cohorte (administración central). */
   puedeAsignar?: boolean;
   superadmin?: boolean;
+  /** A2: la administración puede rechazar por requisitos (pendiente de asignación). */
+  rechazo?: { numero: number; integrantes: { id: number; nombre: string }[] } | null;
+  /** A4: null si no hay carta. Solo es un aviso: no bloquea la asignación. */
+  firmasVerificadas?: boolean | null;
+  /** A5: datos para la ventana de eliminación (solo superadministrador). permitido = antes de «En ejecución». */
+  eliminacion?: { numero: number; titulo: string | null; integrantes: string[]; permitido: boolean } | null;
 }) {
   const router = useRouter();
   const unico = regla?.configurada && coordinadores.length === 1 ? coordinadores[0].id : null;
@@ -85,7 +98,6 @@ export default function ReviewForm({
   const [buscar, setBuscar] = useState("");
   const [detalle, setDetalle] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [mensaje, setMensaje] = useState<{ ok: boolean; texto: string } | null>(null);
 
   const estado = ESTADOS[estadoActual] ?? ESTADOS.enviada;
@@ -121,19 +133,8 @@ export default function ReviewForm({
     if (res.success) { setAsesorId(null); router.refresh(); }
   };
 
-  const eliminar = async () => {
-    if (!window.confirm("¿Eliminar definitivamente esta propuesta? Se borrarán todos sus datos.")) return;
-    setDeleting(true);
-    const res = await eliminarPropuestaBorrador(propuestaId);
-    setDeleting(false);
-    if (res.success) {
-      router.push("/admin/propuestas");
-      router.refresh();
-    } else alert(res.error || "No se pudo eliminar la propuesta.");
-  };
-
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-border overflow-hidden sticky top-8">
+    <div className="bg-white rounded-xl shadow-sm border border-border overflow-hidden">
       <div className="px-5 py-4 bg-brand-red text-white">
         <h2 className="font-bold text-lg">Gestión de la propuesta</h2>
         <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-md text-xs font-bold border bg-white ${estado.clase}`}>{estado.texto}</span>
@@ -212,8 +213,12 @@ export default function ReviewForm({
                             <p className="text-sm font-semibold text-gray-800">{a.nombre}</p>
                             <p className="text-[11px] text-muted truncate">{a.carreras.length ? a.carreras.join(", ") : "Todas las carreras"}</p>
                           </div>
-                          {a.deLaCarrera && <span className="shrink-0 px-1.5 py-px rounded bg-green-100 text-green-800 text-[10px] font-bold">De la carrera</span>}
+                          <div className="flex shrink-0 flex-col items-end gap-1">
+                            {a.prioridad && <Prioritario motivo={motivoPrioridad(a.prioridad)} />}
+                            {a.deLaCarrera && <span className="px-1.5 py-px rounded bg-green-100 text-green-800 text-[10px] font-bold">De la carrera</span>}
+                          </div>
                         </div>
+                        {a.prioridad && <p className="text-[11px] text-amber-900 mt-1">{motivoPrioridad(a.prioridad)}</p>}
                         <p className="text-[11px] text-gray-600 mt-1">{a.activos} en curso · {a.pendientes} {a.pendientes === 1 ? "solicitud pendiente" : "solicitudes pendientes"}</p>
                       </button>
                     </li>
@@ -242,7 +247,6 @@ export default function ReviewForm({
                             {c.id === regla?.adminFacultadId ? " · Administrador de facultad" : c.rol === "admin" ? " · Superadministrador" : ""}
                           </p>
                         </div>
-                        {c.proyectosEmpresaCount > 0 && <span className="shrink-0 px-1.5 py-px rounded bg-amber-100 text-amber-800 text-[10px] font-bold">Conoce la empresa</span>}
                       </div>
                       <p className="text-[11px] text-gray-600 mt-1">
                         {c.proyectosAsignadosCount} {c.proyectosAsignadosCount === 1 ? "propuesta" : "propuestas"} a cargo
@@ -271,6 +275,12 @@ export default function ReviewForm({
             )}
             {unico && <p className="text-xs text-muted">Es el único coordinador configurado para esta carrera en la cohorte.</p>}
 
+            {firmasVerificadas === false && (
+              <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
+                Las firmas de la carta todavía no se han verificado. Puedes asignar igual; usa «Verificar firmas» en la tarjeta de la carta.
+              </p>
+            )}
+
             {mensaje && (
               <p className={`text-sm rounded-lg p-3 border ${mensaje.ok ? "bg-green-50 text-green-800 border-green-200" : "bg-red-50 text-red-700 border-red-200"}`}>{mensaje.texto}</p>
             )}
@@ -292,21 +302,32 @@ export default function ReviewForm({
           </div>
         )}
 
-        {!enEspera && !["borrador", "redactando"].includes(estadoActual) && (
+        {rechazo && (
+          <div className="pt-4 border-t border-border space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Requisitos previos</p>
+            <p className="text-xs text-gray-600">
+              Si un documento no es el correcto, la carta está incompleta o la firma no coincide, rechaza la propuesta con el motivo: vuelve
+              al egresado para que la corrija y la envíe de nuevo.
+            </p>
+            <RechazarPropuesta propuestaId={propuestaId} numero={rechazo.numero} integrantes={rechazo.integrantes} />
+          </div>
+        )}
+
+        {estadoActual === "rechazada" && (
+          <p className="text-sm text-gray-700 bg-gray-50 border border-border rounded-lg p-3">Rechazada por requisitos: espera que el egresado la corrija y la envíe de nuevo.</p>
+        )}
+        {!enEspera && !["borrador", "redactando", "rechazada"].includes(estadoActual) && (
           <p className="text-sm text-muted">La propuesta ya pasó la etapa de asignación.</p>
         )}
 
-        {superadmin && (
+        {superadmin && eliminacion && (
         <div className="pt-4 border-t border-border space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Acción administrativa</p>
-          <button
-            type="button"
-            onClick={eliminar}
-            disabled={deleting}
-            className="w-full py-2.5 rounded-xl border border-red-300 text-red-700 hover:bg-red-50 text-sm font-bold transition-colors disabled:opacity-50"
-          >
-            {deleting ? "Eliminando..." : "Eliminar propuesta definitivamente"}
-          </button>
+          {eliminacion?.permitido ? (
+            <EliminarPropuesta propuestaId={propuestaId} numero={eliminacion.numero} titulo={eliminacion.titulo} integrantes={eliminacion.integrantes} />
+          ) : (
+            <p className="text-xs text-gray-600">La propuesta está en ejecución: no se elimina. Corresponde gestionar una baja.</p>
+          )}
         </div>
         )}
       </div>

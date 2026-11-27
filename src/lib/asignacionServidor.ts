@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { carreras, facultades, periodos, propuestas, solicitudesAsesor, usuarios } from "@/lib/schema";
 import { configDeFacultad } from "@/lib/configCohorteServidor";
 import { NOMBRE_COORDINACION, coordinadoresPermitidos, type ConfigFacultad } from "@/lib/configCohorte";
+import { pesoPrioridad, type PrioridadAsesor } from "@/lib/prioridadAsesor";
 
 const ESTADOS_ACTIVOS = ["aprobada", "primer_contacto_completado", "en_ejecucion"];
 
@@ -100,9 +101,38 @@ export interface OpcionAsesor {
   /** Solicitudes de asesoría pendientes de responder. */
   pendientes: number;
   deLaCarrera: boolean;
+  /** A6: ya trabaja o trabajó con la empresa de la propuesta. */
+  prioridad: PrioridadAsesor | null;
 }
 
-/** Asesores que se pueden solicitar para la propuesta, con su carga, ordenados: primero los de la carrera y con menos carga. */
+/**
+ * A6: asesores que aceptaron propuestas de la misma empresa (cualquier estado salvo rechazada o anulada), separando la
+ * cohorte de esta propuesta de las anteriores. Sin empresa, vacío.
+ */
+export async function prioridadPorEmpresa(propuestaId: number): Promise<Map<number, PrioridadAsesor>> {
+  const mapa = new Map<number, PrioridadAsesor>();
+  const [p] = await db.select({ empresaId: propuestas.empresaId, periodoId: propuestas.periodoId }).from(propuestas).where(eq(propuestas.id, propuestaId));
+  if (!p?.empresaId) return mapa;
+  const filas = await db
+    .select({ id: propuestas.id, asesorId: propuestas.asesorId, estado: propuestas.estado, periodoId: propuestas.periodoId, cohorte: periodos.nombre })
+    .from(propuestas)
+    .innerJoin(periodos, eq(periodos.id, propuestas.periodoId))
+    .where(eq(propuestas.empresaId, p.empresaId))
+    .orderBy(desc(periodos.id));
+  for (const f of filas) {
+    if (f.id === propuestaId || f.asesorId == null || ["rechazada", "anulada"].includes(f.estado)) continue;
+    const actual = mapa.get(f.asesorId) ?? { actual: 0, cohortesAnteriores: [] };
+    if (f.periodoId === p.periodoId) actual.actual += 1;
+    else if (!actual.cohortesAnteriores.includes(f.cohorte)) actual.cohortesAnteriores.push(f.cohorte);
+    mapa.set(f.asesorId, actual);
+  }
+  return mapa;
+}
+
+/**
+ * Asesores que se pueden solicitar para la propuesta, con su carga, ordenados: primero los prioritarios por la empresa
+ * (A6), luego los de la carrera y con menos carga.
+ */
 export async function opcionesAsesor(regla: ReglaAsignacion): Promise<OpcionAsesor[]> {
   let ids = regla.asesores;
   if (ids === null) {
@@ -114,7 +144,7 @@ export async function opcionesAsesor(regla: ReglaAsignacion): Promise<OpcionAses
     ids = filas.map((f) => f.id);
   }
   if (ids.length === 0) return [];
-  const [gente, cargas, pend, listaCarreras] = await Promise.all([
+  const [gente, cargas, pend, listaCarreras, prioridad] = await Promise.all([
     db
       .select({ id: usuarios.id, nombre: usuarios.nombreCompleto, correo: usuarios.correo, carreraId: usuarios.carreraId, asignadas: usuarios.carrerasAsignadas, activo: usuarios.activo })
       .from(usuarios)
@@ -122,6 +152,7 @@ export async function opcionesAsesor(regla: ReglaAsignacion): Promise<OpcionAses
     db.select({ asesorId: propuestas.asesorId }).from(propuestas).where(and(inArray(propuestas.asesorId, ids), inArray(propuestas.estado, ESTADOS_ACTIVOS))),
     db.select({ asesorId: solicitudesAsesor.asesorId }).from(solicitudesAsesor).where(and(inArray(solicitudesAsesor.asesorId, ids), eq(solicitudesAsesor.estado, "pendiente"))),
     db.select({ id: carreras.id, nombre: carreras.nombre }).from(carreras),
+    prioridadPorEmpresa(regla.propuestaId),
   ]);
   const idsCarrera = (g: (typeof gente)[number]) =>
     [...new Set([g.carreraId, ...(Array.isArray(g.asignadas) ? (g.asignadas as number[]) : [])].filter((x): x is number => typeof x === "number"))];
@@ -140,9 +171,11 @@ export async function opcionesAsesor(regla: ReglaAsignacion): Promise<OpcionAses
         activos: cargas.filter((c) => c.asesorId === g.id).length,
         pendientes: pend.filter((c) => c.asesorId === g.id).length,
         deLaCarrera: regla.carrera != null && propias.includes(regla.carrera.id),
+        prioridad: prioridad.get(g.id) ?? null,
       };
     })
-    .sort((a, b) => Number(b.deLaCarrera) - Number(a.deLaCarrera) || a.activos + a.pendientes - (b.activos + b.pendientes) || a.nombre.localeCompare(b.nombre, "es"));
+    // A6: primero quien ya trabaja o trabajó con la empresa
+    .sort((a, b) => pesoPrioridad(b.prioridad) - pesoPrioridad(a.prioridad) || Number(b.deLaCarrera) - Number(a.deLaCarrera) || a.activos + a.pendientes - (b.activos + b.pendientes) || a.nombre.localeCompare(b.nombre, "es"));
 }
 
 /** Última solicitud de asesoría de la propuesta (para mostrar si está pendiente, aceptada o rechazada). */

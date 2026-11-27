@@ -186,7 +186,6 @@ export default async function AdminPrintPropuestaPage({
         {/* Action Header bar for screen */}
         <div className="no-print mb-4 flex items-center justify-between bg-slate-900 text-white p-4 rounded-2xl shadow-lg border border-slate-800">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">📊</span>
             <div>
               <h2 className="font-extrabold text-sm text-white">Exportación Oficial de Diagrama de Gantt (1 Página)</h2>
               <p className="text-xs text-slate-300">
@@ -689,7 +688,7 @@ export default async function AdminPrintPropuestaPage({
                       <div className="pt-3 border-t border-gray-200 space-y-2">
                         <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
                           <span className="bg-red-50 text-red-700 font-mono font-bold px-2.5 py-1 rounded border border-red-200">
-                            📍 Coordenadas GPS: {sucursal?.mapaUrl || empresa?.mapaUrl}
+                            Coordenadas GPS: {sucursal?.mapaUrl || empresa?.mapaUrl}
                           </span>
                           <a 
                             href={`https://www.google.com/maps?q=${sucursal?.mapaUrl || empresa?.mapaUrl}`} 
