@@ -24,6 +24,7 @@ const EVENTOS: [string, string][] = [
   ["asesor_solicitado_directo", "Asignación directa de asesor (facultad sin coordinador)"],
   ["asesor_asignado", "Asesor asignado"],
   ["asesor_acepto", "El asesor aceptó la asesoría"],
+  ["cambio_asesor", "Cambio de asesor"],
   ["asesor_rechazo", "El asesor rechazó la asesoría"],
   ["coordinador_reasignado", "Coordinador reasignado"],
   ["ajustes_solicitados", "Ajustes solicitados"],

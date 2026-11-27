@@ -2,35 +2,42 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { leerSolicitudes } from "@/lib/solicitudesServidor";
 import SolicitudesTable from "@/components/solicitudes/SolicitudesTable";
+import TablaSolicitudesCoordinacion from "@/components/coordinador/TablaSolicitudesCoordinacion";
+import { solicitudesCoordinacion } from "@/lib/solicitudesCoordinacionServidor";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Solicitudes de corrección | Admin" };
+export const metadata = { title: "Solicitudes | Admin" };
 
 /**
  * Solicitudes que no son de empresas: hoy, la corrección de datos del egresado (nombre y carnet). Las de empresa se
  * revisan en Gestión de Empresas (ajustes del 26-nov-2026).
  */
-export default async function SolicitudesPage() {
+export default async function SolicitudesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const session = await getSession();
   if (!session || session.rol !== "admin") redirect("/admin");
   const datos = await leerSolicitudes("correccion");
+  // D8: bajas y cambios de asesor, que también atiende la coordinación
+  const [sp, filas] = await Promise.all([searchParams, solicitudesCoordinacion(session)]);
   const pendientes = datos.solicitudes.filter((s) => s.estado === "pendiente").length;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Solicitudes de corrección</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Solicitudes</h1>
           <p className="text-sm text-muted mt-1">
-            Cambios que los egresados piden sobre sus datos registrados (por ejemplo, nombre o carnet) y que requieren la
-            aprobación de la administración.
+            Bajas y cambios de asesor (también los atiende la coordinación) y correcciones de datos que piden los egresados
+            (nombre o carnet).
           </p>
         </div>
         <span className={`self-start md:self-auto px-3 py-1.5 rounded-lg text-sm font-bold ${pendientes ? "bg-brand-red text-white" : "bg-gray-100 text-gray-600"}`}>
-          {pendientes === 1 ? "1 pendiente" : `${pendientes} pendientes`}
+          {pendientes === 1 ? "1 corrección pendiente" : `${pendientes} correcciones pendientes`}
         </span>
       </div>
 
+      <TablaSolicitudesCoordinacion filas={filas} base="/admin/solicitudes" sp={sp} rutaPropuesta={(id) => `/admin/propuestas/${id}`} />
+
+      <h2 className="text-lg font-bold text-gray-800">Corrección de datos</h2>
       <div className="bg-white border border-border rounded-xl shadow-sm overflow-hidden">
         <SolicitudesTable solicitudes={datos.solicitudes} vacio="No hay solicitudes de corrección." />
       </div>

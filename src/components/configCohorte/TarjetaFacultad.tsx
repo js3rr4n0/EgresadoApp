@@ -20,6 +20,7 @@ import {
   type Participante,
 } from "@/lib/configCohorte";
 import DialogoJustificacion from "./DialogoJustificacion";
+import { CUPO_MAXIMO, CUPO_MINIMO, CUPO_POR_DEFECTO, cupoDe } from "@/lib/configCohorte";
 
 const claseSelect = "w-full px-3 py-2 rounded-lg border border-border bg-white text-sm focus:border-brand-red outline-none";
 
@@ -58,8 +59,11 @@ function ListaParticipantes({
   carreras,
   conCarreras,
   carrerasObligatorias,
+  conCupo = false,
   onChange,
 }: {
+  /** D5: cupo máximo de procesos por asesor. */
+  conCupo?: boolean;
   titulo: string;
   ayuda: string;
   lista: Participante[];
@@ -103,6 +107,23 @@ function ListaParticipantes({
                       {u && !u.activo && " · cuenta inactiva"}
                     </p>
                   </div>
+                  {conCupo && (
+                    <label className="flex shrink-0 items-center gap-1.5 text-[11px] font-bold text-gray-600" title={`Máximo de procesos en curso más solicitudes pendientes. Por defecto, ${CUPO_POR_DEFECTO}.`}>
+                      Cupo
+                      <input
+                        type="number"
+                        min={CUPO_MINIMO}
+                        max={CUPO_MAXIMO}
+                        value={cupoDe(p)}
+                        onChange={(e) => {
+                          const n = Math.round(Number(e.target.value));
+                          if (Number.isFinite(n)) actualizar(i, { cupo: Math.min(CUPO_MAXIMO, Math.max(CUPO_MINIMO, n)) });
+                        }}
+                        aria-label={`Cupo de ${u?.nombre ?? "el asesor"}`}
+                        className="h-8 w-16 rounded-lg border border-border px-2 text-sm text-gray-800 focus:border-brand-red focus:outline-none"
+                      />
+                    </label>
+                  )}
                   <button type="button" onClick={() => onChange(lista.filter((_, j) => j !== i))} className="text-xs font-bold text-gray-400 hover:text-brand-red">Quitar</button>
                 </div>
                 {conCarreras && (
@@ -317,13 +338,14 @@ export default function TarjetaFacultad({
             <p className="text-[11px] font-bold uppercase tracking-wider text-brand-red">3. Asesores que participan</p>
             <ListaParticipantes
               titulo="Asesores"
-              ayuda="Solo estos asesores podrán recibir propuestas de esta facultad en la cohorte. Las carreras son opcionales."
+              ayuda={`Solo estos asesores podrán recibir propuestas de esta facultad en la cohorte. Las carreras son opcionales. El cupo es el máximo de procesos en curso más solicitudes pendientes (por defecto, ${CUPO_POR_DEFECTO}).`}
               lista={c.asesores}
               disponibles={asesores}
               facultadId={facultad.id}
               carreras={facultad.carreras}
               conCarreras
               carrerasObligatorias={false}
+              conCupo
               onChange={(l) => set({ asesores: l })}
             />
           </div>

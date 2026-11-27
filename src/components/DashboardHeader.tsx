@@ -8,6 +8,8 @@ import LogoutButton from "./LogoutButton";
 export interface NavItem {
   label: string;
   href: string;
+  /** D3: pendientes que se muestran junto al nombre (0 = nada). */
+  contador?: number;
 }
 
 interface HeaderProps {
@@ -82,6 +84,11 @@ export default function DashboardHeader({
                   }`}
                 >
                   {item.label}
+                  {!!item.contador && (
+                    <span className="ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand-red px-1.5 py-0.5 text-[10px] font-bold leading-none text-white" aria-label={`${item.contador} pendientes`}>
+                      {item.contador}
+                    </span>
+                  )}
                 </Link>
               );
             })}

@@ -8,6 +8,7 @@ import { carreras, facultades, periodos, propuestas, solicitudesAsesor, usuarios
 import { configDeFacultad } from "@/lib/configCohorteServidor";
 import { NOMBRE_COORDINACION, coordinadoresPermitidos, type ConfigFacultad } from "@/lib/configCohorte";
 import { pesoPrioridad, type PrioridadAsesor } from "@/lib/prioridadAsesor";
+import { cupoDe } from "@/lib/configCohorte";
 
 const ESTADOS_ACTIVOS = ["aprobada", "primer_contacto_completado", "en_ejecucion"];
 
@@ -103,6 +104,9 @@ export interface OpcionAsesor {
   deLaCarrera: boolean;
   /** A6: ya trabaja o trabajó con la empresa de la propuesta. */
   prioridad: PrioridadAsesor | null;
+  /** D5: máximo de procesos en curso más solicitudes pendientes, y si ya lo alcanzó. */
+  cupo: number;
+  lleno: boolean;
 }
 
 /**
@@ -163,7 +167,12 @@ export async function opcionesAsesor(regla: ReglaAsignacion): Promise<OpcionAses
     .filter((g) => g.activo)
     .map((g) => {
       const propias = carrerasCohorte(g.id).length ? carrerasCohorte(g.id) : idsCarrera(g);
+      const activos = cargas.filter((c) => c.asesorId === g.id).length;
+      const pendientes = pend.filter((c) => c.asesorId === g.id).length;
+      const cupo = cupoDe(regla.config?.asesores.find((a) => a.usuarioId === g.id));
       return {
+        cupo,
+        lleno: activos + pendientes >= cupo,
         id: g.id,
         nombre: g.nombre,
         correo: g.correo,
@@ -174,8 +183,8 @@ export async function opcionesAsesor(regla: ReglaAsignacion): Promise<OpcionAses
         prioridad: prioridad.get(g.id) ?? null,
       };
     })
-    // A6: primero quien ya trabaja o trabajó con la empresa
-    .sort((a, b) => pesoPrioridad(b.prioridad) - pesoPrioridad(a.prioridad) || Number(b.deLaCarrera) - Number(a.deLaCarrera) || a.activos + a.pendientes - (b.activos + b.pendientes) || a.nombre.localeCompare(b.nombre, "es"));
+    // D5: los de cupo lleno al final; A6: primero quien ya trabaja o trabajó con la empresa
+    .sort((a, b) => Number(a.lleno) - Number(b.lleno) || pesoPrioridad(b.prioridad) - pesoPrioridad(a.prioridad) || Number(b.deLaCarrera) - Number(a.deLaCarrera) || a.activos + a.pendientes - (b.activos + b.pendientes) || a.nombre.localeCompare(b.nombre, "es"));
 }
 
 /** Última solicitud de asesoría de la propuesta (para mostrar si está pendiente, aceptada o rechazada). */

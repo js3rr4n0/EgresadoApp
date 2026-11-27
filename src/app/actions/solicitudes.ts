@@ -6,9 +6,11 @@ import { eq } from "drizzle-orm";
 import { getSession } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 
-export async function aprobarSolicitudEmpresa(solicitudId: number) {
+/** D2: `mensaje` es obligatorio al aprobar una carta «sin supervisor empresarial» (queda como constancia). */
+export async function aprobarSolicitudEmpresa(solicitudId: number, mensaje?: string) {
   const session = await getSession();
-  if (!session || (session.rol !== "admin" && session.rol !== "decanato")) {
+  // D8: también el coordinador, solo para las de sus propuestas y no las de la carta (las valida la administración)
+  if (!session || (session.rol !== "admin" && session.rol !== "decanato" && session.rol !== "coordinador")) {
     return { success: false, error: "No autorizado" };
   }
 
@@ -19,13 +21,23 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
     
     if (!solicitud) return { success: false, error: "Solicitud no encontrada" };
     if (solicitud.estado !== "pendiente") return { success: false, error: "La solicitud ya fue procesada" };
+    if (session.rol === "coordinador") {
+      const { puedeAtenderPropuesta } = await import("@/lib/cambioAsesorServidor");
+      if (solicitud.tipo === "carta" || solicitud.tipo === "datos_alumno" || !(await puedeAtenderPropuesta(session, solicitud.propuestaId))) {
+        return { success: false, error: "No autorizado" };
+      }
+    }
 
     const data = solicitud.datos as any;
 
     // R5: firmantes o supervisor nuevos de la carta, o «sin supervisor empresarial». No cambia el estado de la propuesta.
     if (solicitud.tipo === "carta") {
+      const { MIN_MOTIVO } = await import("@/lib/personasCarta");
+      if (data?.sinSupervisor && (mensaje ?? "").trim().length < MIN_MOTIVO) {
+        return { success: false, error: `Escribe el mensaje de aprobación sin supervisor (al menos ${MIN_MOTIVO} caracteres): lo verán el coordinador y el asesor.` };
+      }
       const { aprobarSolicitudCarta } = await import("@/lib/solicitudCartaServidor");
-      await aprobarSolicitudCarta(solicitud, session.userId);
+      await aprobarSolicitudCarta(solicitud, session.userId, mensaje);
       revalidatePath("/admin/empresas");
       revalidatePath("/admin", "layout");
       revalidatePath("/egresado/redactar");
@@ -289,7 +301,8 @@ export async function aprobarSolicitudEmpresa(solicitudId: number) {
 
 export async function rechazarSolicitudEmpresa(solicitudId: number, justificacion: string) {
   const session = await getSession();
-  if (!session || (session.rol !== "admin" && session.rol !== "decanato")) {
+  // D8: también el coordinador, solo para las de sus propuestas y no las de la carta (las valida la administración)
+  if (!session || (session.rol !== "admin" && session.rol !== "decanato" && session.rol !== "coordinador")) {
     return { success: false, error: "No autorizado" };
   }
 
@@ -300,6 +313,12 @@ export async function rechazarSolicitudEmpresa(solicitudId: number, justificacio
     
     if (!solicitud) return { success: false, error: "Solicitud no encontrada" };
     if (solicitud.estado !== "pendiente") return { success: false, error: "La solicitud ya fue procesada" };
+    if (session.rol === "coordinador") {
+      const { puedeAtenderPropuesta } = await import("@/lib/cambioAsesorServidor");
+      if (solicitud.tipo === "carta" || solicitud.tipo === "datos_alumno" || !(await puedeAtenderPropuesta(session, solicitud.propuestaId))) {
+        return { success: false, error: "No autorizado" };
+      }
+    }
 
     const data = solicitud.datos as any;
 

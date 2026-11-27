@@ -3,6 +3,11 @@ import { getOrCreateInformePrimerContacto } from "@/app/actions/informes";
 import Link from "next/link";
 import PropuestaProgresoClient from "./PropuestaProgresoClient";
 import FortalezaResumen from "@/components/fortaleza/FortalezaResumen";
+import PedirCambioAsesor from "@/components/cambioAsesor/PedirCambioAsesor";
+import { ultimoCambio } from "@/lib/cambioAsesorServidor";
+import { ESTADOS_CAMBIO_PERMITIDO } from "@/lib/cambioAsesor";
+import { getSession } from "@/lib/session";
+import ConstanciaSinSupervisor from "@/components/revisarPropuesta/ConstanciaSinSupervisor";
 import { estadoPlanDePropuesta } from "@/app/actions/planTrabajo";
 
 export default async function AsesorPropuestaProgresoPage({
@@ -55,6 +60,11 @@ export default async function AsesorPropuestaProgresoPage({
     console.error("Error al obtener informe de primer contacto:", err);
   }
 
+  // D8: cambio de asesor, solo si la propuesta es suya y está en un estado que lo permite
+  const sesion = await getSession();
+  const propD8 = (res.data as { propuesta: { estado: string; asesorId: number | null } }).propuesta;
+  const cambioPosible = !!sesion && propD8.asesorId === sesion.userId && ESTADOS_CAMBIO_PERMITIDO.includes(propD8.estado);
+
   // Proyecto con ficha (P3): el plan de trabajo del equipo se revisa en su propia pantalla.
   const estadoPlan = await estadoPlanDePropuesta(pId);
   // Investigación (H22): el protocolo se envía y se dictamina junto con el plan.
@@ -90,8 +100,16 @@ export default async function AsesorPropuestaProgresoPage({
           </div>
         </div>
       )}
+      {/* D8: el asesor puede pedir que se asigne otro asesor */}
+      {cambioPosible && (
+        <div className="mb-4">
+          <PedirCambioAsesor propuestaId={pId} quien="asesor" asesorActual={sesion!.nombreCompleto} ultimo={await ultimoCambio(pId)} />
+        </div>
+      )}
       {/* R3: fortaleza de la propuesta (problema, justificación y alcance) */}
-      <div className="mb-4">
+      <div className="mb-4 space-y-4">
+        {/* D2: constancia si trabaja sin supervisor empresarial */}
+        <ConstanciaSinSupervisor propuestaId={pId} />
         <FortalezaResumen propuestaId={pId} paraAsesor />
       </div>
       <PropuestaProgresoClient

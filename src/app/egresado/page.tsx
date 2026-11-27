@@ -16,6 +16,9 @@ import { mapaPropuesta } from "@/lib/mapaPropuestaServidor";
 import { getUserPendingInvitations, getUserAcceptedTeamProposal } from "@/app/actions/proyecto";
 import CrearPropuestaModalButton from "@/components/CrearPropuestaModalButton";
 import AvisoValoraciones from "@/components/valoraciones/AvisoValoraciones";
+import PedirCambioAsesor from "@/components/cambioAsesor/PedirCambioAsesor";
+import { ultimoCambio } from "@/lib/cambioAsesorServidor";
+import { ESTADOS_CAMBIO_PERMITIDO } from "@/lib/cambioAsesor";
 
 export default async function EgresadoLandingPage() {
   const session = await getSession();
@@ -227,6 +230,12 @@ export default async function EgresadoLandingPage() {
           ultimoReenvio={ultimoReenvio}
         >
           <MapaPropuesta pasos={pasosMapa} esLider={activeSubmittedProp.egresadoId === session.userId} />
+          {/* D8: el líder puede pedir cambio de asesor cuando ya lo tiene */}
+          {asesorNombre && !asesorPendiente && activeSubmittedProp.asesorId && activeSubmittedProp.egresadoId === session.userId && ESTADOS_CAMBIO_PERMITIDO.includes(activeSubmittedProp.estado) && (
+            <div className="mt-4">
+              <PedirCambioAsesor propuestaId={activeSubmittedProp.id} quien="egresado" asesorActual={asesorNombre} ultimo={await ultimoCambio(activeSubmittedProp.id)} />
+            </div>
+          )}
           {activeSubmittedProp.estado === "en_ejecucion" && (
             <Link href={rutaEjecucion} className="mt-4 inline-flex items-center gap-2 rounded-lg bg-brand-red px-4 py-2 text-xs font-bold text-white hover:bg-brand-red-hover">
               {activeSubmittedProp.tipo === "pasantia" ? "Ir a los reportes de actividades" : "Ir a la ejecución"}

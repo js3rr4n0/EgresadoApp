@@ -1,12 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import DashboardHeader, { type NavItem } from "@/components/DashboardHeader";
-
-const navItems: NavItem[] = [
-  { label: "Coordinación de Propuestas", href: "/coordinador" },
-  { label: "Seguimiento de Pasantías", href: "/coordinador/seguimiento" },
-  { label: "Asesores", href: "/coordinador/asesores" },
-];
+import { contadoresCoordinador } from "@/lib/contadoresCoordinador";
 
 export default async function CoordinadorLayout({
   children,
@@ -17,6 +12,19 @@ export default async function CoordinadorLayout({
   if (!session || (session.rol !== "coordinador" && session.rol !== "admin" && session.rol !== "decanato")) {
     redirect("/login");
   }
+
+  // D3: cada sección es una página del menú, con sus pendientes
+  const n = await contadoresCoordinador(session);
+  const navItems: NavItem[] = [
+    { label: "Por revisar y asignar", href: "/coordinador", contador: n.porAsignar },
+    { label: "Asignadas", href: "/coordinador/asignadas" },
+    { label: "Cupos", href: "/coordinador/cupos" },
+    { label: "Por recibir", href: "/coordinador/por-recibir" },
+    { label: "Empresas", href: "/coordinador/empresas" },
+    { label: "Solicitudes", href: "/coordinador/solicitudes", contador: n.solicitudes },
+    { label: "Asesores", href: "/coordinador/asesores" },
+    { label: "Seguimiento", href: "/coordinador/seguimiento" },
+  ];
 
   return (
     <div className="min-h-screen bg-muted-bg flex flex-col font-sans">

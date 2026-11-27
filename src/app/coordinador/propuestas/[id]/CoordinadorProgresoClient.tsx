@@ -25,6 +25,7 @@ interface CoordinadorProgresoClientProps {
     detallesProyecto?: any;
     documentos?: any[];
     historial?: any[];
+    bloqueoRequisitos?: boolean;
     asesores?: any[];
   };
 }
@@ -48,6 +49,8 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
   const detallesProyecto = safeData.detallesProyecto || null;
   const historial = Array.isArray(safeData.historial) ? safeData.historial : [];
   const asesores = Array.isArray(safeData.asesores) ? safeData.asesores : [];
+  // D1: con requisitos sin cumplir no se asigna asesor (la lista se muestra arriba de la página)
+  const bloqueoRequisitos = !!safeData.bloqueoRequisitos;
 
   const [showAsesorModal, setShowAsesorModal] = useState(false);
   const [selectedAsesorId, setSelectedAsesorId] = useState<string>("");
@@ -123,7 +126,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
         <div className="flex items-center gap-3 flex-wrap">
           {propuestaId > 0 && (
             <>
-              <button
+              {!bloqueoRequisitos && <button
                 type="button"
                 onClick={() => setShowAsesorModal(true)}
                 className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shadow-sm active:scale-95 cursor-pointer"
@@ -132,7 +135,7 @@ export default function CoordinadorProgresoClient({ data }: CoordinadorProgresoC
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
                 <span>{asesor ? "Cambiar Asesor" : "Asignar Asesor"}</span>
-              </button>
+              </button>}
               {propuestaTipo === "pasantia" && <a
                 href={`/coordinador/propuestas/${propuestaId}/imprimir?ganttOnly=true`}
                 target="_blank"

@@ -8,7 +8,7 @@ import "server-only";
 
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { cartasAceptacion, firmantes, notificaciones, propuestas, solicitudesEmpresa, supervisores } from "@/lib/schema";
+import { cartasAceptacion, firmantes, notificaciones, propuestas, solicitudesEmpresa, supervisores, validacionesSinSupervisor } from "@/lib/schema";
 import { dividirNombre, type DatosSolicitudCarta } from "@/lib/personasCarta";
 
 type Solicitud = typeof solicitudesEmpresa.$inferSelect;
@@ -18,8 +18,10 @@ async function avisarEgresado(propuestaId: number, tipo: string, mensaje: string
   if (prop) await db.insert(notificaciones).values({ usuarioId: prop.egresadoId, tipo, mensaje });
 }
 
-export async function aprobarSolicitudCarta(s: Solicitud, adminId: number) {
+/** D2: «sin supervisor» se aprueba con un mensaje que queda como constancia; el llamador ya revisó su largo. */
+export async function aprobarSolicitudCarta(s: Solicitud, adminId: number, mensaje?: string) {
   const d = s.datos as DatosSolicitudCarta;
+  if (d.sinSupervisor && !mensaje?.trim()) throw new Error("Falta el mensaje de aprobación sin supervisor.");
   const empresaId = s.empresaId ?? d.empresaId;
   const nuevosFirmantes = d.firmantesNuevos?.length
     ? await db
@@ -57,12 +59,24 @@ export async function aprobarSolicitudCarta(s: Solicitud, adminId: number) {
   if (nuevoSupervisor) await db.update(propuestas).set({ supervisorId: nuevoSupervisor.id }).where(eq(propuestas.id, s.propuestaId));
 
   await db.update(solicitudesEmpresa).set({ estado: "aprobada", revisadoPor: adminId, revisadoEn: new Date() }).where(eq(solicitudesEmpresa.id, s.id));
+  if (d.sinSupervisor) {
+    await db
+      .insert(validacionesSinSupervisor)
+      .values({ solicitudId: s.id, propuestaId: s.propuestaId, mensaje: mensaje!.trim(), validadaPor: adminId })
+      .onConflictDoUpdate({ target: validacionesSinSupervisor.solicitudId, set: { mensaje: mensaje!.trim(), validadaPor: adminId, validadaEn: new Date() } });
+  }
   const partes = [
     nuevosFirmantes.length ? `${nuevosFirmantes.length} firmante(s)` : "",
     nuevoSupervisor ? "el supervisor" : "",
     d.sinSupervisor ? "el trabajo sin supervisor empresarial" : "",
   ].filter(Boolean);
-  await avisarEgresado(s.propuestaId, "solicitud_aprobada", `La administración aprobó ${partes.join(", ")} de tu carta de aceptación. Ya quedaron registrados en la empresa.`);
+  await avisarEgresado(
+    s.propuestaId,
+    "solicitud_aprobada",
+    d.sinSupervisor
+      ? `La administración aprobó ${partes.join(", ")} de tu carta de aceptación. Mensaje: "${mensaje!.trim()}"`
+      : `La administración aprobó ${partes.join(", ")} de tu carta de aceptación. Ya quedaron registrados en la empresa.`,
+  );
 }
 
 export async function rechazarSolicitudCarta(s: Solicitud, motivo: string, adminId: number) {

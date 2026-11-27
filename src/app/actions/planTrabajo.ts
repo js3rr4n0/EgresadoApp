@@ -3,11 +3,10 @@
 // Plan de trabajo del equipo (entrega P3, proyecto). Se elabora después de aprobada la propuesta, con las reglas
 // de la etapa "Plan de trabajo" de su ficha. El líder estructura y asigna responsables; cada integrante completa
 // lo que está a su cargo; el líder lo envía y el asesor lo aprueba u observa.
-import crypto from "crypto";
 import { db } from "@/lib/db";
 import { detallesProyecto, integrantesProyecto, notificaciones, planesTrabajo, propuestas, usuarios } from "@/lib/schema";
 import { getSession } from "@/lib/session";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { fichaDePropuesta } from "@/lib/fichas/fichaDePropuesta";
 import { esEtapaEjecucion, esEtapaInformeFinal, esEtapaPlan, esEtapaPropuesta, esEtapaProtocolo, type EtapaEjecucion, type EtapaPlan } from "@/lib/fichas/tipos";
@@ -15,7 +14,7 @@ import { fechaLimiteDictamen } from "@/lib/fichas/protocolo";
 import { reglaObjetivosDe, reglaUniforme, rangoObjetivos, rangoPorPersona, type RangoObjetivos } from "@/lib/fichas/objetivos";
 
 const fechaCorta = (d: Date) => d.toLocaleDateString("es-SV", { day: "numeric", month: "long", year: "numeric" });
-import { cambioNoPermitido, normalizarArbol, numerar, validarPlanEquipo, type NodoPlan, type ProblemaPlan } from "@/lib/fichas/planTrabajo";
+import { cambioNoPermitido, normalizarArbol, numerar, validarPlanEquipo, type NodoPlan, type ProblemaPlan, objetivosCoinciden, sincronizarObjetivos, problemasPeriodos, type ObjetivoPropuesta } from "@/lib/fichas/planTrabajo";
 import { COMPONENTES_CIERRE, COMPONENTES_INVESTIGACION, type Espacio } from "@/lib/fichas/tipos";
 import { arbolConCitas, metodologiaValida, pideMetodologia } from "@/lib/fichas/metodologiaPlan";
 import { leerApartado, parteVacia, textoParte, tipoApartado } from "@/lib/fichas/apartadosAcademicos";
@@ -57,6 +56,18 @@ export interface DatosPlan {
   metodologia: { fuentes: Fuente[]; protocolo: string[] } | null;
   /** Objetivos específicos del trabajo en total (H19/H27): de 3 a 4 por integrante por la cantidad de integrantes. */
   rangoObjetivos: RangoObjetivos;
+  /** P1: objetivos tal como se redactaron en la propuesta (el plan los muestra en solo lectura). */
+  objetivosPropuesta: { general: string; especificos: ObjetivoPropuesta[] };
+}
+
+/** P1: objetivo general y específicos de la propuesta. */
+async function objetivosDePropuesta(propuestaId: number): Promise<{ general: string; especificos: ObjetivoPropuesta[] }> {
+  const [det] = await db.select({ general: detallesProyecto.objetivoGeneral, especificos: detallesProyecto.objetivosEspecificos }).from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
+  const lista = (Array.isArray(det?.especificos) ? det.especificos : []) as { titulo?: string; descripcion?: string }[];
+  return {
+    general: det?.general?.trim() ?? "",
+    especificos: lista.map((o) => ({ titulo: String(o?.titulo ?? "").trim(), descripcion: String(o?.descripcion ?? "").trim() })),
+  };
 }
 
 type Resultado<T = object> = ({ success: true } & T) | { success: false; error: string; problemas?: ProblemaPlan[] };
@@ -86,17 +97,9 @@ async function equipoDe(propuestaId: number, liderId: number): Promise<Integrant
  * investigación, cada objetivo con sus elementos del proceso y el bloque de preparación del informe al final.
  */
 async function arbolInicial(propuestaId: number, etapa: EtapaPlan): Promise<NodoPlan> {
-  const [det] = await db.select().from(detallesProyecto).where(eq(detallesProyecto.propuestaId, propuestaId));
-  const especificos = (Array.isArray(det?.objetivosEspecificos) ? det.objetivosEspecificos : []) as { titulo?: string }[];
-  return normalizarArbol(numerar({
-    id: "og",
-    codigo: "1",
-    nivel: 1,
-    titulo: det?.objetivoGeneral?.trim() || "Objetivo general",
-    responsable: null,
-    montos: [],
-    hijos: especificos.map((o) => ({ id: crypto.randomUUID(), codigo: "", nivel: 2, titulo: o.titulo?.trim() || "", responsable: null, montos: [], hijos: [] })),
-  }), etapa);
+  const obj = await objetivosDePropuesta(propuestaId);
+  const raiz: NodoPlan = { id: "og", codigo: "1", nivel: 1, titulo: obj.general || "Objetivo general", responsable: null, montos: [], hijos: [] };
+  return normalizarArbol(sincronizarObjetivos(raiz, obj.general, obj.especificos), etapa);
 }
 
 /** Comprueba la forma del árbol recibido del navegador (no las reglas de la ficha). */
@@ -165,6 +168,24 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
     if (!fila) [fila] = await db.select().from(planesTrabajo).where(eq(planesTrabajo.propuestaId, propuestaId));
   }
 
+  // P1: mientras el plan se puede editar, sus objetivos son los de la propuesta (si la propuesta cambió, se actualizan
+  // conservando lo planificado de cada objetivo). Los planes enviados, aprobados o en ejecución no se tocan.
+  const objetivosPropuesta = await objetivosDePropuesta(propuestaId);
+  if (
+    ["redactando", "observado"].includes(fila.estado) &&
+    objetivosPropuesta.especificos.length > 0 &&
+    !objetivosCoinciden(fila.arbol as NodoPlan, objetivosPropuesta.general, objetivosPropuesta.especificos)
+  ) {
+    const sincronizado = normalizarArbol(sincronizarObjetivos(fila.arbol as NodoPlan, objetivosPropuesta.general, objetivosPropuesta.especificos), etapa);
+    const [act] = await db
+      .update(planesTrabajo)
+      .set({ arbol: sincronizado, version: fila.version + 1, actualizadoEn: new Date() })
+      // El estado también va en la condición: una lectura vieja no debe sobrescribir un plan que ya se envió o aprobó
+      .where(and(eq(planesTrabajo.propuestaId, propuestaId), eq(planesTrabajo.version, fila.version), inArray(planesTrabajo.estado, ["redactando", "observado"])))
+      .returning();
+    if (act) fila = act;
+  }
+
   // Proyecto individual: no hay responsables que asignar; todo el plan es del único integrante (así lo lee la ejecución).
   const guardado = normalizarArbol(fila.arbol as NodoPlan, etapa);
   const arbol = equipo.length === 1 && guardado.responsable == null ? { ...guardado, responsable: equipo[0].id } : guardado;
@@ -196,6 +217,7 @@ export async function getPlanTrabajo(propuestaId: number): Promise<Resultado<{ d
         : null,
       informeFinal,
       metodologia: pideMetodologia(etapa) ? { fuentes: await fuentesDe(propuestaId), protocolo: await metodologiaDelProtocolo(propuestaId, protocolo?.espacios ?? []) } : null,
+      objetivosPropuesta,
       rangoObjetivos: rangoObjetivos(reglaUniforme({ min: etapa.minimos.objetivosPorIntegrante, max: etapa.minimos.maxObjetivosPorIntegrante ?? Math.max(etapa.minimos.objetivosPorIntegrante, 4) }), equipo.length),
     },
   };
@@ -228,6 +250,10 @@ export async function guardarPlanTrabajo(propuestaId: number, arbol: unknown, ve
     if (datos.plan.version !== version) return { success: false, error: "Otro integrante guardó cambios mientras editabas. Recarga la página para ver la última versión." };
     if (!arbolValido(arbol, datos.columnas.length)) return { success: false, error: "El plan recibido no tiene una forma válida." };
 
+    // P1: los objetivos vienen de la propuesta; no se agregan, quitan ni renombran
+    if (datos.objetivosPropuesta.especificos.length > 0 && !objetivosCoinciden(arbol, datos.objetivosPropuesta.general, datos.objetivosPropuesta.especificos)) {
+      return { success: false, error: "Los objetivos vienen de la propuesta y no se pueden agregar, quitar ni cambiar en el plan. Recarga la página." };
+    }
     let nuevo = numerar(normalizarArbol(arbol, datos.etapa));
     // Metodología por objetivo (E2): las citas las arma el servidor con el registro de fuentes.
     if (datos.metodologia) nuevo = arbolConCitas(nuevo, new Map(datos.metodologia.fuentes.map((f) => [f.id, f.datos])));
@@ -238,7 +264,7 @@ export async function guardarPlanTrabajo(propuestaId: number, arbol: unknown, ve
     const [act] = await db
       .update(planesTrabajo)
       .set({ arbol: nuevo, version: version + 1, actualizadoPor: datos.miId, actualizadoEn: new Date() })
-      .where(and(eq(planesTrabajo.propuestaId, propuestaId), eq(planesTrabajo.version, version)))
+      .where(and(eq(planesTrabajo.propuestaId, propuestaId), eq(planesTrabajo.version, version), inArray(planesTrabajo.estado, ["redactando", "observado"])))
       .returning({ version: planesTrabajo.version });
     if (!act) return { success: false, error: "Otro integrante guardó cambios mientras editabas. Recarga la página para ver la última versión." };
     revalidatePath("/egresado/plan");
@@ -255,7 +281,11 @@ export async function enviarPlanTrabajo(propuestaId: number): Promise<Resultado>
   const { datos } = res;
   if (datos.rol !== "lider") return { success: false, error: "Solo el líder envía el plan al asesor." };
   if (datos.plan.estado !== "redactando" && datos.plan.estado !== "observado") return { success: false, error: "El plan ya fue enviado." };
-  const problemas = validarPlanEquipo(datos.plan.arbol, datos.etapa, datos.equipo.map((i) => i.id), datos.columnas.length);
+  const problemas = [
+    ...validarPlanEquipo(datos.plan.arbol, datos.etapa, datos.equipo.map((i) => i.id), datos.columnas.length),
+    // P2: cada período con al menos una actividad
+    ...problemasPeriodos(datos.plan.arbol, datos.columnas),
+  ];
   if (problemas.length > 0) return { success: false, error: "El plan todavía no cumple las reglas de la ficha.", problemas };
   if (datos.protocolo) {
     // Investigación: el protocolo completo y, en equipo, ratificado por todos (actions/protocolo.ts).

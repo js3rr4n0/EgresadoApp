@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import {
+  bajasResueltas,
   propuestas,
   usuarios,
   carreras,
@@ -59,7 +60,9 @@ export async function getPropuestasPendientesCoordinador() {
       .where(
         and(
           eq(propuestas.coordinadorId, session.userId),
-          inArray(propuestas.estado, ["coordinador_asignado", "aprobada"])
+          // D3: por revisar y asignar = todavía sin asesor; las aceptadas pasan a «Mis propuestas asignadas»
+          eq(propuestas.estado, "coordinador_asignado"),
+          isNull(propuestas.asesorId)
         )
       )
       .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
@@ -68,9 +71,11 @@ export async function getPropuestasPendientesCoordinador() {
       rawPropuestas.map(async (row) => {
         // Fetch student team if multi-user
         let estudiantesNombres = row.estudiante?.nombreCompleto || "Estudiante";
+        // A2/D3: integrantes para el rechazo por requisitos
+        const integrantes: { id: number; nombre: string }[] = [{ id: row.propuesta.egresadoId, nombre: row.estudiante?.nombreCompleto || "Líder" }];
         if (row.propuesta.tipo === "proyecto" || row.propuesta.tipo === "investigacion") {
           const team = await db
-            .select({ nombre: usuarios.nombreCompleto })
+            .select({ id: usuarios.id, nombre: usuarios.nombreCompleto })
             .from(integrantesProyecto)
             .innerJoin(usuarios, eq(integrantesProyecto.egresadoId, usuarios.id))
             .where(
@@ -81,6 +86,7 @@ export async function getPropuestasPendientesCoordinador() {
             );
           if (team.length > 0) {
             estudiantesNombres += ", " + team.map((t) => t.nombre).join(", ");
+            for (const t of team) if (t.id !== row.propuesta.egresadoId) integrantes.push(t);
           }
         }
 
@@ -96,7 +102,21 @@ export async function getPropuestasPendientesCoordinador() {
           .orderBy(desc(solicitudesAsesor.creadaEn))
           .limit(1);
 
+        // D1: requisitos que debían estar verificados antes de llegar al coordinador
+        let requisitosFaltan: string[] = [];
+        if (!row.propuesta.asesorId && ["coordinador_asignado", "enviada"].includes(row.propuesta.estado)) {
+          try {
+            const { requisitosAsignacion } = await import("@/lib/requisitosAsignacionServidor");
+            const req = await requisitosAsignacion(row.propuesta.id);
+            requisitosFaltan = req.requisitos.filter((r) => !r.cumple).map((r) => r.titulo);
+          } catch {
+            // sin las tablas de la carta en esta base
+          }
+        }
+
         return {
+          requisitosFaltan,
+          integrantes,
           id: row.propuesta.id,
           numero: row.propuesta.numero,
           tipo: row.propuesta.tipo,
@@ -140,8 +160,9 @@ export async function getAsesoresFacultad(propuestaId?: number) {
     // Entrega C2: si la cohorte de la propuesta está configurada, solo los asesores que participan para esa carrera
     if (propuestaId) {
       const regla = await reglaDePropuesta(propuestaId);
-      if (regla?.configurada) {
-        const opciones = await opcionesAsesor(regla);
+      // D5: con o sin configuración, las opciones llevan su carga y su cupo (sin configuración, los de la facultad)
+      const opciones = regla ? await opcionesAsesor(regla) : [];
+      if (regla?.configurada || opciones.length) {
         return {
           success: true,
           data: opciones.map((a) => ({
@@ -150,9 +171,11 @@ export async function getAsesoresFacultad(propuestaId?: number) {
             correo: a.correo,
             deLaCarrera: a.deLaCarrera,
             carga: a.activos + a.pendientes,
+            cupo: a.cupo,
+            lleno: a.lleno,
             prioritario: motivoPrioridad(a.prioridad),
           })),
-          regla: regla.regla,
+          regla: regla!.regla,
         };
       }
     }
@@ -236,6 +259,13 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
 
     if (!prop) return { success: false, error: "Propuesta no encontrada." };
 
+    // D1: lo que el sistema y la administración debían verificar antes de asignar
+    {
+      const { requisitosAsignacion, errorRequisitos } = await import("@/lib/requisitosAsignacionServidor");
+      const req = await requisitosAsignacion(propuestaId);
+      if (!req.listo) return { success: false, error: errorRequisitos(req, "coordinador") };
+    }
+
     const [asesor] = await db
       .select()
       .from(usuarios)
@@ -246,8 +276,14 @@ export async function asignarAsesorCoordinador(propuestaId: number, asesorId: nu
 
     // Entrega C2: con la cohorte configurada, solo asesores que participan para la carrera de la propuesta
     const regla = await reglaDePropuesta(propuestaId);
-    if (regla?.configurada && !(await opcionesAsesor(regla)).some((a) => a.id === asesorId)) {
+    const opcionesRegla = regla ? await opcionesAsesor(regla) : [];
+    const opcion = opcionesRegla.find((a) => a.id === asesorId);
+    if (regla?.configurada && !opcion) {
       return { success: false, error: "Ese asesor no participa en esta cohorte para la carrera de la propuesta." };
+    }
+    // D5: no se envían solicitudes a un asesor con el cupo lleno
+    if (opcion?.lleno) {
+      return { success: false, error: `${opcion.nombre} tiene el cupo lleno (${opcion.activos + opcion.pendientes} de ${opcion.cupo}). Elige otro asesor.` };
     }
 
     // Check if there is already a pending request for this proposal and advisor
@@ -394,7 +430,7 @@ export async function getPropuestasAsignadasCoordinador() {
       })
       .from(propuestas)
       .leftJoin(usuarios, eq(propuestas.asesorId, usuarios.id))
-      .where(eq(propuestas.coordinadorId, session.userId))
+      .where(and(eq(propuestas.coordinadorId, session.userId), isNotNull(propuestas.asesorId)))
       .orderBy(desc(propuestas.enviadaEn), desc(propuestas.id));
 
     const result = await Promise.all(
@@ -404,6 +440,7 @@ export async function getPropuestasAsignadasCoordinador() {
           .from(usuarios)
           .where(eq(usuarios.id, row.propuesta.egresadoId))
           .limit(1);
+        const [car] = estudiante?.carreraId ? await db.select({ nombre: carreras.nombre }).from(carreras).where(eq(carreras.id, estudiante.carreraId)) : [];
 
         let estudiantesNombres = estudiante?.nombreCompleto || "Estudiante";
         if (row.propuesta.tipo === "proyecto" || row.propuesta.tipo === "investigacion") {
@@ -451,6 +488,7 @@ export async function getPropuestasAsignadasCoordinador() {
           fechaInicio,
           fechaFin,
           estado: row.propuesta.estado,
+          carrera: car?.nombre ?? "Sin carrera",
         };
       })
     );
@@ -733,8 +771,15 @@ export async function getSolicitudesBajaCoordinador() {
       .from(solicitudesBaja)
       .innerJoin(propuestas, eq(solicitudesBaja.propuestaId, propuestas.id))
       .innerJoin(usuarios, eq(solicitudesBaja.asesorId, usuarios.id))
-      .where(eq(solicitudesBaja.coordinadorId, session.userId))
+      // D8: la administración también las ve y las atiende
+      .where(isAdmin ? undefined : eq(solicitudesBaja.coordinadorId, session.userId))
       .orderBy(desc(solicitudesBaja.creadaEn));
+    // D8: quién resolvió cada una (tabla nueva; puede no existir en otra base)
+    const resueltas = await db
+      .select({ id: bajasResueltas.solicitudBajaId, nombre: usuarios.nombreCompleto })
+      .from(bajasResueltas)
+      .leftJoin(usuarios, eq(usuarios.id, bajasResueltas.resueltoPor))
+      .catch(() => [] as { id: number; nombre: string | null }[]);
 
     const result = await Promise.all(
       rows.map(async (r) => {
@@ -750,6 +795,7 @@ export async function getSolicitudesBajaCoordinador() {
           estado: r.solicitud.estado,
           respuestaCoordinador: r.solicitud.respuestaCoordinador,
           creadaEn: r.solicitud.creadaEn,
+          resueltoPor: resueltas.find((x) => x.id === r.solicitud.id)?.nombre ?? null,
         };
       })
     );
@@ -791,6 +837,8 @@ export async function responderSolicitudBajaCoordinador(
       .limit(1);
 
     if (!solBaja) return { success: false, error: "Solicitud de baja no encontrada." };
+    // D8: la puede atender el coordinador o la administración; la primera respuesta vale
+    if (solBaja.estado !== "pendiente") return { success: false, error: "La solicitud ya fue atendida." };
 
     await db
       .update(solicitudesBaja)
@@ -823,7 +871,14 @@ export async function responderSolicitudBajaCoordinador(
       }
     }
 
-    revalidatePath("/coordinador");
+    try {
+      await db.insert(bajasResueltas).values({ solicitudBajaId, resueltoPor: session.userId }).onConflictDoNothing();
+    } catch (e) {
+      console.warn("No se registró quién resolvió la baja (¿falta scripts/crear_cambio_asesor.ts?):", e);
+    }
+
+    revalidatePath("/coordinador", "layout");
+    revalidatePath("/admin", "layout");
     return {
       success: true,
       message: decision === "aprobada" ? "El proyecto ha sido dado de baja (anulado) exitosamente." : "La solicitud de baja fue rechazada.",
@@ -1118,6 +1173,27 @@ export async function getHistorialCompletoProyecto(propuestaId: number) {
           tipoEvento: "asesor",
         });
       }
+    }
+
+    // D2: constancia de la aprobación sin supervisor empresarial
+    try {
+      const { constanciaSinSupervisor } = await import("@/lib/constanciaSinSupervisorServidor");
+      const c = await constanciaSinSupervisor(propuestaId);
+      if (c.estado === "validada" && c.validadaEn) {
+        const fecha = new Date(c.validadaEn);
+        events.push({
+          id: "sin_supervisor_validada",
+          fecha,
+          fechaStr: fecha.toLocaleString("es-SV", { timeZone: "America/El_Salvador", dateStyle: "short", timeStyle: "short" }),
+          usuarioNombre: c.validadaPor ? `${c.validadaPor} (administración)` : "Administración",
+          rol: "admin",
+          titulo: "Validado por decanato sin supervisor empresarial",
+          detalle: c.mensaje ? `Mensaje: "${c.mensaje}"` : "Aprobado sin mensaje de la administración.",
+          tipoEvento: "estado",
+        });
+      }
+    } catch {
+      // tabla todavía no creada en esta base
     }
 
     // 3. Solicitudes de Baja de Proyecto

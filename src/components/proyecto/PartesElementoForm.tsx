@@ -1,7 +1,7 @@
 "use client";
 
 // Problema, justificación o alcance en 4 partes con indicador de fortaleza (specs/REDACTAR_PROPUESTA_AJUSTES.md, R3).
-// Reemplaza a DescripcionProblemaForm, JustificacionProyectoForm y AlcanceProyectoForm en la redacción de la propuesta.
+// Formulario de problema, justificación y alcance en la redacción de la propuesta (reemplazó a los de un solo texto).
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";

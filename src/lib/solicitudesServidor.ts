@@ -6,7 +6,7 @@ import "server-only";
 
 import { and, count, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { empresas, organigramasEmpresa, propuestas, solicitudesEmpresa, sucursales, supervisores, usuarios } from "@/lib/schema";
+import { empresas, organigramasEmpresa, propuestas, solicitudesBaja, solicitudesCambioAsesor, solicitudesEmpresa, sucursales, supervisores, usuarios } from "@/lib/schema";
 import type { Alcance } from "@/lib/permisos";
 
 export const TIPOS_EMPRESA = ["nueva", "actualizacion", "modificacion", "carta"];
@@ -23,6 +23,8 @@ export async function leerSolicitudes(clase: "empresa" | "correccion") {
       creadaEn: solicitudesEmpresa.creadaEn,
       empresaTarget: empresas.nombre,
       egresado: usuarios.nombreCompleto,
+      propuestaId: solicitudesEmpresa.propuestaId,
+      revisadoPor: solicitudesEmpresa.revisadoPor,
     })
     .from(solicitudesEmpresa)
     .leftJoin(empresas, eq(solicitudesEmpresa.empresaId, empresas.id))
@@ -58,7 +60,14 @@ export async function contadoresMenu(a: Alcance): Promise<Record<string, number>
     const [emp] = await db.select({ n: count() }).from(solicitudesEmpresa).where(and(eq(solicitudesEmpresa.estado, "pendiente"), inArray(solicitudesEmpresa.tipo, TIPOS_EMPRESA)));
     const [cor] = await db.select({ n: count() }).from(solicitudesEmpresa).where(and(eq(solicitudesEmpresa.estado, "pendiente"), inArray(solicitudesEmpresa.tipo, TIPOS_CORRECCION)));
     c["/admin/empresas"] = Number(emp?.n ?? 0);
-    c["/admin/solicitudes"] = Number(cor?.n ?? 0);
+    // D8: bajas y cambios de asesor por atender (también los atiende la coordinación)
+    const [baj] = await db.select({ n: count() }).from(solicitudesBaja).where(eq(solicitudesBaja.estado, "pendiente"));
+    const cambios = await db
+      .select({ n: count() })
+      .from(solicitudesCambioAsesor)
+      .where(inArray(solicitudesCambioAsesor.estado, ["pendiente", "por_reasignar"]))
+      .catch(() => [{ n: 0 }]);
+    c["/admin/solicitudes"] = Number(cor?.n ?? 0) + Number(baj?.n ?? 0) + Number(cambios[0]?.n ?? 0);
   }
   // Propuestas enviadas que esperan asignación (coordinador o asesor directo). Las que ya tienen una solicitud de
   // asesoría pendiente esperan al asesor, no a la administración.

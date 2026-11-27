@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/session";
 import { carrerasDeCoordinador, leerAsesores } from "@/lib/asesoresServidor";
 import TablaAsesores from "@/components/asesores/TablaAsesores";
+import EncabezadoCoordinacion from "@/components/coordinador/EncabezadoCoordinacion";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Asesores | Coordinación" };
@@ -17,12 +18,9 @@ export default async function AsesoresCoordinadorPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">Asesores</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Asesores de tus carreras con su desempeño según la valoración de los egresados al cerrar cada proceso.
-        </p>
-      </div>
+      <EncabezadoCoordinacion titulo="Asesores">
+        Asesores de tus carreras con su desempeño según la valoración de los egresados al cerrar cada proceso.
+      </EncabezadoCoordinacion>
       <TablaAsesores filas={filas} carreras={nombres} rutaBase="/coordinador/asesores" gestionar={false} />
     </div>
   );

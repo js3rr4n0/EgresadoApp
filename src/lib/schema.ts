@@ -14,6 +14,7 @@ import {
   uniqueIndex,
   index,
   check,
+  primaryKey,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -292,6 +293,19 @@ export const cohorteParticipantes = pgTable(
   ]
 );
 
+// D5 (specs/COORDINADOR_ASIGNACION.md): cupo máximo de procesos de un asesor en la cohorte (sin fila = 5).
+// Script: scripts/crear_cupos_asesor.ts
+export const cohorteCuposAsesor = pgTable(
+  "cohorte_cupos_asesor",
+  {
+    periodoId: integer("periodo_id").notNull().references(() => periodos.id, { onDelete: "cascade" }),
+    facultadId: integer("facultad_id").notNull().references(() => facultades.id, { onDelete: "cascade" }),
+    usuarioId: integer("usuario_id").notNull().references(() => usuarios.id, { onDelete: "cascade" }),
+    cupo: integer("cupo").notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.periodoId, table.facultadId, table.usuarioId] })]
+);
+
 // Bitácora de la configuración: qué cambió, quién, cuándo y, desde el inicio de la cohorte, la justificación.
 export const cohorteConfigBitacora = pgTable(
   "cohorte_config_bitacora",
@@ -444,6 +458,24 @@ export const verificacionesFirmas = pgTable("verificaciones_firmas", {
   verificadaPor: integer("verificada_por").references(() => usuarios.id),
   verificadaEn: timestamp("verificada_en", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// D2 (specs/COORDINADOR_ASIGNACION.md): mensaje de la administración al aprobar una carta «sin supervisor empresarial».
+// Lo ven el coordinador y el asesor como constancia. Script: scripts/crear_validaciones_sin_supervisor.ts
+export const validacionesSinSupervisor = pgTable(
+  "validaciones_sin_supervisor",
+  {
+    solicitudId: integer("solicitud_id")
+      .primaryKey()
+      .references(() => solicitudesEmpresa.id, { onDelete: "cascade" }),
+    propuestaId: integer("propuesta_id")
+      .notNull()
+      .references(() => propuestas.id, { onDelete: "cascade" }),
+    mensaje: text("mensaje").notNull(),
+    validadaPor: integer("validada_por").references(() => usuarios.id),
+    validadaEn: timestamp("validada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("validaciones_sin_supervisor_propuesta_idx").on(table.propuestaId)]
+);
 
 // ─────────────────────────── Revisión del documento (R6) ───────────────────────────
 
@@ -717,6 +749,42 @@ export const solicitudesBaja = pgTable(
       "estado_solicitud_baja_check",
       sql`${table.estado} IN ('pendiente', 'aprobada', 'rechazada')`
     ),
+  ]
+);
+
+// D8 (specs/COORDINADOR_ASIGNACION.md): quién resolvió cada baja (coordinador o administración).
+// Script: scripts/crear_cambio_asesor.ts
+export const bajasResueltas = pgTable("bajas_resueltas", {
+  solicitudBajaId: integer("solicitud_baja_id")
+    .primaryKey()
+    .references(() => solicitudesBaja.id, { onDelete: "cascade" }),
+  resueltoPor: integer("resuelto_por").references(() => usuarios.id, { onDelete: "set null" }),
+});
+
+// D8: cambio de asesor. Lo pide el egresado líder o el asesor actual; lo atiende el coordinador o la administración.
+// pendiente → rechazada | esperando_asesor (se envió la solicitud al nuevo asesor) → completada (aceptó) |
+// por_reasignar (la rechazó: hay que elegir otro). Script: scripts/crear_cambio_asesor.ts
+export const solicitudesCambioAsesor = pgTable(
+  "solicitudes_cambio_asesor",
+  {
+    id: serial("id").primaryKey(),
+    propuestaId: integer("propuesta_id").notNull().references(() => propuestas.id, { onDelete: "cascade" }),
+    solicitanteId: integer("solicitante_id").notNull().references(() => usuarios.id, { onDelete: "cascade" }),
+    rolSolicitante: varchar("rol_solicitante", { length: 10 }).notNull(),
+    asesorActualId: integer("asesor_actual_id").notNull().references(() => usuarios.id, { onDelete: "cascade" }),
+    motivo: text("motivo").notNull(),
+    estado: varchar("estado", { length: 20 }).notNull().default("pendiente"),
+    nuevoAsesorId: integer("nuevo_asesor_id").references(() => usuarios.id, { onDelete: "set null" }),
+    solicitudAsesorId: integer("solicitud_asesor_id").references(() => solicitudesAsesor.id, { onDelete: "set null" }),
+    respuesta: text("respuesta"),
+    resueltoPor: integer("resuelto_por").references(() => usuarios.id, { onDelete: "set null" }),
+    resueltoEn: timestamp("resuelto_en", { withTimezone: true }),
+    creadaEn: timestamp("creada_en", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check("solicitudes_cambio_asesor_rol_check", sql`${table.rolSolicitante} IN ('egresado', 'asesor')`),
+    check("solicitudes_cambio_asesor_estado_check", sql`${table.estado} IN ('pendiente', 'esperando_asesor', 'por_reasignar', 'completada', 'rechazada')`),
+    index("solicitudes_cambio_asesor_propuesta_idx").on(table.propuestaId),
   ]
 );
 

@@ -253,6 +253,12 @@ export async function responderSolicitudAsesor(
         .where(eq(propuestas.id, solicitud.propuestaId));
     }
 
+    // D8: si la solicitud era la de un cambio de asesor, completar el cambio o dejarlo para elegir otro asesor
+    {
+      const { alResponderSolicitudDeCambio } = await import("@/lib/cambioAsesorServidor");
+      await alResponderSolicitudDeCambio(solicitudId, respuesta === "aceptada", session.userId);
+    }
+
     // Mark related notification as read
     await db
       .update(notificaciones)

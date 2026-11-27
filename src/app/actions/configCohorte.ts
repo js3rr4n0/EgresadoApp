@@ -7,7 +7,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/session";
-import { carreras, cohorteConfigBitacora, cohorteFacultades, cohorteParticipantes, periodos, usuarios } from "@/lib/schema";
+import { carreras, cohorteConfigBitacora, cohorteCuposAsesor, cohorteFacultades, cohorteParticipantes, periodos, usuarios } from "@/lib/schema";
+import { CUPO_POR_DEFECTO, normalizarCupo } from "@/lib/configCohorte";
 import { leerConfigPorFacultad, leerConfiguracionCohorte } from "@/lib/configCohorteServidor";
 import { isoDia } from "@/lib/seguimientoCohortes";
 import {
@@ -51,7 +52,12 @@ function normalizar(c: ConfigFacultad, carrerasFacultad: number[]): ConfigFacult
     adminCoordina: c.administracion === "facultad" && !!c.adminCoordina,
     // En coordinación general los coordinadores atienden todas las carreras
     coordinadores: (c.coordinadores ?? []).map(participante).map((p) => (c.coordinacion === "general" ? { ...p, carreras: [] } : p)),
-    asesores: (c.asesores ?? []).map(participante),
+    // D5: cupo de cada asesor (sin dato o igual al de por defecto, no se guarda)
+    asesores: (c.asesores ?? []).map((p) => {
+      const base = participante(p);
+      const cupo = p.cupo == null ? CUPO_POR_DEFECTO : normalizarCupo(p.cupo);
+      return cupo === CUPO_POR_DEFECTO ? base : { ...base, cupo };
+    }),
   };
 }
 
@@ -69,6 +75,14 @@ async function escribir(periodoId: number, facultadId: number, c: ConfigFacultad
       db.insert(cohorteParticipantes).values({ periodoId, facultadId, usuarioId: p.usuarioId, funcion: p.funcion, carreras: p.carreras, activo: p.activo }),
     ),
   ]);
+  // D5: cupos aparte (si la tabla no existe en esta base, la configuración igual se guarda)
+  try {
+    await db.delete(cohorteCuposAsesor).where(and(eq(cohorteCuposAsesor.periodoId, periodoId), eq(cohorteCuposAsesor.facultadId, facultadId)));
+    const conCupo = c.asesores.filter((p) => p.cupo != null && p.cupo !== CUPO_POR_DEFECTO);
+    if (conCupo.length) await db.insert(cohorteCuposAsesor).values(conCupo.map((p) => ({ periodoId, facultadId, usuarioId: p.usuarioId, cupo: p.cupo! })));
+  } catch (e) {
+    console.warn("No se guardaron los cupos de asesores (¿falta scripts/crear_cupos_asesor.ts?):", e);
+  }
 }
 
 export async function guardarConfiguracionFacultad(

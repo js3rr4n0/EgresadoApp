@@ -13,6 +13,8 @@ import Prioritario from "@/components/asesores/Prioritario";
 import { motivoPrioridad } from "@/lib/prioridadAsesor";
 import type { OpcionAsesor } from "@/lib/asignacionServidor";
 import RechazarPropuesta from "@/components/revisarPropuesta/RechazarPropuesta";
+import ListaRequisitos from "@/components/revisarPropuesta/ListaRequisitos";
+import type { RequisitosAsignacion } from "@/lib/requisitosAsignacionServidor";
 
 interface Coordinador {
   id: number;
@@ -69,7 +71,7 @@ export default function ReviewForm({
   puedeAsignar = true,
   superadmin = true,
   rechazo = null,
-  firmasVerificadas = null,
+  requisitos = null,
   eliminacion = null,
 }: {
   propuestaId: number;
@@ -86,8 +88,8 @@ export default function ReviewForm({
   superadmin?: boolean;
   /** A2: la administración puede rechazar por requisitos (pendiente de asignación). */
   rechazo?: { numero: number; integrantes: { id: number; nombre: string }[] } | null;
-  /** A4: null si no hay carta. Solo es un aviso: no bloquea la asignación. */
-  firmasVerificadas?: boolean | null;
+  /** D1: lo que debe estar verificado para asignar (incluye las firmas, A4). */
+  requisitos?: RequisitosAsignacion | null;
   /** A5: datos para la ventana de eliminación (solo superadministrador). permitido = antes de «En ejecución». */
   eliminacion?: { numero: number; titulo: string | null; integrantes: string[]; permitido: boolean } | null;
 }) {
@@ -206,7 +208,8 @@ export default function ReviewForm({
                       <button
                         type="button"
                         onClick={() => setAsesorId(a.id)}
-                        className={`w-full text-left rounded-xl border p-3 transition-colors ${asesorId === a.id ? "border-brand-red ring-1 ring-brand-red bg-red-50/40" : "border-border hover:border-gray-400"}`}
+                        disabled={a.lleno}
+                        className={`w-full text-left rounded-xl border p-3 transition-colors ${a.lleno ? "cursor-not-allowed bg-gray-50 opacity-70 border-border" : asesorId === a.id ? "border-brand-red ring-1 ring-brand-red bg-red-50/40" : "border-border hover:border-gray-400"}`}
                       >
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
@@ -219,7 +222,7 @@ export default function ReviewForm({
                           </div>
                         </div>
                         {a.prioridad && <p className="text-[11px] text-amber-900 mt-1">{motivoPrioridad(a.prioridad)}</p>}
-                        <p className="text-[11px] text-gray-600 mt-1">{a.activos} en curso · {a.pendientes} {a.pendientes === 1 ? "solicitud pendiente" : "solicitudes pendientes"}</p>
+                        <p className={`text-[11px] mt-1 ${a.lleno ? "font-bold text-red-800" : "text-gray-600"}`}>{a.activos} en curso · {a.pendientes} {a.pendientes === 1 ? "solicitud pendiente" : "solicitudes pendientes"} · cupo {a.cupo}{a.lleno ? " · Cupo lleno" : ""}</p>
                       </button>
                     </li>
                   ))}
@@ -275,10 +278,17 @@ export default function ReviewForm({
             )}
             {unico && <p className="text-xs text-muted">Es el único coordinador configurado para esta carrera en la cohorte.</p>}
 
-            {firmasVerificadas === false && (
-              <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-2.5">
-                Las firmas de la carta todavía no se han verificado. Puedes asignar igual; usa «Verificar firmas» en la tarjeta de la carta.
-              </p>
+            {requisitos && (
+              <div className={`rounded-lg border p-3 space-y-2 ${requisitos.listo ? "border-border bg-gray-50" : "border-red-200 bg-red-50/40"}`}>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted">Requisitos para asignar</p>
+                <ListaRequisitos requisitos={requisitos.requisitos} compacta />
+                {!requisitos.listo && (
+                  <p className="text-xs text-red-800">
+                    No se puede asignar hasta que se cumplan todos. Las firmas se marcan con «Verificar firmas» en la tarjeta de la carta; si
+                    lo que falta es del egresado, rechaza la propuesta por requisitos.
+                  </p>
+                )}
+              </div>
             )}
 
             {mensaje && (
@@ -288,7 +298,7 @@ export default function ReviewForm({
             <button
               type="button"
               onClick={directo ? solicitarAsesor : asignarCoordinador}
-              disabled={loading || (directo ? !asesorId : !coordinadorId)}
+              disabled={loading || (directo ? !asesorId : !coordinadorId) || (!!requisitos && !requisitos.listo)}
               className="w-full py-3 rounded-xl bg-brand-red hover:bg-brand-red-hover text-white text-sm font-bold transition-colors disabled:opacity-50"
             >
               {loading

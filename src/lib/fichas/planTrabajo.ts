@@ -670,3 +670,64 @@ export function ganttPlan(
     })),
   }));
 }
+
+/** Objetivo específico tal como se redactó en la propuesta. */
+export interface ObjetivoPropuesta {
+  titulo: string;
+  descripcion: string;
+}
+
+/** Texto del nodo de un objetivo: su título corto o, si no tiene, la descripción. */
+export const tituloObjetivo = (o: ObjetivoPropuesta) => (o.titulo.trim() || o.descripcion.trim()).slice(0, 500);
+
+/**
+ * Plan de trabajo (specs/PLAN_TRABAJO_AJUSTES.md, P1): el objetivo general y los objetivos específicos vienen de la
+ * propuesta y no se cambian en el plan. Deja el árbol con esos textos, en esa cantidad y orden, y conserva por posición
+ * lo que ya tenía cada objetivo (id, responsable, productos, macroactividades y actividades). Los objetivos de más se
+ * quitan; el bloque de preparación del informe (investigación) se conserva al final.
+ */
+export function sincronizarObjetivos(raiz: NodoPlan, general: string, objetivos: ObjetivoPropuesta[]): NodoPlan {
+  const actuales = objetivosEspecificos(raiz);
+  const cierre = raiz.hijos.filter((h) => h.cierre);
+  const hijos: NodoPlan[] = objetivos.map((o, i) => {
+    const previo = actuales[i];
+    return previo
+      ? { ...previo, titulo: tituloObjetivo(o) }
+      : { id: crypto.randomUUID(), codigo: "", nivel: 2, titulo: tituloObjetivo(o), responsable: null, montos: [], hijos: [] };
+  });
+  return numerar({ ...raiz, titulo: general.trim() || raiz.titulo, hijos: [...hijos, ...cierre] });
+}
+
+/** ¿El árbol tiene exactamente el objetivo general y los objetivos de la propuesta? */
+export function objetivosCoinciden(raiz: NodoPlan, general: string, objetivos: ObjetivoPropuesta[]): boolean {
+  const actuales = objetivosEspecificos(raiz);
+  return (
+    (!general.trim() || raiz.titulo === general.trim()) &&
+    actuales.length === objetivos.length &&
+    actuales.every((n, i) => n.titulo === tituloObjetivo(objetivos[i]))
+  );
+}
+
+/**
+ * Plan de trabajo (specs/PLAN_TRABAJO_AJUSTES.md, P2): cuántas actividades (hojas) están programadas en cada período,
+ * del 1 al último. Sirve para las pestañas por período y para la regla de envío.
+ */
+export function actividadesPorPeriodo(raiz: NodoPlan, columnas: { periodo: number }[]): number[] {
+  const total = Math.max(0, ...columnas.map((c) => c.periodo));
+  const cuenta = Array.from({ length: total }, () => 0);
+  for (const n of aplanar(raiz)) {
+    if (!esHojaPlan(n)) continue;
+    for (const p of periodosPlanificados(n, columnas)) cuenta[p - 1] += 1;
+  }
+  return cuenta;
+}
+
+/** P2 (respuesta 3): cada período necesita al menos una actividad programada para enviar el plan. */
+export function problemasPeriodos(raiz: NodoPlan, columnas: { periodo: number }[]): ProblemaPlan[] {
+  const vacios = actividadesPorPeriodo(raiz, columnas)
+    .map((n, i) => (n === 0 ? i + 1 : 0))
+    .filter((p) => p > 0);
+  if (vacios.length === 0) return [];
+  const lista = vacios.length === 1 ? `el período ${vacios[0]}` : `los períodos ${vacios.slice(0, -1).join(", ")} y ${vacios[vacios.length - 1]}`;
+  return [{ nodoId: null, mensaje: `No hay actividades programadas en ${lista}. El plan cubre toda la duración del trabajo: reparte las actividades en todos los períodos.` }];
+}

@@ -10,7 +10,8 @@ import { useRouter } from "next/navigation";
 import { enviarPlanTrabajo, guardarPlanTrabajo, revisarPlanTrabajo, type DatosPlan } from "@/app/actions/planTrabajo";
 import { componentesDe, documentoSolicitado, esCronogramaInvestigacion, productosObjetivo } from "@/lib/fichas/tipos";
 import {
-  aplanar, cargaPorIds, esHojaPlan, normalizarArbol, numerar, planIndividual, productosDe, responsables, totalesNodo, validarPlanEquipo, type NodoPlan, type ProblemaPlan,
+  aplanar, cargaPorIds, esHojaPlan, normalizarArbol, numerar, planIndividual, productosDe, responsables, totalesNodo, validarPlanEquipo, type NodoPlan, type ProblemaPlan, objetivosEspecificos,
+  actividadesPorPeriodo, periodosPlanificados, problemasPeriodos,
 } from "@/lib/fichas/planTrabajo";
 
 const NIVEL = ["", "Objetivo general", "Objetivo específico", "Macroactividad", "Actividad", "Subactividad"];
@@ -55,7 +56,12 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
   const estado = datos.plan.estado;
   const editableEstado = (rol === "lider" || rol === "integrante") && (estado === "redactando" || estado === "observado");
   const resp = useMemo(() => responsables(arbol), [arbol]);
-  const problemas = useMemo(() => validarPlanEquipo(arbol, etapa, equipo.map((i) => i.id), columnas.length), [arbol, etapa, equipo, columnas.length]);
+  // P2: además de las reglas de la ficha, cada período con al menos una actividad (respuesta 3)
+  const problemas = useMemo(
+    () => [...validarPlanEquipo(arbol, etapa, equipo.map((i) => i.id), columnas.length), ...problemasPeriodos(arbol, columnas)],
+    [arbol, etapa, equipo, columnas],
+  );
+  const conteoPeriodos = useMemo(() => actividadesPorPeriodo(arbol, columnas), [arbol, columnas]);
   const citadas = useMemo(() => fuentesCitadasPlan(arbol), [arbol]);
   const carga = useMemo(() => cargaPorIds(arbol, equipo.map((i) => i.id), columnas.length), [arbol, equipo, columnas.length]);
   // Nombre corto: primer nombre y última palabra (en equipos con nombres parecidos, la última los distingue).
@@ -65,8 +71,7 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
   };
 
   const porSub = etapa.granularidad === "subperiodo";
-  const periodos = Math.max(...columnas.map((c) => c.periodo), 1);
-  const visibles = columnas.map((c, i) => ({ ...c, i })).filter((c) => !porSub || c.periodo === periodo);
+  const visibles = columnas.map((c, i) => ({ ...c, i })).filter((c) => !porSub || periodo === 0 || c.periodo === periodo);
   const nivelResp = etapa.equipo.responsable === "objetivo" ? 2 : 4;
   const pideDocumento = documentoSolicitado(etapa);
   const pideProductos = productosObjetivo(etapa);
@@ -78,6 +83,10 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
   const investigacion = esCronogramaInvestigacion(etapa);
   const opcionales = new Set(componentesDe(etapa).filter((c) => !c.obligatorio).map((c) => c.clave));
   const fijo = (n: NodoPlan) => !!n.componente || !!n.cierre;
+  // P1: el objetivo general y los específicos vienen de la propuesta; no se agregan, quitan ni editan
+  const esObjetivo = (n: NodoPlan) => n.nivel === 2 && !n.cierre;
+  const indiceObjetivo = useMemo(() => new Map(objetivosEspecificos(arbol).map((o, i) => [o.id, i])), [arbol]);
+  const descripcionObjetivo = (n: NodoPlan) => datos.objetivosPropuesta.especificos[indiceObjetivo.get(n.id) ?? -1]?.descripcion ?? "";
   const hijoDe = (n: NodoPlan) => (investigacion ? (n.nivel === 1 ? "objetivo" : n.componente ? "subactividad" : "") : HIJO[n.nivel]);
   const nombreNivel = (n: NodoPlan) => (investigacion && n.nivel === 4 ? "Subactividad" : NIVEL[n.nivel]);
 
@@ -86,9 +95,9 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
 
   const puedeEditar = (n: NodoPlan) => editableEstado && vista === 0 && (rol === "lider" || resp.get(n.id) === miId);
   const puedeAgregar = (n: NodoPlan) =>
-    editableEstado && vista === 0 && (investigacion ? !!hijoDe(n) : n.nivel < maxNivel) && (rol === "lider" || (n.nivel >= 2 && resp.get(n.id) === miId));
+    editableEstado && vista === 0 && n.nivel !== 1 && (investigacion ? !!hijoDe(n) : n.nivel < maxNivel) && (rol === "lider" || (n.nivel >= 2 && resp.get(n.id) === miId));
   const puedeQuitar = (n: NodoPlan) => {
-    if (!editableEstado || vista !== 0 || n.nivel === 1 || fijo(n)) return false;
+    if (!editableEstado || vista !== 0 || n.nivel === 1 || fijo(n) || esObjetivo(n)) return false;
     if (rol === "lider") return true;
     const padre = buscarPadre(arbol, n.id);
     return !!padre && resp.get(padre.id) === miId && resp.get(n.id) === miId;
@@ -203,13 +212,48 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
                 ))}
               </div>
             )}
+
+          </div>
+        </div>
+
+        {/* P2: pestañas por período, siempre visibles, con cuántas actividades tiene cada uno */}
+        <div className="space-y-2">
+          <p className="text-xs text-gray-700">
+            {porSub
+              ? "El plan cubre toda la duración del trabajo. Marca en qué semanas de cada período se ejecuta cada actividad y revisa todos los períodos, no solo el primero."
+              : "El plan cubre toda la duración del trabajo. Marca en qué períodos se ejecuta cada actividad."}
+          </p>
+          <div role="tablist" aria-label="Períodos del plan" className="flex flex-wrap gap-1.5">
+            {conteoPeriodos.map((n, i) => {
+              const p = i + 1;
+              const activo = porSub && periodo === p;
+              const clase = activo
+                ? "border-brand-red bg-brand-red text-white"
+                : n === 0
+                  ? "border-amber-300 bg-amber-50 text-amber-900 hover:border-amber-400"
+                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-400";
+              const contenido = (
+                <>
+                  <span className="block font-bold">Período {p}</span>
+                  <span className={`block text-[10px] ${activo ? "text-white/90" : n === 0 ? "font-bold" : "text-gray-500"}`}>
+                    {n === 0 ? "Sin actividades" : `${n} actividad${n === 1 ? "" : "es"}`}
+                  </span>
+                </>
+              );
+              return porSub ? (
+                <button key={p} type="button" role="tab" aria-selected={activo} onClick={() => setPeriodo(p)}
+                  className={`rounded-lg border px-3 py-1.5 text-left text-xs transition-colors ${clase}`}>
+                  {contenido}
+                </button>
+              ) : (
+                <span key={p} className={`rounded-lg border px-3 py-1.5 text-xs ${clase}`}>{contenido}</span>
+              );
+            })}
             {porSub && (
-              <label className="text-[11px] font-bold text-gray-500 uppercase">
-                Período{" "}
-                <select className="ml-1 h-8 border border-gray-300 rounded-md px-2 text-sm normal-case font-normal" value={periodo} onChange={(e) => setPeriodo(Number(e.target.value))}>
-                  {Array.from({ length: periodos }, (_, i) => <option key={i} value={i + 1}>{i + 1}</option>)}
-                </select>
-              </label>
+              <button type="button" role="tab" aria-selected={periodo === 0} onClick={() => setPeriodo(0)}
+                className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${periodo === 0 ? "border-gray-800 bg-gray-800 text-white" : "border-gray-200 bg-white text-gray-700 hover:border-gray-400"}`}>
+                Ver todos
+              </button>
             )}
           </div>
         </div>
@@ -221,7 +265,7 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
                 <th className="text-left px-2 py-1.5 w-20">ID</th>
                 <th className="text-left px-2 py-1.5 min-w-[16rem]">Descripción</th>
                 {equipoMultiple && <th className="text-left px-2 py-1.5 w-36">Responsable</th>}
-                {visibles.map((c) => <th key={c.i} className="text-right px-1.5 py-1.5 w-20">{porSub ? `S${c.sub}` : c.texto}</th>)}
+                {visibles.map((c) => <th key={c.i} className="text-right px-1.5 py-1.5 w-20">{porSub ? (periodo === 0 ? `P${c.periodo}·S${c.sub}` : `S${c.sub}`) : c.texto}</th>)}
                 <th className="text-right px-2 py-1.5 w-24">{etapa.presupuesto.activo ? "Total" : ""}</th>
                 <th className="w-28" />
               </tr>
@@ -239,7 +283,14 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
                   <tr className={n.nivel === 1 ? "bg-gray-100 font-bold" : n.cierre ? "bg-amber-50/70 font-bold" : n.nivel === 2 ? "bg-sky-50/60 font-bold" : n.nivel === 3 ? "font-bold text-gray-700" : "text-gray-700"}>
                     <td className="px-2 py-1 font-mono text-gray-500 align-top pt-2">{n.codigo}</td>
                     <td className="px-2 py-1" style={{ paddingLeft: `${0.5 + (n.nivel - 1) * 0.9}rem` }}>
-                      {editable && n.nivel > 1 && !fijo(n) ? (
+                      {esObjetivo(n) ? (
+                        <span className="block">
+                          {n.titulo || <em className="text-gray-400">Objetivo sin título</em>}
+                          {descripcionObjetivo(n) && descripcionObjetivo(n) !== n.titulo && (
+                            <span className="block text-[11px] font-normal text-gray-600 mt-0.5">{descripcionObjetivo(n)}</span>
+                          )}
+                        </span>
+                      ) : editable && n.nivel > 1 && !fijo(n) ? (
                         <input aria-label={`Título de ${n.codigo}`} value={n.titulo} placeholder={nombreNivel(n)} maxLength={500}
                           onChange={(e) => cambiar(actualizar(arbol, n.id, (x) => ({ ...x, titulo: e.target.value })))}
                           className="w-full h-8 border border-gray-200 rounded-md px-2 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25" />
@@ -256,9 +307,17 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
                             onChange={(e) => cambiar(actualizar(arbol, n.id, (x) => ({ ...x, productos: e.target.value.split("\n").slice(0, 15) })))}
                             className="mt-1 w-full border border-dashed border-sky-300 rounded-md px-2 py-1 text-[11px] font-normal bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25 resize-y" />
                         ) : productosDe(n).length > 0 ? (
-                          <span className="block text-[11px] font-normal text-sky-900 mt-0.5">📦 Productos esperados: {productosDe(n).join(" · ")}</span>
+                          <span className="block text-[11px] font-normal text-sky-900 mt-0.5">Productos esperados: {productosDe(n).join(" · ")}</span>
                         ) : null
                       )}
+                      {porSub && hoja && (() => {
+                        const ps = periodosPlanificados(n, columnas);
+                        return (
+                          <span className={`block text-[10px] font-normal mt-0.5 ${ps.length ? "text-gray-500" : "text-amber-700"}`}>
+                            {ps.length ? `Programada en: ${ps.map((p) => `P${p}`).join(", ")}` : "Sin programar en ningún período"}
+                          </span>
+                        );
+                      })()}
                       {n.nivel === 4 && pideDocumento !== "no" && (
                         editable ? (
                           <input aria-label={`Documento que se entregará como prueba de ${n.codigo}`} value={n.documento ?? ""} maxLength={300}
@@ -266,7 +325,7 @@ export default function PlanTrabajoEquipo({ datos }: { datos: DatosPlan }) {
                             onChange={(e) => cambiar(actualizar(arbol, n.id, (x) => ({ ...x, documento: e.target.value })))}
                             className="mt-1 w-full h-7 border border-dashed border-gray-300 rounded-md px-2 text-[11px] bg-white focus:outline-none focus:ring-2 focus:ring-brand-red/25" />
                         ) : n.documento?.trim() ? (
-                          <span className="block text-[11px] text-gray-500 mt-0.5">📄 Documento: {n.documento}</span>
+                          <span className="block text-[11px] text-gray-500 mt-0.5">Documento: {n.documento}</span>
                         ) : null
                       )}
                     </td>

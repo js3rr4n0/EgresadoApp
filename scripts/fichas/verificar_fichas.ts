@@ -47,7 +47,7 @@ import { separarReferencias } from "../../src/lib/fichas/referenciasInforme";
 import { bloquesDerechos, bloquesInvolucrados, bloquesRecursosInforme } from "../../src/lib/fichas/anexosInforme";
 import { informeFinalProyectoNuevo } from "../../src/lib/fichas/plantillas";
 import { cambiarTipo, cambiosElementoPropio, campoNuevo, copiaDe, elementoPropioNuevo, mismaDefinicion, problemasElementoPropio, reglasCampo, tieneFormaElementoPropio, TIPOS_CAMPO } from "../../src/lib/fichas/elementosPropios";
-import { esHojaPlan, normalizarArbol, objetivosEspecificos } from "../../src/lib/fichas/planTrabajo";
+import { esHojaPlan, normalizarArbol, objetivosEspecificos, objetivosCoinciden, sincronizarObjetivos, actividadesPorPeriodo, problemasPeriodos } from "../../src/lib/fichas/planTrabajo";
 import { elementoDe, estadoElemento, procesoPorObjetivo, TEXTOS_ELEMENTO } from "../../src/lib/fichas/elementosEjecucion";
 import { arbolConCitas, fuentesCitadasPlan, leerMetodologia, metodologiaValida, pideMetodologia, textoMetodologia } from "../../src/lib/fichas/metodologiaPlan";
 import { cierreDe, componentesDe, esCronogramaInvestigacion, estructuraPlan } from "../../src/lib/fichas/tipos";
@@ -1980,6 +1980,32 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
   const sedes = sedesPorCarrera([{ carreraId: 1, facultadId: 5 }, { carreraId: 1, facultadId: 7 }]);
   const sistemas = { facultadId: 1, sedes: sedes.get(1) };
   comprobar("Una carrera se ofrece en su facultad y en sus sedes", seOfreceEn(sistemas, 1) && seOfreceEn(sistemas, "5") && !seOfreceEn(sistemas, 3) && seOfreceEn(sistemas, ""));
+}
+
+// Plan de trabajo (27-nov-2026, P1): objetivos fijos desde la propuesta
+{
+  const obj = [{ titulo: "Diagnosticar", descripcion: "Elaborar un diagnóstico..." }, { titulo: "", descripcion: "Diseñar el módulo" }];
+  const act = (id: string): NodoPlan => ({ id, codigo: "", nivel: 3, titulo: "Macro", responsable: null, montos: [], hijos: [] });
+  const viejo: NodoPlan = {
+    id: "og", codigo: "1", nivel: 1, titulo: "General viejo", responsable: null, montos: [],
+    hijos: [
+      { id: "a", codigo: "", nivel: 2, titulo: "Cambiado a mano", responsable: 7, montos: [], hijos: [act("m1")] },
+      { id: "b", codigo: "", nivel: 2, titulo: "Otro", responsable: null, montos: [], hijos: [] },
+      { id: "c", codigo: "", nivel: 2, titulo: "De más", responsable: null, montos: [], hijos: [act("m2")] },
+    ],
+  };
+  const s1 = sincronizarObjetivos(viejo, "General de la propuesta", obj);
+  const esp = objetivosEspecificos(s1);
+  comprobar("P1: el plan toma el objetivo general y los específicos de la propuesta", s1.titulo === "General de la propuesta" && esp.length === 2 && esp[0].titulo === "Diagnosticar" && esp[1].titulo === "Diseñar el módulo");
+  comprobar("P1: cada objetivo conserva por posición su id, responsable y macroactividades", esp[0].id === "a" && esp[0].responsable === 7 && esp[0].hijos[0]?.id === "m1");
+  comprobar("P1: los objetivos de más se quitan", !esp.some((o) => o.id === "c"));
+  // P2: actividades por período y la regla de envío
+  const cols = [{ periodo: 1 }, { periodo: 1 }, { periodo: 2 }, { periodo: 2 }, { periodo: 3 }, { periodo: 3 }];
+  const hoja = (id: string, montos: number[]): NodoPlan => ({ id, codigo: "", nivel: 4, titulo: "Act", responsable: null, montos, hijos: [] });
+  const conActs: NodoPlan = { ...viejo, hijos: [{ ...viejo.hijos[0], hijos: [{ ...act("m9"), hijos: [hoja("h1", [1, 0, 0, 1]), hoja("h2", [0, 1])] }] }] };
+  comprobar("P2: actividades por período", JSON.stringify(actividadesPorPeriodo(conActs, cols)) === JSON.stringify([2, 1, 0]));
+  comprobar("P2: un período sin actividades impide enviar", problemasPeriodos(conActs, cols).length === 1 && problemasPeriodos(conActs, cols)[0].mensaje.includes("período 3"));
+  comprobar("P1: objetivosCoinciden detecta un objetivo cambiado o de más", objetivosCoinciden(s1, "General de la propuesta", obj) && !objetivosCoinciden(viejo, "General de la propuesta", obj));
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);

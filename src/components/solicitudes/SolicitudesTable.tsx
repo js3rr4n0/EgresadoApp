@@ -7,7 +7,7 @@ import { fechaCortaSV, horaSV } from "@/lib/fechasTexto";
 import { useState } from "react";
 
 import { aprobarSolicitudEmpresa, rechazarSolicitudEmpresa } from "@/app/actions/solicitudes";
-import type { DatosSolicitudCarta, PersonaNueva } from "@/lib/personasCarta";
+import { MIN_MOTIVO, type DatosSolicitudCarta, type PersonaNueva } from "@/lib/personasCarta";
 
 /** Persona propuesta en la carta (R5). */
 function PersonaPropuesta({ p, rol }: { p: PersonaNueva; rol: string }) {
@@ -58,9 +58,34 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
   const [rejectingId, setRejectingId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [viewDetails, setViewDetails] = useState<any | null>(null);
+  // D2: aprobar «sin supervisor empresarial» pide un mensaje que queda como constancia
+  const [aprobandoSinSup, setAprobandoSinSup] = useState<any | null>(null);
+  const [mensajeSinSup, setMensajeSinSup] = useState("");
+
+  const handleApproveSinSupervisor = async () => {
+    if (!aprobandoSinSup || mensajeSinSup.trim().length < MIN_MOTIVO) return;
+    const id = aprobandoSinSup.id;
+    setLoadingId(id);
+    const res = await aprobarSolicitudEmpresa(id, mensajeSinSup.trim());
+    setLoadingId(null);
+    if (res.success) {
+      setAprobandoSinSup(null);
+      setMensajeSinSup("");
+      alert("Solicitud aprobada correctamente.");
+      window.location.reload();
+    } else {
+      alert("Error: " + res.error);
+    }
+  };
 
   const handleApprove = async (id: number) => {
-    const esCarta = solicitudes.find((x) => x.id === id)?.tipo === "carta";
+    const fila = solicitudes.find((x) => x.id === id);
+    if (fila?.tipo === "carta" && fila?.datos?.sinSupervisor) {
+      setMensajeSinSup("");
+      setAprobandoSinSup(fila);
+      return;
+    }
+    const esCarta = fila?.tipo === "carta";
     if (!confirm(esCarta
       ? "¿Aprobar esta solicitud? Los firmantes o el supervisor quedarán registrados en la empresa y elegidos en la carta del egresado."
       : "¿Estás seguro de aprobar esta solicitud? La empresa se guardará en la base de datos y la propuesta del egresado será desbloqueada.")) return;
@@ -243,6 +268,54 @@ export default function SolicitudesTable({ solicitudes, allEmpresas = [], allSuc
         </tbody>
       </table>
     </div>
+
+    {/* D2: aprobar sin supervisor empresarial, con mensaje obligatorio */}
+    {aprobandoSinSup && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50" role="dialog" aria-modal="true" aria-labelledby="titulo-sin-sup">
+        <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6 space-y-4">
+          <div>
+            <h3 id="titulo-sin-sup" className="text-lg font-bold text-card-dark">Aprobar sin supervisor empresarial</h3>
+            <p className="text-sm text-muted mt-1">
+              Escribe por qué se aprueba. El mensaje queda como constancia («Validado por decanato sin supervisor
+              empresarial») y lo verán el coordinador, el asesor y el egresado.
+            </p>
+          </div>
+          {aprobandoSinSup.datos?.sinSupervisor?.motivo && (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">Motivo del egresado</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap">{aprobandoSinSup.datos.sinSupervisor.motivo}</p>
+            </div>
+          )}
+          <label className="block">
+            <span className="text-xs font-bold text-gray-700">Mensaje de aprobación</span>
+            <textarea
+              value={mensajeSinSup}
+              onChange={(e) => setMensajeSinSup(e.target.value)}
+              rows={4}
+              maxLength={1000}
+              placeholder="Por ejemplo: la empresa no cuenta con personal para supervisar; el asesor hará el seguimiento directo y la jefatura firmó la carta."
+              className="mt-1 w-full px-3 py-2 border border-border rounded-lg resize-none focus:ring-2 focus:ring-brand-red/20 focus:border-brand-red text-sm"
+            />
+            <span className={`block text-[11px] mt-1 ${mensajeSinSup.trim().length < MIN_MOTIVO ? "text-amber-800" : "text-gray-500"}`}>
+              {mensajeSinSup.trim().length < MIN_MOTIVO
+                ? `Mínimo ${MIN_MOTIVO} caracteres (llevas ${mensajeSinSup.trim().length}).`
+                : `${mensajeSinSup.trim().length} caracteres.`}
+            </span>
+          </label>
+          <div className="flex justify-end gap-3">
+            <button type="button" onClick={() => setAprobandoSinSup(null)} className="px-4 py-2 border border-border rounded-lg font-bold text-sm">Cancelar</button>
+            <button
+              type="button"
+              onClick={handleApproveSinSupervisor}
+              disabled={loadingId === aprobandoSinSup.id || mensajeSinSup.trim().length < MIN_MOTIVO}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loadingId === aprobandoSinSup.id ? "Procesando..." : "Aprobar con este mensaje"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Reject Modal */}
     {rejectingId && (

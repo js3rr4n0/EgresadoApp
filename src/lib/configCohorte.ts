@@ -26,7 +26,24 @@ export interface Participante {
   /** Carreras que atiende; vacío = todas las de la facultad. */
   carreras: number[];
   activo: boolean;
+  /** D5: solo asesores. Máximo de procesos en curso más solicitudes pendientes (sin dato = CUPO_POR_DEFECTO). */
+  cupo?: number;
 }
+
+/** D5 (specs/COORDINADOR_ASIGNACION.md, respuesta 1): cupo de un asesor si no se configura otro. */
+export const CUPO_POR_DEFECTO = 5;
+export const CUPO_MINIMO = 1;
+export const CUPO_MAXIMO = 50;
+export const cupoDe = (p: { cupo?: number } | null | undefined) => p?.cupo ?? CUPO_POR_DEFECTO;
+export const normalizarCupo = (v: unknown) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(CUPO_MAXIMO, Math.max(CUPO_MINIMO, n)) : CUPO_POR_DEFECTO;
+};
+
+export type EstadoCupo = "disponible" | "casi_lleno" | "lleno";
+/** Disponible con 2 o más lugares, «casi lleno» con 1, lleno con 0 o menos. */
+export const estadoCupo = (carga: number, cupo: number): EstadoCupo => (cupo - carga <= 0 ? "lleno" : cupo - carga === 1 ? "casi_lleno" : "disponible");
+export const NOMBRE_ESTADO_CUPO: Record<EstadoCupo, string> = { disponible: "Disponible", casi_lleno: "Casi lleno", lleno: "Cupo lleno" };
 
 export interface ConfigFacultad {
   administracion: Administracion;
@@ -120,6 +137,7 @@ export function describirCambios(antes: ConfigFacultad | null, despues: ConfigFa
         if (previo.activo !== p.activo) cambios.push(`${p.activo ? "Se habilita" : "Se deshabilita"} ${tipo} ${n.usuario(p.usuarioId)}.`);
         const s0 = [...previo.carreras].sort().join(","), s1 = [...p.carreras].sort().join(",");
         if (s0 !== s1) cambios.push(`Carreras de ${n.usuario(p.usuarioId)}: ${carreras(p)}.`);
+        if (tipo === "al asesor" && cupoDe(previo) !== cupoDe(p)) cambios.push(`Cupo de ${n.usuario(p.usuarioId)}: ${cupoDe(p)} procesos.`);
       }
     }
     for (const q of lista0) if (!lista1.some((p) => p.usuarioId === q.usuarioId)) cambios.push(`Se quita ${tipo} ${n.usuario(q.usuarioId)}.`);

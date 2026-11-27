@@ -7,6 +7,7 @@ import {
   carreras,
   carrerasSedes,
   cohorteConfigBitacora,
+  cohorteCuposAsesor,
   cohorteFacultades,
   cohorteParticipantes,
   facultades,
@@ -48,11 +49,17 @@ export async function leerConfigPorFacultad(periodoId: number): Promise<Map<numb
     db.select().from(cohorteFacultades).where(eq(cohorteFacultades.periodoId, periodoId)),
     db.select().from(cohorteParticipantes).where(eq(cohorteParticipantes.periodoId, periodoId)).orderBy(asc(cohorteParticipantes.id)),
   ]);
+  // D5: cupos de los asesores (la tabla puede no existir todavía en otra base)
+  const cupos = await db.select().from(cohorteCuposAsesor).where(eq(cohorteCuposAsesor.periodoId, periodoId)).catch(() => []);
   const m = new Map<number, { config: ConfigFacultad; actualizadoEn: string }>();
   for (const f of filas) {
     const deF = part.filter((p) => p.facultadId === f.facultadId);
     const lista = (funcion: string) =>
-      deF.filter((p) => p.funcion === funcion).map((p) => ({ usuarioId: p.usuarioId, carreras: (p.carreras as number[]) ?? [], activo: p.activo }));
+      deF.filter((p) => p.funcion === funcion).map((p) => {
+        const base = { usuarioId: p.usuarioId, carreras: (p.carreras as number[]) ?? [], activo: p.activo };
+        const cupo = funcion === "asesor" ? cupos.find((c) => c.facultadId === f.facultadId && c.usuarioId === p.usuarioId)?.cupo : undefined;
+        return cupo != null ? { ...base, cupo } : base;
+      });
     m.set(f.facultadId, {
       config: {
         administracion: f.administracion as Administracion,

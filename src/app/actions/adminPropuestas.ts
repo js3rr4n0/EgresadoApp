@@ -178,6 +178,13 @@ export async function asignarPropuestaACoordinador(propuestaId: number, coordina
     const [propuesta] = await db.select().from(propuestas).where(eq(propuestas.id, propuestaId)).limit(1);
     if (!propuesta) return { success: false, error: "Propuesta no encontrada" };
 
+    // D1: lo que el sistema y la administración debían verificar antes de asignar
+    {
+      const { requisitosAsignacion, errorRequisitos } = await import("@/lib/requisitosAsignacionServidor");
+      const req = await requisitosAsignacion(propuestaId);
+      if (!req.listo) return { success: false, error: errorRequisitos(req, "administracion") };
+    }
+
     const [coordinador] = await db.select().from(usuarios).where(eq(usuarios.id, coordinadorId)).limit(1);
     if (!coordinador) return { success: false, error: "Coordinador no encontrado" };
 
@@ -246,11 +253,20 @@ export async function asignarAsesorDirecto(propuestaId: number, asesorId: number
     if (propuesta.asesorId) return { success: false, error: "La propuesta ya tiene asesor." };
     if (!["enviada", "coordinador_asignado"].includes(propuesta.estado)) return { success: false, error: "La propuesta no está en espera de asignación." };
 
+    // D1: lo que el sistema y la administración debían verificar antes de asignar
+    {
+      const { requisitosAsignacion, errorRequisitos } = await import("@/lib/requisitosAsignacionServidor");
+      const req = await requisitosAsignacion(propuestaId);
+      if (!req.listo) return { success: false, error: errorRequisitos(req, "administracion") };
+    }
+
     const regla = await reglaDePropuesta(propuestaId);
     if (!regla?.configurada || !regla.sinCoordinador) return { success: false, error: "Esta propuesta lleva coordinador según la configuración de su cohorte." };
     const opciones = await opcionesAsesor(regla);
     const asesor = opciones.find((a) => a.id === asesorId);
     if (!asesor) return { success: false, error: "Ese asesor no participa en esta cohorte para la carrera de la propuesta." };
+    // D5: no se envían solicitudes a un asesor con el cupo lleno
+    if (asesor.lleno) return { success: false, error: `${asesor.nombre} tiene el cupo lleno (${asesor.activos + asesor.pendientes} de ${asesor.cupo}). Elige otro asesor.` };
 
     const [pendiente] = await db
       .select({ id: solicitudesAsesor.id })

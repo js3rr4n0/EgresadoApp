@@ -10,65 +10,21 @@ import ReviewForm from "./ReviewForm";
 import HistorialProyectoAccordion from "@/components/HistorialProyectoAccordion";
 import ValoracionesDelProceso from "@/components/valoraciones/ValoracionesDelProceso";
 import FortalezaResumen from "@/components/fortaleza/FortalezaResumen";
+import ConstanciaSinSupervisor from "@/components/revisarPropuesta/ConstanciaSinSupervisor";
 import DocumentoPlegable from "@/components/revisarPropuesta/DocumentoPlegable";
-import MediaZoomViewer from "@/components/MediaZoomViewer";
+import { Dato, Persona, Tarjeta } from "@/components/revisarPropuesta/PiezasExpediente";
 import { opcionesAsesor, reglaDePropuesta, ultimaSolicitudAsesor } from "@/lib/asignacionServidor";
 import { alcanceAdmin, puedeAsignarPropuesta, puedeVerPropuesta } from "@/lib/permisos";
-import { expedientePropuesta, rechazosDePropuesta, type PersonaEmpresa } from "@/lib/expedientePropuesta";
+import { expedientePropuesta, rechazosDePropuesta } from "@/lib/expedientePropuesta";
 import { puedeRechazarEnEstado } from "@/lib/rechazoPropuesta";
 import { puedeEliminarEnEstado } from "@/lib/eliminarPropuesta";
 import VerificarFirmas from "@/components/revisarPropuesta/VerificarFirmas";
 import { estadoVerificacionFirmas, type EstadoVerificacionFirmas } from "@/lib/verificacionFirmasServidor";
+import { requisitosAsignacion } from "@/lib/requisitosAsignacionServidor";
 import { nombreEstado } from "@/lib/historialEstados";
 import { fechaCortaSV, fechaLargaSV } from "@/lib/fechasTexto";
 
 const TIPO: Record<string, string> = { proyecto: "Proyecto", investigacion: "Investigación", pasantia: "Pasantía" };
-
-function Tarjeta({ numero, titulo, descripcion, children, accion }: { numero: number; titulo: string; descripcion?: string; children: React.ReactNode; accion?: React.ReactNode }) {
-  return (
-    <section className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
-      <header className="flex flex-wrap items-start justify-between gap-3 px-5 py-4 border-b border-border">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-red text-xs font-bold text-white">{numero}</span>
-          <div>
-            <h2 className="font-bold text-card-dark">{titulo}</h2>
-            {descripcion && <p className="text-xs text-muted mt-0.5">{descripcion}</p>}
-          </div>
-        </div>
-        {accion}
-      </header>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-[11px] font-bold uppercase tracking-wide text-muted">{etiqueta}</dt>
-      <dd className="text-sm text-gray-800 mt-0.5">{valor || <span className="text-muted">Sin dato</span>}</dd>
-    </div>
-  );
-}
-
-function Persona({ p, rol }: { p: PersonaEmpresa; rol: string }) {
-  return (
-    <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-2.5">
-      <div className="min-w-0 text-sm">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-muted">{rol}</p>
-        <p className="font-semibold text-card-dark">{p.nombre}</p>
-        <p className="text-xs text-gray-600">{[p.cargo, p.correo, p.telefono].filter(Boolean).join(" · ")}</p>
-      </div>
-      <div className="w-28 shrink-0 text-center">
-        {p.firmaUrl ? (
-          <MediaZoomViewer url={p.firmaUrl} alt={`Firma de ${p.nombre}`} isSignature />
-        ) : (
-          <span className="text-[11px] text-muted">Sin firma registrada</span>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export default async function AdminPropuestaReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const pId = parseInt((await params).id, 10);
@@ -100,6 +56,8 @@ export default async function AdminPropuestaReviewPage({ params }: { params: Pro
   const puedeRechazar = puedeAsignar && puedeRechazarEnEstado("administracion", propuesta);
   // A4: firmas de la carta verificadas a simple vista (solo registro y aviso)
   const firmas: EstadoVerificacionFirmas = await estadoVerificacionFirmas(propuesta.id).catch(() => ({ verificada: null, cambioDespues: false, quien: null, fecha: null }));
+  // D1: requisitos para asignar (solo mientras espera asignación)
+  const requisitos = ["enviada", "coordinador_asignado"].includes(propuesta.estado) ? await requisitosAsignacion(propuesta.id).catch(() => null) : null;
   const rechazos = await rechazosDePropuesta(propuesta.id, Object.fromEntries(integrantes.map((i) => [i.id, i.nombre]))).catch(() => []);
 
   return (
@@ -282,6 +240,7 @@ export default async function AdminPropuestaReviewPage({ params }: { params: Pro
                   </div>
                 </div>
               )}
+              <ConstanciaSinSupervisor propuestaId={propuesta.id} />
               <FortalezaResumen propuestaId={propuesta.id} paraAsesor />
               <a href={`/admin/propuestas/${propuesta.id}/imprimir`} target="_blank" rel="noopener noreferrer" className="inline-block text-sm font-bold text-brand-red hover:underline">
                 Ver el documento completo de la propuesta
@@ -341,7 +300,7 @@ export default async function AdminPropuestaReviewPage({ params }: { params: Pro
             tieneAsesor={!!propuesta.asesorId}
             puedeAsignar={puedeAsignar}
             superadmin={alcance.superadmin}
-            firmasVerificadas={firmas.verificada}
+            requisitos={requisitos}
             eliminacion={{ numero: propuesta.numero, titulo: propuesta.titulo, integrantes: integrantes.map((i) => i.nombre), permitido: puedeEliminarEnEstado(propuesta.estado) }}
             rechazo={puedeRechazar ? { numero: propuesta.numero, integrantes: integrantes.map((i) => ({ id: i.id, nombre: i.nombre })) } : null}
           />

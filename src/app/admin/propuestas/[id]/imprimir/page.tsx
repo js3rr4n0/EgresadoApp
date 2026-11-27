@@ -30,7 +30,7 @@ export default async function AdminPrintPropuestaPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams?: Promise<{ ganttOnly?: string; gantt?: string }>;
+  searchParams?: Promise<{ ganttOnly?: string; gantt?: string; embebido?: string }>;
 }) {
   const session = await getSession();
   if (!session || (session.rol !== "admin" && session.rol !== "decanato" && session.rol !== "coordinador" && session.rol !== "asesor")) {
@@ -40,6 +40,8 @@ export default async function AdminPrintPropuestaPage({
   const p = await params;
   const sp = searchParams ? await searchParams : {};
   const isGanttOnly = sp.ganttOnly === "true" || sp.gantt === "1";
+  // D4: dentro del visor de «Revisar y asignar» se muestra solo el documento, sin menú ni botones
+  const embebido = sp.embebido === "1";
 
   const pId = parseInt(p.id, 10);
   if (isNaN(pId)) return notFound();
@@ -428,6 +430,13 @@ export default async function AdminPrintPropuestaPage({
 
   return (
     <div className="bg-white min-h-screen text-black">
+      {embebido && (
+        <style>{`
+          header, footer, nav { display: none !important; }
+          main { padding: 0 !important; max-width: none !important; }
+          body { background: #fff !important; }
+        `}</style>
+      )}
       <style>{`
         @media print {
           header, footer, nav, .no-print {
@@ -441,7 +450,7 @@ export default async function AdminPrintPropuestaPage({
       `}</style>
       <div className="mx-auto bg-white p-8 print:p-0" style={{ maxWidth: "800px" }}>
         {/* Helper navigation and print buttons */}
-        <div className="mb-8 flex justify-between items-center print:hidden">
+        <div className={`mb-8 flex justify-between items-center print:hidden ${embebido ? "hidden" : ""}`}>
           <Link
             href={backUrl}
             className="inline-flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all shadow-xs"
