@@ -6,8 +6,8 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { alcanceAdmin, type Alcance } from "@/lib/permisos";
 import {
-  carreras, documentosPropuesta, empresas, facultades, fichasVersiones, historialEstados, informesFinalesFicha, informesMensuales,
-  informesPlan, informesPrimerContacto, integrantesProyecto, periodos, planesTrabajo, propuestas, usuarios,
+  carreras, empresas, facultades, fichasVersiones, historialEstados, informesFinalesFicha, informesMensuales,
+  informesPlan, integrantesProyecto, periodos, planesTrabajo, propuestas, usuarios,
 } from "@/lib/schema";
 import {
   calcularPreEjecucion, calcularSeguimiento, corteAutomatico, cumplimientoPorDia, disponibilidadAsesor, faseCohorte, grupoFase,
@@ -188,6 +188,8 @@ export interface FilaPreEjecucion extends CalculoPreEjecucion {
   asesor: string | null;
   coordinador: string | null;
   fechaAprobacion: string;
+  /** Inicio del conteo de los 21 días: la presentación de la propuesta (notas del 27-nov-2026). */
+  presentacion: string;
   inicioEjecucion: string | null;
   requisitos: Record<ClaveRequisito, EstadoRequisito>;
 }
@@ -218,39 +220,30 @@ export async function getInformePreEjecucion(periodoId: number, filtro: FiltroIn
   const enRango = props.filter((p) => (!filtro.desde || p.aprobadaEl >= filtro.desde) && (!filtro.hasta || p.aprobadaEl <= filtro.hasta));
   const ids = enRango.map((p) => p.id);
   const sinIds = [-1];
-  const [docs, planes, contactos, inicios, miembros] = await Promise.all([
-    db.select().from(documentosPropuesta).where(inArray(documentosPropuesta.propuestaId, ids.length ? ids : sinIds)),
-    db.select({ propuestaId: planesTrabajo.propuestaId, estado: planesTrabajo.estado, revisadoEn: planesTrabajo.revisadoEn }).from(planesTrabajo).where(inArray(planesTrabajo.propuestaId, ids.length ? ids : sinIds)),
-    db.select({ propuestaId: informesPrimerContacto.propuestaId, estado: informesPrimerContacto.estado, enviadoEn: informesPrimerContacto.enviadoEn }).from(informesPrimerContacto).where(inArray(informesPrimerContacto.propuestaId, ids.length ? ids : sinIds)),
-    db.select({ propuestaId: historialEstados.propuestaId, fecha: historialEstados.creadoEn }).from(historialEstados).where(and(inArray(historialEstados.propuestaId, ids.length ? ids : sinIds), eq(historialEstados.a, "en_ejecucion"))),
+  // Requisitos y fechas, compartidos con el panel del asesor (lib/preEjecucionServidor.ts)
+  const { datosPreEjecucion } = await import("@/lib/preEjecucionServidor");
+  const [datos, miembros] = await Promise.all([
+    datosPreEjecucion(enRango, hoy),
     db.select({ propuestaId: integrantesProyecto.propuestaId, egresadoId: integrantesProyecto.egresadoId }).from(integrantesProyecto).where(and(inArray(integrantesProyecto.propuestaId, ids.length ? ids : sinIds), eq(integrantesProyecto.estado, "aceptado"))),
   ]);
   const gente = await personas([...new Set([...enRango.flatMap((p) => [p.egresadoId, p.asesorId, p.coordinadorId]), ...miembros.map((m) => m.egresadoId)].filter((x): x is number => !!x))]);
   const persona = (id: number | null) => gente.find((g) => g.id === id);
-  const doc = (pid: number, tipo: string) => dia(docs.find((d) => d.propuestaId === pid && d.tipo === tipo)?.subidoEn);
 
   const filas: FilaPreEjecucion[] = [];
   for (const p of enRango) {
     const lider = persona(p.egresadoId);
     if (!lider || !enAlcance(lider, filtro)) continue;
-    const plan = planes.find((x) => x.propuestaId === p.id);
-    const contacto = contactos.find((x) => x.propuestaId === p.id);
-    const requisitos: Record<ClaveRequisito, EstadoRequisito> = {
-      // Pasantía: el plan firmado (fase 1). Proyecto e investigación: el plan de trabajo aprobado por el asesor.
-      plan: p.tipo === "pasantia" ? doc(p.id, "plan_trabajo_firmado") : plan?.estado === "aprobado" ? dia(plan.revisadoEn) ?? hoy : null,
-      dictamen_propuesta: doc(p.id, "dictamen_propuesta"),
-      dictamen_plan: doc(p.id, "dictamen_plan_trabajo"),
-      // El informe de primer contacto lo hace el asesor con el supervisor: sin supervisor no aplica (pregunta P2).
-      primer_contacto: contacto?.estado === "enviado" ? dia(contacto.enviadoEn) ?? hoy : !p.supervisorId && p.tipo !== "pasantia" ? "no_aplica" : null,
-    };
-    const inicio = inicios.filter((x) => x.propuestaId === p.id).map((x) => dia(x.fecha)!).sort()[0] ?? null;
+    const d = datos.get(p.id)!;
     const fechaAprobacion = p.aprobadaEl;
-    const calculo = calcularPreEjecucion({ fechaAprobacion, inicioEjecucion: p.estado === "en_ejecucion" ? inicio ?? fechaAprobacion : null, requisitos, cohorte: periodo }, hoy);
+    const presentacion = d.presentacion ?? fechaAprobacion;
+    const inicioEjecucion = p.estado === "en_ejecucion" ? d.inicioEjecucion ?? fechaAprobacion : null;
+    // Los 21 días cuentan desde la presentación (el campo «fechaAprobacion» del cálculo es el inicio del conteo)
+    const calculo = calcularPreEjecucion({ fechaAprobacion: presentacion, inicioEjecucion, requisitos: d.requisitos, cohorte: periodo }, hoy);
     filas.push({
       ...calculo, propuestaId: p.id, modalidad: p.tipo, titulo: p.titulo ?? "(sin título)", egresado: lider.nombre, carnet: lider.carnet,
       integrantes: miembros.filter((m) => m.propuestaId === p.id).map((m) => persona(m.egresadoId)?.nombre ?? "").filter(Boolean),
       carrera: lider.carrera ?? "Sin carrera", asesor: persona(p.asesorId)?.nombre ?? null, coordinador: persona(p.coordinadorId)?.nombre ?? null,
-      fechaAprobacion, inicioEjecucion: p.estado === "en_ejecucion" ? inicio ?? fechaAprobacion : null, requisitos,
+      fechaAprobacion, presentacion, inicioEjecucion, requisitos: d.requisitos,
     });
   }
   const enPreEjecucion = filas.filter((f) => !f.inicioEjecucion).sort((a, b) => a.diasRestantes - b.diasRestantes);

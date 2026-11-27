@@ -323,7 +323,7 @@ function InformePreEjecucion({ datos, base }: { datos: { hoy: string; rango: { d
                 <td className="p-2 min-w-[200px]">
                   <div className="font-bold text-card-dark">#{f.propuestaId} · {MODALIDAD[f.modalidad] ?? f.modalidad}</div>
                   <div className="text-xs text-muted">{f.titulo}</div>
-                  <div className="text-[11px] text-muted">{f.carrera} · aprobada {fechaCorta(f.fechaAprobacion)}</div>
+                  <div className="text-[11px] text-muted">{f.carrera} · presentada {fechaCorta(f.presentacion)} · aprobada {fechaCorta(f.fechaAprobacion)}</div>
                 </td>
                 <td className="p-2 text-xs min-w-[170px]">
                   <div><span className="text-muted">Egresado:</span> {f.egresado}{f.carnet ? ` (${f.carnet})` : ""}</div>

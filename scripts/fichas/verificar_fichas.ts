@@ -52,6 +52,7 @@ import { elementoDe, estadoElemento, procesoPorObjetivo, TEXTOS_ELEMENTO } from 
 import { arbolConCitas, fuentesCitadasPlan, leerMetodologia, metodologiaValida, pideMetodologia, textoMetodologia } from "../../src/lib/fichas/metodologiaPlan";
 import { cierreDe, componentesDe, esCronogramaInvestigacion, estructuraPlan } from "../../src/lib/fichas/tipos";
 import { objetivosDelPlan } from "../../src/lib/fichas/entregasObjetivo";
+import { compararUrgencia, etapaDe, pendientesAsesor, pestanaDe, requisitosProceso } from "../../src/lib/procesosAsesor";
 import { aCsv, calcularPreEjecucion, calcularSeguimiento, corteAutomatico, cumplimientoPorDia, disponibilidadAsesor, faseCohorte, grupoFase } from "../../src/lib/seguimientoCohortes";
 import { MODALIDADES_CON_FICHA } from "../../src/lib/fichas/fichaDePropuesta";
 import { REGLAS_FASE1, calendarioFase1, reglasDeDefinicion } from "../../src/lib/reglasPasantia";
@@ -2006,6 +2007,19 @@ detecta("metodología por objetivo con el elemento opcional", investigacionConCa
   comprobar("P2: actividades por período", JSON.stringify(actividadesPorPeriodo(conActs, cols)) === JSON.stringify([2, 1, 0]));
   comprobar("P2: un período sin actividades impide enviar", problemasPeriodos(conActs, cols).length === 1 && problemasPeriodos(conActs, cols)[0].mensaje.includes("período 3"));
   comprobar("P1: objetivosCoinciden detecta un objetivo cambiado o de más", objetivosCoinciden(s1, "General de la propuesta", obj) && !objetivosCoinciden(viejo, "General de la propuesta", obj));
+}
+
+// Panel del asesor (27-nov-2026, S1): etapa, responsables de los 21 días y orden por urgencia
+{
+  const req = { plan: null, dictamen_propuesta: "2026-12-01", dictamen_plan: null, primer_contacto: "no_aplica" } as const;
+  comprobar("S1: etapa según el estado", etapaDe("coordinador_asignado") === "revision" && etapaDe("redactando") === "ajustes" && etapaDe("aprobada") === "pre_ejecucion" && etapaDe("en_ejecucion") === "ejecucion" && etapaDe("anulada") === "cerrado");
+  comprobar("S1: los cerrados no van a ninguna pestaña", pestanaDe("cerrado") === null && pestanaDe("ajustes") === "propuesta" && pestanaDe("ejecucion") === "ejecucion");
+  const rp = requisitosProceso("proyecto", req, "redactando");
+  const re = requisitosProceso("proyecto", req, "enviado");
+  comprobar("S1: el plan es del equipo hasta que lo envía; luego le toca al asesor", rp[0].responsable === "equipo" && re[0].responsable === "asesor" && rp[1].responsable === "asesor");
+  comprobar("S1: pendientes del asesor (solo los suyos y no los «no aplica»)", pendientesAsesor("pre_ejecucion", rp) === 1 && pendientesAsesor("pre_ejecucion", re) === 2 && pendientesAsesor("revision", rp) === 1 && pendientesAsesor("ejecucion", rp) === 0);
+  const orden = [{ pendientesAsesor: 0, diasRestantes: 2, numero: 1 }, { pendientesAsesor: 1, diasRestantes: 10, numero: 2 }, { pendientesAsesor: 1, diasRestantes: -3, numero: 3 }].sort(compararUrgencia).map((x) => x.numero).join(",");
+  comprobar("S1: primero lo que espera al asesor y con menos días", orden === "3,2,1");
 }
 
 console.log(fallas === 0 ? "\nTodo en orden." : `\n${fallas} comprobación(es) fallaron.`);
